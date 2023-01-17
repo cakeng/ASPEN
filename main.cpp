@@ -92,16 +92,53 @@ int main(int argc, char **argv)
     aspen_mat_mul aspen_mat_mul (M, N, K, 1.0, A, K, B, N, 0.0, C, N);
     printf("done!\n");
 
-    printf("Initializing CPU GEMM (openBLAS)...\n");
+    // printf("Initializing CPU GEMM (openBLAS)...\n");
+    // elapsed_time_sum = 0;
+    // for (int i = 0; i < num_iterations; ++i)
+    // {
+    //     printf("Calculating...(iter=%d) ", i);
+    //     fflush(stdout);
+
+    //     timer_start(0);
+        
+    //     aspen_mat_mul.run_cpu();
+    //     double elapsed_time = timer_stop(0);
+
+    //     printf("%f sec\n", elapsed_time);
+    //     fflush(stdout);
+    //     elapsed_time_sum += elapsed_time;
+    // }
+
+    // elapsed_time_avg = elapsed_time_sum / num_iterations;
+    // printf("Avg. time: %f sec\n", elapsed_time_avg);
+    // printf("Avg. throughput: %f GFLOPS\n", 2.0 * M * N * K / elapsed_time_avg / 1e9);
+
+    // if (print_matrix)
+    // {
+    //     printf("A\n");
+    //     print_mat(A, M, K);
+    //     printf("B\n");
+    //     print_mat(B, K, N);
+    //     printf("C\n");
+    //     print_mat(C, M, N);
+    // }
+
+    // if (validation)
+    //     check_mat_mul(A, B, C, M, N, K);
+
+    printf("Initializing GPU GEMM (cuBLAS)...\n");
+    aspen_mat_mul.allocate_cuda_memory();
     elapsed_time_sum = 0;
     for (int i = 0; i < num_iterations; ++i)
     {
         printf("Calculating...(iter=%d) ", i);
         fflush(stdout);
-
         timer_start(0);
         
-        aspen_mat_mul.run_cpu();
+        aspen_mat_mul.copy_A_B_to_cuda();
+        aspen_mat_mul.run_cuBLAS();
+        aspen_mat_mul.copy_C_from_cuda();
+        aspen_mat_mul.synchronize();
         double elapsed_time = timer_stop(0);
 
         printf("%f sec\n", elapsed_time);
@@ -126,8 +163,8 @@ int main(int argc, char **argv)
     if (validation)
         check_mat_mul(A, B, C, M, N, K);
 
-    printf("Initializing GPU GEMM (cuBLAS)...\n");
-    aspen_mat_mul.allocate_cuda_memory();
+    printf("Initializing Split GPU GEMM (cuBLAS)...\n");
+    auto aspen_mat_mul_split = aspen_mat_mul.split_mat_mul(1, 4);
     elapsed_time_sum = 0;
     for (int i = 0; i < num_iterations; ++i)
     {
@@ -135,10 +172,16 @@ int main(int argc, char **argv)
         fflush(stdout);
         timer_start(0);
         
-        aspen_mat_mul.copy_A_B_to_cuda();
-        aspen_mat_mul.run_cuBLAS();
-        aspen_mat_mul.copy_C_from_cuda();
-        aspen_mat_mul.synchronize();
+        for (auto &aspen_mat_mul_itr : aspen_mat_mul_split)
+        {
+            aspen_mat_mul_itr->copy_A_B_to_cuda();
+            aspen_mat_mul_itr->run_cuBLAS();
+            aspen_mat_mul_itr->copy_C_from_cuda();
+        }
+        for (auto &aspen_mat_mul_itr : aspen_mat_mul_split)
+        {
+            aspen_mat_mul_itr->synchronize();
+        }
         double elapsed_time = timer_stop(0);
 
         printf("%f sec\n", elapsed_time);

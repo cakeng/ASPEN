@@ -135,8 +135,8 @@ void print_mat(float *m, int R, int C)
 
 void alloc_mat(float **m, int R, int C)
 {
-    *m = (float*)calloc (sizeof(float), R*C);
-    // cudaMallocHost (m, sizeof(float) * R * C);
+    // *m = (float*)calloc (sizeof(float), R*C);
+    cudaMallocHost (m, sizeof(float) * R * C);
     if (*m == NULL)
     {
         printf("Failed to allocate memory for matrix.\n");
