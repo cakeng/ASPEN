@@ -6,6 +6,7 @@
 #include <cuda_runtime.h>
 #include <cstdio>
 #include <cublas_v2.h>
+#include <cblas.h>
 
 #define CUBLAS_CHECK(val) { \
 	if (val != CUBLAS_STATUS_SUCCESS) { \

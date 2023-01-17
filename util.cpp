@@ -76,9 +76,7 @@ void check_mat_mul(float *A, float *B, float *C, int M, int N, int K)
 {
     printf("Validating...\n");
 
-    float *C_ans;
-    alloc_mat(&C_ans, M, N);
-    zero_mat(C_ans, M, N);
+    float *C_ans = (float*) calloc (sizeof(float), M*N);
 #pragma omp parallel for
     for (int i = 0; i < M; ++i)
     {
@@ -137,7 +135,8 @@ void print_mat(float *m, int R, int C)
 
 void alloc_mat(float **m, int R, int C)
 {
-    cudaMallocHost (m, sizeof(float) * R * C);
+    *m = (float*)calloc (sizeof(float), R*C);
+    // cudaMallocHost (m, sizeof(float) * R * C);
     if (*m == NULL)
     {
         printf("Failed to allocate memory for matrix.\n");

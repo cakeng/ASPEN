@@ -95,8 +95,8 @@ void aspen_mat_mul::run_cuBLAS()
     if (this->is_calculation_done)
         return;
     cublasSetStream (this->handle, this->stream);
-    cublasSgemm (this->handle, CUBLAS_OP_N, CUBLAS_OP_N, this->M, this->N, this->K, 
-        &this->alpha, this->B_cuda, this->stride_B, this->A_cuda, this->stride_A,
+    cublasSgemm (this->handle, CUBLAS_OP_N, CUBLAS_OP_N, this->N, this->M, this->K, 
+        &this->alpha, this->B_cuda, this->stride_B, this->A_cuda, this->stride_A, 
              &this->beta, this->C_cuda, this->stride_C);
 }
 
@@ -104,8 +104,7 @@ void aspen_mat_mul::run_cpu()
 {
     if (this->is_calculation_done)
         return;
-    for (int i = 0; i < this->M; i++)
-        for (int j = 0; j < this->N; j++)
-            for (int k = 0; k < this->K; k++)
-                this->C[i * this->stride_C + j] += this->A[i * this->stride_A + k] * this->B[k * this->stride_B + j];
+    cblas_sgemm (CblasRowMajor, CblasNoTrans, CblasNoTrans, this->M, this->N, this->K, 
+        this->alpha, this->A, this->stride_A, this->B, this->stride_B, 
+             this->beta, this->C, this->stride_C);
 }
