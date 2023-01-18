@@ -72,22 +72,26 @@ double timer_stop(int i)
     return get_time() - start_time[i];
 }
 
-void check_mat_mul(float *A, float *B, float *C, int M, int N, int K)
+void compute_mat_mul(float *A, float *B, float *C, int M, int N, int K)
 {
-    printf("Validating...\n");
-
-    float *C_ans = (float*) calloc (sizeof(float), M*N);
-#pragma omp parallel for
+    #pragma omp parallel for
     for (int i = 0; i < M; ++i)
     {
-        for (int k = 0; k < K; ++k)
+        for (int j = 0; j < N; ++j)
         {
-            for (int j = 0; j < N; ++j)
+            float c = 0;
+            for (int k = 0; k < K; ++k)
             {
-                C_ans[i * N + j] += A[i * K + k] * B[k * N + j];
+                c += A[i * K + k] * B[k + j * K];
             }
+            C[i + j * M] = c;
         }
     }
+}
+
+void check_mat_mul(float *C_ans, float *C, int M, int N, int K)
+{
+    printf("Validating...\n");
 
     bool is_valid = true;
     int cnt = 0, thr = 10;
@@ -97,8 +101,8 @@ void check_mat_mul(float *A, float *B, float *C, int M, int N, int K)
     {
         for (int j = 0; j < N; ++j)
         {
-            float c = C[i * N + j];
-            float c_ans = C_ans[i * N + j];
+            float c = C[i + j * M];
+            float c_ans = C_ans[i + j * M];
             if (fabsf(c - c_ans) > eps && (c_ans == 0 || fabsf((c - c_ans) / c_ans) > eps))
             {
                 ++cnt;
@@ -121,13 +125,16 @@ void check_mat_mul(float *A, float *B, float *C, int M, int N, int K)
     }
 }
 
-void print_mat(float *m, int R, int C)
+void print_mat(float *m, int R, int C, int is_row_major)
 {
-    for (int i = 0; i < R; ++i)
+    for (int i = 0; i < R; i++)
     {
-        for (int j = 0; j < C; ++j)
+        for (int j = 0; j < C; j++)
         {
-            printf("%+.3f ", m[i * C + j]);
+            if (is_row_major)
+                printf("%+.3f ", m[i * C + j]);
+            else
+                printf("%+.3f ", m[j * R + i]);
         }
         printf("\n");
     }
@@ -147,11 +154,12 @@ void alloc_mat(float **m, int R, int C)
 
 void rand_mat(float *m, int R, int C)
 {
+    #pragma omp parallel for
     for (int i = 0; i < R; i++)
     {
         for (int j = 0; j < C; j++)
         {
-            m[i * C + j] = (float)rand() / RAND_MAX - 0.5;
+            m[i * C + j] = (((float)rand() / RAND_MAX) - 0.5)/10.0;
         }
     }
 }

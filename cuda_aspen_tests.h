@@ -20,13 +20,15 @@ class aspen_mat_mul
 public:
     bool is_calculated();
     void add_child(aspen_mat_mul *child);
-    void allocate_cuda_memory();
-    void copy_A_B_to_cuda();
+    void allocate_cuda_memory_A_C();
+    void copy_A_to_cuda();
+    void copy_B_to_cuda();
     void copy_C_from_cuda();
     void set_host_memory(float *A, float *B, float *C);
     void set_cuda_memory(float *A_cuda, float *B_cuda, float *c_float);
     void set_cuda_stream(cudaStream_t stream);
     void set_cuda_handle(cublasHandle_t handle);
+    void print_handle_and_stream();
     void synchronize();
     std::vector<aspen_mat_mul *> split_mat_mul (int split_M, int split_N);
 
@@ -35,6 +37,8 @@ public:
     ~aspen_mat_mul(); 
     void run_cuBLAS();
     void run_cpu();
+    void run_cuBLAS_strided_GEMV(int N_stride);
+    void run_cuBLAS_strided_GEMM(int N_stride);
 
 private:
     bool is_calculation_done;
@@ -50,10 +54,7 @@ private:
     bool own_A, own_B, own_C;
     
     float *A_cuda, *B_cuda, *C_cuda;
-    bool own_A_cuda, own_B_cuda, own_C_cuda;
     cublasHandle_t handle;
-    bool own_handle;
     cudaStream_t stream;
-    bool own_stream;
 };
 #endif

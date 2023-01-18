@@ -14,6 +14,8 @@ static void print_help(const char *prog_name)
     printf("  -p : print matrix data. (default: off)\n");
     printf("  -v : validate matrix multiplication. (default: off)\n");
     printf("  -h : print this page.\n");
+    printf("  -c : number of gemm chains (default: 1)\n");
+    printf("  -f : number of partitions to the N dimension (default: 1)\n");
     printf("  -n : number of iterations (default: 1)\n");
     printf("   M : number of rows of matrix A and C. (default: 8)\n");
     printf("   N : number of columns of matrix B and C. (default: 8)\n");
@@ -22,14 +24,16 @@ static void print_help(const char *prog_name)
 
 static bool print_matrix = false;
 static bool validation = false;
-static bool skip_data_movement = false;
+static int num_gemm_chains = 1;
 static int M = 128, N = 128, K = 128;
 static int num_iterations = 1;
+static float *C_ans, *C_out;
+static int num_partition = 1;
 
 static void parse_opt(int argc, char **argv)
 {
     int c;
-    while ((c = getopt(argc, argv, "pvhst:n:")) != -1)
+    while ((c = getopt(argc, argv, "pvhc:f:n:")) != -1)
     {
         switch (c)
         {
@@ -42,8 +46,11 @@ static void parse_opt(int argc, char **argv)
         case 'n':
             num_iterations = atoi(optarg);
             break;
-        case 's':
-            skip_data_movement = true;
+        case 'c':
+            num_gemm_chains = atoi(optarg);
+            break;
+        case 'f':
+            num_partition = atoi(optarg);
             break;
         case 'h':
         default:
@@ -71,140 +78,174 @@ static void parse_opt(int argc, char **argv)
     printf("Options:\n");
     printf("  Problem size: M = %d, N = %d, K = %d\n", M, N, K);
     printf("  Number of iterations: %d\n", num_iterations);
-    printf("  Skip data movement: %s\n", skip_data_movement ? "on" : "off");
+    printf("  Number of gemm chains: %d\n", num_gemm_chains);
+    printf("  Number of partitions: %d\n", num_partition);
     printf("  Print matrix: %s\n", print_matrix ? "on" : "off");
     printf("  Validation: %s\n", validation ? "on" : "off");
     printf("\n");
 }
 
+void run_test (void *obj, void (*test_func)(void *obj))
+{
+    double elapsed_time_sum = 0;
+    for (int i = -2; i < num_iterations; ++i)
+    {
+        if (i >= 0)
+        {
+            printf("Calculating...(iter=%d) ", i);
+            fflush(stdout);
+        }
+        else
+        {
+            printf("Warmup...\n");
+            fflush(stdout);
+        }
+        
+        timer_start(0);
+        test_func(obj);
+        double elapsed_time = timer_stop(0);
+
+        if (i >= 0)
+        {
+            printf("%f sec\n", elapsed_time);
+            fflush(stdout);
+            elapsed_time_sum += elapsed_time;
+        }
+    }
+    double elapsed_time_avg = elapsed_time_sum / num_iterations;
+    printf("Avg. time: %f sec\n", elapsed_time_avg);
+    printf("Avg. throughput: %f GFLOPS\n", 2.0 * M * N * K * num_gemm_chains / elapsed_time_avg / 1e9);
+
+    if (print_matrix)
+    {
+        printf("C\n");
+        print_mat(C_out, M, N, false);
+    }
+
+    if (validation)
+        check_mat_mul(C_ans, C_out, M, N, K);
+}
+
+void aspen_run_cpu (void *obj)
+{
+    std::vector<aspen_mat_mul> *aspen_objs = (std::vector<aspen_mat_mul>*)obj;
+    for (auto &aspen_obj : *aspen_objs)
+    {
+        aspen_obj.run_cpu();
+    }
+}
+
+void aspen_run_cuBLAS (void *obj)
+{
+    std::vector<aspen_mat_mul> *aspen_objs = (std::vector<aspen_mat_mul>*)obj;
+    aspen_objs->front().copy_B_to_cuda();
+    for (auto &aspen_obj : *aspen_objs)
+    {
+        aspen_obj.run_cuBLAS();
+    }
+    aspen_objs->back().copy_C_from_cuda();
+    aspen_objs->back().synchronize();
+}
+
+void aspen_run_cuBLAS_split (void *obj)
+{
+    std::vector<aspen_mat_mul*> *aspen_objs = (std::vector<aspen_mat_mul*>*)obj;
+    for (int i = 0; i < num_partition; ++i)
+    {
+        (*aspen_objs)[i]->copy_B_to_cuda();
+    }
+    for (auto &aspen_obj : *aspen_objs)
+    {
+        aspen_obj->run_cuBLAS();
+    }
+    for (int i = 0; i < num_partition; ++i)
+    {
+        (*aspen_objs)[i]->copy_C_from_cuda();
+    }
+    for (int i = 0; i < num_partition; ++i)
+    {
+        (*aspen_objs)[i]->synchronize();
+    }
+}
+
 int main(int argc, char **argv)
 {
     parse_opt(argc, argv);
-
+    if (K != M)
+    {
+        printf("K must be equal to M.\n");
+        exit(1);
+    }
     printf("Initializing matrix... ");
-    float *A, *B, *C;
-    double elapsed_time_sum, elapsed_time_avg;
-    alloc_mat(&A, M, K);
-    alloc_mat(&B, K, N);
-    alloc_mat(&C, M, N);
-    rand_mat(A, M, K);
-    rand_mat(B, K, N);
-    aspen_mat_mul aspen_mat_mul (M, N, K, 1.0, A, K, B, N, 0.0, C, N);
+    float *A_arr [num_gemm_chains+1];
+    float *A_cuda_arr [num_gemm_chains+1];
+    float *C_out_arr [num_gemm_chains+1];
+    float *C_cuda_arr [num_gemm_chains+1];
+    float *C_ans_arr [num_gemm_chains+1];
+    for (int i = 0; i < num_gemm_chains+1; ++i)
+    {
+        alloc_mat(&A_arr[i], K, N);
+        alloc_mat(&C_ans_arr[i], M, N);
+        if (i != 0)
+            alloc_mat(&C_out_arr[i], M, N);
+        if (i == num_gemm_chains)
+        {
+            C_out = C_out_arr[i];
+            C_ans = C_ans_arr[i];
+        }
+        rand_mat(A_arr[i], K, N);
+
+        cudaMalloc(&A_cuda_arr[i], M * K * sizeof(float));
+        cudaMalloc(&C_cuda_arr[i], M * N * sizeof(float));
+    }
+    rand_mat(C_ans_arr[0], M, N);
+    C_out_arr[0] = C_ans_arr[0];
+    for (int i = 1; i < num_gemm_chains+1; ++i)
+    {
+        compute_mat_mul (A_arr[i-1], C_ans_arr[i-1], C_ans_arr[i], M, N, K);
+    }
+    cublasHandle_t cublas_handles[num_partition];
+    cudaStream_t cuda_streams[num_partition];
+    for (int i = 0; i < num_partition; ++i)
+    {
+        cublasCreate(&cublas_handles[i]);
+        cudaStreamCreate(&cuda_streams[i]);
+    }
+    std::vector<aspen_mat_mul> aspen_mat_mul_chain;
+
+    for (int i = 1; i < num_gemm_chains+1; ++i)
+    {
+        aspen_mat_mul_chain.emplace_back 
+            (M, N, K, 1.0, A_arr[i-1], K, C_out_arr[i-1], K, 0.0, C_out_arr[i], M);
+        aspen_mat_mul_chain.back().set_cuda_handle (cublas_handles[0]);
+        aspen_mat_mul_chain.back().set_cuda_stream (cuda_streams[0]);
+        aspen_mat_mul_chain.back().set_cuda_memory 
+            (A_cuda_arr[i-1], C_cuda_arr[i-1], C_cuda_arr[i]);
+        cudaMemcpy (A_cuda_arr[i-1], A_arr[i-1], M * K * sizeof(float), cudaMemcpyHostToDevice);
+    }
+
     printf("done!\n");
 
-    // printf("Initializing CPU GEMM (openBLAS)...\n");
-    // elapsed_time_sum = 0;
-    // for (int i = 0; i < num_iterations; ++i)
-    // {
-    //     printf("Calculating...(iter=%d) ", i);
-    //     fflush(stdout);
+    printf("Testing CPU GEMM (openBLAS)...\n");
+    run_test (&aspen_mat_mul_chain, aspen_run_cpu);
 
-    //     timer_start(0);
-        
-    //     aspen_mat_mul.run_cpu();
-    //     double elapsed_time = timer_stop(0);
+    printf("Testing GPU GEMM (cuBLAS)...\n");
+    run_test (&aspen_mat_mul_chain, aspen_run_cuBLAS);
 
-    //     printf("%f sec\n", elapsed_time);
-    //     fflush(stdout);
-    //     elapsed_time_sum += elapsed_time;
-    // }
-
-    // elapsed_time_avg = elapsed_time_sum / num_iterations;
-    // printf("Avg. time: %f sec\n", elapsed_time_avg);
-    // printf("Avg. throughput: %f GFLOPS\n", 2.0 * M * N * K / elapsed_time_avg / 1e9);
-
-    // if (print_matrix)
-    // {
-    //     printf("A\n");
-    //     print_mat(A, M, K);
-    //     printf("B\n");
-    //     print_mat(B, K, N);
-    //     printf("C\n");
-    //     print_mat(C, M, N);
-    // }
-
-    // if (validation)
-    //     check_mat_mul(A, B, C, M, N, K);
-
-    printf("Initializing GPU GEMM (cuBLAS)...\n");
-    aspen_mat_mul.allocate_cuda_memory();
-    elapsed_time_sum = 0;
-    for (int i = 0; i < num_iterations; ++i)
+    printf("Testing Split GPU GEMM (cuBLAS)...\n");
+    std::vector<aspen_mat_mul*> aspen_mat_mul_chain_split;
+    for (auto &aspen_obj : aspen_mat_mul_chain)
     {
-        printf("Calculating...(iter=%d) ", i);
-        fflush(stdout);
-        timer_start(0);
-        
-        aspen_mat_mul.copy_A_B_to_cuda();
-        aspen_mat_mul.run_cuBLAS();
-        aspen_mat_mul.copy_C_from_cuda();
-        aspen_mat_mul.synchronize();
-        double elapsed_time = timer_stop(0);
-
-        printf("%f sec\n", elapsed_time);
-        fflush(stdout);
-        elapsed_time_sum += elapsed_time;
-    }
-
-    elapsed_time_avg = elapsed_time_sum / num_iterations;
-    printf("Avg. time: %f sec\n", elapsed_time_avg);
-    printf("Avg. throughput: %f GFLOPS\n", 2.0 * M * N * K / elapsed_time_avg / 1e9);
-
-    if (print_matrix)
-    {
-        printf("A\n");
-        print_mat(A, M, K);
-        printf("B\n");
-        print_mat(B, K, N);
-        printf("C\n");
-        print_mat(C, M, N);
-    }
-
-    if (validation)
-        check_mat_mul(A, B, C, M, N, K);
-
-    printf("Initializing Split GPU GEMM (cuBLAS)...\n");
-    auto aspen_mat_mul_split = aspen_mat_mul.split_mat_mul(1, 4);
-    elapsed_time_sum = 0;
-    for (int i = 0; i < num_iterations; ++i)
-    {
-        printf("Calculating...(iter=%d) ", i);
-        fflush(stdout);
-        timer_start(0);
-        
-        for (auto &aspen_mat_mul_itr : aspen_mat_mul_split)
+        auto aspen_mat_mul_split = aspen_obj.split_mat_mul(1, num_partition);
+        int i = 0;
+        for (auto &aspen_split_obj : aspen_mat_mul_split)
         {
-            aspen_mat_mul_itr->copy_A_B_to_cuda();
-            aspen_mat_mul_itr->run_cuBLAS();
-            aspen_mat_mul_itr->copy_C_from_cuda();
+            aspen_split_obj->set_cuda_handle (cublas_handles[i%num_partition]);
+            aspen_split_obj->set_cuda_stream (cuda_streams[i%num_partition]);
+            aspen_mat_mul_chain_split.push_back (aspen_split_obj);
+            i++;
         }
-        for (auto &aspen_mat_mul_itr : aspen_mat_mul_split)
-        {
-            aspen_mat_mul_itr->synchronize();
-        }
-        double elapsed_time = timer_stop(0);
-
-        printf("%f sec\n", elapsed_time);
-        fflush(stdout);
-        elapsed_time_sum += elapsed_time;
     }
-
-    elapsed_time_avg = elapsed_time_sum / num_iterations;
-    printf("Avg. time: %f sec\n", elapsed_time_avg);
-    printf("Avg. throughput: %f GFLOPS\n", 2.0 * M * N * K / elapsed_time_avg / 1e9);
-
-    if (print_matrix)
-    {
-        printf("A\n");
-        print_mat(A, M, K);
-        printf("B\n");
-        print_mat(B, K, N);
-        printf("C\n");
-        print_mat(C, M, N);
-    }
-
-    if (validation)
-        check_mat_mul(A, B, C, M, N, K);
-
+    run_test (&aspen_mat_mul_chain_split, aspen_run_cuBLAS_split);
     return 0;
 }
