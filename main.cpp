@@ -88,7 +88,7 @@ static void parse_opt(int argc, char **argv)
 void run_test (void *obj, void (*test_func)(void *obj))
 {
     double elapsed_time_sum = 0;
-    for (int i = -2; i < num_iterations; ++i)
+    for (int i = -3; i < num_iterations; ++i)
     {
         if (i >= 0)
         {
@@ -147,6 +147,18 @@ void aspen_run_cuBLAS (void *obj)
     aspen_objs->back().synchronize();
 }
 
+void aspen_run_custom_GEMM (void *obj)
+{
+    std::vector<aspen_mat_mul> *aspen_objs = (std::vector<aspen_mat_mul>*)obj;
+    aspen_objs->front().copy_B_to_cuda();
+    for (auto &aspen_obj : *aspen_objs)
+    {
+        aspen_obj.run_custom_CUDA_GEMM();
+    }
+    aspen_objs->back().copy_C_from_cuda();
+    aspen_objs->back().synchronize();
+}
+
 void aspen_run_cuBLAS_split (void *obj)
 {
     std::vector<aspen_mat_mul*> *aspen_objs = (std::vector<aspen_mat_mul*>*)obj;
@@ -157,6 +169,27 @@ void aspen_run_cuBLAS_split (void *obj)
     for (auto &aspen_obj : *aspen_objs)
     {
         aspen_obj->run_cuBLAS();
+    }
+    for (int i = 0; i < num_partition; ++i)
+    {
+        (*aspen_objs)[i]->copy_C_from_cuda();
+    }
+    for (int i = 0; i < num_partition; ++i)
+    {
+        (*aspen_objs)[i]->synchronize();
+    }
+}
+
+void aspen_run_custom_split (void *obj)
+{
+    std::vector<aspen_mat_mul*> *aspen_objs = (std::vector<aspen_mat_mul*>*)obj;
+    for (int i = 0; i < num_partition; ++i)
+    {
+        (*aspen_objs)[i]->copy_B_to_cuda();
+    }
+    for (auto &aspen_obj : *aspen_objs)
+    {
+        aspen_obj->run_custom_CUDA_GEMM();
     }
     for (int i = 0; i < num_partition; ++i)
     {
@@ -232,6 +265,9 @@ int main(int argc, char **argv)
     printf("Testing GPU GEMM (cuBLAS)...\n");
     run_test (&aspen_mat_mul_chain, aspen_run_cuBLAS);
 
+    printf("Testing GPU GEMM (custom)...\n");
+    run_test (&aspen_mat_mul_chain, aspen_run_custom_GEMM);
+
     printf("Testing Split GPU GEMM (cuBLAS)...\n");
     std::vector<aspen_mat_mul*> aspen_mat_mul_chain_split;
     for (auto &aspen_obj : aspen_mat_mul_chain)
@@ -247,5 +283,9 @@ int main(int argc, char **argv)
         }
     }
     run_test (&aspen_mat_mul_chain_split, aspen_run_cuBLAS_split);
+
+    printf("Testing Split GPU GEMM (custom)...\n");
+    run_test (&aspen_mat_mul_chain_split, aspen_run_custom_split);
+
     return 0;
 }

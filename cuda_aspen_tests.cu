@@ -1,19 +1,14 @@
-#include "mat_mul.h"
-
 #include <cuda_runtime.h>
 #include <cstdio>
+#include "cuda_aspen_tests.h"
 
 #define _BLOCK_K_SIZE 16
 #define _BLOCK_M_SIZE 128
 #define _BLOCK_N_SIZE 128
 #define _THREAD_M_SIZE 8
 #define _THREAD_N_SIZE 8
-#define _OUTC_CHUNK 8
+#define _OUTC_CHUNK 1
 #define _THREAD_NUM ((_BLOCK_M_SIZE / _THREAD_M_SIZE) * (_BLOCK_N_SIZE / _THREAD_N_SIZE))
-
-int num_devices = 0;
-
-static float *a_d[16], *b_d[16], *c_d[16];
 
 __global__ void sgemm(const float *A, const float *B, float *C, const int M, const int N, const int K)
 {
@@ -122,80 +117,22 @@ __global__ void sgemm(const float *A, const float *B, float *C, const int M, con
     }
 }
 
-void mat_mul_write_to_gpu(float *A, float *B, float *C, int M, int N, int K)
+void custom_CUDA_mat_mul(
+            int M,
+            int N,
+            int K,
+            const float* alpha,
+            const float* A,
+            int lda,
+            const float* B,
+            int ldb,
+            const float* beta, 
+            float* C,
+            int ldc,
+            cudaStream_t stream
+            )
 {
-    for (int i = 0; i < num_devices; i++)
-    {
-        cudaSetDevice(i);
-        cudaMemcpyAsync(a_d[i], A, (M + (_OUTC_CHUNK - (M%_OUTC_CHUNK))) * K * sizeof(float), cudaMemcpyHostToDevice);
-        cudaMemcpyAsync(b_d[i], B, K * N * sizeof(float), cudaMemcpyHostToDevice);
-    }
-
-    cudaDeviceSynchronize();
-}
-
-void mat_mul_read_from_gpu(float *A, float *B, float *C, int M, int N, int K)
-{
-    for (int i = 0; i < num_devices; i++)
-    {
-        cudaSetDevice(i);
-        cudaMemcpyAsync(C, c_d[i], M * N * sizeof(float), cudaMemcpyDeviceToHost);
-    }
-    cudaDeviceSynchronize();
-}
-
-void mat_mul(float *A, float *B, float *C, int M, int N, int K, int skip_data_movement)
-{
-    if (!skip_data_movement)
-        mat_mul_write_to_gpu (A, B, C, M, N, K);
-    
-    for (int i = 0; i < num_devices; i++)
-    {
-        cudaSetDevice(i);
         dim3 gridDim (M/_BLOCK_M_SIZE + ((M%_BLOCK_M_SIZE) > 0), N/_BLOCK_N_SIZE + ((N%_BLOCK_N_SIZE) > 0), 1);
         dim3 blockDim ((_BLOCK_M_SIZE / _THREAD_M_SIZE), (_BLOCK_N_SIZE / _THREAD_N_SIZE), 1);
-        sgemm<<<gridDim, blockDim>>>(a_d[i], b_d[i], c_d[i], M, N, K);
-    }
-    
-    if (!skip_data_movement)
-        mat_mul_read_from_gpu (A, B, C, M, N, K);
-}
-
-void mat_mul_init(float *A, float *B, float *C, int M, int N, int K)
-{
-    printf ("Block Settings: M: %d, N: %d, K: %d, VecM: %d, VecN: %d, Thread Num: %d, ACache: %d, BCache: %d\n",
-        _BLOCK_M_SIZE, _BLOCK_N_SIZE, _BLOCK_K_SIZE, _THREAD_M_SIZE, _THREAD_N_SIZE, _THREAD_NUM, _BLOCK_K_SIZE*_BLOCK_M_SIZE, _BLOCK_K_SIZE*_BLOCK_N_SIZE);
-    printf ("Num blocks: %d\n", (_BLOCK_M_SIZE / _THREAD_M_SIZE)*(_BLOCK_N_SIZE / _THREAD_N_SIZE));
-    if (!(((_BLOCK_K_SIZE*_BLOCK_M_SIZE)%_THREAD_NUM) == 0 && ((_BLOCK_K_SIZE*_BLOCK_N_SIZE)%_THREAD_NUM) == 0))
-    {
-        printf ("ERROR! - Wrong parameter settings.\n"); 
-        exit(0);
-    }
-    cudaGetDeviceCount(&num_devices);
-
-    printf("Using %d devices\n", num_devices);
-    for (int i = 0; i < num_devices; i++)
-    {
-        cudaDeviceProp prop;
-        cudaGetDeviceProperties(&prop, i);
-        printf("[GPU %d] %s\n", i, prop.name);
-    }
-
-    if (num_devices <= 0)
-    {
-        printf("No CUDA device found. Aborting\n");
-        exit(1);
-    }
-
-    for (int i = 0; i < num_devices; i++)
-    {
-        cudaSetDevice(i);
-        cudaMalloc(&a_d[i], (M+_BLOCK_M_SIZE) * (K+_BLOCK_K_SIZE) * sizeof(float));
-        cudaMemset(a_d[i], 0, (M+_BLOCK_M_SIZE) * (K+_BLOCK_K_SIZE) * sizeof(float));
-        cudaMalloc(&b_d[i], (K+_BLOCK_K_SIZE) * (N+_BLOCK_N_SIZE) * sizeof(float));
-        cudaMemset(b_d[i], 0, (M+_BLOCK_M_SIZE) * (K+_BLOCK_K_SIZE) * sizeof(float));
-        cudaMalloc(&c_d[i], M * N * sizeof(float));
-        cudaMemset(c_d[i], 0, M * N * sizeof(float));
-        cudaDeviceSynchronize();
-    }
+        sgemm<<<gridDim, blockDim, 0, stream>>>(A, B, C, M, N, K);
 }

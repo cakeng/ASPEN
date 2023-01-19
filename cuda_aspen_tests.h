@@ -4,16 +4,49 @@
 #include <set>
 #include <vector>
 #include <cuda_runtime.h>
+#include <cassert>
 #include <cstdio>
 #include <cublas_v2.h>
 #include <cblas.h>
 
-#define CUBLAS_CHECK(val) { \
-	if (val != CUBLAS_STATUS_SUCCESS) { \
-		fprintf(stderr, "Error at line %d in file %s\n", __LINE__, __FILE__); \
-		exit(1); \
-	} \
+inline cudaError_t check_CUDA(cudaError_t result)
+{
+#if defined(DEBUG) || defined(_DEBUG)
+  if (result != cudaSuccess) {
+    fprintf(stderr, "CUDA Runtime Error: %s, at line %d in file %s\n"
+        , cudaGetErrorString(result), __LINE__, __FILE__);
+    assert(result == cudaSuccess);
+  }
+#endif
+  return result;
 }
+
+inline cublasStatus_t check_cuBLAS(cublasStatus_t result)
+{
+#if defined(DEBUG) || defined(_DEBUG)
+  if (result != CUBLAS_STATUS_SUCCESS) {
+    fprintf(stderr, "cuBLAS Runtime Error: %d, at line %d in file %s\n"
+        , result, __LINE__, __FILE__);
+    assert(result == CUBLAS_STATUS_SUCCESS);
+  }
+#endif
+  return result;
+}
+
+void custom_CUDA_mat_mul(
+            int M,
+            int N,
+            int K,
+            const float* alpha,
+            const float* A,
+            int lda,
+            const float* B,
+            int ldb,
+            const float* beta, 
+            float* C,
+            int ldc,
+            cudaStream_t stream
+            );
 
 class aspen_mat_mul
 {
@@ -37,6 +70,7 @@ public:
     ~aspen_mat_mul(); 
     void run_cuBLAS();
     void run_cpu();
+    void run_custom_CUDA_GEMM();
     void run_cuBLAS_strided_GEMV(int N_stride);
     void run_cuBLAS_strided_GEMM(int N_stride);
 
