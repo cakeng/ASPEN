@@ -1,5 +1,5 @@
 TARGET=main
-OBJECTS=util.o main.o cuda_aspen_tests.o cuda_aspen.o
+OBJECTS=util.o main.o cuda_aspen_tests.o cuda_aspen.o aspen_pthread.o
 
 CXX=g++
 CXXFLAGS= -Wall -fopenmp -O3 -DDEBUG

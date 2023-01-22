@@ -29,11 +29,12 @@ static int M = 128, N = 128, K = 128;
 static int num_iterations = 1;
 static float *C_ans, *C_out;
 static int num_partition = 1;
+static int partition_size = -1;
 
 static void parse_opt(int argc, char **argv)
 {
     int c;
-    while ((c = getopt(argc, argv, "pvhc:f:n:")) != -1)
+    while ((c = getopt(argc, argv, "pvhc:f:n:s:")) != -1)
     {
         switch (c)
         {
@@ -51,6 +52,9 @@ static void parse_opt(int argc, char **argv)
             break;
         case 'f':
             num_partition = atoi(optarg);
+            break;
+        case 's':
+            partition_size = atoi(optarg);
             break;
         case 'h':
         default:
@@ -75,11 +79,16 @@ static void parse_opt(int argc, char **argv)
             break;
         }
     }
+    if (partition_size != -1)
+        num_partition = N / partition_size + (N % partition_size != 0);
+    else
+        partition_size = N / num_partition + (N % num_partition != 0);
     printf("Options:\n");
     printf("  Problem size: M = %d, N = %d, K = %d\n", M, N, K);
     printf("  Number of iterations: %d\n", num_iterations);
     printf("  Number of gemm chains: %d\n", num_gemm_chains);
     printf("  Number of partitions: %d\n", num_partition);
+    printf("  Partition size: %d\n", partition_size);
     printf("  Print matrix: %s\n", print_matrix ? "on" : "off");
     printf("  Validation: %s\n", validation ? "on" : "off");
     printf("\n");
@@ -272,7 +281,7 @@ int main(int argc, char **argv)
     std::vector<aspen_mat_mul*> aspen_mat_mul_chain_split;
     for (auto &aspen_obj : aspen_mat_mul_chain)
     {
-        auto aspen_mat_mul_split = aspen_obj.split_mat_mul(1, num_partition);
+        auto aspen_mat_mul_split = aspen_obj.split_mat_mul_by_num (1, num_partition);
         int i = 0;
         for (auto &aspen_split_obj : aspen_mat_mul_split)
         {

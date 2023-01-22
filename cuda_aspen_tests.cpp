@@ -141,6 +141,7 @@ void aspen_mat_mul::run_cuBLAS_strided_GEMV(int N_stride)
 {
     if (this->is_calculation_done)
         return;
+        
     check_cuBLAS(cublasSetStream (this->handle, this->stream));
     check_cuBLAS(cublasSgemvStridedBatched (
         this->handle, CUBLAS_OP_T, this->K, this->M, 
@@ -161,8 +162,17 @@ void aspen_mat_mul::run_cuBLAS_strided_GEMM(int N_stride)
         this->C_cuda, this->stride_C, N_stride*this->stride_C, this->N/N_stride));
 }
 
-std::vector<aspen_mat_mul *> aspen_mat_mul::split_mat_mul (int split_M, int split_N)
+std::vector<aspen_mat_mul *> aspen_mat_mul::split_mat_mul_by_num (int M_num, int N_num)
 {
+    int M_size = this->M / M_num + (this->M % M_num == 0 ? 0 : 1);
+    int N_size = this->N / N_num + (this->N % N_num == 0 ? 0 : 1);
+    return this->split_mat_mul_by_size(M_size, N_size);
+}
+
+std::vector<aspen_mat_mul *> aspen_mat_mul::split_mat_mul_by_size (int M_size, int N_size)
+{
+    assert (M_size > 0);
+    assert (N_size > 0);
     std::vector<aspen_mat_mul *> result;
     int M = this->M;
     int N = this->N;
@@ -175,59 +185,57 @@ std::vector<aspen_mat_mul *> aspen_mat_mul::split_mat_mul (int split_M, int spli
     float *A = this->A;
     float *B = this->B;
     float *C = this->C;
+    int M_num = M / M_size + (M % M_size == 0 ? 0 : 1);
+    int N_num = N / N_size + (N % N_size == 0 ? 0 : 1);
 
-    int M1 = M / split_M;
-    int N1 = N / split_N;
-    int K1 = K;
-
-    for (int i = 0; i < split_M - 1; i++)
+    for (int i = 0; i < M_num - 1; i++)
     {
-        for (int j = 0; j < split_N - 1; j++)
+        for (int j = 0; j < N_num - 1; j++)
         {
             aspen_mat_mul *mat_mul_split = new aspen_mat_mul (
-                M1, N1, K1, alpha, 
-                A + i * M1 * stride_A, stride_A, 
-                B + j * N1 * stride_B, stride_B, beta, 
-                C + i * M1 + j * N1 * stride_C, stride_C);
+                M_size, N_size, K, alpha, 
+                A + i * M_size * stride_A, stride_A, 
+                B + j * N_size * stride_B, stride_B, beta, 
+                C + i * M_size + j * N_size * stride_C, stride_C);
             mat_mul_split->set_cuda_memory (
-                this->A_cuda + i * M1 * stride_A, 
-                this->B_cuda + j * N1 * stride_B, 
-                this->C_cuda + i * M1 + j * N1 * stride_C);
+                this->A_cuda + i * M_size * stride_A, 
+                this->B_cuda + j * N_size * stride_B, 
+                this->C_cuda + i * M_size + j * N_size * stride_C);
             result.push_back(mat_mul_split);
         }
         aspen_mat_mul *mat_mul_split = new aspen_mat_mul (
-            M1, N - (split_N - 1) * N1, K1, alpha, 
-            A + i * M1 * stride_A, stride_A, 
-            B + (split_N - 1) * N1 * stride_B, stride_B, beta, 
-            C + i * M1 + (split_N - 1) * N1 * stride_C, stride_C);
+            M_size, N - (N_num - 1) * N_size, K, alpha, 
+            A + i * M_size * stride_A, stride_A, 
+            B + (N_num - 1) * N_size * stride_B, stride_B, beta, 
+            C + i * M_size + (N_num - 1) * N_size * stride_C, stride_C);
         mat_mul_split->set_cuda_memory (
-            this->A_cuda + i * M1 * stride_A, 
-            this->B_cuda + (split_N - 1) * N1 * stride_B, 
-            this->C_cuda + i * M1 + (split_N - 1) * N1 * stride_C);
+            this->A_cuda + i * M_size * stride_A, 
+            this->B_cuda + (N_num - 1) * N_size * stride_B, 
+            this->C_cuda + i * M_size + (N_num - 1) * N_size * stride_C);
         result.push_back(mat_mul_split);
     }
-    for (int j = 0; j < split_N - 1; j++)
+    for (int j = 0; j < N_num - 1; j++)
     {
         aspen_mat_mul *mat_mul_split = new aspen_mat_mul (
-            M - (split_M - 1) * M1, N1, K1, alpha, 
-            A + (split_M - 1) * M1 * stride_A, stride_A, 
-            B + j * N1 * stride_B, stride_B, beta, 
-            C + (split_M - 1) * M1 + j * N1 * stride_C, stride_C);
+            M - (M_num - 1) * M_size, N_size, K, alpha, 
+            A + (M_num - 1) * M_size * stride_A, stride_A, 
+            B + j * N_size * stride_B, stride_B, beta, 
+            C + (M_num - 1) * M_size + j * N_size * stride_C, stride_C);
         mat_mul_split->set_cuda_memory (
-            this->A_cuda + (split_M - 1) * M1 * stride_A, 
-            this->B_cuda + j * N1 * stride_B, 
-            this->C_cuda + (split_M - 1) * M1 + j * N1 * stride_C);
+            this->A_cuda + (M_num - 1) * M_size * stride_A, 
+            this->B_cuda + j * N_size * stride_B, 
+            this->C_cuda + (M_num - 1) * M_size + j * N_size * stride_C);
         result.push_back(mat_mul_split);
     }
     aspen_mat_mul *mat_mul_split = new aspen_mat_mul (
-        M - (split_M - 1) * M1, N - (split_N - 1) * N1, K1, alpha, 
-        A + (split_M - 1) * M1 * stride_A, stride_A, 
-        B + (split_N - 1) * N1 * stride_B, stride_B, beta, 
-        C + (split_M - 1) * M1 + (split_N - 1) * N1 * stride_C, stride_C);
+        M - (M_num - 1) * M_size, N - (N_num - 1) * N_size, K, alpha, 
+        A + (M_num - 1) * M_size * stride_A, stride_A, 
+        B + (N_num - 1) * N_size * stride_B, stride_B, beta, 
+        C + (M_num - 1) * M_size + (N_num - 1) * N_size * stride_C, stride_C);
     mat_mul_split->set_cuda_memory (
-        this->A_cuda + (split_M - 1) * M1 * stride_A, 
-        this->B_cuda + (split_N - 1) * N1 * stride_B, 
-        this->C_cuda + (split_M - 1) * M1 + (split_N - 1) * N1 * stride_C);
+        this->A_cuda + (M_num - 1) * M_size * stride_A, 
+        this->B_cuda + (N_num - 1) * N_size * stride_B, 
+        this->C_cuda + (M_num - 1) * M_size + (N_num - 1) * N_size * stride_C);
     result.push_back(mat_mul_split);
             
 

@@ -9,6 +9,8 @@
 #include <cublas_v2.h>
 #include <cblas.h>
 
+#include <pthread.h>
+
 inline cudaError_t check_CUDA(cudaError_t result)
 {
 #if defined(DEBUG) || defined(_DEBUG)
@@ -63,7 +65,8 @@ public:
     void set_cuda_handle(cublasHandle_t handle);
     void print_handle_and_stream();
     void synchronize();
-    std::vector<aspen_mat_mul *> split_mat_mul (int split_M, int split_N);
+    std::vector<aspen_mat_mul *> split_mat_mul_by_num (int M_num, int N_num);
+    std::vector<aspen_mat_mul *> split_mat_mul_by_size (int M_size, int N_size);
 
     aspen_mat_mul(int M, int N, int K, float alpha,
         float *A, int stride_A, float *B, int stride_B, float beta, float *C, int stride_C);
@@ -91,4 +94,43 @@ private:
     cublasHandle_t handle;
     cudaStream_t stream;
 };
+
+typedef enum run_type
+{
+    RUN_CPU,
+    RUN_CUBLAS,
+    RUN_CUSTOM_CUDA_GEMM
+} run_type;
+
+class aspen_pthread
+{
+    private:
+    int id;
+    run_type r_type;
+
+    std::vector<aspen_mat_mul *> mat_muls;
+    cublasHandle_t handle;
+    cudaStream_t stream;
+    
+    pthread_t thread;
+    pthread_mutex_t mutex;
+    pthread_cond_t cond_host_to_child, cond_child_to_host;
+
+    bool running;
+
+    static void *thread_func(void *arg);
+
+    public:
+    aspen_pthread();
+    ~aspen_pthread();
+    void add_mat_mul(aspen_mat_mul *mat_mul);
+
+    void run_cuBLAS();
+    void run_cpu();
+    void run_custom_CUDA_GEMM();
+
+    void stop();
+    void wait();
+};
+
 #endif

@@ -74,17 +74,17 @@ double timer_stop(int i)
 
 void compute_mat_mul(float *A, float *B, float *C, int M, int N, int K)
 {
-    #pragma omp parallel for
-    for (int i = 0; i < M; ++i)
+    // #pragma omp parallel for
+    for (int m = 0; m < M; ++m)
     {
-        for (int j = 0; j < N; ++j)
+        for (int n = 0; n < N; ++n)
         {
             float c = 0;
             for (int k = 0; k < K; ++k)
             {
-                c += A[i * K + k] * B[k + j * K];
+                c += A[m * K + k] * B[k + n * K];
             }
-            C[i + j * M] = c;
+            C[m + n * M] = c;
         }
     }
 }
