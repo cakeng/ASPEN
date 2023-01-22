@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
+
 #include "util.h"
 #include "mat_mul.h"
 #include "cuda_aspen_tests.h"
@@ -170,45 +171,31 @@ void aspen_run_custom_GEMM (void *obj)
 
 void aspen_run_cuBLAS_split (void *obj)
 {
-    std::vector<aspen_mat_mul*> *aspen_objs = (std::vector<aspen_mat_mul*>*)obj;
-    for (int i = 0; i < num_partition; ++i)
+    std::vector<aspen_pthread*> *aspen_pthreads = (std::vector<aspen_pthread*>*)obj;
+    for (auto &aspen_pthread : *aspen_pthreads)
     {
-        (*aspen_objs)[i]->copy_B_to_cuda();
+        aspen_pthread->run_cuBLAS();
     }
-    for (auto &aspen_obj : *aspen_objs)
+    for (auto &aspen_pthread : *aspen_pthreads)
     {
-        aspen_obj->run_cuBLAS();
-    }
-    for (int i = 0; i < num_partition; ++i)
-    {
-        (*aspen_objs)[i]->copy_C_from_cuda();
-    }
-    for (int i = 0; i < num_partition; ++i)
-    {
-        (*aspen_objs)[i]->synchronize();
+        aspen_pthread->wait();
     }
 }
 
 void aspen_run_custom_split (void *obj)
 {
-    std::vector<aspen_mat_mul*> *aspen_objs = (std::vector<aspen_mat_mul*>*)obj;
-    for (int i = 0; i < num_partition; ++i)
+    std::vector<aspen_pthread*> *aspen_pthreads = (std::vector<aspen_pthread*>*)obj;
+    for (auto &aspen_pthread : *aspen_pthreads)
     {
-        (*aspen_objs)[i]->copy_B_to_cuda();
+        aspen_pthread->run_custom_CUDA_GEMM();
     }
-    for (auto &aspen_obj : *aspen_objs)
+    for (auto &aspen_pthread : *aspen_pthreads)
     {
-        aspen_obj->run_custom_CUDA_GEMM();
-    }
-    for (int i = 0; i < num_partition; ++i)
-    {
-        (*aspen_objs)[i]->copy_C_from_cuda();
-    }
-    for (int i = 0; i < num_partition; ++i)
-    {
-        (*aspen_objs)[i]->synchronize();
+        aspen_pthread->wait();
     }
 }
+
+
 
 int main(int argc, char **argv)
 {
@@ -226,7 +213,7 @@ int main(int argc, char **argv)
     float *C_ans_arr [num_gemm_chains+1];
     for (int i = 0; i < num_gemm_chains+1; ++i)
     {
-        alloc_mat(&A_arr[i], K, N);
+        alloc_mat(&A_arr[i], K, M);
         alloc_mat(&C_ans_arr[i], M, N);
         if (i != 0)
             alloc_mat(&C_out_arr[i], M, N);
@@ -235,7 +222,7 @@ int main(int argc, char **argv)
             C_out = C_out_arr[i];
             C_ans = C_ans_arr[i];
         }
-        rand_mat(A_arr[i], K, N);
+        rand_mat(A_arr[i], K, M);
 
         cudaMalloc(&A_cuda_arr[i], M * K * sizeof(float));
         cudaMalloc(&C_cuda_arr[i], M * N * sizeof(float));
@@ -246,21 +233,20 @@ int main(int argc, char **argv)
     {
         compute_mat_mul (A_arr[i-1], C_ans_arr[i-1], C_ans_arr[i], M, N, K);
     }
-    cublasHandle_t cublas_handles[num_partition];
-    cudaStream_t cuda_streams[num_partition];
+    std::vector<aspen_pthread* > aspen_pthreads;
     for (int i = 0; i < num_partition; ++i)
     {
-        cublasCreate(&cublas_handles[i]);
-        cudaStreamCreate(&cuda_streams[i]);
+        aspen_pthread* aspen_pthread_obj = new aspen_pthread();
+        aspen_pthreads.push_back(aspen_pthread_obj);
     }
     std::vector<aspen_mat_mul> aspen_mat_mul_chain;
-
+    cublasHandle_t cublas_handle;  
+    cublasCreate(&cublas_handle);
     for (int i = 1; i < num_gemm_chains+1; ++i)
     {
         aspen_mat_mul_chain.emplace_back 
             (M, N, K, 1.0, A_arr[i-1], K, C_out_arr[i-1], K, 0.0, C_out_arr[i], M);
-        aspen_mat_mul_chain.back().set_cuda_handle (cublas_handles[0]);
-        aspen_mat_mul_chain.back().set_cuda_stream (cuda_streams[0]);
+        aspen_mat_mul_chain.back().set_cuda_handle (cublas_handle);
         aspen_mat_mul_chain.back().set_cuda_memory 
             (A_cuda_arr[i-1], C_cuda_arr[i-1], C_cuda_arr[i]);
         cudaMemcpy (A_cuda_arr[i-1], A_arr[i-1], M * K * sizeof(float), cudaMemcpyHostToDevice);
@@ -278,23 +264,24 @@ int main(int argc, char **argv)
     run_test (&aspen_mat_mul_chain, aspen_run_custom_GEMM);
 
     printf("Testing Split GPU GEMM (cuBLAS)...\n");
-    std::vector<aspen_mat_mul*> aspen_mat_mul_chain_split;
     for (auto &aspen_obj : aspen_mat_mul_chain)
     {
         auto aspen_mat_mul_split = aspen_obj.split_mat_mul_by_num (1, num_partition);
-        int i = 0;
-        for (auto &aspen_split_obj : aspen_mat_mul_split)
+        if (aspen_mat_mul_split.size() != (long unsigned int)num_partition)
         {
-            aspen_split_obj->set_cuda_handle (cublas_handles[i%num_partition]);
-            aspen_split_obj->set_cuda_stream (cuda_streams[i%num_partition]);
-            aspen_mat_mul_chain_split.push_back (aspen_split_obj);
-            i++;
+            printf("Error: aspen_mat_mul_split.size() != num_partition\n");
+            exit(1);
         }
+        for (int i = 0; i < num_partition; ++i)
+        {
+            aspen_pthreads[i]->add_mat_mul (aspen_mat_mul_split[i]);
+        }
+
     }
-    run_test (&aspen_mat_mul_chain_split, aspen_run_cuBLAS_split);
+    run_test (&aspen_pthreads, aspen_run_cuBLAS_split);
 
     printf("Testing Split GPU GEMM (custom)...\n");
-    run_test (&aspen_mat_mul_chain_split, aspen_run_custom_split);
+    run_test (&aspen_pthreads, aspen_run_custom_split);
 
     return 0;
 }
