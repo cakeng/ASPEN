@@ -5,10 +5,12 @@
 
 #define _BLOCK_K_SIZE 32
 #define _BLOCK_M_SIZE 64
-#define _BLOCK_N_SIZE 32
+#define _BLOCK_N_SIZE 64
 #define _THREAD_M_SIZE 4
-#define _THREAD_N_SIZE 4
+#define _THREAD_N_SIZE 8
 #define _THREAD_NUM ((_BLOCK_M_SIZE / _THREAD_M_SIZE) * (_BLOCK_N_SIZE / _THREAD_N_SIZE))
+#define _CACHE_A_K_PER_LOAD (_THREAD_NUM / _BLOCK_M_SIZE)
+#define _CACHE_B_K_PER_LOAD (_THREAD_NUM / _BLOCK_N_SIZE)
 
 __global__ void sgemm(const float *A, const float *B, float *C, const int M, const int N, const int K)
 {
@@ -34,19 +36,15 @@ __global__ void sgemm(const float *A, const float *B, float *C, const int M, con
     if (K%_BLOCK_K_SIZE)
     {
         // Load caches.
-        for (int aIdx = 0; aIdx < ((_BLOCK_K_SIZE*_BLOCK_M_SIZE)/_THREAD_NUM); aIdx++)
+        for (int aIdx = 0; aIdx < (_BLOCK_K_SIZE/_CACHE_A_K_PER_LOAD); aIdx++)
         {
-            const int cache_idx = id*((_BLOCK_K_SIZE*_BLOCK_M_SIZE)/_THREAD_NUM) + aIdx;
-            const int cache_m = cache_idx%_BLOCK_M_SIZE;
-            const int cache_k = cache_idx/_BLOCK_M_SIZE;
-            ACache[cache_idx] = A[K*(mGroup + cache_m) + kIdx + cache_k];
+            const int cache_idx = id*(_BLOCK_K_SIZE/_CACHE_A_K_PER_LOAD) + aIdx;
+            ACache[cache_idx] = A[K*(mGroup + cache_idx%_BLOCK_M_SIZE) + kIdx + cache_idx/_BLOCK_M_SIZE];
         }
-        for (int bIdx = 0; bIdx < ((_BLOCK_K_SIZE*_BLOCK_N_SIZE)/_THREAD_NUM); bIdx++)
+        for (int bIdx = 0; bIdx < (_BLOCK_K_SIZE/_CACHE_B_K_PER_LOAD); bIdx++)
         {
-            const int cache_idx = id*((_BLOCK_K_SIZE*_BLOCK_N_SIZE)/_THREAD_NUM) + bIdx;
-            const int cache_n = cache_idx%_BLOCK_N_SIZE;
-            const int cache_k = cache_idx/_BLOCK_N_SIZE;
-            BCache[cache_idx] = B[K*(nGroup + cache_n) + (kIdx + cache_k)];
+            const int cache_idx = id*(_BLOCK_K_SIZE/_CACHE_B_K_PER_LOAD) + bIdx;
+            BCache[cache_idx] = B[K*(nGroup + cache_idx%_BLOCK_N_SIZE) + kIdx + cache_idx/_BLOCK_N_SIZE];
         }
         __syncthreads();
         // printf ("Thread %d: %3.3f\n", id, cout[0][0]);
@@ -70,19 +68,15 @@ __global__ void sgemm(const float *A, const float *B, float *C, const int M, con
     for (; kIdx < K; kIdx += _BLOCK_K_SIZE)
     {
         // Load caches.
-        for (int aIdx = 0; aIdx < ((_BLOCK_K_SIZE*_BLOCK_M_SIZE)/_THREAD_NUM); aIdx++)
+        for (int aIdx = 0; aIdx < (_BLOCK_K_SIZE/_CACHE_A_K_PER_LOAD); aIdx++)
         {
-            const int cache_idx = id*((_BLOCK_K_SIZE*_BLOCK_M_SIZE)/_THREAD_NUM) + aIdx;
-            const int cache_m = cache_idx%_BLOCK_M_SIZE;
-            const int cache_k = cache_idx/_BLOCK_M_SIZE;
-            ACache[cache_idx] = A[K*(mGroup + cache_m) + kIdx + cache_k];
+            const int cache_idx = id*(_BLOCK_K_SIZE/_CACHE_A_K_PER_LOAD) + aIdx;
+            ACache[cache_idx] = A[K*(mGroup + cache_idx%_BLOCK_M_SIZE) + kIdx + cache_idx/_BLOCK_M_SIZE];
         }
-        for (int bIdx = 0; bIdx < ((_BLOCK_K_SIZE*_BLOCK_N_SIZE)/_THREAD_NUM); bIdx++)
+        for (int bIdx = 0; bIdx < (_BLOCK_K_SIZE/_CACHE_B_K_PER_LOAD); bIdx++)
         {
-            const int cache_idx = id*((_BLOCK_K_SIZE*_BLOCK_N_SIZE)/_THREAD_NUM) + bIdx;
-            const int cache_n = cache_idx%_BLOCK_N_SIZE;
-            const int cache_k = cache_idx/_BLOCK_N_SIZE;
-            BCache[cache_idx] = B[K*(nGroup + cache_n) + (kIdx + cache_k)];
+            const int cache_idx = id*(_BLOCK_K_SIZE/_CACHE_B_K_PER_LOAD) + bIdx;
+            BCache[cache_idx] = B[K*(nGroup + cache_idx%_BLOCK_N_SIZE) + kIdx + cache_idx/_BLOCK_N_SIZE];
         }
         __syncthreads();
         for (int kk = 0; kk < _BLOCK_K_SIZE; kk++)
