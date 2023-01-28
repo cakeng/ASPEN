@@ -2,8 +2,8 @@ TARGET=main
 OBJECTS=util.o main.o cuda_aspen_tests.o cuda_aspen.o aspen_pthread.o
 
 CXX=g++
-CXXFLAGS= -Wall -fopenmp -O3 -DDEBUG
-# CXXFLAGS= -Wall -fopenmp -O0 -g -DDEBUG
+# CXXFLAGS= -Wall -fopenmp -O3 -DDEBUG
+CXXFLAGS= -Wall -fopenmp -O0 -g -DDEBUG
 
 LDFLAGS=-lm -L/usr/local/cuda/lib64 -lcudart -lcuda -lcublas -lopenblas -lgomp
 COMMON=-I/usr/local/cuda/include/

@@ -11,7 +11,7 @@
 
 #include <pthread.h>
 
-inline cudaError_t check_CUDA(cudaError_t result)
+static inline cudaError_t check_CUDA(cudaError_t result)
 {
 #if defined(DEBUG) || defined(_DEBUG)
   if (result != cudaSuccess) {
@@ -23,7 +23,7 @@ inline cudaError_t check_CUDA(cudaError_t result)
   return result;
 }
 
-inline cublasStatus_t check_cuBLAS(cublasStatus_t result)
+static inline cublasStatus_t check_cuBLAS(cublasStatus_t result)
 {
 #if defined(DEBUG) || defined(_DEBUG)
   if (result != CUBLAS_STATUS_SUCCESS) {
@@ -65,6 +65,7 @@ public:
     void set_cuda_handle(cublasHandle_t handle);
     void print_handle_and_stream();
     void synchronize();
+    void set_mat_C (float val);
     std::vector<aspen_mat_mul *> split_mat_mul_by_num (int M_num, int N_num);
     std::vector<aspen_mat_mul *> split_mat_mul_by_size (int M_size, int N_size);
 
@@ -76,12 +77,14 @@ public:
     void run_custom_CUDA_GEMM();
     void run_cuBLAS_strided_GEMV(int N_stride);
     void run_cuBLAS_strided_GEMM(int N_stride);
+    void run_cuBLAS_batched_GEMM(std::vector<aspen_mat_mul *> batch);
 
 private:
     bool is_calculation_done;
     std::vector<aspen_mat_mul *> children;
     int num_parents;
     int calculated_parents;
+    int id;
 
     int C_midx, C_nidx;
     int M, N, K;
@@ -91,6 +94,7 @@ private:
     bool own_A, own_B, own_C;
     
     float *A_cuda, *B_cuda, *C_cuda;
+    void *temp_cuda;
     cublasHandle_t handle;
     cudaStream_t stream;
 };

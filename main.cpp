@@ -134,7 +134,7 @@ void run_test (void *obj, void (*test_func)(void *obj))
     if (validation)
         check_mat_mul(C_ans, C_out, M, N, K);
 
-    rand_mat (C_out, M, N);
+    zero_mat (C_out, M, N);
 }
 
 void aspen_run_cpu (void *obj)
@@ -183,11 +183,35 @@ void aspen_run_cuBLAS_split (void *obj)
     }
     for (int i = 0; i < num_partition; ++i)
     {
-        (*aspen_objs)[i]->copy_C_from_cuda();
+        (*aspen_objs).rbegin()[i]->copy_C_from_cuda();
     }
     for (int i = 0; i < num_partition; ++i)
     {
-        (*aspen_objs)[i]->synchronize();
+        (*aspen_objs).rbegin()[i]->synchronize();
+    }
+}
+
+void aspen_run_cuBLAS_batched (void *obj)
+{
+    std::vector<aspen_mat_mul*> *aspen_objs = (std::vector<aspen_mat_mul*>*)obj;
+    for (int i = 0; i < num_partition; ++i)
+    {
+        (*aspen_objs)[i]->copy_B_to_cuda();
+    }
+    for (int i = 0; i < (int)aspen_objs->size(); i += num_partition)
+    {
+        std::vector<aspen_mat_mul*>::const_iterator first = (*aspen_objs).begin() + i;
+        std::vector<aspen_mat_mul*>::const_iterator last = (*aspen_objs).begin() + i + num_partition;
+        std::vector<aspen_mat_mul*> newVec(first, last);
+        newVec.front()->run_cuBLAS_batched_GEMM (newVec);
+    }
+    for (int i = 0; i < num_partition; ++i)
+    {
+        (*aspen_objs).rbegin()[i]->copy_C_from_cuda();
+    }
+    for (int i = 0; i < num_partition; ++i)
+    {
+        (*aspen_objs).rbegin()[i]->synchronize();
     }
 }
 
@@ -204,12 +228,13 @@ void aspen_run_custom_split (void *obj)
     }
     for (int i = 0; i < num_partition; ++i)
     {
-        (*aspen_objs)[i]->copy_C_from_cuda();
+        (*aspen_objs).rbegin()[i]->copy_C_from_cuda();
     }
     for (int i = 0; i < num_partition; ++i)
     {
-        (*aspen_objs)[i]->synchronize();
+        (*aspen_objs).rbegin()[i]->synchronize();
     }
+
 }
 
 int main(int argc, char **argv)
@@ -297,6 +322,9 @@ int main(int argc, char **argv)
 
     printf("Testing Split GPU GEMM (custom)...\n");
     run_test (&aspen_mat_mul_chain_split, aspen_run_custom_split);
+
+    printf("Testing Split GPU GEMM (cuBLAS Batched)...\n");
+    run_test (&aspen_mat_mul_chain_split, aspen_run_cuBLAS_batched);
 
     return 0;
 }
