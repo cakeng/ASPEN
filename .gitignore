@@ -2,4 +2,6 @@
 *.a
 *.so
 *.*rep
+*.pth
 main
+data/*

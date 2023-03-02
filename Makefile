@@ -1,27 +1,42 @@
 TARGET=main
-OBJECTS=util.o main.o cuda_aspen_tests.o cuda_aspen.o aspen_pthread.o
+ALIB=libasapen.a
+OBJECTS=apu.o
 
-CXX=g++
-# CXXFLAGS= -Wall -fopenmp -O3 -DDEBUG
-CXXFLAGS= -Wall -fopenmp -O0 -g -DDEBUG
+CC=gcc
+NVCC=nvcc
 
+OBJDIR=./obj/
+VPATH=./src 
+DEPS = $(wildcard src/*.h) $(wildcard include/*.h) Makefile
+
+# CFLAGS= -Wall -fopenmp -O3 -DDEBUG
+CFLAGS= -Wall -fopenmp -O0 -g -DDEBUG
+ARFLAGS=rcs
 LDFLAGS=-lm -L/usr/local/cuda/lib64 -lcudart -lcuda -lcublas -lopenblas -lgomp
-COMMON=-I/usr/local/cuda/include/
+COMMON=-I/usr/local/cuda/include/ -Iinclude/
 
 ARCH= 	-gencode arch=compute_80,code=[sm_80,compute_80] \
-		-gencode arch=compute_86,code=[sm_86,compute_86] \
+		-gencode arch=compute_86,code=[sm_86,compute_86]
+OBJS= $(addprefix $(OBJDIR), $(OBJECTS))
+TOBJS= $(addsuffix .o, $(TARGET))
 
-all: $(TARGET)
+all: obj $(TARGET)
 
-$(TARGET): $(OBJECTS)
-	$(CXX) $(COMMON) $(CXXFLAGS) -o $(TARGET) $(OBJECTS) $(LDFLAGS) 
+$(TARGET): $(TOBJS) $(ALIB) 
+	$(CC) $(COMMON) $(CFLAGS) $< -o $@ $(TARGET) $(OBJS) $(LDFLAGS) $(ALIB)
 
-%.o: %.cpp
-	$(CXX) $(COMMON) $(CXXFLAGS) -c $< -o $@
+$(ALIB): $(OBJS)
+	$(AR) $(ARFLAGS) $@ $^
 
-cuda_aspen.o: cuda_aspen_tests.cu
-	nvcc $(ARCH) -c -o $@ $^
+$(OBJDIR)%.o: %.c $(DEPS)
+	$(CC) $(COMMON) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)%.o: %.cu $(DEPS)
+	$(NVCC) $(ARCH) $(COMMON) --compiler-options "$(CFLAGS)" -c $< -o $@
+
+obj:
+	mkdir -p obj
 
 clean:
-	rm -rf $(TARGET) $(OBJECTS)
+	rm -rf $(TARGET) $(OBJS)
 
