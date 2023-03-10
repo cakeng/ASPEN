@@ -5,7 +5,7 @@
 
 struct ninst_t 
 {
-    ninst_op opcode;
+    NIST_OP opcode;
 
 
 };
