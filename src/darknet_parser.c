@@ -70,6 +70,16 @@ void *list_pop(list *l){
     return val;
 }
 
+void list_remove (list *l, node *n)
+{
+    if(!n->prev) l->front = n->next;
+    else n->prev->next = n->next;
+    if(!n->next) l->back = n->prev;
+    else n->next->prev = n->prev;
+    --l->size;
+    free(n);
+}
+
 void list_insert(list *l, void *val)
 {
 	node *new = malloc(sizeof(node));
@@ -237,7 +247,6 @@ char *option_find_str(list *l, char *key, char *def)
 {
     char *v = option_find(l, key);
     if(v) return v;
-    if(def) FPRT(stderr, "%s: Using default '%s'\n", key, def);
     return def;
 }
 
@@ -374,6 +383,20 @@ int is_network(section *s)
             || strcmp(s->type, "[network]")==0);
 }
 
+LAYER_ACT get_activation(char *s)
+{
+    if (!s) return NO_ACTIVATION;
+    if (strcmp(s, "logistic")==0) return SIGMOID;
+    if (strcmp(s, "linear")==0) return LINEAR;
+    if (strcmp(s, "leaky")==0) return LEAKY_RELU;
+    if (strcmp(s, "relu")==0) return RELU;
+    if (strcmp(s, "elu")==0) return ELU;
+    if (strcmp(s, "selu")==0) return SELU;
+    if (strcmp(s, "tanh")==0) return TANH;
+    fprintf(stderr, "Couldn't find activation function %s, going with ReLU\n", s);
+    return RELU;
+}
+
 LAYER_TYPE string_to_layer_type(char * type)
 {
     if (strcmp(type, "[net]")==0
@@ -391,9 +414,9 @@ LAYER_TYPE string_to_layer_type(char * type)
     if (strcmp(type, "[route]")==0) return ROUTE_LAYER;
     if (strcmp(type, "[conn]")==0
             || strcmp(type, "[connected]")==0) return FC_LAYER;
-    if (strcmp(type, "[dropout]")==0) return DROPOUT_LAYER;
     if (strcmp(type, "[soft]")==0
             || strcmp(type, "[softmax]")==0) return SOFTMAX_LAYER;
+    // if (strcmp(type, "[dropout]")==0) return DROPOUT_LAYER;
     // if (strcmp(type, "[crop]")==0) return CROP;
     // if (strcmp(type, "[cost]")==0) return COST;
     // if (strcmp(type, "[detection]")==0) return DETECTION;
@@ -423,20 +446,37 @@ LAYER_TYPE string_to_layer_type(char * type)
     return NO_LAYER_TYPE;
 }
 
+void remove_unsupported_sections (list *sections)
+{
+    node *n = sections->front;
+    while (n) 
+    {
+        section *s = (section *) n->val;
+        node *next = n->next;
+        if (string_to_layer_type (s->type) == NO_LAYER_TYPE) 
+        {
+            FPRT (stderr, "Unsupported section type: %s\n", s->type);
+            list_remove (sections, n);
+        }
+        n = next;
+    }
+}
+
 void parse_section (section *s, aspen_layer_t *layer)
 {
     layer->type = string_to_layer_type (s->type);
     list *options = s->options;
     if (layer->type == NO_LAYER_TYPE) FPRT (stderr, "Unknown layer type: %s", s->type);
-    PRT ("Layer type: %s\n", layer_type_str[layer->type]);
     layer->params [IN_W] = option_find_int_quiet (options, "width", 0);
     layer->params [IN_H] = option_find_int_quiet (options, "height", 0);
     layer->params [IN_C] = option_find_int_quiet (options, "channels", 0);
     layer->params [F_W] = option_find_int_quiet (options, "size", 0);
     layer->params [OUT_C] = option_find_int_quiet (options, "filters", 0);
-    layer->params [STRIDE] = option_find_int_quiet (options, "stride", 1);
+    if (layer->params [OUT_C] == 0) layer->params [OUT_C] = option_find_int_quiet (options, "output", 0);
+    layer->params [STRIDE] = option_find_int_quiet (options, "stride", 0);
     layer->params [PADDING] = option_find_int_quiet (options, "pad", 0);
-    layer->activation = option_find_int_quiet (options, "activation", 0);
+    char *activation_s = option_find_str(options, "activation", NULL);
+    layer->activation = get_activation(activation_s);
     layer->parent_layer [PARENT_0] = layer - 1;
     layer->parent_layer [PARENT_1] = layer + option_find_int_quiet (options, "from", -1);
     print_layer_info (layer);
@@ -448,15 +488,16 @@ aspen_dnn_t *parse_darknet_cfg (char *filename)
     list *sections = read_data_cfg(filename);
     node *n = sections->front;
     if(!n) error ("Config file has no sections");
+    remove_unsupported_sections (sections);
     PRT ("Config file has %d sections \n", sections->size);
     aspen_dnn_t *dnn = init_aspen_dnn (sections->size, filename);
 
     section *s = (section *)n->val;
     if(!is_network(s)) error("First section must be [net] or [network]");
-    while (n)
+    for (int i = 0; i < sections->size; i++)
     {
         s = (section *)n->val;
-        parse_section (s, &dnn->layers[dnn->num_layers]);
+        parse_section (s, dnn->layers + i);
         n = n->next;
     }
 

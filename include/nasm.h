@@ -22,6 +22,8 @@ extern char *layer_type_str [NUM_LAYER_ELEMENTS];
 extern char *param_type_str[NUM_PARAM_ELEMENTS];
 extern char *tensor_type_str[NUM_TENSOR_ELEMENTS];
 extern char *parent_type_str[NUM_PARENT_ELEMENTS];
+extern char *activation_type_str [NUM_ACTIVATION_ELEMENTS];
+extern char *nist_op_str [NUM_NIST_OP_ELEMENTS];
 
 struct nasm_t
 {

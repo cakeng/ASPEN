@@ -23,6 +23,15 @@ void aspen_destroy_nasm(nasm_t *nasm)
 
 }
 
+void apu_load_nasm_from_file(char *filename, nasm_t *output_nasm, aspen_dnn_t *output_dnn)
+{
+
+}
+void apu_save_nasm_to_file(char *filename)
+{
+    return NULL;
+}
+
 aspen_dnn_t *init_aspen_dnn(unsigned int num_layers, char* name)
 {
     aspen_dnn_t *new_dnn = (aspen_dnn_t *) calloc(1, sizeof(aspen_dnn_t));
@@ -31,7 +40,7 @@ aspen_dnn_t *init_aspen_dnn(unsigned int num_layers, char* name)
     new_dnn->layers = (aspen_layer_t *) calloc(num_layers, sizeof(aspen_layer_t));
     for (int i = 0; i < num_layers; i++)
     {
-        init_aspen_layer(&new_dnn->layers[i], i, new_dnn);
+        init_aspen_layer(new_dnn->layers + i, i, new_dnn);
     }
     return new_dnn;
 }
