@@ -1,6 +1,7 @@
 #include "input_parser.h"
 
 //// Darknet CFG parser code taken from the Darknet repo. ////
+//// https://github.com/pjreddie/darknet ////
 
 typedef struct node{
     void *val;
@@ -120,6 +121,22 @@ void free_list_contents(list *l)
 		free(n->val);
 		n = n->next;
 	}
+}
+
+void free_section(section *s)
+{
+    free(s->type);
+    node *n = s->options->front;
+    while(n){
+        kvp *pair = (kvp *)n->val;
+        free(pair->key);
+        free(pair);
+        node *next = n->next;
+        free(n);
+        n = next;
+    }
+    free(s->options);
+    free(s);
 }
 
 void **list_to_array(list *l)
@@ -456,6 +473,7 @@ void remove_unsupported_sections (list *sections)
         if (string_to_layer_type (s->type) == NO_LAYER_TYPE) 
         {
             FPRT (stderr, "Unsupported section type: %s\n", s->type);
+            free_section(s);
             list_remove (sections, n);
         }
         n = next;
@@ -471,15 +489,19 @@ void parse_section (section *s, aspen_layer_t *layer)
     layer->params [IN_H] = option_find_int_quiet (options, "height", 0);
     layer->params [IN_C] = option_find_int_quiet (options, "channels", 0);
     layer->params [F_W] = option_find_int_quiet (options, "size", 0);
+    layer->params [F_H] = option_find_int_quiet (options, "size", 0);
     layer->params [OUT_C] = option_find_int_quiet (options, "filters", 0);
     if (layer->params [OUT_C] == 0) layer->params [OUT_C] = option_find_int_quiet (options, "output", 0);
     layer->params [STRIDE] = option_find_int_quiet (options, "stride", 0);
     layer->params [PADDING] = option_find_int_quiet (options, "pad", 0);
+    layer->params [DILATION] = option_find_int_quiet (options, "dilation", 0);
     char *activation_s = option_find_str(options, "activation", NULL);
     layer->activation = get_activation(activation_s);
-    layer->parent_layer [PARENT_0] = layer - 1;
-    layer->parent_layer [PARENT_1] = layer + option_find_int_quiet (options, "from", -1);
-    print_layer_info (layer);
+    layer->parent_layers [PARENT_0] = layer - 1;
+    if (option_find_int_quiet (options, "from", 0))
+    {
+        layer->parent_layers [PARENT_1] = layer + option_find_int_quiet (options, "from", 0);
+    }
 }
 
 aspen_dnn_t *parse_darknet_cfg (char *filename)
@@ -498,8 +520,9 @@ aspen_dnn_t *parse_darknet_cfg (char *filename)
     {
         s = (section *)n->val;
         parse_section (s, dnn->layers + i);
+        free_section(s);
         n = n->next;
     }
-
+    free_list(sections);
     return dnn;
 }
