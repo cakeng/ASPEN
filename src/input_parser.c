@@ -15,7 +15,7 @@ aspen_dnn_t *parse_input (char *filename)
     for (int i = 0; i < dnn->num_layers; i++)
     {
         set_layer_inout_sizes(&dnn->layers[i]);
-        create_tensors (&dnn->layers[i]);
+        create_layer_tensors (&dnn->layers[i]);
     }
     return dnn;
 }
@@ -50,32 +50,27 @@ void set_layer_inout_sizes (aspen_layer_t *layer)
         layer->params[OUT_W] = (layer->params[IN_W] + 2*layer->params[PADDING] - layer->params[DILATION]*(layer->params[F_W] - 1) - 1) / layer->params[STRIDE] + 1;
         return;
     }
-    if (layer->type == MAXPOOL_LAYER)
+    else if (layer->type == SOFTMAX_LAYER || layer->type == MAXPOOL_LAYER)
     {
         if (layer->params[STRIDE] == 0)
             layer->params[STRIDE] = 1;
         if (layer->params[DILATION] == 0)
             layer->params[DILATION] = 1;
-        layer->params[OUT_C] = layer->params[IN_C];
         layer->params[OUT_H] = (layer->params[IN_H] + 2*layer->params[PADDING] - layer->params[DILATION]*(layer->params[F_H] - 1) - 1) / layer->params[STRIDE] + 1;
         layer->params[OUT_W] = (layer->params[IN_W] + 2*layer->params[PADDING] - layer->params[DILATION]*(layer->params[F_W] - 1) - 1) / layer->params[STRIDE] + 1;
-        return;
-    }
-    if (layer->type == AVGPOOL_LAYER)
-    {
-        if (layer->params[STRIDE] == 0)
-            layer->params[STRIDE] = 1;
-        if (layer->params[DILATION] == 0)
-            layer->params[DILATION] = 1;
         layer->params[OUT_C] = layer->params[IN_C];
-        layer->params[OUT_H] = (layer->params[IN_H] + 2*layer->params[PADDING] - layer->params[DILATION]*(layer->params[F_H] - 1) - 1) / layer->params[STRIDE] + 1;
-        layer->params[OUT_W] = (layer->params[IN_W] + 2*layer->params[PADDING] - layer->params[DILATION]*(layer->params[F_W] - 1) - 1) / layer->params[STRIDE] + 1;
         return;
     }
-    if (layer->type == FC_LAYER)
+    else if (layer->type == FC_LAYER)
     {
         layer->params[OUT_H] = 1;
         layer->params[OUT_W] = 1;
         return;
     }
+    else
+    {
+        FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], __LINE__, __FILE__);
+        exit(1);
+    }
 }
+

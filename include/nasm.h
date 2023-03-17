@@ -3,7 +3,7 @@
 #include "aspen.h"
 
 typedef enum {
-    OUT_W, OUT_H, OUT_C, IN_W, IN_H, IN_C, F_W, F_H, STRIDE, PADDING, DILATION, GROUPS,
+    OUT_W, OUT_H, OUT_C, BATCH, IN_W, IN_H, IN_C, F_W, F_H, STRIDE, PADDING, DILATION, GROUPS,
     SEQ_LEN, HEAD_NUM, HIDDEN_PER_HEAD,
     FORM_BYTES, NUM_PARAM_ELEMENTS
 } LAYER_PARAMS;
@@ -18,6 +18,10 @@ typedef enum {
     NUM_PARENT_ELEMENTS
 } LAYER_PARENTS;
 
+typedef enum {
+    NINST_NOT_READY, NINST_READY, NINST_COMPLETED,
+} NINST_STATE;
+
 extern char *layer_type_str [NUM_LAYER_ELEMENTS];
 extern char *param_type_str[NUM_PARAM_ELEMENTS];
 extern char *tensor_type_str[NUM_TENSOR_ELEMENTS];
@@ -28,6 +32,7 @@ extern char *nist_op_str [NUM_NIST_OP_ELEMENTS];
 struct nasm_t
 {
     aspen_dnn_t *dnn;
+    unsigned int batch_size;
     nasm_ldata_t *ldata_arr;
     unsigned int num_ldata;
     unsigned int flop_per_ninst;
@@ -46,20 +51,29 @@ struct nasm_ldata_t
     unsigned int out_mat_dims [2];
     unsigned int out_mat_stride;
     size_t out_mat_size;
-    void *out_mat;
-    void *gpu_out_mat;
     
     unsigned int ninst_tile_dims [2];
     ninst_t *ninst_arr;
     unsigned int num_ninst;
     unsigned int num_ninst_completed;
+    rpool_t *forced_pool;
 };
 
 struct ninst_t 
 {
-    NIST_OP opcode;
+    nasm_ldata_t *ldata;
+    NINST_STATE state;
+    unsigned int ninst_idx;
+    unsigned int out_mat_pos [2];
 
+    size_t parent_data_offset [NUM_PARENT_ELEMENTS];
 
+    ninst_t **parent_ninst_arr;
+    unsigned int num_parent_ninsts;
+
+    unsigned int num_parent_ninsts_completed;
+    void *out_mat;
+    rpool_t *affinity_pool;
 };
 
 struct aspen_dnn_t
@@ -74,8 +88,8 @@ struct aspen_dnn_t
 struct aspen_tensor_t
 {
     unsigned int num_dims;
-    unsigned int dims_info[MAX_TENSOR_DIMS];
-    unsigned int dims[MAX_TENSOR_DIMS];
+    unsigned int data_dim_order[MAX_TENSOR_DIMS];
+    unsigned int dims[NUM_PARAM_ELEMENTS];
     unsigned int num_elements;
     void *data;
 };

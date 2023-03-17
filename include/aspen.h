@@ -18,17 +18,21 @@
 
 #if SUPPRESS_OUTPUT == 0
 #define PRT(...) printf(__VA_ARGS__) 
+#if DEBUG == 1
 #define FPRT(...) fprintf(__VA_ARGS__) 
 #else
+#define FPRT(...) fprintf(stderr, "////An error has occurred////\n") 
+#endif
+#else
 #define PRT(...)
-#define FPRT(...) fprintf(__VA_ARGS__) 
+#define FPRT(...) fprintf(stderr, "////An error has occurred////\n") 
 #endif
 
 static inline cudaError_t check_CUDA(cudaError_t result)
 {
 #if defined(DEBUG) || defined(_DEBUG)
   if (result != cudaSuccess) {
-    fprintf(stderr, "CUDA Runtime Error: %s, at line %d in file %s\n"
+    FPRT(stderr, "CUDA Runtime Error: %s, at line %d in file %s\n"
         , cudaGetErrorString(result), __LINE__, __FILE__);
     assert(result == cudaSuccess);
   }
@@ -51,12 +55,14 @@ typedef struct ninst_t ninst_t; // Neural instruction
 typedef struct nasm_t nasm_t;   // Neural assembly
 typedef struct nasm_ldata_t nasm_ldata_t; // Dynamic per layer data
 typedef struct nasm_gpu_ldata_t nasm_gpu_ldata_t; // Dynamic per layer data for GPU
+
 typedef struct rpool_t rpool_t; // Ready pool
+typedef struct ase_t ase_t;     // Asynchronous scheduling engine
 
 aspen_dnn_t *apu_create_dnn(char *input_path, char *weight_path);
 void aspen_destroy_dnn(aspen_dnn_t *dnn);
 
-nasm_t *apu_create_nasm(aspen_dnn_t *dnn, int flop_per_ninst);
+nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size);
 void aspen_destroy_nasm(nasm_t *nasm);
 void apu_load_nasm_from_file(char *filename, nasm_t *output_nasm, aspen_dnn_t *output_dnn);
 void apu_save_nasm_to_file(char *filename);
@@ -72,5 +78,9 @@ void print_build_info(void);
 void print_dnn_info (aspen_dnn_t *dnn, int print_data);
 void print_layer_info (aspen_layer_t *layer, int print_data);
 void print_tensor_info (aspen_tensor_t *tensor, int print_data);
+void print_nasm_info (nasm_t *nasm, int print_data);
+void print_ldata_info (nasm_ldata_t *ldata, int print_data);
+void print_ninst_info (ninst_t *ninst, int print_data);
+
 unsigned int get_smallest_dividable (unsigned int num, unsigned int divider);
 #endif /* _ASPEN_H_ */
