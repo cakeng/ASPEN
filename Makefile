@@ -4,7 +4,7 @@ OBJECTS=build_info.o apu.o input_parser.o darknet_parser.o util.o
 AVX2=1
 NEON=0
 GPU=0
-DEBUG=1
+DEBUG=0
 SUPPRESS_OUTPUT=0
 
 CC=gcc

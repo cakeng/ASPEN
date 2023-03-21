@@ -296,8 +296,8 @@ void print_ldata_info (nasm_ldata_t *ldata, int print_data)
     printf("Number of ninst: %d, Completed: %d\n", ldata->num_ninst, ldata->num_ninst_completed);
     for (int i = 0; i < ldata->num_ninst; i++)
     {
-        printf ("\tNinst %d:\n", i);
-        print_ninst_info(&ldata->ninst_arr[i], print_data);
+        printf ("\tNinst %d: ", i);
+        print_ninst_info(&ldata->ninst_arr_start[i], print_data);
     }
     printf("////////////////////////  End of ldata Info  ////////////////////////\n");
 }
@@ -309,16 +309,32 @@ void print_ninst_info (ninst_t *ninst, int print_data)
         printf("Error: ninst is NULL.\n");
         return;
     }
-    printf ("\t\tNinst tile position: (H: %d, W: %d) ~ (H: %d, W: %d)\n"
+    printf ("Ninst Idx: %d\n", ninst->ninst_idx);
+    printf ("\t\tNinst tile position: (H: %d, W: %d) ~ (H: %d, W: %d) "
         , ninst->out_mat_pos[OUT_H], ninst->out_mat_pos[OUT_W],
             ninst->out_mat_pos[OUT_H] + ninst->ldata->ninst_tile_dims[OUT_H] - 1
                 , ninst->out_mat_pos[OUT_W] + ninst->ldata->ninst_tile_dims[OUT_W] - 1);
-    printf ("\t\tParent ninst (Completed: %d/%d): "
+    if (ninst->ldata->layer->type == CONV_LAYER || ninst->ldata->layer->type == MAXPOOL_LAYER
+        || ninst->ldata->layer->type == AVGPOOL_LAYER || ninst->ldata->layer->type == INPUT_LAYER)
+    {
+        unsigned int out_tensor_pos[NUM_PARAM_ELEMENTS]; 
+        get_tensor_pos_from_nist (ninst->ldata, ninst, out_tensor_pos);
+        printf ("Tensor Pos: (%d,%d,%d,%d)", out_tensor_pos[BATCH], out_tensor_pos[OUT_C],
+                    out_tensor_pos[OUT_H],
+                     out_tensor_pos[OUT_W]);
+    }
+    printf ("\n\t\tParent ninst (Completed: %d/%d): "
         , ninst->num_parent_ninsts_completed, ninst->num_parent_ninsts);
     for (int i = 0; i < ninst->num_parent_ninsts; i++)
     {
-        printf("%ld:%ld ", ninst->parent_ninst_arr[i]->ldata - ninst->parent_ninst_arr[i]->ldata->nasm->ldata_arr,
-            ninst->parent_ninst_arr[i] - ninst->parent_ninst_arr[i]->ldata->ninst_arr);
+        if (ninst->parent_ninst_idx_arr == NULL)
+        {
+            printf("\n\t\t\tError: Parent ninst index array is NULL.\n");
+            break;  
+        }
+        ninst_t *parent_ninst = ninst->parent_ninst_idx_arr[i] + ninst->ldata->nasm->ninst_arr;
+        printf("%ld:%d ", parent_ninst->ldata - parent_ninst->ldata->nasm->ldata_arr,
+            ninst->parent_ninst_idx_arr[i]);
     }
     if (print_data)
     {

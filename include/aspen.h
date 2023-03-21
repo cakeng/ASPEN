@@ -12,7 +12,8 @@
 
 #define MAX_TENSOR_DIMS 8
 #define MAX_STRING_LEN 256
-#define NINST_H_MIN 64
+#define MAX_PARENT_NINST_NUM (1<<20) // 1M
+#define NINST_H_MIN 32
 #define NINST_W_MIN 32
 #define MEM_ALIGN 64
 

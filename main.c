@@ -11,7 +11,7 @@ int main(void)
         printf("Error: Failed to create DNN\n");
         return -1;
     }
-    nasm_t *nasm = apu_create_nasm(vgg16, 20e6, 1);
+    nasm_t *nasm = apu_create_nasm(vgg16, 40e6, 1);
     if (nasm == NULL) 
     {
         printf("Error: Failed to create NASM\n");

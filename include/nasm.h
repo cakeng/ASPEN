@@ -34,6 +34,7 @@ struct nasm_t
     aspen_dnn_t *dnn;
     unsigned int batch_size;
     nasm_ldata_t *ldata_arr;
+    ninst_t *ninst_arr;
     unsigned int num_ldata;
     unsigned int flop_per_ninst;
 };
@@ -53,7 +54,8 @@ struct nasm_ldata_t
     size_t out_mat_size;
     
     unsigned int ninst_tile_dims [2];
-    ninst_t *ninst_arr;
+    ninst_t *ninst_arr_start;
+    
     unsigned int num_ninst;
     unsigned int num_ninst_completed;
     rpool_t *forced_pool;
@@ -68,7 +70,7 @@ struct ninst_t
 
     size_t parent_data_offset [NUM_PARENT_ELEMENTS];
 
-    ninst_t **parent_ninst_arr;
+    unsigned int *parent_ninst_idx_arr;
     unsigned int num_parent_ninsts;
 
     unsigned int num_parent_ninsts_completed;
