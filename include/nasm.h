@@ -68,12 +68,12 @@ struct ninst_t
     unsigned int ninst_idx;
     unsigned int out_mat_pos [2];
 
-    size_t parent_data_offset [NUM_PARENT_ELEMENTS];
+    unsigned int parent_data_offset [NUM_PARENT_ELEMENTS];
 
     unsigned int *parent_ninst_idx_arr;
     unsigned int num_parent_ninsts;
-
     unsigned int num_parent_ninsts_completed;
+    
     void *out_mat;
     rpool_t *affinity_pool;
 };
@@ -103,10 +103,8 @@ struct aspen_layer_t
 
     LAYER_TYPE type;
     LAYER_ACT activation;
-    unsigned int params [NUM_PARAM_ELEMENTS];
-
     aspen_layer_t *parent_layers [NUM_PARENT_ELEMENTS];
-
+    unsigned int params [NUM_PARAM_ELEMENTS];
     aspen_tensor_t *tensors [NUM_TENSOR_ELEMENTS];
 };
 

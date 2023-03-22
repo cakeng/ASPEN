@@ -150,8 +150,8 @@ void print_layer_info (aspen_layer_t *layer, int print_data)
         return;
     }
     printf("//////// Printing Layer Info ////////\n");
-    printf("Layer Type: %s\n", layer_type_str[layer->type]);
     printf("Layer Index: %d\n", layer->layer_idx);
+    printf("Layer Type: %s\n", layer_type_str[layer->type]);
     printf("Layer Activation: %s\n", activation_type_str[layer->activation]);
     printf("Layer Parents: ");
     for (int i = 0; i < NUM_PARENT_ELEMENTS; i++)
@@ -162,7 +162,7 @@ void print_layer_info (aspen_layer_t *layer, int print_data)
     printf("\nLayer Params:\n");
     for (LAYER_PARAMS i = 0; i < NUM_PARAM_ELEMENTS; i++)
     {
-        if (i != NUM_PARAM_ELEMENTS && layer->params[i] != 0)
+        if (layer->params[i] != 0)
             printf("\t%s: %d\n", param_type_str[i], layer->params[i]);
     }
     printf ("Layer Tensors:\n");
@@ -197,34 +197,43 @@ void print_tensor_info (aspen_tensor_t *tensor, int print_data)
     if (print_data)
     {
         int new_line_num = 0;
-        int dims_mult_arr[tensor->num_dims+1];
-        for (int i = tensor->num_dims - 1; i >= 0; i--)
+        int dims_mult_arr[MAX_TENSOR_DIMS];
+        for (int i = 0; i < MAX_TENSOR_DIMS; i++)
         {
             dims_mult_arr[i] = 1;
+        }
+        for (int i = tensor->num_dims - 1; i >= 0; i--)
+        {
             for (int j = i; j < tensor->num_dims; j++)
             {
-                dims_mult_arr[i] *= tensor->dims[j];
+                dims_mult_arr[i] *= tensor->dims[tensor->data_dim_order[j]];
             }
             if (dims_mult_arr[i] < 20 || new_line_num == 0)
                 new_line_num = dims_mult_arr[i];
         }
-        dims_mult_arr[tensor->num_dims] = 1;
         printf("\t\tData: ");
-        for (int i = 0; i < tensor->num_elements; i++)
+        if (tensor->data == NULL)
         {
-            if (i % new_line_num == 0)
-            {
-                // printf("\n%d:", i);
-                printf("\n");
-                for (int j = 0; j < tensor->num_dims; j++)
-                {
-                    printf("%d,", (i/dims_mult_arr[j+1]) % tensor->dims[j]);
-                }
-                printf(": ");
-            }
-            printf("%3.2f ", *((float*)tensor->data + i));
+            printf("Data is NULL.\n");
         }
-        printf("\n");
+        else 
+        {
+            for (int i = 0; i < tensor->num_elements; i++)
+            {
+                if (i % new_line_num == 0)
+                {
+                    // printf("\n%d:", i);
+                    printf("\n");
+                    for (int j = 0; j < tensor->num_dims; j++)
+                    {
+                        printf("%d,", (i/dims_mult_arr[j+1]) % tensor->dims[tensor->data_dim_order[j]]);
+                    }
+                    printf(": ");
+                }
+                printf("%3.2f ", *((float*)tensor->data + i));
+            }
+            printf("\n");
+        }
     }
 }
 

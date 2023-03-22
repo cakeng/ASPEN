@@ -4,11 +4,13 @@
 #include "aspen.h"
 #include "nasm.h"
 
+
 aspen_dnn_t *init_aspen_dnn (unsigned int num_layers, char* name);
 void init_aspen_layer (aspen_layer_t *layer, unsigned int layer_num, aspen_dnn_t *dnn);
 void destroy_aspen_layers (aspen_layer_t* layers, unsigned int num_layers);
 
 aspen_tensor_t *init_aspen_tensor (unsigned int *params_arr, LAYER_PARAMS *dim_info_arr, int num_dims);
+
 void destroy_aspen_tensor(aspen_tensor_t *tensor);
 
 void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata, aspen_layer_t *layer);

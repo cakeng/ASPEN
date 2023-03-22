@@ -78,7 +78,9 @@
 			"ios": "c",
 			"string.h": "c",
 			"stdio.h": "c",
-			"aspen.h": "c"
+			"aspen.h": "c",
+			"cdecode.h": "c",
+			"cencode.h": "c"
 		}
 	}
 }

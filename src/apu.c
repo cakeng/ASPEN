@@ -78,52 +78,83 @@ aspen_tensor_t *init_aspen_tensor (unsigned int *params_arr, LAYER_PARAMS *dim_o
     return new_tensor;
 }
 
+void fill_tensor_with_nums (aspen_tensor_t *tensor)
+{
+    if (tensor == NULL || tensor->data == NULL)
+        return;
+    size_t tensor_dims[MAX_TENSOR_DIMS];
+    for (int i = 0; i < MAX_TENSOR_DIMS; i++)
+    {
+        tensor_dims[i] = 1;
+    }
+    for (int i = tensor->num_dims - 1; i >= 0; i--)
+    {
+        for (int j = i; j < tensor->num_dims; j++)
+        {
+            tensor_dims[i] *= tensor->dims[tensor->data_dim_order[i]];
+        }
+    }
+    for (size_t i = 0; i < tensor->num_elements; i++)
+    {
+        double out = 0;
+        size_t idx = i;
+        for (int j = 0; j < tensor->num_dims; j++)
+        {
+            out *= 100;
+            out += (idx / tensor_dims[j+1])*0.01;
+            idx = idx % tensor_dims[j+1];
+        }
+        ((float *)tensor->data)[i] = out;
+    }
+}
+
+void fill_tensor_with_fixed_num (aspen_tensor_t *tensor, float num)
+{
+    if (tensor == NULL || tensor->data == NULL)
+        return;
+    for (size_t i = 0; i < tensor->num_elements; i++)
+    {
+        ((float *)tensor->data)[i] = num;
+    }
+}
+
 void create_layer_tensors (aspen_layer_t *layer)
 {
     if (layer->type == CONV_LAYER)
     {
-        LAYER_PARAMS weight_dim_order[] = {IN_C, OUT_C, F_H, F_W};
+        LAYER_PARAMS weight_dim_order[] = {OUT_C, IN_C, F_H, F_W};
         layer->tensors [FILTER] = init_aspen_tensor (layer->params, weight_dim_order, 4);
         layer->tensors [FILTER]->data = aspen_calloc(layer->tensors [FILTER]->num_elements, layer->dnn->element_size);
         LAYER_PARAMS bias_dim_order[] = {OUT_C};
         layer->tensors [BIAS] = init_aspen_tensor (layer->params, bias_dim_order, 1);
         layer->tensors [BIAS]->data = aspen_calloc(layer->tensors [BIAS]->num_elements, layer->dnn->element_size);
-        return;
     }
     else if (layer->type == FC_LAYER)
     {
-        LAYER_PARAMS weight_dim_order[] = {IN_C, OUT_C};
+        LAYER_PARAMS weight_dim_order[] = {OUT_C, IN_C};
         layer->tensors [FILTER] = init_aspen_tensor (layer->params, weight_dim_order, 2);
         layer->tensors [FILTER]->data = aspen_calloc(layer->tensors [FILTER]->num_elements, layer->dnn->element_size);
         LAYER_PARAMS bias_dim_order[] = {OUT_C};
         layer->tensors [BIAS] = init_aspen_tensor (layer->params, bias_dim_order, 1);
         layer->tensors [BIAS]->data = aspen_calloc(layer->tensors [BIAS]->num_elements, layer->dnn->element_size);
-        return;
     }
     else if (layer->type == INPUT_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER || layer->type == SOFTMAX_LAYER)
     {
-        return;
     }
     else
     {
         FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], __LINE__, __FILE__);
         exit(1);
     }
-}
-
-void apu_load_nasm_from_file(char *filename, nasm_t *output_nasm, aspen_dnn_t *output_dnn)
-{
-
-}
-
-void apu_save_nasm_to_file(char *filename)
-{
-    
-}
-
-void apu_save_dnn_to_file(char *filename)
-{
-    
+    #ifdef DEBUG
+    for (int i = 0; i < NUM_TENSOR_ELEMENTS; i++)
+    {
+        if (layer->tensors[i] != NULL)
+        {
+            fill_tensor_with_nums (layer->tensors[i]);
+        }
+    }
+    #endif
 }
 
 int get_nasm_ldata_num_per_layer (aspen_layer_t *layer)

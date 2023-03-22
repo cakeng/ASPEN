@@ -497,7 +497,8 @@ void parse_section (section *s, aspen_layer_t *layer)
     layer->params [DILATION] = option_find_int_quiet (options, "dilation", 0);
     char *activation_s = option_find_str(options, "activation", NULL);
     layer->activation = get_activation(activation_s);
-    layer->parent_layers [PARENT_0] = layer - 1;
+    if (layer->type != INPUT_LAYER)
+        layer->parent_layers [PARENT_0] = layer - 1;
     if (option_find_int_quiet (options, "from", 0))
     {
         layer->parent_layers [PARENT_1] = layer + option_find_int_quiet (options, "from", 0);

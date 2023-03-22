@@ -1,10 +1,10 @@
 TARGET=main
 ALIB=libasapen.a
-OBJECTS=build_info.o apu.o input_parser.o darknet_parser.o util.o
+OBJECTS=build_info.o apu.o apu_file_io.o input_parser.o darknet_parser.o util.o
 AVX2=1
 NEON=0
 GPU=0
-DEBUG=0
+DEBUG=1
 SUPPRESS_OUTPUT=0
 
 CC=gcc
@@ -50,6 +50,9 @@ $(ALIB): $(OBJS)
 	$(AR) $(ARFLAGS) $@ $^
 
 $(OBJDIR)build_info.o: build_info.c $(DEPS)
+	$(CC) $(COMMON) $(CFLAGS) $(INFO_FLAGS) $(OPTS) -c $< -o $@
+
+$(OBJDIR)apu_file_io.o: apu_file_io.c $(DEPS)
 	$(CC) $(COMMON) $(CFLAGS) $(INFO_FLAGS) $(OPTS) -c $< -o $@
 
 $(OBJDIR)%.o: %.c $(DEPS)
