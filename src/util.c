@@ -282,7 +282,7 @@ void print_ldata_info (nasm_ldata_t *ldata, int print_data)
     if (ldata->parent_ldata_idx_arr[PARENT_0] != -1)
     {
         aspen_layer_t *p0_layer = ldata->nasm->ldata_arr[ldata->parent_ldata_idx_arr[PARENT_0]].layer;
-        printf("Parent 0 type: %s, Params: \n\t", layer_type_str[p0_layer->type]);
+        printf("Parent 0 idx: %d, type: %s, Params: \n\t", p0_layer->layer_idx, layer_type_str[p0_layer->type]);
         for (LAYER_PARAMS i = 0; i < NUM_PARAM_ELEMENTS; i++)
         {
             if (i != NUM_PARAM_ELEMENTS && p0_layer->params[i] != 0)

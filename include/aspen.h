@@ -65,7 +65,7 @@ void aspen_destroy_dnn(aspen_dnn_t *dnn);
 
 nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size);
 void aspen_destroy_nasm(nasm_t *nasm);
-void apu_load_nasm_from_file(char *filename, nasm_t *output_nasm, aspen_dnn_t *output_dnn);
+nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn);
 void apu_save_nasm_to_file(nasm_t *nasm, char *filename);
 void apu_save_dnn_to_file(aspen_dnn_t *dnn, char *filename);
 aspen_dnn_t *apu_load_dnn_from_file(char *filename);

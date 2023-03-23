@@ -52,9 +52,6 @@ $(ALIB): $(OBJS)
 $(OBJDIR)build_info.o: build_info.c $(DEPS)
 	$(CC) $(COMMON) $(CFLAGS) $(INFO_FLAGS) $(OPTS) -c $< -o $@
 
-$(OBJDIR)apu_file_io.o: apu_file_io.c $(DEPS)
-	$(CC) $(COMMON) $(CFLAGS) $(INFO_FLAGS) $(OPTS) -c $< -o $@
-
 $(OBJDIR)%.o: %.c $(DEPS)
 	$(CC) $(COMMON) $(CFLAGS) $(OPTS) -c $< -o $@
 

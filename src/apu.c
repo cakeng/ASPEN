@@ -187,7 +187,7 @@ void update_ldata_child_list (nasm_ldata_t *ldata)
 }
 
 
-void ninst_set_parent (ninst_t *ninst)
+void ninst_find_parent (ninst_t *ninst)
 {
     nasm_ldata_t *ldata = ninst->ldata;
     aspen_layer_t *layer = ldata->layer;
@@ -357,7 +357,6 @@ void init_ninst (nasm_ldata_t *ldata, ninst_t *ninst_ptr, int ninst_idx)
     ninst_ptr->state = NINST_NOT_READY;
     ninst_ptr->ninst_idx = ninst_idx;
     get_out_mat_pos_from_nist (ldata, ninst_ptr, ninst_ptr->out_mat_pos);
-    ninst_set_parent (ninst_ptr);
 }
 
 void destroy_ninst (ninst_t *ninst)
@@ -368,7 +367,7 @@ void destroy_ninst (ninst_t *ninst)
         free (ninst->parent_ninst_idx_arr);
 }
 
-nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size)
+nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size)
 {
     nasm_t *new_nasm = (nasm_t *) calloc(1, sizeof(nasm_t));
     new_nasm->dnn = dnn;
@@ -397,12 +396,10 @@ nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned 
     {
         new_nasm->ldata_arr[i].ninst_arr_start = ninst_ptr;
         ninst_ptr += new_nasm->ldata_arr[i].num_ninst;
-        #pragma omp parallel for
         for (int j = 0; j < new_nasm->ldata_arr[i].num_ninst; j++)
         {
             init_ninst(&new_nasm->ldata_arr[i], &new_nasm->ldata_arr[i].ninst_arr_start[j], total_ninst + j);
         }
-        PRT ("Layer %d, %d ninsts created.\n", i, new_nasm->ldata_arr[i].num_ninst);
         total_ninst += new_nasm->ldata_arr[i].num_ninst;
     }
     for (int i = 0; i < new_nasm->num_ldata; i++)
@@ -412,6 +409,22 @@ nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned 
     dnn->ref_nasms++;
     return new_nasm;
 }
+
+nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size)
+{
+    nasm_t *new_nasm = apu_create_nasm_without_finding_ninst_parents(dnn, flop_per_ninst, batch_size);
+    for (int i = 0; i < new_nasm->num_ldata; i++)
+    {
+        #pragma omp parallel for
+        for (int j = 0; j < new_nasm->ldata_arr[i].num_ninst; j++)
+        {
+            ninst_find_parent (&new_nasm->ldata_arr[i].ninst_arr_start[j]);
+        }
+        PRT ("Layer %d, ninst idx %d parents found.\n", i, new_nasm->ldata_arr[i].num_ninst);
+    }
+    return new_nasm;
+}
+
 void destroy_nasm_ldata (nasm_ldata_t *ldata)
 {
     if (ldata == NULL)

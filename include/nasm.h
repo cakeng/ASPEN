@@ -68,14 +68,13 @@ struct ninst_t
     unsigned int ninst_idx;
     unsigned int out_mat_pos [2];
 
-    unsigned int parent_data_offset [NUM_PARENT_ELEMENTS];
-
     unsigned int *parent_ninst_idx_arr;
     unsigned int num_parent_ninsts;
     unsigned int num_parent_ninsts_completed;
     
     void *out_mat;
     rpool_t *affinity_pool;
+    unsigned int parent_data_offset [NUM_PARENT_ELEMENTS];
 };
 
 struct aspen_dnn_t
