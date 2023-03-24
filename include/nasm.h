@@ -1,5 +1,6 @@
 #ifndef _NASM_H_
 #define _NASM_H_
+
 #include "aspen.h"
 
 typedef enum {
@@ -37,6 +38,8 @@ struct nasm_t
     ninst_t *ninst_arr;
     unsigned int num_ldata;
     unsigned int flop_per_ninst;
+
+    unsigned int nasm_id;
 };
 
 struct nasm_ldata_t
@@ -58,7 +61,6 @@ struct nasm_ldata_t
     
     unsigned int num_ninst;
     unsigned int num_ninst_completed;
-    rpool_t *forced_pool;
 };
 
 struct ninst_t 
@@ -74,7 +76,6 @@ struct ninst_t
     
     void *out_mat;
     rpool_t *affinity_pool;
-    unsigned int parent_data_offset [NUM_PARENT_ELEMENTS];
 };
 
 struct aspen_dnn_t

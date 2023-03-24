@@ -3,13 +3,13 @@
 #include "nasm.h"
 #include "input_parser.h"
 
-aspen_dnn_t *apu_create_dnn(char *input_path, char *weight_path)
+aspen_dnn_t *apu_create_dnn (char *input_path, char *weight_path)
 {
     aspen_dnn_t *new_dnn = parse_input (input_path);
     return new_dnn;
 }
 
-void aspen_destroy_dnn(aspen_dnn_t *dnn)
+void apu_destroy_dnn (aspen_dnn_t *dnn)
 {
     if (dnn == NULL)
         return;
@@ -23,7 +23,7 @@ void aspen_destroy_dnn(aspen_dnn_t *dnn)
     free(dnn);
 }
 
-aspen_dnn_t *init_aspen_dnn(unsigned int num_layers, char* name)
+aspen_dnn_t *init_aspen_dnn (unsigned int num_layers, char* name)
 {
     aspen_dnn_t *new_dnn = (aspen_dnn_t *) calloc(1, sizeof(aspen_dnn_t));
     strncpy(new_dnn->name, name, MAX_STRING_LEN-1);
@@ -186,7 +186,6 @@ void update_ldata_child_list (nasm_ldata_t *ldata)
     }
 }
 
-
 void ninst_find_parent (ninst_t *ninst)
 {
     nasm_ldata_t *ldata = ninst->ldata;
@@ -260,20 +259,24 @@ void ninst_find_parent (ninst_t *ninst)
                                 for (int k = 0; k < layer->params[IN_W]; k++)
                                 {
                                     in_tensor_pos[OUT_W] = k;
-                                    ninst_t *input_nist = get_ninst_from_tensor_pos(parent_ldata, in_tensor_pos);
-                                    int duplicate = 0;
-                                    for (int l = 0; l < ninst->num_parent_ninsts; l++)
+                                    if (in_tensor_pos[BATCH] >= 0 && in_tensor_pos[BATCH] < ldata->nasm->batch_size && in_tensor_pos[OUT_C] >= 0 && in_tensor_pos[OUT_C] < layer->params[IN_C] &&
+                                        in_tensor_pos[OUT_H] >= 0 && in_tensor_pos[OUT_H] < layer->params[IN_H] && in_tensor_pos[OUT_W] >= 0 && in_tensor_pos[OUT_W] < layer->params[IN_W])
                                     {
-                                        if (parent_arr[l] == input_nist->ninst_idx)
+                                        ninst_t *input_nist = get_ninst_from_tensor_pos(parent_ldata, in_tensor_pos);
+                                        int duplicate = 0;
+                                        for (int l = 0; l < ninst->num_parent_ninsts; l++)
                                         {
-                                            duplicate = 1;
-                                            break;
+                                            if (parent_arr[l] == input_nist->ninst_idx)
+                                            {
+                                                duplicate = 1;
+                                                break;
+                                            }
                                         }
-                                    }
-                                    if (!duplicate)
-                                    {
-                                        parent_arr[ninst->num_parent_ninsts] = input_nist->ninst_idx;
-                                        ninst->num_parent_ninsts++;
+                                        if (!duplicate)
+                                        {
+                                            parent_arr[ninst->num_parent_ninsts] = input_nist->ninst_idx;
+                                            ninst->num_parent_ninsts++;
+                                        }
                                     }
                                 }
                             }
@@ -283,20 +286,25 @@ void ninst_find_parent (ninst_t *ninst)
                     {
                         for (int i = 0; i < layer->params[IN_C]; i++)
                         {
-                            ninst_t *input_nist = get_ninst_from_tensor_pos(parent_ldata, in_tensor_pos);
-                            int duplicate = 0;
-                            for (int l = 0; l < ninst->num_parent_ninsts; l++)
+                            in_tensor_pos[OUT_C] = i;
+                            if (in_tensor_pos[BATCH] >= 0 && in_tensor_pos[BATCH] < ldata->nasm->batch_size && in_tensor_pos[OUT_C] >= 0 && in_tensor_pos[OUT_C] < layer->params[IN_C] &&
+                                in_tensor_pos[OUT_H] >= 0 && in_tensor_pos[OUT_H] < layer->params[IN_H] && in_tensor_pos[OUT_W] >= 0 && in_tensor_pos[OUT_W] < layer->params[IN_W])
                             {
-                                if (parent_arr[l] == input_nist->ninst_idx)
+                                ninst_t *input_nist = get_ninst_from_tensor_pos(parent_ldata, in_tensor_pos);
+                                int duplicate = 0;
+                                for (int l = 0; l < ninst->num_parent_ninsts; l++)
                                 {
-                                    duplicate = 1;
-                                    break;
+                                    if (parent_arr[l] == input_nist->ninst_idx)
+                                    {
+                                        duplicate = 1;
+                                        break;
+                                    }
                                 }
-                            }
-                            if (!duplicate)
-                            {
-                                parent_arr[ninst->num_parent_ninsts] = input_nist->ninst_idx;
-                                ninst->num_parent_ninsts++;
+                                if (!duplicate)
+                                {
+                                    parent_arr[ninst->num_parent_ninsts] = input_nist->ninst_idx;
+                                    ninst->num_parent_ninsts++;
+                                }
                             }
                         }
                     }
@@ -309,20 +317,25 @@ void ninst_find_parent (ninst_t *ninst)
             } 
             else if (layer->type == SOFTMAX_LAYER)
             {
-                ninst_t *input_nist = get_ninst_from_tensor_pos(parent_ldata, out_tensor_pos);
-                int duplicate = 0;
-                for (int l = 0; l < ninst->num_parent_ninsts; l++)
+                memcpy (in_tensor_pos, out_tensor_pos, sizeof(int) * NUM_PARAM_ELEMENTS);
+                if (in_tensor_pos[BATCH] >= 0 && in_tensor_pos[BATCH] < ldata->nasm->batch_size && in_tensor_pos[OUT_C] >= 0 && in_tensor_pos[OUT_C] < layer->params[IN_C] &&
+                    in_tensor_pos[OUT_H] >= 0 && in_tensor_pos[OUT_H] < layer->params[IN_H] && in_tensor_pos[OUT_W] >= 0 && in_tensor_pos[OUT_W] < layer->params[IN_W])
                 {
-                    if (parent_arr[l] == input_nist->ninst_idx)
+                    ninst_t *input_nist = get_ninst_from_tensor_pos(parent_ldata, in_tensor_pos);
+                    int duplicate = 0;
+                    for (int l = 0; l < ninst->num_parent_ninsts; l++)
                     {
-                        duplicate = 1;
-                        break;
+                        if (parent_arr[l] == input_nist->ninst_idx)
+                        {
+                            duplicate = 1;
+                            break;
+                        }
                     }
-                }
-                if (!duplicate)
-                {
-                    parent_arr[ninst->num_parent_ninsts] = input_nist->ninst_idx;
-                    ninst->num_parent_ninsts++;
+                    if (!duplicate)
+                    {
+                        parent_arr[ninst->num_parent_ninsts] = input_nist->ninst_idx;
+                        ninst->num_parent_ninsts++;
+                    }
                 }
             }
             else if (layer->type == INPUT_LAYER)
@@ -420,7 +433,7 @@ nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned 
         {
             ninst_find_parent (&new_nasm->ldata_arr[i].ninst_arr_start[j]);
         }
-        PRT ("Layer %d, ninst idx %d parents found.\n", i, new_nasm->ldata_arr[i].num_ninst);
+        PRT ("Layer %d, parents for %d ninsts found.\n", i, new_nasm->ldata_arr[i].num_ninst);
     }
     return new_nasm;
 }
@@ -448,7 +461,7 @@ void destroy_nasm_ldata_arr (nasm_ldata_t *ldata_arr, int num_ldata)
     free(ldata_arr);
 }
 
-void aspen_destroy_nasm(nasm_t *nasm)
+void apu_destroy_nasm (nasm_t *nasm)
 {
     if (nasm == NULL)
         return;
@@ -503,24 +516,33 @@ void get_out_mat_info (nasm_ldata_t *ldata)
 
 void get_ninst_tile_dims (nasm_ldata_t *ldata)
 {
-    ldata->ninst_tile_dims[OUT_H] = NINST_H_MIN;
-    ldata->ninst_tile_dims[OUT_W] = NINST_W_MIN;
+    ldata->ninst_tile_dims[OUT_H] = 1;
+    ldata->ninst_tile_dims[OUT_W] = 1;
     while (ldata->ninst_tile_dims[OUT_H]*ldata->ninst_tile_dims[OUT_W] < ldata->nasm->flop_per_ninst/ldata->flop_per_output)
     {
         if (ldata->ninst_tile_dims[OUT_H] < ldata->out_mat_dims[OUT_H])
+        {
             ldata->ninst_tile_dims[OUT_H]++;
-        if (ldata->ninst_tile_dims[OUT_W] < ldata->out_mat_dims[OUT_W])
+        }
+        else if (ldata->ninst_tile_dims[OUT_W] < ldata->out_mat_dims[OUT_W])
+        {
             ldata->ninst_tile_dims[OUT_W]++;
-        if (ldata->ninst_tile_dims[OUT_H] >= ldata->out_mat_dims[OUT_H] && ldata->ninst_tile_dims[OUT_W] >= ldata->out_mat_dims[OUT_W])
+        }
+        else
+        {
             break;
+        }
     }
     while (ldata->ninst_tile_dims[OUT_H]%NINST_H_MIN != 0)
     {
         ldata->ninst_tile_dims[OUT_H]++;
     }
-    while (ldata->ninst_tile_dims[OUT_W]%NINST_W_MIN != 0)
+    if (ldata->layer->type != FC_LAYER && ldata->layer->type != SOFTMAX_LAYER)
     {
-        ldata->ninst_tile_dims[OUT_W]++;
+        while (ldata->ninst_tile_dims[OUT_W]%NINST_W_MIN != 0)
+        {
+            ldata->ninst_tile_dims[OUT_W]++;
+        }
     }
 }
 
@@ -549,25 +571,32 @@ void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata_ptr, aspen_layer_t *laye
     get_ninst_tile_dims (ldata_ptr);
     unsigned int out_w = get_smallest_dividable (ldata_ptr->out_mat_dims[OUT_W], ldata_ptr->ninst_tile_dims[OUT_W]);
     unsigned int out_h = get_smallest_dividable (ldata_ptr->out_mat_dims[OUT_H], ldata_ptr->ninst_tile_dims[OUT_H]);
-    while ((out_w/ldata_ptr->ninst_tile_dims[OUT_W])*(out_h/ldata_ptr->ninst_tile_dims[OUT_H]) < 4)
+    if (layer->type != FC_LAYER && layer->type != SOFTMAX_LAYER)
     {
-        if (ldata_ptr->ninst_tile_dims[OUT_W] > NINST_W_MIN)
-            ldata_ptr->ninst_tile_dims[OUT_W] /= 2;
-        while (ldata_ptr->ninst_tile_dims[OUT_W]%NINST_W_MIN != 0)
+        while ((out_w/ldata_ptr->ninst_tile_dims[OUT_W])*(out_h/ldata_ptr->ninst_tile_dims[OUT_H]) < 8)
         {
-            ldata_ptr->ninst_tile_dims[OUT_W]++;
-        }
-        if (ldata_ptr->ninst_tile_dims[OUT_H] > NINST_H_MIN)
-            ldata_ptr->ninst_tile_dims[OUT_H] /= 2;
-        while (ldata_ptr->ninst_tile_dims[OUT_H]%NINST_H_MIN != 0)
-        {
-            ldata_ptr->ninst_tile_dims[OUT_H]++;
-        }
-        out_w = get_smallest_dividable (ldata_ptr->out_mat_dims[OUT_W], ldata_ptr->ninst_tile_dims[OUT_W]);
-        out_h = get_smallest_dividable (ldata_ptr->out_mat_dims[OUT_H], ldata_ptr->ninst_tile_dims[OUT_H]);
-        if (ldata_ptr->ninst_tile_dims[OUT_W] == NINST_W_MIN && ldata_ptr->ninst_tile_dims[OUT_H] == NINST_H_MIN)
-        {
-            break;
+            if (ldata_ptr->ninst_tile_dims[OUT_W] > NINST_W_MIN)
+            {
+                ldata_ptr->ninst_tile_dims[OUT_W] /= 2;
+                while (ldata_ptr->ninst_tile_dims[OUT_W]%NINST_W_MIN != 0)
+                {
+                    ldata_ptr->ninst_tile_dims[OUT_W]++;
+                }
+            }
+            else if (ldata_ptr->ninst_tile_dims[OUT_H] > NINST_H_MIN)
+            {
+                ldata_ptr->ninst_tile_dims[OUT_H] /= 2;
+                while (ldata_ptr->ninst_tile_dims[OUT_H]%NINST_H_MIN != 0)
+                {
+                    ldata_ptr->ninst_tile_dims[OUT_H]++;
+                }
+            }
+            out_w = get_smallest_dividable (ldata_ptr->out_mat_dims[OUT_W], ldata_ptr->ninst_tile_dims[OUT_W]);
+            out_h = get_smallest_dividable (ldata_ptr->out_mat_dims[OUT_H], ldata_ptr->ninst_tile_dims[OUT_H]);
+            if (ldata_ptr->ninst_tile_dims[OUT_W] == NINST_W_MIN && ldata_ptr->ninst_tile_dims[OUT_H] == NINST_H_MIN)
+            {
+                break;
+            }
         }
     }
     ldata_ptr->out_mat_stride = out_h;
@@ -655,4 +684,247 @@ void get_tensor_pos_from_nist (nasm_ldata_t *ldata, ninst_t *ninst, unsigned int
     unsigned int out_mat_pos[2] = {0,0};
     get_out_mat_pos_from_nist (ldata, ninst, out_mat_pos);
     get_tensor_pos_from_out_mat_pos (ldata, out_mat_pos, tensor_pos);
+}
+
+void print_dnn_info (aspen_dnn_t *dnn, int print_data)
+{
+    if (dnn == NULL)
+    {
+        printf("Error: DNN is NULL.\n");
+        return;
+    }
+    printf("//////// Printing DNN Info ////////\n");
+    printf("DNN Name: %s\n", dnn->name);
+    printf("Number of Layers: %d\n", dnn->num_layers);
+    for (int i = 0; i < dnn->num_layers; i++)
+    {
+        print_layer_info(&dnn->layers[i], print_data);
+    }
+    printf("//////// End of DNN Info ////////\n");
+}
+
+void print_layer_info (aspen_layer_t *layer, int print_data)
+{
+    if (layer == NULL)
+    {
+        printf("Error: Layer is NULL.\n");
+        return;
+    }
+    printf("//////// Printing Layer Info ////////\n");
+    printf("Layer Index: %d\n", layer->layer_idx);
+    printf("Layer Type: %s\n", layer_type_str[layer->type]);
+    printf("Layer Activation: %s\n", activation_type_str[layer->activation]);
+    printf("Layer Parents: ");
+    for (int i = 0; i < NUM_PARENT_ELEMENTS; i++)
+    {
+        if (layer->parent_layers[i] != NULL)
+            printf("%s: %d ", parent_type_str[i], layer->parent_layers[i]->layer_idx);
+    }
+    printf("\nLayer Params:\n");
+    for (LAYER_PARAMS i = 0; i < NUM_PARAM_ELEMENTS; i++)
+    {
+        if (layer->params[i] != 0)
+            printf("\t%s: %d\n", param_type_str[i], layer->params[i]);
+    }
+    printf ("Layer Tensors:\n");
+    for (int i = 0; i < NUM_TENSOR_ELEMENTS; i++)
+    {
+        if (layer->tensors[i] != NULL)
+        {
+            printf("\t%s\n", tensor_type_str[i]);
+            print_tensor_info(layer->tensors[i], print_data);
+        }
+    }
+}
+
+void print_tensor_info (aspen_tensor_t *tensor, int print_data)
+{
+    if (tensor == NULL)
+    {
+        printf("Error: Tensor is NULL.\n");
+        return;
+    }
+    printf("\t\tDims: ");
+    for (int i = 0; i < tensor->num_dims; i++)
+    {
+        printf("%s, ", param_type_str[tensor->data_dim_order[i]]);
+    }
+    printf("\n\t\tSize: ");
+    for (int i = 0; i < tensor->num_dims; i++)
+    {
+        printf("%d, ", tensor->dims[tensor->data_dim_order[i]]);
+    }
+    printf("\n");
+    if (print_data)
+    {
+        int new_line_num = 0;
+        int dims_mult_arr[MAX_TENSOR_DIMS];
+        for (int i = 0; i < MAX_TENSOR_DIMS; i++)
+        {
+            dims_mult_arr[i] = 1;
+        }
+        for (int i = tensor->num_dims - 1; i >= 0; i--)
+        {
+            for (int j = i; j < tensor->num_dims; j++)
+            {
+                dims_mult_arr[i] *= tensor->dims[tensor->data_dim_order[j]];
+            }
+            if (dims_mult_arr[i] < 20 || new_line_num == 0)
+                new_line_num = dims_mult_arr[i];
+        }
+        printf("\t\tData: ");
+        if (tensor->data == NULL)
+        {
+            printf("Data is NULL.\n");
+        }
+        else 
+        {
+            for (int i = 0; i < tensor->num_elements; i++)
+            {
+                if (i % new_line_num == 0)
+                {
+                    // printf("\n%d:", i);
+                    printf("\n");
+                    for (int j = 0; j < tensor->num_dims; j++)
+                    {
+                        printf("%d,", (i/dims_mult_arr[j+1]) % tensor->dims[tensor->data_dim_order[j]]);
+                    }
+                    printf(": ");
+                }
+                printf("%3.2f ", *((float*)tensor->data + i));
+            }
+            printf("\n");
+        }
+    }
+}
+
+void print_nasm_info (nasm_t *nasm, int print_data)
+{
+    if (nasm == NULL)
+    {
+        printf("Error: NASM is NULL.\n");
+        return;
+    }
+    printf("//////////////////////// Printing NASM Info ////////////////////////\n");
+    printf("Number of ldata: %d\n", nasm->num_ldata);
+    printf("Number of batch: %d\n", nasm->batch_size);
+    printf("FLOPs per ninst: %d\n", nasm->flop_per_ninst);
+    for (int i = 0; i < nasm->num_ldata; i++)
+    {
+        print_ldata_info(&nasm->ldata_arr[i], print_data);
+    }
+    printf("//////////////////////// End of NASM Info ////////////////////////\n");
+}
+
+void print_ldata_info (nasm_ldata_t *ldata, int print_data)
+{
+    if (ldata == NULL)
+    {
+        printf("Error: ldata is NULL.\n");
+        return;
+    }
+    printf("//////////////////////// Printing ldata Info ////////////////////////\n");
+    printf("Ldata Index: %ld\n", ldata - ldata->nasm->ldata_arr);
+    printf("Original layer index: %d\n", ldata->layer->layer_idx);
+    printf("Original layer type: %s, Params: \n\t", layer_type_str[ldata->layer->type]);
+    for (LAYER_PARAMS i = 0; i < NUM_PARAM_ELEMENTS; i++)
+    {
+        if (i != NUM_PARAM_ELEMENTS && ldata->layer->params[i] != 0)
+            printf("%s:%d ", param_type_str[i], ldata->layer->params[i]);
+    }
+    printf("\n");
+    printf("Ldata Parents: ");
+    for (int i = 0; i < NUM_PARENT_ELEMENTS; i++)
+    {
+        if (ldata->parent_ldata_idx_arr[i] != -1)
+            printf("%s: %d ", parent_type_str[i], ldata->parent_ldata_idx_arr[i]);
+    }
+    printf("\n");
+    if (ldata->parent_ldata_idx_arr[PARENT_0] != -1)
+    {
+        aspen_layer_t *p0_layer = ldata->nasm->ldata_arr[ldata->parent_ldata_idx_arr[PARENT_0]].layer;
+        printf("Parent 0 idx: %d, type: %s, Params: \n\t", p0_layer->layer_idx, layer_type_str[p0_layer->type]);
+        for (LAYER_PARAMS i = 0; i < NUM_PARAM_ELEMENTS; i++)
+        {
+            if (i != NUM_PARAM_ELEMENTS && p0_layer->params[i] != 0)
+                printf("%s:%d ", param_type_str[i], p0_layer->params[i]);
+        }
+        printf ("\n");
+    }
+    printf("Ldata Children (Completed: %d/%d): ", ldata->num_child_ldata_completed, ldata->num_child_ldata);
+    for (int i = 0; i < ldata->num_child_ldata; i++)
+    {
+        printf("%d ", ldata->child_ldata_idx_arr[i]);
+    }
+    printf("\n");
+    printf("Ldata Flop per output element: %d\n", ldata->flop_per_output);
+    printf("Ldata Output Matrix Dimensions: (H: %d, W: %d), Stride: %d\n"
+        , ldata->out_mat_dims[OUT_H], ldata->out_mat_dims[OUT_W], ldata->out_mat_stride);
+    printf("Ldata Flop per Ninst: %d\n", ldata->flop_per_output*ldata->ninst_tile_dims[OUT_H]*ldata->ninst_tile_dims[OUT_W]);
+    printf("Ldata Ninst Tile Dimensions: (H: %d, W: %d)\n", 
+        ldata->ninst_tile_dims[OUT_H], ldata->ninst_tile_dims[OUT_W]);
+    printf("Number of ninst: %d, Completed: %d\n", ldata->num_ninst, ldata->num_ninst_completed);
+    for (int i = 0; i < ldata->num_ninst; i++)
+    {
+        printf ("\tNinst %d: ", i);
+        print_ninst_info(&ldata->ninst_arr_start[i], print_data);
+    }
+    printf("////////////////////////  End of ldata Info  ////////////////////////\n");
+}
+
+void print_ninst_info (ninst_t *ninst, int print_data)
+{
+    if (ninst == NULL)
+    {
+        printf("Error: ninst is NULL.\n");
+        return;
+    }
+    printf ("Ninst Idx: %d\n", ninst->ninst_idx);
+    printf ("\t\tNinst tile position: (H: %d, W: %d) ~ (H: %d, W: %d) "
+        , ninst->out_mat_pos[OUT_H], ninst->out_mat_pos[OUT_W],
+            ninst->out_mat_pos[OUT_H] + ninst->ldata->ninst_tile_dims[OUT_H] - 1
+                , ninst->out_mat_pos[OUT_W] + ninst->ldata->ninst_tile_dims[OUT_W] - 1);
+    if (ninst->ldata->layer->type == CONV_LAYER || ninst->ldata->layer->type == MAXPOOL_LAYER
+        || ninst->ldata->layer->type == AVGPOOL_LAYER || ninst->ldata->layer->type == INPUT_LAYER)
+    {
+        unsigned int out_tensor_pos[NUM_PARAM_ELEMENTS]; 
+        get_tensor_pos_from_nist (ninst->ldata, ninst, out_tensor_pos);
+        printf ("Tensor Pos: (%d,%d,%d,%d)", out_tensor_pos[BATCH], out_tensor_pos[OUT_C],
+                    out_tensor_pos[OUT_H],
+                     out_tensor_pos[OUT_W]);
+    }
+    printf ("\n\t\tParent ninst (Completed: %d/%d): "
+        , ninst->num_parent_ninsts_completed, ninst->num_parent_ninsts);
+    for (int i = 0; i < ninst->num_parent_ninsts; i++)
+    {
+        if (ninst->parent_ninst_idx_arr == NULL)
+        {
+            printf("\n\t\t\tError: Parent ninst index array is NULL.\n");
+            break;  
+        }
+        ninst_t *parent_ninst = ninst->parent_ninst_idx_arr[i] + ninst->ldata->nasm->ninst_arr;
+        printf("L%ld:%d ", parent_ninst->ldata - parent_ninst->ldata->nasm->ldata_arr,
+            ninst->parent_ninst_idx_arr[i]);
+    }
+    if (print_data)
+    {
+        printf("\n\t\tData:");
+        if (ninst->out_mat == NULL)
+        {
+            printf("\n\t\t\tError: Output matrix is NULL.\n");
+            return;
+        }
+        for (unsigned int h = 0; h < ninst->ldata->ninst_tile_dims[OUT_H]; h++)
+        {
+            printf("\n\t\t\t");
+            for (unsigned int w = 0; w < ninst->ldata->ninst_tile_dims[OUT_W]; w++)
+            {
+                unsigned int output_mat_h = ninst->out_mat_pos[OUT_H] + h;
+                unsigned int output_mat_w = ninst->out_mat_pos[OUT_W] + w;
+                printf("%3.2f ", *((float*)ninst->out_mat 
+                    + output_mat_w*ninst->ldata->out_mat_stride + output_mat_h));
+            }
+        }
+    }
+    printf("\n");
 }

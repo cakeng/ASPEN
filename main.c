@@ -37,7 +37,7 @@ int main(void)
     }
     print_nasm_info(vgg16_nasm, 0);
 
-    aspen_destroy_nasm (vgg16_nasm);
-    aspen_destroy_dnn (vgg16_dnn);
+    apu_destroy_nasm (vgg16_nasm);
+    apu_destroy_dnn (vgg16_dnn);
     return 0;
 }
