@@ -3,33 +3,6 @@
 
 #include "aspen.h"
 
-typedef enum {
-    OUT_W, OUT_H, OUT_C, BATCH, IN_W, IN_H, IN_C, F_W, F_H, STRIDE, PADDING, DILATION, GROUPS,
-    SEQ_LEN, HEAD_NUM, HIDDEN_PER_HEAD,
-    FORM_BYTES, NUM_PARAM_ELEMENTS
-} LAYER_PARAMS;
-
-typedef enum {
-    NULL_TENSOR, OUTPUT, INPUT, FILTER, BIAS,
-    NUM_TENSOR_ELEMENTS
-} LAYER_TENSORS;
-
-typedef enum {
-    PARENT_NONE, PARENT_0, PARENT_1, PARENT_FILTER,
-    NUM_PARENT_ELEMENTS
-} LAYER_PARENTS;
-
-typedef enum {
-    NINST_NOT_READY, NINST_READY, NINST_COMPLETED,
-} NINST_STATE;
-
-extern char *layer_type_str [NUM_LAYER_ELEMENTS];
-extern char *param_type_str[NUM_PARAM_ELEMENTS];
-extern char *tensor_type_str[NUM_TENSOR_ELEMENTS];
-extern char *parent_type_str[NUM_PARENT_ELEMENTS];
-extern char *activation_type_str [NUM_ACTIVATION_ELEMENTS];
-extern char *nist_op_str [NUM_NIST_OP_ELEMENTS];
-
 struct nasm_t
 {
     aspen_dnn_t *dnn;

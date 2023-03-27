@@ -29,10 +29,11 @@ char *activation_type_str [NUM_ACTIVATION_ELEMENTS] =
     [NO_ACTIVATION] = "NO_ACTIVATION", [SIGMOID] = "SIGMOID", [LINEAR] = "LINEAR", [TANH] = "TANH", [RELU] = "RELU", [LEAKY_RELU] = "LEAKY_RELU", [ELU] = "ELU", [SELU] = "SELU"
 };
 
-char *nist_op_str [NUM_NIST_OP_ELEMENTS] = 
+char *rpool_cond_str [NUM_RPOOL_CONDS] = 
 {
-    [NO_OPERATION] = "NO_OPERATION", [N_CONV2D] = "N_CONV2D", [N_FC] = "N_FC"
+    [RPOOL_DNN] = "RPOOL_DNN", [RPOOL_LAYER_TYPE] = "RPOOL_LAYER_TYPE", [RPOOL_LAYER_IDX] = "RPOOL_LAYER_IDX", [RPOOL_NASM] = "RPOOL_NASM", [RPOOL_ASE] = "RPOOL_ASE"
 };
+
 
 void *aspen_calloc (size_t num, size_t size)
 {
