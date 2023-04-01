@@ -382,6 +382,7 @@ void apu_save_nasm_to_file(nasm_t *nasm, char *filename)
         {
             ninst_t *ninst = nasm->ldata_arr[i].ninst_arr_start + j;
             fprintf (fp, "\tNINST_IDX:%ld\n", ninst - nasm->ninst_arr);
+            fprintf (fp, "\tNUM_CHILD_NINSTS:%d\n", ninst->num_child_ninsts);
             fprintf (fp, "\tNUM_PARENT_NINSTS:%d\n", ninst->num_parent_ninsts);
             fprintf (fp, "\tPARENT_NINSTS:\n");
             for (unsigned int k = 0; k < ninst->num_parent_ninsts; k++)
@@ -488,6 +489,16 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
                 fclose (fp);
                 return NULL;
             }
+            if ((ptr = read_check_and_return (fp, line, "NUM_CHILD_NINSTS:", &line_num)) == NULL)
+            {
+                FPRT(stderr,"ASPEN DNN file %s parse error: Missing NUM_CHILD_NINSTS.\n", filename);
+                apu_destroy_nasm (nasm);
+                apu_destroy_dnn (*output_dnn);
+                *output_dnn = NULL;
+                fclose (fp);
+                return NULL;
+            }
+            ninst->num_child_ninsts = atoi(ptr);
             if ((ptr = read_check_and_return (fp, line, "NUM_PARENT_NINSTS:", &line_num)) == NULL)
             {
                 FPRT(stderr,"ASPEN DNN file %s parse error: Missing NUM_PARENT_NINSTS.\n", filename);
@@ -529,6 +540,13 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
                 fclose (fp);
                 return NULL;
             }
+        }
+    }
+    for (int i = 0; i < nasm->num_ldata; i++)
+    {
+        for (int j = 0; j < nasm->ldata_arr[i].num_ninst; j++)
+        {
+            set_child_list (&nasm->ldata_arr[i].ninst_arr_start[j]);
         }
     }
     if ((ptr = read_check_and_return (fp, line, "NASM_NINSTS_END", &line_num)) == NULL)

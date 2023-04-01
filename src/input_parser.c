@@ -50,7 +50,7 @@ void set_layer_inout_sizes (aspen_layer_t *layer)
         layer->params[OUT_W] = (layer->params[IN_W] + 2*layer->params[PADDING] - layer->params[DILATION]*(layer->params[F_W] - 1) - 1) / layer->params[STRIDE] + 1;
         return;
     }
-    else if (layer->type == SOFTMAX_LAYER || layer->type == MAXPOOL_LAYER)
+    else if (layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER)
     {
         if (layer->params[STRIDE] == 0)
             layer->params[STRIDE] = 1;
@@ -61,10 +61,17 @@ void set_layer_inout_sizes (aspen_layer_t *layer)
         layer->params[OUT_C] = layer->params[IN_C];
         return;
     }
-    else if (layer->type == FC_LAYER)
+    else if (layer->type == SOFTMAX_LAYER || layer->type == FC_LAYER)
     {
         layer->params[OUT_H] = 1;
         layer->params[OUT_W] = 1;
+        return;
+    }
+    else if (layer->type == RESIDUAL_LAYER)
+    {
+        layer->params[OUT_C] = layer->params[IN_C];
+        layer->params[OUT_H] = layer->params[IN_H];
+        layer->params[OUT_W] = layer->params[IN_W];
         return;
     }
     else

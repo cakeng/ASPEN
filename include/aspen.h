@@ -80,7 +80,6 @@ aspen_dnn_t *apu_create_dnn(char *input_path, char *weight_path);
 void apu_destroy_dnn(aspen_dnn_t *dnn);
 void apu_save_dnn_to_file(aspen_dnn_t *dnn, char *filename);
 aspen_dnn_t *apu_load_dnn_from_file(char *filename);
-
 nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size);
 void apu_destroy_nasm(nasm_t *nasm);
 nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn);
@@ -88,9 +87,16 @@ void apu_save_nasm_to_file(nasm_t *nasm, char *filename);
 
 rpool_t *rpool_init ();
 void rpool_destroy (rpool_t *rpool);
+void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, float weight);
+void rpool_set_nasm_weight (rpool_t *rpool, nasm_t* nasm, float weight);
 void rpool_add_queue_group (rpool_t *rpool, char *queue_group_info, unsigned int num_queues, float weight, void **blacklist, void **whitelist);
 void rpool_queue_group_set_blacklist (rpool_queue_group_t *rpool_queue_group, void **blacklist);
 void rpool_queue_group_set_whitelist (rpool_queue_group_t *rpool_queue_group, void **whitelist);
+
+void ase_init (ase_t *ase);
+void ase_destroy (ase_t *ase);
+void ase_update_children (rpool_t *rpool, ninst_t *ninst);
+void ase_push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm);
 
 void print_build_info(void);
 

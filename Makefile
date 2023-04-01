@@ -1,7 +1,7 @@
 TARGET=main
 ALIB=libasapen.a
 OBJECTS=build_info.o apu.o apu_file_io.o input_parser.o darknet_parser.o util.o 
-OBJECTS+=rpool.o
+OBJECTS+=rpool.o ase.o
 AVX2=1
 NEON=0
 GPU=0

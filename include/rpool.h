@@ -6,12 +6,14 @@
 #include "aspen.h"
 #include "nasm.h"
 
-#define RPOOL_INIT_QUEUE_SIZE 1024
-#define MAX_QUEUE_GROUPS 1024
+#define INIT_QUEUE_SIZE 512
+#define MAX_QUEUE_GROUPS 128
+#define MAX_NUM_QUEUES 1024*4
+#define NUM_QUEUE_PER_ASE ((float)1/4)
+#define NUM_QUEUE_PER_LAYER ((float)3)
 
 struct rpool_queue_t
 {
-    char queue_info[MAX_STRING_LEN];
     _Atomic unsigned int occupied;
     unsigned int idx_start;
     unsigned int idx_end;
@@ -22,28 +24,33 @@ struct rpool_queue_t
 
 struct rpool_queue_group_t
 {
+    unsigned int idx;
     char queue_group_info[MAX_STRING_LEN];
     void* blacklist_conds [NUM_RPOOL_CONDS];
     void* whitelist_conds [NUM_RPOOL_CONDS];
-    unsigned int num_queues;
-    rpool_queue_t *queue_arr;
+    _Atomic unsigned int num_queues;
+    rpool_queue_t queue_arr[MAX_NUM_QUEUES];
 };
 
 struct rpool_t
 {
-    _Atomic unsigned int write_lock;
-    unsigned int num_groups;
+    _Atomic unsigned int num_groups;
     rpool_queue_group_t queue_group_arr[MAX_QUEUE_GROUPS];
     float queue_group_weight_arr[MAX_QUEUE_GROUPS];
     float queue_group_weight_sum;
-
     rpool_queue_t default_queue;
+    _Atomic unsigned int ref_ases;
 };
 
-void rpool_init_queue (rpool_queue_t *rpool_queue, char *queue_info);
+void rpool_init_queue (rpool_queue_t *rpool_queue);
 void rpool_init_queue_group (rpool_queue_group_t *rpool_queue_group, char *queue_group_info, unsigned int num_queues);
 void rpool_destroy_queue (rpool_queue_t *rpool_queue);
 void rpool_destroy_queue_group (rpool_queue_group_t *rpool_queue_group);
+
+rpool_queue_group_t *get_queue_group_from_nasm (rpool_t *rpool, nasm_t *nasm);
+void set_queue_group_weight (rpool_t *rpool, rpool_queue_group_t *rpool_queue_group, float weight);
+void queue_group_add_queues (rpool_queue_group_t *rpool_queue_group, unsigned int num_queues);
+void add_ref_ases (rpool_t *rpool, unsigned int num_ases);
 
 unsigned int check_blacklist_cond (void **blacklist, void **input_cond);
 unsigned int check_whitelist_cond (void **whitelist, void **input_cond);

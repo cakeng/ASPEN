@@ -11,7 +11,6 @@ struct nasm_t
     ninst_t *ninst_arr;
     unsigned int num_ldata;
     unsigned int flop_per_ninst;
-
     unsigned int nasm_id;
 };
 
@@ -45,7 +44,10 @@ struct ninst_t
 
     unsigned int *parent_ninst_idx_arr;
     unsigned int num_parent_ninsts;
-    unsigned int num_parent_ninsts_completed;
+    _Atomic unsigned int num_parent_ninsts_completed;
+
+    ninst_t **child_ninst_arr;
+    unsigned int num_child_ninsts;
     
     void *out_mat;
     rpool_t *affinity_pool;
@@ -57,7 +59,7 @@ struct aspen_dnn_t
     size_t element_size;
     aspen_layer_t *layers;
     unsigned int num_layers;
-    unsigned int ref_nasms;
+    _Atomic unsigned int ref_nasms;
 };
 
 struct aspen_tensor_t
