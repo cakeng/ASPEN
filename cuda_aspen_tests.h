@@ -81,11 +81,27 @@ public:
 
 private:
     bool is_calculation_done;
+
+    // For dependency graphing and dynamic scheduling
+    // Not yet implemented... Should be implemented using CUDA events API!
     std::vector<aspen_mat_mul *> children;
     int num_parents;
     int calculated_parents;
-    int id;
+    // User CUDA events API to asynchronously check for execution of a aspen_mat_mul object.
+    // When a aspen_mat_mul object is executed, the "children" vector should be iterated through,
+    // and each child's calculated_parents variable should be incremented.
+    // If calculated_parents == num_parents, then the child should be dynamically scheduled to
+    // a CUDA stream to be executed.
 
+    // This approach will probably bring dynamic scheduling overhead, so the execution time of
+    // each aspen_mat_mul object should be carefully adjusted, so the scheduling can be interleaved
+    // with the execution of other aspen_mat_mul objects. 
+    // It would be great if you could test various matrix sizes and partition sizes to see what
+    // the optimal partition size is for this approach. You can also use the various profiling
+    // tools that NVIDIA provides, such as nsight systems, or nsight compute, to visualize or 
+    // obtain performance metrics of the execution of the program.
+
+    int id;
     int C_midx, C_nidx;
     int M, N, K;
     int stride_A, stride_B, stride_C;

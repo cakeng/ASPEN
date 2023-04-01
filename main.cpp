@@ -41,6 +41,7 @@
 // This will execute 10 times of chained matmul with 3 matrices on the chain, and each output matrix
 // is partitioned on the N dimension with size 256. It will also validate the result of the computation.
 // ASCII art of the computation:
+//
 //                          1024 (dim N)
 //                       256  256  256  256
 //                      ___________________
@@ -94,6 +95,18 @@
 // using the run_test() function, which takes the vector of aspen_mat_mul objects and the test function
 // as input. The test function is a function pointer that points to one of the 6 test cases. 
 // run_test performs the execution, validates the results, and returns the execution time. 
+
+///////////////////////////// TODO //////////////////////////////
+// The program does not have dynamic dependency tracking & scheduling, where aspen_mat_mul objects are 
+// dynamically scheduled to be executed when all of their parent aspen_mat_mul objects are executed. 
+// Instead, the program simply puts dependent aspen_mat_mul objects in the same CUDA stream, and executes them sequentially.
+// As ASPEN execution requires dynamic dependency tracking & scheduling, please implement a CUDA event based asynchronous
+// tracking of executed aspen_mat_mul objects, and use it to dynamically schedule dependent 
+// child aspen_mat_mul objects. There are some basic variables and functions in the aspen_mat_mul class
+// that can be used to implement this functionality, but the detailed functionality are yet to be implemented. (Please refer to cuda_aspen_tests.h)
+
+// Thank you for your time and effort helping us to implement ASPEN execution in CUDA!
+// Jongseok Park.
 
 
 // Prints the help page.

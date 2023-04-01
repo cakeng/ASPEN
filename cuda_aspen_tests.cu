@@ -12,6 +12,7 @@
 #define _CACHE_A_K_PER_LOAD (_THREAD_NUM / _BLOCK_M_SIZE)
 #define _CACHE_B_K_PER_LOAD (_THREAD_NUM / _BLOCK_N_SIZE)
 
+// Custom CUDA GEMM kernel.
 __global__ void sgemm(const float *A, const float *B, float *C, const int M, const int N, const int K)
 {
     const int mLocal = threadIdx.x*_THREAD_M_SIZE;
@@ -106,6 +107,7 @@ __global__ void sgemm(const float *A, const float *B, float *C, const int M, con
     }
 }
 
+// Wrapper function for CUDA kernel.
 void custom_CUDA_mat_mul(
             int M,
             int N,

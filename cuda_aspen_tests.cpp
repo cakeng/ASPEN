@@ -4,6 +4,7 @@ static void *global_cuda_mem = NULL;
 static void *global_host_mem = NULL;
 static int aspen_mat_mul_id = 0;
 
+// Constructor for aspen_mat_mul. Takes GEMM parameters and pointers to the host memory.
 aspen_mat_mul::aspen_mat_mul(int M, int N, int K, float alpha,
     float *A, int stride_A, float *B, int stride_B, float beta, float *C, int stride_C)
 {
@@ -42,6 +43,7 @@ aspen_mat_mul::aspen_mat_mul(int M, int N, int K, float alpha,
     this->temp_cuda = (char*)global_cuda_mem + this->id * 16 * 1024;
 }
 
+// Memory deallocation not implemented. (Test code)
 aspen_mat_mul::~aspen_mat_mul()
 {
 }
@@ -51,6 +53,7 @@ void aspen_mat_mul::print_handle_and_stream()
     printf("handle: %p, stream: %p\n", this->handle, this->stream);
 }
 
+// Set host matrix memory for this aspen_mat_mul object.
 void aspen_mat_mul::set_host_memory(float *A, float *B, float *C)
 {
     this->A = A;
@@ -58,14 +61,15 @@ void aspen_mat_mul::set_host_memory(float *A, float *B, float *C)
     this->C = C;
 }
 
+// Allocate CUDA memory for A, B, and C for this aspen_mat_mul object.
 void aspen_mat_mul::allocate_cuda_memory_A_C ()
 {
     check_CUDA(cudaMalloc((void **)&this->A_cuda, this->M * this->K * sizeof(float)));
     check_CUDA(cudaMalloc((void **)&this->B_cuda, this->K * this->N * sizeof(float)));
     check_CUDA(cudaMalloc((void **)&this->C_cuda, this->M * this->N * sizeof(float)));
-    
 }
 
+// Asynchronous copy of A from host to CUDA for this aspen_mat_mul object.
 void aspen_mat_mul::copy_A_to_cuda()
 {
     check_CUDA(
@@ -73,6 +77,7 @@ void aspen_mat_mul::copy_A_to_cuda()
             this->M * this->K * sizeof(float), cudaMemcpyHostToDevice, this->stream));
 }
 
+// Asynchronous copy of B from host to CUDA for this aspen_mat_mul object.
 void aspen_mat_mul::copy_B_to_cuda()
 {
     check_CUDA(
@@ -80,6 +85,7 @@ void aspen_mat_mul::copy_B_to_cuda()
             this->K * this->N * sizeof(float), cudaMemcpyHostToDevice, this->stream));
 }
 
+// Asynchronous copy of C from CUDA to host for this aspen_mat_mul object.
 void aspen_mat_mul::copy_C_from_cuda()
 {
     check_CUDA(
@@ -87,6 +93,7 @@ void aspen_mat_mul::copy_C_from_cuda()
             this->M * this->N * sizeof(float), cudaMemcpyDeviceToHost, this->stream));
 }
 
+// Set the CUDA memory for this aspen_mat_mul object.
 void aspen_mat_mul::set_cuda_memory(float *A_cuda, float *B_cuda, float *C_cuda)
 {
     this->A_cuda = A_cuda;
@@ -94,21 +101,26 @@ void aspen_mat_mul::set_cuda_memory(float *A_cuda, float *B_cuda, float *C_cuda)
     this->C_cuda = C_cuda;
 }
 
+// Set the CUDA stream for this aspen_mat_mul object.
 void aspen_mat_mul::set_cuda_stream(cudaStream_t stream)
 {
     this->stream = stream;
 }
 
+// Set the cuBLAS handle for this aspen_mat_mul object.
 void aspen_mat_mul::set_cuda_handle(cublasHandle_t handle)
 {
     this->handle = handle;
 }
 
+// Synchronize host to the stream of this aspen_mat_mul object.
 void aspen_mat_mul::synchronize()
 {
     check_CUDA(cudaStreamSynchronize(this->stream));
 }
 
+// Add a child aspen_mat_mul object to this aspen_mat_mul object.
+// Not currently used - Dynamic dependency tracking not implemented.
 void aspen_mat_mul::add_child(aspen_mat_mul *child)
 {
     this->children.push_back(child);
