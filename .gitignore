@@ -2,4 +2,7 @@
 *.a
 *.so
 *.*rep
+*.txt
 main
+data
+data/*

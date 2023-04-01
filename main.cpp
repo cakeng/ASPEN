@@ -7,21 +7,112 @@
 #include "mat_mul.h"
 #include "cuda_aspen_tests.h"
 
+// This program tests chained matrix multiplication performance of various libraries.
+// Chained matrix multiplication is a sequence of matrix multiplications, where the
+// output of one matrix multiplication is the input of the next matrix multiplication.
+// The output of the last matrix multiplication is the final result.
+
+// The program tests the following 6 cases:
+// Three full sized chained matmuls using OpenBLAS(CPU), cuBLAS, and a custom CUDA GEMM kernel.
+// Three partitioned chained matmuls, where each matrix on the output chain is partitioned on the 
+// N dimension, either using the number of partitions specified by the user (using option -f), 
+// or the partition size specified by the user (using option -s).
+
+// There are 6 tests performed, and is executed with the following order.
+// 1. Full-sized chained matmul using OpenBLAS on CPU.
+// 2. Full-sized chained matmul using cuBLAS.
+// 3. Full-sized chained matmul using a custom CUDA GEMM kernel defined in cuda_aspen_tests.cu.
+// 4. Partitioned chained matmul using cuBLAS.
+// 5. Partitioned chained matmul using a custom CUDA GEMM kernel defined in cuda_aspen_tests.cu.
+// 6. Partitioned chained matmul using cuBLAS, but using the "batched GEMM" function of cuBLAS.
+
+// Besides option -f and -s, the program also accepts the following options:
+// -p : print matrix elements. (default: off)
+// -v : validate matrix multiplication. (default: off)
+// -h : print help page.
+// -c : number of matrices on the GEMM chain (Number of matrix on the chain) (default: 1)
+// -n : number of executions (default: 1)
+// M : number of rows of matrix A and C. (default: 8)
+// N : number of columns of matrix B and C. (default: 8)
+// K : number of columns of matrix A and rows of B. (default: 8)
+// Option M, N, K are just specified as an integer, without option flags.
+// Example execution:
+// ./main -v -c 3 -n 10 -s 256 768 1024 768
+// This will execute 10 times of chained matmul with 3 matrices on the chain, and each output matrix
+// is partitioned on the N dimension with size 256. It will also validate the result of the computation.
+// ASCII art of the computation:
+//                          1024 (dim N)
+//                       256  256  256  256
+//                      ___________________
+//                     |    |    |    |    |
+//                     |    |    |    |    |
+//                  768|    |    |    |    |
+//                     |    |    |    |    |
+//          768        |____|____|____|____| C_out_arr[0]
+//     ______________   ___________________
+//    |              | |    |    |    |    |
+//    |              | |    |    |    |    |
+// 768|              | |    |    |    |    |
+//    |    A_arr[0]  | |    |    |    |    |
+//    |______________| |____|____|____|____| C_out_arr[1]
+//     ______________   ___________________
+//    |              | |    |    |    |    |
+//    |              | |    |    |    |    |
+// 768|              | |    |    |    |    |
+//    |    A_arr[1]  | |    |    |    |    |
+//    |______________| |____|____|____|____| C_out_arr[2]
+//     ______________   ___________________
+//    |              | |    |    |    |    |
+//    |              | |    |    |    |    |
+// 768|              | |    |    |    |    |
+//    |    A_arr[2]  | |    |    |    |    |
+//    |______________| |____|____|____|____| C_out_arr[3] 
+//       (Computed 10 times, and validated)
+
+// Full sized chained matmul will perform 3 matrix multiplications of
+// A_arr[0] * C_out_arr[0] = C_out_arr[1]
+// A_arr[1] * C_out_arr[1] = C_out_arr[2]
+// A_arr[2] * C_out_arr[2] = C_out_arr[3].
+// Partitioned chained matmul will perform 12 matrix multiplications of
+// A_arr[0] * C_out_arr[0][0...3] = C_out_arr[1][0...3]
+// A_arr[1] * C_out_arr[1][0...3] = C_out_arr[2][0...3]
+// A_arr[2] * C_out_arr[2][0...3] = C_out_arr[3][0...3]
+// , where the computation  A_arr[i] * C_out_arr[i][j] on a given j value is performed independently 
+// of other computations on the different j values. (i.e. the computation is parallelized on the j)
+
+// The computations are structured using a class, named aspen_mat_mul, defined in cuda_aspen_tests.h.
+// The class has member variables that are used to define and execute the given matrix multiplication,
+// such as M, N, K, stride, matrix pointers, various CUDA API objects, etc.
+// The class member functions contain various utility functions and run_xxx() functions that are used
+// to execute the computation using the specified library (OpenBLAS, cuBLAS, or custom CUDA GEMM kernel).
+
+// In the main function, the program first parses the command line arguments, and then creates an
+// array of memory pointers for the input matrices and output matrices, in both host and GPU.
+// The program then creates an vector of aspen_mat_mul objects, which specifies the chain of 
+// matrix multiplications that need to be performed, and initializes them with the
+// specified parameters. The program then executes the computation using the specified library,
+// using the run_test() function, which takes the vector of aspen_mat_mul objects and the test function
+// as input. The test function is a function pointer that points to one of the 6 test cases. 
+// run_test performs the execution, validates the results, and returns the execution time. 
+
+
+// Prints the help page.
 static void print_help(const char *prog_name)
 {
     printf("Usage: %s [-pvh] [-n num_iterations] M N K\n", prog_name);
     printf("Options:\n");
-    printf("  -p : print matrix data. (default: off)\n");
+    printf("  -p : print matrix elements. (default: off)\n");
     printf("  -v : validate matrix multiplication. (default: off)\n");
     printf("  -h : print this page.\n");
-    printf("  -c : number of gemm chains (default: 1)\n");
+    printf("  -c : number of matrices on the chain (default: 1)\n");
     printf("  -f : number of partitions to the N dimension (default: 1)\n");
-    printf("  -n : number of iterations (default: 1)\n");
+    printf("  -n : number of executions (default: 1)\n");
     printf("   M : number of rows of matrix A and C. (default: 8)\n");
     printf("   N : number of columns of matrix B and C. (default: 8)\n");
     printf("   K : number of columns of matrix A and rows of B. (default: 8)\n");
 }
 
+// Default input values.
 static bool print_matrix = false;
 static bool validation = false;
 static int num_gemm_chains = 1;
@@ -29,8 +120,11 @@ static int M = 128, N = 128, K = 128;
 static int num_iterations = 1;
 static float *C_ans, *C_out;
 static int num_partition = 1;
-static int partition_size = -1;
+static int partition_size = -1; 
+// num_partition determines the partition size when partition_size is -1.
+// If partition_size is not -1, num_partition is ignored.
 
+// Parses Input options.
 static void parse_opt(int argc, char **argv)
 {
     int c;
@@ -94,6 +188,7 @@ static void parse_opt(int argc, char **argv)
     printf("\n");
 }
 
+// Runs the matmul test on given test function and vector of aspen_mat_mul objects.
 void run_test (void *obj, void (*test_func)(void *obj))
 {
     double elapsed_time_sum = 0;
@@ -137,6 +232,7 @@ void run_test (void *obj, void (*test_func)(void *obj))
     zero_mat (C_out, M, N);
 }
 
+// The 6 test functions, which are passed to run_test.
 void aspen_run_cpu (void *obj)
 {
     std::vector<aspen_mat_mul> *aspen_objs = (std::vector<aspen_mat_mul>*)obj;
@@ -239,18 +335,23 @@ void aspen_run_custom_split (void *obj)
 
 int main(int argc, char **argv)
 {
+
     parse_opt(argc, argv);
     if (K != M)
     {
+        // For the chain of GEMMs to be valid, K must be equal to M.
         printf("K must be equal to M.\n");
         exit(1);
     }
+
+    // Initialize the matrix memory.
     printf("Initializing matrix... ");
-    float *A_arr [num_gemm_chains+1];
-    float *A_cuda_arr [num_gemm_chains+1];
-    float *C_out_arr [num_gemm_chains+1];
-    float *C_cuda_arr [num_gemm_chains+1];
-    float *C_ans_arr [num_gemm_chains+1];
+    float *A_arr [num_gemm_chains+1];      // Holds the A matrices.
+    float *A_cuda_arr [num_gemm_chains+1]; // Holds the A matrices on the GPU.
+    float *C_out_arr [num_gemm_chains+1];  // Holds the C matrices.
+    float *C_cuda_arr [num_gemm_chains+1]; // Holds the C matrices on the GPU.
+    float *C_ans_arr [num_gemm_chains+1];  // Holds the C matrix answers, for validation.
+    // Memory allocation loop.
     for (int i = 0; i < num_gemm_chains+1; ++i)
     {
         alloc_mat(&A_arr[i], K, M);
@@ -259,20 +360,27 @@ int main(int argc, char **argv)
             alloc_mat(&C_out_arr[i], M, N);
         if (i == num_gemm_chains)
         {
+            // Set the last C_out and C_ans to a seperate variable,
+            // for easier validation.
             C_out = C_out_arr[i];
             C_ans = C_ans_arr[i];
         }
+        // Randomize the A matrices.
         rand_mat(A_arr[i], K, M);
-
         cudaMalloc(&A_cuda_arr[i], M * K * sizeof(float));
         cudaMalloc(&C_cuda_arr[i], M * N * sizeof(float));
     }
+    // Randomize the first C matrix (input to the GEMM chain, therefore a fixed value.)
     rand_mat(C_ans_arr[0], M, N);
     C_out_arr[0] = C_ans_arr[0];
+
+    // Compute the GEMM answers using a simple CPU based GEMM.
     for (int i = 1; i < num_gemm_chains+1; ++i)
     {
         compute_mat_mul (A_arr[i-1], C_ans_arr[i-1], C_ans_arr[i], M, N, K);
     }
+
+    // Create GPU handles and streams.
     cublasHandle_t cublas_handles[num_partition];
     cudaStream_t cuda_streams[num_partition];
     for (int i = 0; i < num_partition; ++i)
@@ -280,8 +388,10 @@ int main(int argc, char **argv)
         cublasCreate(&cublas_handles[i]);
         cudaStreamCreate(&cuda_streams[i]);
     }
-    std::vector<aspen_mat_mul> aspen_mat_mul_chain;
 
+    // Create the aspen_mat_mul objects, and set the right variables for the given GEMM,
+    // including the memory locations, CUDA handles, and streams.
+    std::vector<aspen_mat_mul> aspen_mat_mul_chain;
     for (int i = 1; i < num_gemm_chains+1; ++i)
     {
         aspen_mat_mul_chain.emplace_back 
@@ -292,9 +402,10 @@ int main(int argc, char **argv)
             (A_cuda_arr[i-1], C_cuda_arr[i-1], C_cuda_arr[i]);
         cudaMemcpy (A_cuda_arr[i-1], A_arr[i-1], M * K * sizeof(float), cudaMemcpyHostToDevice);
     }
-
+    // Initialization complete.
     printf("done!\n");
 
+    // Run the full chained matrix multiplication tests using run_test function.
     printf("Testing CPU GEMM (openBLAS)...\n");
     run_test (&aspen_mat_mul_chain, aspen_run_cpu);
 
@@ -305,6 +416,8 @@ int main(int argc, char **argv)
     run_test (&aspen_mat_mul_chain, aspen_run_custom_GEMM);
 
     printf("Testing Split GPU GEMM (cuBLAS)...\n");
+    // For the split tests, we need to split the aspen_mat_mul objects into multiple
+    // aspen_mat_mul objects, each with a single GEMM.
     std::vector<aspen_mat_mul*> aspen_mat_mul_chain_split;
     for (auto &aspen_obj : aspen_mat_mul_chain)
     {
@@ -318,6 +431,7 @@ int main(int argc, char **argv)
             i++;
         }
     }
+    // Run the partitioned GEMM tests, using the newly split aspen_mat_mul objects.
     run_test (&aspen_mat_mul_chain_split, aspen_run_cuBLAS_split);
 
     printf("Testing Split GPU GEMM (custom)...\n");
