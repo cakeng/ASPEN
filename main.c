@@ -37,6 +37,10 @@ int main(void)
     }
     print_nasm_info(vgg16_nasm, 0);
 
+    rpool_t *rpool = rpool_init ();
+
+
+    
     apu_destroy_nasm (vgg16_nasm);
     apu_destroy_dnn (vgg16_dnn);
     return 0;

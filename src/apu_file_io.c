@@ -551,5 +551,4 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
     }
     fclose (fp);
     return nasm;
-
 }
