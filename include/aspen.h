@@ -7,15 +7,17 @@
 #include <ctype.h>
 #include <math.h>
 #include <limits.h>
+#include <pthread.h>
 #include <assert.h>
-#include <cuda_runtime.h> // CUDA
 
 #define MAX_TENSOR_DIMS 8
 #define MAX_STRING_LEN 256
 #define MAX_PARENT_NINST_NUM (1<<20) // 1M
+#define MAX_NUM_GPUS 16
 #define NINST_H_MIN 32
-#define NINST_W_MIN 8
+#define NINST_W_MIN 16
 #define MEM_ALIGN 64
+#define GPU 1
 
 #if SUPPRESS_OUTPUT == 0
 #define PRT(...) printf(__VA_ARGS__) 
@@ -29,6 +31,8 @@
 #define FPRT(...) fprintf(stderr, "////An error has occurred////\n") 
 #endif
 
+#ifdef GPU
+#include <cuda_runtime.h> // CUDA
 static inline cudaError_t check_CUDA(cudaError_t result)
 {
 #if defined(DEBUG) || defined(_DEBUG)
@@ -40,6 +44,8 @@ static inline cudaError_t check_CUDA(cudaError_t result)
 #endif
   return result;
 }
+#endif
+
 typedef enum {NINST_NOT_READY, NINST_READY, NINST_COMPLETED,} NINST_STATE;
 typedef enum {NO_LAYER_TYPE, INPUT_LAYER, CONV_LAYER, FC_LAYER,
  RESIDUAL_LAYER, BATCHNORM_LAYER, YOLO_LAYER, ACTIVATION_LAYER, MAXPOOL_LAYER, AVGPOOL_LAYER,
@@ -61,6 +67,12 @@ extern char *parent_type_str[NUM_PARENT_ELEMENTS];
 extern char *activation_type_str [NUM_ACTIVATION_ELEMENTS];
 extern char *rpool_cond_str [NUM_RPOOL_CONDS];
 
+extern int use_gpu; // Default: 1
+extern int aspen_num_gpus;
+#ifdef GPU
+extern cudaStream_t aspen_CUDA_streams[MAX_NUM_GPUS][32];
+#endif
+
 typedef struct aspen_dnn_t aspen_dnn_t;
 typedef struct aspen_layer_t aspen_layer_t;
 typedef struct aspen_tensor_t aspen_tensor_t;
@@ -75,6 +87,7 @@ typedef struct rpool_t rpool_t; // Ready pool
 typedef struct rpool_queue_t rpool_queue_t;
 typedef struct rpool_queue_group_t rpool_queue_group_t;
 typedef struct ase_t ase_t;     // Asynchronous scheduling engine
+typedef struct ase_group_t ase_group_t;
 
 aspen_dnn_t *apu_create_dnn(char *input_path, char *weight_path);
 void apu_destroy_dnn(aspen_dnn_t *dnn);
@@ -85,7 +98,7 @@ void apu_destroy_nasm(nasm_t *nasm);
 nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn);
 void apu_save_nasm_to_file(nasm_t *nasm, char *filename);
 
-rpool_t *rpool_init ();
+rpool_t *rpool_init (int gpu_idx);
 void rpool_destroy (rpool_t *rpool);
 void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, float weight);
 void rpool_set_nasm_weight (rpool_t *rpool, nasm_t* nasm, float weight);
@@ -93,10 +106,9 @@ void rpool_add_queue_group (rpool_t *rpool, char *queue_group_info, unsigned int
 void rpool_queue_group_set_blacklist (rpool_queue_group_t *rpool_queue_group, void **blacklist);
 void rpool_queue_group_set_whitelist (rpool_queue_group_t *rpool_queue_group, void **whitelist);
 
-void ase_init (ase_t *ase);
-void ase_destroy (ase_t *ase);
-void ase_update_children (rpool_t *rpool, ninst_t *ninst);
-void ase_push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm);
+ase_group_t *ase_group_init (unsigned int num_ase, int gpu_idx);
+void ase_group_set_rpool (ase_group_t *ase_group, rpool_t *rpool);
+void ase_group_destroy (ase_group_t *ase_group);
 
 void print_build_info(void);
 

@@ -5,12 +5,13 @@
 #include <stdlib.h>
 #include "aspen.h"
 #include "nasm.h"
+#include "ase.h"
 
 #define INIT_QUEUE_SIZE 512
 #define MAX_QUEUE_GROUPS 128
 #define MAX_NUM_QUEUES 1024*4
 #define NUM_QUEUE_PER_ASE ((float)1/4)
-#define NUM_QUEUE_PER_LAYER ((float)3)
+#define NUM_QUEUE_PER_LAYER ((float)1)
 
 struct rpool_queue_t
 {
@@ -40,6 +41,7 @@ struct rpool_t
     float queue_group_weight_sum;
     rpool_queue_t default_queue;
     _Atomic unsigned int ref_ases;
+    int gpu_idx;
 };
 
 void rpool_init_queue (rpool_queue_t *rpool_queue);

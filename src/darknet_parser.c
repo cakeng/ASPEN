@@ -404,7 +404,7 @@ LAYER_ACT get_activation(char *s)
 {
     if (!s) return NO_ACTIVATION;
     if (strcmp(s, "logistic")==0) return SIGMOID;
-    if (strcmp(s, "linear")==0) return LINEAR;
+    if (strcmp(s, "linear")==0) return NO_ACTIVATION;
     if (strcmp(s, "leaky")==0) return LEAKY_RELU;
     if (strcmp(s, "relu")==0) return RELU;
     if (strcmp(s, "elu")==0) return ELU;
@@ -479,7 +479,7 @@ void remove_unsupported_sections (list *sections)
         n = next;
     }
 }
-
+// Change to add a new layer type
 void parse_section (section *s, aspen_layer_t *layer)
 {
     layer->type = string_to_layer_type (s->type);
@@ -497,7 +497,8 @@ void parse_section (section *s, aspen_layer_t *layer)
     layer->params [DILATION] = option_find_int_quiet (options, "dilation", 0);
     char *activation_s = option_find_str(options, "activation", NULL);
     layer->activation = get_activation(activation_s);
-    if (layer->type != INPUT_LAYER)
+    layer->parent_layers [PARENT_0] = layer + option_find_int_quiet (options, "parent", 0);
+    if (layer->type != INPUT_LAYER && layer->parent_layers [PARENT_0] == layer)
         layer->parent_layers [PARENT_0] = layer - 1;
     if (option_find_int_quiet (options, "from", 0))
     {

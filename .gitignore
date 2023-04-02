@@ -5,4 +5,5 @@
 *.*rep
 *.pth
 main
-data/*
+data/*.aspen
+data/*.nasm

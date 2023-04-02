@@ -4,7 +4,7 @@ OBJECTS=build_info.o apu.o apu_file_io.o input_parser.o darknet_parser.o util.o
 OBJECTS+=rpool.o ase.o
 AVX2=1
 NEON=0
-GPU=0
+GPU=1
 DEBUG=1
 SUPPRESS_OUTPUT=0
 
@@ -19,18 +19,24 @@ BUILD_INFO_TIME = $(shell LC_TIME=en_US date)
 BUILD_INFO_GCC = $(shell gcc --version | grep -Ei "gcc \([0-9a-zA-Z\. -~]+\) [0-9\.]+")
 BUILD_INFO_UNAME = $(shell uname -srvpim)
 BUILD_INFO_BRANCH = $(shell git log -1 | grep -Eio "commit [0-9a-zA-Z]+")
-BUILD_INFO_NVCC := $(shell nvcc --version | grep -Eoi "Build .*")
-
-CFLAGS= -Wall -fopenmp
-ARFLAGS=rcs
-LDFLAGS=-lm -L/usr/local/cuda/lib64 -lcudart -lcuda -lcublas -lopenblas -lgomp
-COMMON=-I/usr/local/cuda/include/ -Iinclude/
-ARCH= 	-gencode arch=compute_80,code=[sm_80,compute_80] \
-		-gencode arch=compute_86,code=[sm_86,compute_86]
+BUILD_INFO_NVCC = 
 OPTS=-Ofast
+LDFLAGS=-lm -lopenblas -lgomp
+COMMON=-I/usr/local/cuda/include/ -Iinclude/
 ifeq ($(DEBUG), 1) 
 OPTS=-O0 -g -DDEBUG
 endif
+CFLAGS= -Wall -fopenmp
+ARFLAGS=rcs
+ifeq ($(GPU), 1)
+LDFLAGS+=-L/usr/local/cuda/lib64 -lcudart -lcuda -lcublas
+COMMON+=-I/usr/local/cuda/include/
+ARCH= 	-gencode arch=compute_80,code=[sm_80,compute_80] \
+		-gencode arch=compute_86,code=[sm_86,compute_86]
+BUILD_INFO_NVCC = $(shell nvcc --version | grep -Eoi "Build .*")
+OPTS+=-DGPU
+endif
+
 ifeq ($(SUPPRESS_OUTPUT), 1) 
 OPTS+=-D_SUPPRESS_OUTPUT
 endif

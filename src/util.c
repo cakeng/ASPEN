@@ -40,13 +40,19 @@ void *aspen_calloc (size_t num, size_t size)
     if (num*size <= 0)
         return NULL;
     void* ptr = NULL;
-    ptr = aligned_alloc (MEM_ALIGN, get_smallest_dividable(num * size, MEM_ALIGN));   
-    // cudaError_t cuda_err = cudaMallocHost (&ptr, get_smallest_dividable (num * size, MEM_ALIGN));
-    // if (ptr == NULL || check_CUDA(cuda_err) != cudaSuccess)
-    // {
-    //     printf("Error: Failed to allocate Host memory.\n");
-    //     exit(1);
-    // }
+    if (aspen_num_gpus < 0)
+        ptr = aligned_alloc (MEM_ALIGN, get_smallest_dividable(num * size, MEM_ALIGN));   
+    else
+    {
+        #ifdef GPU
+        cudaError_t cuda_err = cudaMallocHost (&ptr, get_smallest_dividable (num * size, MEM_ALIGN));
+        if (ptr == NULL || check_CUDA(cuda_err) != cudaSuccess)
+        {
+            printf("Error: Failed to allocate Host memory.\n");
+            exit(1);
+        }
+        #endif
+    }
     bzero (ptr, get_smallest_dividable (num * size, MEM_ALIGN));
     return ptr;
 }
@@ -55,31 +61,44 @@ void *aspen_malloc (size_t num, size_t size)
     if (num*size <= 0)
         return NULL;
     void* ptr = NULL;
-    ptr = aligned_alloc (MEM_ALIGN, get_smallest_dividable(num * size, MEM_ALIGN));   
-    // cudaError_t cuda_err = cudaMallocHost (&ptr, get_smallest_dividable (num * size, MEM_ALIGN));
-    // if (ptr == NULL || check_CUDA(cuda_err) != cudaSuccess)
-    // {
-    //     printf("Error: Failed to allocate Host memory.\n");
-    //     exit(1);
-    // }
+    if (aspen_num_gpus < 0)
+        ptr = aligned_alloc (MEM_ALIGN, get_smallest_dividable(num * size, MEM_ALIGN));   
+    else
+    {
+        #ifdef GPU
+        cudaError_t cuda_err = cudaMallocHost (&ptr, get_smallest_dividable (num * size, MEM_ALIGN));
+        if (ptr == NULL || check_CUDA(cuda_err) != cudaSuccess)
+        {
+            printf("Error: Failed to allocate Host memory.\n");
+            exit(1);
+        }
+        #endif
+    }
     return ptr;
 }
 void aspen_free (void *ptr)
 {
     if (ptr == NULL)
         return;
-    free (ptr);
-    // if (check_CUDA(cudaFreeHost(ptr)) != cudaSuccess)
-    // {
-    //     printf("Error: Failed to free Host memory.\n");
-    //     exit(1);
-    // }
+    if (aspen_num_gpus < 0)
+        free (ptr);
+    else
+    {
+         #ifdef GPU
+        if (check_CUDA(cudaFreeHost(ptr)) != cudaSuccess)
+        {
+            printf("Error: Failed to free Host memory.\n");
+            exit(1);
+        }
+        #endif
+    }
 }
 void *aspen_gpu_calloc (size_t num, size_t size, int gpu_num)
 {
     if (num*size <= 0)
         return NULL;
     void* ptr = NULL;
+    #ifdef GPU
     if (check_CUDA(cudaSetDevice(gpu_num)) != cudaSuccess)
     {
         printf("Error: Failed to set GPU device.\n");
@@ -95,6 +114,7 @@ void *aspen_gpu_calloc (size_t num, size_t size, int gpu_num)
         printf("Error: Failed to set GPU memory to zero.\n");
         exit(1);
     }
+    #endif
     return ptr;
 }
 void *aspen_gpu_malloc (size_t num, size_t size, int gpu_num)
@@ -102,6 +122,7 @@ void *aspen_gpu_malloc (size_t num, size_t size, int gpu_num)
     if (num*size <= 0)
         return NULL;
     void* ptr = NULL;
+    #ifdef GPU
     if (check_CUDA(cudaSetDevice(gpu_num)) != cudaSuccess)
     {
         printf("Error: Failed to set GPU device.\n");
@@ -112,17 +133,125 @@ void *aspen_gpu_malloc (size_t num, size_t size, int gpu_num)
         printf("Error: Failed to allocate GPU memory.\n");
         exit(1);
     }
+    #endif
     return ptr;
 }
-void aspen_gpu_free (void *ptr)
+void aspen_gpu_free (void *ptr, int gpu_num)
 {
     if (ptr == NULL)
         return;
+    #ifdef GPU
+    if (check_CUDA(cudaSetDevice(gpu_num)) != cudaSuccess)
+    {
+        printf("Error: Failed to set GPU device.\n");
+        exit(1);
+    }
     if (check_CUDA(cudaFree(ptr)) != cudaSuccess)
     {
         printf("Error: Failed to free GPU memory.\n");
         exit(1);
     }
+    #endif
+}
+
+void aspen_host_to_gpu_memcpy (void *dst, void *src, size_t num, int gpu_num)
+{
+    #ifdef GPU
+    if (check_CUDA(cudaSetDevice(gpu_num)) != cudaSuccess)
+    {
+        printf("Error: Failed to set GPU device.\n");
+        exit(1);
+    }
+    if (check_CUDA(cudaMemcpy(dst, src, num, cudaMemcpyHostToDevice)) != cudaSuccess)
+    {
+        printf("Error: Failed to copy Host to GPU memory.\n");
+        exit(1);
+    }
+    #endif
+}
+void aspen_gpu_to_host_memcpy (void *dst, void *src, size_t num, int gpu_num)
+{
+    #ifdef GPU
+    if (check_CUDA(cudaSetDevice(gpu_num)) != cudaSuccess)
+    {
+        printf("Error: Failed to set GPU device.\n");
+        exit(1);
+    }
+    if (check_CUDA(cudaMemcpy(dst, src, num, cudaMemcpyDeviceToHost)) != cudaSuccess)
+    {
+        printf("Error: Failed to copy GPU to Host memory.\n");
+        exit(1);
+    }
+    #endif
+}
+void aspen_host_to_gpu_async_memcpy (void *dst, void *src, size_t num, int gpu_num, int stream_num)
+{
+    #ifdef GPU
+    if (check_CUDA(cudaSetDevice(gpu_num)) != cudaSuccess)
+    {
+        printf("Error: Failed to set GPU device.\n");
+        exit(1);
+    }
+    if (check_CUDA(cudaMemcpyAsync(dst, src, num, cudaMemcpyHostToDevice, aspen_CUDA_streams[gpu_num][stream_num])) != cudaSuccess)
+    {
+        printf("Error: Failed to copy Host to GPU memory.\n");
+        exit(1);
+    }
+    #endif
+}
+void aspen_gpu_to_host_async_memcpy (void *dst, void *src, size_t num, int gpu_num, int stream_num)
+{
+    #ifdef GPU
+    if (check_CUDA(cudaSetDevice(gpu_num)) != cudaSuccess)
+    {
+        printf("Error: Failed to set GPU device.\n");
+        exit(1);
+    }
+    if (check_CUDA(cudaMemcpyAsync(dst, src, num, cudaMemcpyDeviceToHost, aspen_CUDA_streams[gpu_num][stream_num])) != cudaSuccess)
+    {
+        printf("Error: Failed to copy GPU to Host memory.\n");
+        exit(1);
+    }
+    #endif
+}
+
+void aspen_sync_gpu (int gpu_num)
+{
+    #ifdef GPU
+    if (check_CUDA(cudaSetDevice(gpu_num)) != cudaSuccess)
+    {
+        printf("Error: Failed to set GPU device.\n");
+        exit(1);
+    }
+    if (check_CUDA(cudaDeviceSynchronize()) != cudaSuccess)
+    {
+        printf("Error: Failed to synchronize GPU.\n");
+        exit(1);
+    }
+    #endif
+}
+
+void aspen_sync_gpu_stream (int gpu_num, int stream_num)
+{
+    #ifdef GPU
+    if (check_CUDA(cudaSetDevice(gpu_num)) != cudaSuccess)
+    {
+        printf("Error: Failed to set GPU device.\n");
+        exit(1);
+    }
+    if (check_CUDA(cudaStreamSynchronize(aspen_CUDA_streams[gpu_num][stream_num])) != cudaSuccess)
+    {
+        printf("Error: Failed to synchronize GPU stream.\n");
+        exit(1);
+    }
+    #endif
+}
+
+int aspen_get_next_stream (int gpu_num)
+{
+    static int stream_num[MAX_NUM_GPUS];
+    stream_num[gpu_num] = (stream_num[gpu_num] + 1) % 32;
+    return stream_num[gpu_num];
 }
 
 unsigned int get_smallest_dividable (unsigned int num, unsigned int divider)

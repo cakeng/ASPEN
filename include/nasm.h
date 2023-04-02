@@ -10,8 +10,12 @@ struct nasm_t
     nasm_ldata_t *ldata_arr;
     ninst_t *ninst_arr;
     unsigned int num_ldata;
+    unsigned int num_ninst;
     unsigned int flop_per_ninst;
+    size_t total_flops;
     unsigned int nasm_id;
+    int gpu_idx;
+    void *data;
 };
 
 struct nasm_ldata_t
@@ -26,7 +30,8 @@ struct nasm_ldata_t
     unsigned int flop_per_output;
     unsigned int out_mat_dims [2];
     unsigned int out_mat_stride;
-    size_t out_mat_size;
+    size_t out_mat_mem_size;
+    void *out_mat;
     
     unsigned int ninst_tile_dims [2];
     ninst_t *ninst_arr_start;
@@ -56,7 +61,7 @@ struct ninst_t
 struct aspen_dnn_t
 {
     char name [MAX_STRING_LEN];
-    size_t element_size;
+    unsigned int element_size;
     aspen_layer_t *layers;
     unsigned int num_layers;
     _Atomic unsigned int ref_nasms;
@@ -69,6 +74,7 @@ struct aspen_tensor_t
     unsigned int dims[NUM_PARAM_ELEMENTS];
     unsigned int num_elements;
     void *data;
+    void *data_gpu[MAX_NUM_GPUS];
 };
 
 struct aspen_layer_t

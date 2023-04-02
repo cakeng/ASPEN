@@ -3,7 +3,10 @@
 #include "nasm.h"
 #include "input_parser.h"
 
+int use_gpu = 1;
+int aspen_num_gpus = -1;
 static unsigned int nasm_num = 0;
+cudaStream_t aspen_CUDA_streams[MAX_NUM_GPUS][32];
 
 aspen_dnn_t *apu_create_dnn (char *input_path, char *weight_path)
 {
@@ -36,6 +39,28 @@ aspen_dnn_t *init_aspen_dnn (unsigned int num_layers, char* name)
     {
         init_aspen_layer(new_dnn->layers + i, i, new_dnn);
     }
+    #ifdef GPU
+    if (use_gpu == 1 && aspen_num_gpus == -1)
+    {
+        if (check_CUDA(cudaGetDeviceCount(&aspen_num_gpus)) != 0)
+        {
+            FPRT (stderr, "Error getting number of CUDA devices.\n");
+        }
+        #ifdef DEBUG
+        PRT ("Found %d CUDA device(s).\n", aspen_num_gpus);
+        #endif
+        for (int i = 0; i < aspen_num_gpus; i++)
+        {
+            for (int j = 0; j < 32; j++)
+            {
+                if (check_CUDA(cudaStreamCreateWithFlags(&aspen_CUDA_streams[i][j], cudaStreamNonBlocking)) != 0)
+                {
+                    FPRT (stderr, "Error creating CUDA stream.\n");
+                }
+            }
+        }
+    }
+    #endif
     return new_dnn;
 }
 
@@ -119,7 +144,7 @@ void fill_tensor_with_fixed_num (aspen_tensor_t *tensor, float num)
         ((float *)tensor->data)[i] = num;
     }
 }
-
+// Change to add a new layer type
 void create_layer_tensors (aspen_layer_t *layer)
 {
     if (layer->type == CONV_LAYER)
@@ -127,18 +152,47 @@ void create_layer_tensors (aspen_layer_t *layer)
         LAYER_PARAMS weight_dim_order[] = {OUT_C, IN_C, F_H, F_W};
         layer->tensors [FILTER] = init_aspen_tensor (layer->params, weight_dim_order, 4);
         layer->tensors [FILTER]->data = aspen_calloc(layer->tensors [FILTER]->num_elements, layer->dnn->element_size);
+        if (aspen_num_gpus > 0)
+        {
+            for (int i = 0; i < aspen_num_gpus; i++)
+            {
+                layer->tensors [FILTER]->data_gpu[i] = aspen_gpu_calloc(layer->tensors [FILTER]->num_elements, layer->dnn->element_size, i);
+            }
+        }
+        
         LAYER_PARAMS bias_dim_order[] = {OUT_C};
         layer->tensors [BIAS] = init_aspen_tensor (layer->params, bias_dim_order, 1);
         layer->tensors [BIAS]->data = aspen_calloc(layer->tensors [BIAS]->num_elements, layer->dnn->element_size);
+        if (aspen_num_gpus > 0)
+        {
+            for (int i = 0; i < aspen_num_gpus; i++)
+            {
+                layer->tensors [BIAS]->data_gpu[i] = aspen_gpu_calloc(layer->tensors [BIAS]->num_elements, layer->dnn->element_size, i);
+            }
+        }
     }
     else if (layer->type == FC_LAYER)
     {
         LAYER_PARAMS weight_dim_order[] = {OUT_C, IN_C};
         layer->tensors [FILTER] = init_aspen_tensor (layer->params, weight_dim_order, 2);
         layer->tensors [FILTER]->data = aspen_calloc(layer->tensors [FILTER]->num_elements, layer->dnn->element_size);
+        if (aspen_num_gpus > 0)
+        {
+            for (int i = 0; i < aspen_num_gpus; i++)
+            {
+                layer->tensors [FILTER]->data_gpu[i] = aspen_gpu_calloc(layer->tensors [FILTER]->num_elements, layer->dnn->element_size, i);
+            }
+        }
         LAYER_PARAMS bias_dim_order[] = {OUT_C};
         layer->tensors [BIAS] = init_aspen_tensor (layer->params, bias_dim_order, 1);
         layer->tensors [BIAS]->data = aspen_calloc(layer->tensors [BIAS]->num_elements, layer->dnn->element_size);
+        if (aspen_num_gpus > 0)
+        {
+            for (int i = 0; i < aspen_num_gpus; i++)
+            {
+                layer->tensors [BIAS]->data_gpu[i] = aspen_gpu_calloc(layer->tensors [BIAS]->num_elements, layer->dnn->element_size, i);
+            }
+        }
     }
     else if (layer->type == INPUT_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER || layer->type == SOFTMAX_LAYER
         || layer->type == RESIDUAL_LAYER)
@@ -188,7 +242,7 @@ void update_ldata_child_list (nasm_ldata_t *ldata)
         }
     }
 }
-
+// Change to add a new layer type
 void ninst_find_parent (ninst_t *ninst)
 {
     nasm_ldata_t *ldata = ninst->ldata;
@@ -428,6 +482,8 @@ void destroy_ninst (ninst_t *ninst)
         return;
     if (ninst->parent_ninst_idx_arr != NULL)
         free (ninst->parent_ninst_idx_arr);
+    if (ninst->child_ninst_arr != NULL)
+        free (ninst->child_ninst_arr);
 }
 
 nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size)
@@ -437,6 +493,7 @@ nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigne
     new_nasm->flop_per_ninst = flop_per_ninst > 0? flop_per_ninst : 1;
     new_nasm->batch_size = batch_size > 0? batch_size : 1;
     new_nasm->nasm_id = nasm_num;
+    new_nasm->gpu_idx = -1;
     nasm_num++;
     for (int i = 0; i < dnn->num_layers; i++)
     {
@@ -454,6 +511,7 @@ nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigne
     {
         total_ninst += new_nasm->ldata_arr[i].num_ninst;
     }
+    new_nasm->num_ninst = total_ninst;
     new_nasm->ninst_arr = calloc(total_ninst, sizeof(ninst_t));
     ninst_t *ninst_ptr = new_nasm->ninst_arr;
     total_ninst = 0;
@@ -512,6 +570,7 @@ void set_child_list (ninst_t *ninst)
 nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size)
 {
     nasm_t *new_nasm = apu_create_nasm_without_finding_ninst_parents(dnn, flop_per_ninst, batch_size);
+
     for (int i = 0; i < new_nasm->num_ldata; i++)
     {
         #pragma omp parallel for
@@ -521,12 +580,17 @@ nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned 
         }
         PRT ("Layer %d, parents for %d ninsts found.\n", i, new_nasm->ldata_arr[i].num_ninst);
     }
+    for (int i = 0; i < new_nasm->num_ninst; i++)
+    {
+        set_child_list (&new_nasm->ninst_arr[i]);
+    }
+    // Calculat total flops
+    new_nasm->total_flops = 0;
     for (int i = 0; i < new_nasm->num_ldata; i++)
     {
-        for (int j = 0; j < new_nasm->ldata_arr[i].num_ninst; j++)
-        {
-            set_child_list (&new_nasm->ldata_arr[i].ninst_arr_start[j]);
-        }
+        nasm_ldata_t *ldata = &new_nasm->ldata_arr[i];
+        new_nasm->total_flops += ldata->num_ninst*
+            ldata->flop_per_output*ldata->ninst_tile_dims[OUT_H]*ldata->ninst_tile_dims[OUT_W];
     }
     return new_nasm;
 }
@@ -561,10 +625,18 @@ void apu_destroy_nasm (nasm_t *nasm)
     destroy_nasm_ldata_arr(nasm->ldata_arr, nasm->num_ldata);
     if (nasm->ninst_arr != NULL)
         free(nasm->ninst_arr);
+    if (nasm->data != NULL)
+    {
+        if (nasm->gpu_idx >= 0)
+            aspen_gpu_free (nasm->data, nasm->gpu_idx);
+        else
+            aspen_free (nasm->data);
+    }
     nasm->dnn->ref_nasms--;
     free(nasm);
 }
 
+// Change to add a new layer type
 void get_out_mat_info (nasm_ldata_t *ldata)
 {
     aspen_layer_t *layer = ldata->layer;
@@ -574,31 +646,31 @@ void get_out_mat_info (nasm_ldata_t *ldata)
         ldata->out_mat_dims[OUT_H] = layer->params[OUT_C];
         ldata->out_mat_dims[OUT_W] = layer->params[OUT_H]*layer->params[OUT_W]*ldata->nasm->batch_size;
     }
-    if (layer->type == FC_LAYER)
+    else if (layer->type == FC_LAYER)
     {
         ldata->flop_per_output = 2*layer->params[IN_C];
         ldata->out_mat_dims[OUT_H] = layer->params[OUT_C];
         ldata->out_mat_dims[OUT_W] = ldata->nasm->batch_size;
     }
-    if (layer->type == MAXPOOL_LAYER)
+    else if (layer->type == MAXPOOL_LAYER)
     {
         ldata->flop_per_output = layer->params[F_H]*layer->params[F_W];
         ldata->out_mat_dims[OUT_H] = layer->params[OUT_C];
         ldata->out_mat_dims[OUT_W] = layer->params[OUT_H]*layer->params[OUT_W]*ldata->nasm->batch_size;
     }
-    if (layer->type == AVGPOOL_LAYER)
+    else if (layer->type == AVGPOOL_LAYER)
     {
         ldata->flop_per_output = layer->params[F_H]*layer->params[F_W];
         ldata->out_mat_dims[OUT_H] = layer->params[OUT_C];
         ldata->out_mat_dims[OUT_W] = layer->params[OUT_H]*layer->params[OUT_W]*ldata->nasm->batch_size;
     }
-    if (layer->type == INPUT_LAYER || layer->type == RESIDUAL_LAYER)
+    else if (layer->type == INPUT_LAYER || layer->type == RESIDUAL_LAYER)
     {
         ldata->flop_per_output = 1;
         ldata->out_mat_dims[OUT_H] = layer->params[OUT_C];
         ldata->out_mat_dims[OUT_W] = layer->params[OUT_H]*layer->params[OUT_W]*ldata->nasm->batch_size;
     }
-    if (layer->type == SOFTMAX_LAYER)
+    else if (layer->type == SOFTMAX_LAYER)
     {
         ldata->flop_per_output = 1;
         ldata->out_mat_dims[OUT_H] = layer->params[OUT_C];
@@ -613,8 +685,13 @@ void get_out_mat_info (nasm_ldata_t *ldata)
 
 void get_ninst_tile_dims (nasm_ldata_t *ldata)
 {
-    ldata->ninst_tile_dims[OUT_H] = 1;
-    ldata->ninst_tile_dims[OUT_W] = 1;
+    ldata->ninst_tile_dims[OUT_H] = NINST_H_MIN < ldata->out_mat_dims[OUT_H] ? NINST_H_MIN : ldata->out_mat_dims[OUT_H];
+    ldata->ninst_tile_dims[OUT_W] = NINST_W_MIN < ldata->out_mat_dims[OUT_W] ? NINST_W_MIN : ldata->out_mat_dims[OUT_W];
+    if (ldata->ninst_tile_dims[OUT_H] <= 0)
+        ldata->ninst_tile_dims[OUT_H] = 1;
+    if (ldata->ninst_tile_dims[OUT_W] <= 0)
+        ldata->ninst_tile_dims[OUT_W] = 1;
+
     while (ldata->ninst_tile_dims[OUT_H]*ldata->ninst_tile_dims[OUT_W] < ldata->nasm->flop_per_ninst/ldata->flop_per_output)
     {
         if (ldata->ninst_tile_dims[OUT_H] < ldata->out_mat_dims[OUT_H])
@@ -697,7 +774,8 @@ void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata_ptr, aspen_layer_t *laye
         }
     }
     ldata_ptr->out_mat_stride = out_h;
-    ldata_ptr->out_mat_size = (size_t)out_h*out_w;
+    ldata_ptr->out_mat_mem_size = get_smallest_dividable 
+        (ldata_ptr->out_mat_stride*out_w*ldata_ptr->layer->dnn->element_size, MEM_ALIGN);
     ldata_ptr->num_ninst = (out_h/ldata_ptr->ninst_tile_dims[OUT_H])*(out_w/ldata_ptr->ninst_tile_dims[OUT_W]);
 }
 
@@ -731,6 +809,7 @@ void get_out_mat_pos_from_nist (nasm_ldata_t *ldata, ninst_t *ninst, unsigned in
     out_mat_pos[OUT_H] = (ninst_idx%(out_h/ldata->ninst_tile_dims[OUT_H]))*ldata->ninst_tile_dims[OUT_H];
     out_mat_pos[OUT_W] = (ninst_idx/(out_h/ldata->ninst_tile_dims[OUT_H]))*ldata->ninst_tile_dims[OUT_W];
 }
+// Change to add a new layer type
 void get_out_mat_pos_from_tensor_pos (nasm_ldata_t *ldata, unsigned int *tensor_pos, unsigned int *out_mat_pos)
 {
     aspen_layer_t *layer = ldata->layer;
@@ -754,6 +833,7 @@ void get_out_mat_pos_from_tensor_pos (nasm_ldata_t *ldata, unsigned int *tensor_
         exit(1);
     }
 }
+// Change to add a new layer type
 void get_tensor_pos_from_out_mat_pos (nasm_ldata_t *ldata, unsigned int *out_mat_pos, unsigned int *tensor_pos)
 {
     aspen_layer_t *layer = ldata->layer;
@@ -853,6 +933,8 @@ void print_tensor_info (aspen_tensor_t *tensor, int print_data)
     {
         printf("%d, ", tensor->dims[tensor->data_dim_order[i]]);
     }
+    printf("\n\t\tNum Elements: %d\n", tensor->num_elements);
+    printf("Is GPU data allocated? %s", tensor->data_gpu ? "Yes" : "No");
     printf("\n");
     if (print_data)
     {
@@ -909,7 +991,9 @@ void print_nasm_info (nasm_t *nasm, int print_data)
     printf("Nasm ID: %d\n", nasm->nasm_id);
     printf("Number of ldata: %d\n", nasm->num_ldata);
     printf("Number of batch: %d\n", nasm->batch_size);
+    printf("Number of ninst: %d\n", nasm->num_ninst);
     printf("FLOPs per ninst: %d\n", nasm->flop_per_ninst);
+    printf("Total FLOPs: %ld\n", nasm->total_flops);
     for (int i = 0; i < nasm->num_ldata; i++)
     {
         print_ldata_info(&nasm->ldata_arr[i], print_data);
@@ -941,16 +1025,28 @@ void print_ldata_info (nasm_ldata_t *ldata, int print_data)
             printf("%s: %d ", parent_type_str[i], ldata->parent_ldata_idx_arr[i]);
     }
     printf("\n");
-    if (ldata->parent_ldata_idx_arr[PARENT_0] != -1)
+    for (int i = 0; i < NUM_PARENT_ELEMENTS; i++)
     {
-        aspen_layer_t *p0_layer = ldata->nasm->ldata_arr[ldata->parent_ldata_idx_arr[PARENT_0]].layer;
-        printf("Parent 0 idx: %d, type: %s, Params: \n\t", p0_layer->layer_idx, layer_type_str[p0_layer->type]);
-        for (LAYER_PARAMS i = 0; i < NUM_PARAM_ELEMENTS; i++)
+        if (ldata->parent_ldata_idx_arr[i] != -1)
         {
-            if (i != NUM_PARAM_ELEMENTS && p0_layer->params[i] != 0)
-                printf("%s:%d ", param_type_str[i], p0_layer->params[i]);
+            aspen_layer_t *p0_layer = ldata->nasm->ldata_arr[ldata->parent_ldata_idx_arr[i]].layer;
+            printf("\t%s idx: %d, type: %s, Params: \n\t\t", parent_type_str[i]
+                , p0_layer->layer_idx, layer_type_str[p0_layer->type]);
+            for (LAYER_PARAMS i = 0; i < NUM_PARAM_ELEMENTS; i++)
+            {
+                if (i != NUM_PARAM_ELEMENTS && p0_layer->params[i] != 0)
+                    printf("%s:%d ", param_type_str[i], p0_layer->params[i]);
+            }
+            printf ("\n");
         }
-        printf ("\n");
+    }
+    if (ldata->out_mat != NULL)
+    {
+        printf("Ldata Output Matrix: %p\n", ldata->out_mat);
+    }
+    else
+    {
+        printf ("Ldata Output Matrix: NULL\n");
     }
     printf("Ldata Children (Completed: %d/%d): ", ldata->num_child_ldata_completed, ldata->num_child_ldata);
     for (int i = 0; i < ldata->num_child_ldata; i++)
@@ -961,6 +1057,7 @@ void print_ldata_info (nasm_ldata_t *ldata, int print_data)
     printf("Ldata Flop per output element: %d\n", ldata->flop_per_output);
     printf("Ldata Output Matrix Dimensions: (H: %d, W: %d), Stride: %d\n"
         , ldata->out_mat_dims[OUT_H], ldata->out_mat_dims[OUT_W], ldata->out_mat_stride);
+    printf("Ldata Output Matrix Memory Size: %ld (bytes)\n", ldata->out_mat_mem_size);
     printf("Ldata Flop per Ninst: %d\n", ldata->flop_per_output*ldata->ninst_tile_dims[OUT_H]*ldata->ninst_tile_dims[OUT_W]);
     printf("Ldata Ninst Tile Dimensions: (H: %d, W: %d)\n", 
         ldata->ninst_tile_dims[OUT_H], ldata->ninst_tile_dims[OUT_W]);
@@ -980,7 +1077,15 @@ void print_ninst_info (ninst_t *ninst, int print_data)
         printf("Error: ninst is NULL.\n");
         return;
     }
-    printf ("Ninst Idx: %d\n", ninst->ninst_idx);
+    printf ("Ninst Idx: %d", ninst->ninst_idx);
+    if (ninst->out_mat != NULL)
+    {
+        printf (", Output Matrix: %p\n", ninst->out_mat);
+    }
+    else
+    {
+        printf (", Output Matrix: NULL\n");
+    }
     printf ("\t\tNinst tile position: (H: %d, W: %d) ~ (H: %d, W: %d) "
         , ninst->out_mat_pos[OUT_H], ninst->out_mat_pos[OUT_W],
             ninst->out_mat_pos[OUT_H] + ninst->ldata->ninst_tile_dims[OUT_H] - 1
@@ -1026,7 +1131,6 @@ void print_ninst_info (ninst_t *ninst, int print_data)
         if (ninst->out_mat == NULL)
         {
             printf("\n\t\t\tError: Output matrix is NULL.\n");
-            return;
         }
         for (unsigned int h = 0; h < ninst->ldata->ninst_tile_dims[OUT_H]; h++)
         {

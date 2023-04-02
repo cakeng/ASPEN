@@ -35,14 +35,23 @@ void rpool_destroy_queue_group (rpool_queue_group_t *rpool_queue_group)
     }
 }
 
-rpool_t *rpool_init ()
+rpool_t *rpool_init (int gpu_idx)
 {
+    if (gpu_idx >= 0 && gpu_idx >= aspen_num_gpus)
+    {
+        FPRT (stderr, "ERROR: rpool_init: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);
+        gpu_idx = -1;
+    }
     rpool_t *rpool = calloc (1, sizeof(rpool_t));
     rpool->ref_ases = 0;
     rpool->num_groups = 0;
     rpool->queue_group_weight_sum = 0;
     bzero (rpool->queue_group_weight_arr, sizeof(float)*MAX_QUEUE_GROUPS);
     rpool_init_queue (&rpool->default_queue);
+    if (gpu_idx < 0)
+        rpool->gpu_idx = -1;
+    else
+        rpool->gpu_idx = gpu_idx;
     return rpool;
 }
 
@@ -178,7 +187,9 @@ void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, float weight)
     unsigned int num_queues = nasm->dnn->num_layers*queue_per_layer;
     if (num_queues < 1)
         num_queues = 1;
+    nasm->gpu_idx = rpool->gpu_idx;
     rpool_add_queue_group (rpool, info_str, num_queues, weight, NULL, whitelist);
+    push_first_layer_to_rpool (rpool, nasm);
 }
 
 void rpool_add_queue_group 
@@ -532,7 +543,7 @@ void rpool_push_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int n
         if (queue_per_layer < 1)
             queue_per_layer = 1;
         unsigned int queue_val = (layer->layer_idx - 1)*queue_per_layer
-        + (ninst_idx / (ninst->ldata->num_ninst/queue_per_layer));
+        + (ninst_idx / (ninst->ldata->num_ninst/queue_per_layer/4));
         void* input_conds[NUM_RPOOL_CONDS] = {[RPOOL_DNN] = (void*)layer->dnn,
             [RPOOL_LAYER_TYPE] = (void*)layer->type, [RPOOL_LAYER_IDX] = (void*)(NULL + layer->layer_idx),
                 [RPOOL_NASM] = (void*)ninst->ldata->nasm, [RPOOL_ASE] = NULL};
@@ -572,6 +583,7 @@ void print_rpool_info (rpool_t *rpool)
     printf("//////// Printing Ready Pool Info ////////\n");
     printf("Number of referencing ASEs: %d\n", ref_ases);
     printf("Number of Queue Groups: %d\n", num_groups);
+    printf("GPU index: %d\n", rpool->gpu_idx);
     printf("Sum of Queue Weight: %4.4f\nWeights: ", rpool->queue_group_weight_sum);
     for (int i = 0; i < num_groups; i++)
     {
