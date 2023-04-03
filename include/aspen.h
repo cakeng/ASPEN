@@ -8,7 +8,10 @@
 #include <math.h>
 #include <limits.h>
 #include <pthread.h>
+#include <time.h>
 #include <assert.h>
+#include <stdatomic.h>
+#include <stdlib.h>
 
 #define MAX_TENSOR_DIMS 8
 #define MAX_STRING_LEN 256
@@ -46,7 +49,7 @@ static inline cudaError_t check_CUDA(cudaError_t result)
 }
 #endif
 
-typedef enum {NINST_NOT_READY, NINST_READY, NINST_COMPLETED,} NINST_STATE;
+typedef enum {NINST_NOT_READY, NINST_READY, NINST_COMPLETED, NUM_NINST_STATES} NINST_STATE;
 typedef enum {NO_LAYER_TYPE, INPUT_LAYER, CONV_LAYER, FC_LAYER,
  RESIDUAL_LAYER, BATCHNORM_LAYER, YOLO_LAYER, ACTIVATION_LAYER, MAXPOOL_LAYER, AVGPOOL_LAYER,
  ROUTE_LAYER, SOFTMAX_LAYER, NUM_LAYER_ELEMENTS} LAYER_TYPE;
@@ -60,6 +63,7 @@ typedef enum {PARENT_NONE, PARENT_0, PARENT_1, PARENT_FILTER, NUM_PARENT_ELEMENT
 typedef enum {NO_ACTIVATION, SIGMOID, LINEAR, TANH, RELU, LEAKY_RELU, ELU, SELU, NUM_ACTIVATION_ELEMENTS} LAYER_ACT;
 typedef enum {RPOOL_DNN, RPOOL_LAYER_TYPE, RPOOL_LAYER_IDX, RPOOL_NASM, RPOOL_ASE, NUM_RPOOL_CONDS} RPOOL_CONDS;
 
+extern char *ninst_state_str [NUM_NINST_STATES];
 extern char *layer_type_str [NUM_LAYER_ELEMENTS];
 extern char *param_type_str[NUM_PARAM_ELEMENTS];
 extern char *tensor_type_str[NUM_TENSOR_ELEMENTS];
@@ -109,6 +113,11 @@ void rpool_queue_group_set_whitelist (rpool_queue_group_t *rpool_queue_group, vo
 ase_group_t *ase_group_init (unsigned int num_ase, int gpu_idx);
 void ase_group_set_rpool (ase_group_t *ase_group, rpool_t *rpool);
 void ase_group_destroy (ase_group_t *ase_group);
+void ase_group_run (ase_group_t *ase_group);
+void ase_group_stop (ase_group_t *ase_group);
+void ase_group_run_until_nasm_completion (ase_group_t *ase_group, nasm_t *nasm);
+void ase_wait_for_nasm_completion (nasm_t *nasm);
+unsigned int ase_check_nasm_completion (nasm_t *nasm);
 
 void print_build_info(void);
 

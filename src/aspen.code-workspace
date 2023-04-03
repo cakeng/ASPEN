@@ -80,7 +80,8 @@
 			"stdio.h": "c",
 			"aspen.h": "c",
 			"cdecode.h": "c",
-			"cencode.h": "c"
+			"cencode.h": "c",
+			"locale": "c"
 		}
 	}
 }

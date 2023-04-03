@@ -5,6 +5,7 @@
 
 struct nasm_t
 {
+    unsigned int nasm_id;
     aspen_dnn_t *dnn;
     unsigned int batch_size;
     nasm_ldata_t *ldata_arr;
@@ -13,7 +14,7 @@ struct nasm_t
     unsigned int num_ninst;
     unsigned int flop_per_ninst;
     size_t total_flops;
-    unsigned int nasm_id;
+    
     int gpu_idx;
     void *data;
 };

@@ -201,7 +201,7 @@ void create_layer_tensors (aspen_layer_t *layer)
     else
     {
         FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], __LINE__, __FILE__);
-        exit(1);
+        assert (0);
     }
     #ifdef DEBUG
     for (int i = 0; i < NUM_TENSOR_ELEMENTS; i++)
@@ -410,7 +410,7 @@ void ninst_find_parent (ninst_t *ninst)
                     else
                     {
                         FPRT(stderr, "ERROR: Unsupported parent layer type %s, at line %d in file %s.\n" , layer_type_str[parent_ldata->layer->type], __LINE__, __FILE__);
-                        exit(1);
+                        assert (0);
                     }
                 }
             } 
@@ -445,7 +445,7 @@ void ninst_find_parent (ninst_t *ninst)
             else
             {
                 FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], __LINE__, __FILE__);
-                exit(1);
+                assert (0);
             }
             // printf ("\n");
         }
@@ -456,7 +456,7 @@ void ninst_find_parent (ninst_t *ninst)
     for (int i = 0; i < ninst->num_parent_ninsts; i++)
     {
         ninst_t *parent = ninst->parent_ninst_idx_arr[i] + ldata->nasm->ninst_arr;
-        parent->num_child_ninsts++;
+        atomic_fetch_add (&parent->num_child_ninsts, 1);
     }
     free (parent_arr);
     // printf ("Layer %d, ninst %d, num_parent_ninsts %d\n", 
@@ -679,7 +679,7 @@ void get_out_mat_info (nasm_ldata_t *ldata)
     else
     {
         FPRT(stderr, "ERROR) Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], __LINE__, __FILE__);
-        exit(1);
+        assert (0);
     }
 }
 
@@ -830,7 +830,7 @@ void get_out_mat_pos_from_tensor_pos (nasm_ldata_t *ldata, unsigned int *tensor_
     else
     {
         FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], __LINE__, __FILE__);
-        exit(1);
+        assert (0);
     }
 }
 // Change to add a new layer type
@@ -855,7 +855,7 @@ void get_tensor_pos_from_out_mat_pos (nasm_ldata_t *ldata, unsigned int *out_mat
     else
     {
         FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], __LINE__, __FILE__);
-        exit(1);
+        assert (0);
     }
 }
 void get_tensor_pos_from_nist (nasm_ldata_t *ldata, ninst_t *ninst, unsigned int *tensor_pos)
@@ -1077,7 +1077,7 @@ void print_ninst_info (ninst_t *ninst, int print_data)
         printf("Error: ninst is NULL.\n");
         return;
     }
-    printf ("Ninst Idx: %d", ninst->ninst_idx);
+    printf ("Ninst Idx: %d, State: %s", ninst->ninst_idx, ninst_state_str[ninst->state]);
     if (ninst->out_mat != NULL)
     {
         printf (", Output Matrix: %p\n", ninst->out_mat);
