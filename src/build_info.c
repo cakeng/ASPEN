@@ -9,7 +9,7 @@ char* nvcc_info = BUILD_INFO_NVCC;
 char* gpu_arch_info = BUILD_INFO_GPU_ARCH;
 char* flag_info = BUILD_INFO_FLAGS;
 
-void print_build_info(void)
+void print_aspen_build_info(void)
 {
     printf ("\n////////////    PRINTING ASPEN BUILD INFO    ////////////\n\n");
     printf ("1. Time of Build:\t%s\n", time_info);

@@ -488,8 +488,8 @@ void parse_section (section *s, aspen_layer_t *layer)
     layer->params [IN_W] = option_find_int_quiet (options, "width", 0);
     layer->params [IN_H] = option_find_int_quiet (options, "height", 0);
     layer->params [IN_C] = option_find_int_quiet (options, "channels", 0);
-    layer->params [F_W] = option_find_int_quiet (options, "size", 0);
-    layer->params [F_H] = option_find_int_quiet (options, "size", 0);
+    layer->params [WEIGHT_W] = option_find_int_quiet (options, "size", 0);
+    layer->params [WEIGHT_H] = option_find_int_quiet (options, "size", 0);
     layer->params [OUT_C] = option_find_int_quiet (options, "filters", 0);
     if (layer->params [OUT_C] == 0) layer->params [OUT_C] = option_find_int_quiet (options, "output", 0);
     layer->params [STRIDE] = option_find_int_quiet (options, "stride", 0);

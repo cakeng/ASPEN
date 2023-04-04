@@ -71,9 +71,10 @@ struct aspen_dnn_t
 struct aspen_tensor_t
 {
     unsigned int num_dims;
-    unsigned int data_dim_order[MAX_TENSOR_DIMS];
+    LAYER_PARAMS data_dim_order[MAX_TENSOR_DIMS];
     unsigned int dims[NUM_PARAM_ELEMENTS];
     unsigned int num_elements;
+    unsigned int element_size;
     void *data;
     void *data_gpu[MAX_NUM_GPUS];
 };
@@ -87,7 +88,7 @@ struct aspen_layer_t
     LAYER_ACT activation;
     aspen_layer_t *parent_layers [NUM_PARENT_ELEMENTS];
     unsigned int params [NUM_PARAM_ELEMENTS];
-    aspen_tensor_t *tensors [NUM_TENSOR_ELEMENTS];
+    aspen_tensor_t *tensors [NUM_TENSORS];
 };
 
 #endif /* _NASM_H_ */

@@ -46,8 +46,8 @@ void set_layer_inout_sizes (aspen_layer_t *layer)
             layer->params[STRIDE] = 1;
         if (layer->params[DILATION] == 0)
             layer->params[DILATION] = 1;
-        layer->params[OUT_H] = (layer->params[IN_H] + 2*layer->params[PADDING] - layer->params[DILATION]*(layer->params[F_H] - 1) - 1) / layer->params[STRIDE] + 1;
-        layer->params[OUT_W] = (layer->params[IN_W] + 2*layer->params[PADDING] - layer->params[DILATION]*(layer->params[F_W] - 1) - 1) / layer->params[STRIDE] + 1;
+        layer->params[OUT_H] = (layer->params[IN_H] + 2*layer->params[PADDING] - layer->params[DILATION]*(layer->params[WEIGHT_H] - 1) - 1) / layer->params[STRIDE] + 1;
+        layer->params[OUT_W] = (layer->params[IN_W] + 2*layer->params[PADDING] - layer->params[DILATION]*(layer->params[WEIGHT_W] - 1) - 1) / layer->params[STRIDE] + 1;
         return;
     }
     else if (layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER)
@@ -56,8 +56,8 @@ void set_layer_inout_sizes (aspen_layer_t *layer)
             layer->params[STRIDE] = 1;
         if (layer->params[DILATION] == 0)
             layer->params[DILATION] = 1;
-        layer->params[OUT_H] = (layer->params[IN_H] + 2*layer->params[PADDING] - layer->params[DILATION]*(layer->params[F_H] - 1) - 1) / layer->params[STRIDE] + 1;
-        layer->params[OUT_W] = (layer->params[IN_W] + 2*layer->params[PADDING] - layer->params[DILATION]*(layer->params[F_W] - 1) - 1) / layer->params[STRIDE] + 1;
+        layer->params[OUT_H] = (layer->params[IN_H] + 2*layer->params[PADDING] - layer->params[DILATION]*(layer->params[WEIGHT_H] - 1) - 1) / layer->params[STRIDE] + 1;
+        layer->params[OUT_W] = (layer->params[IN_W] + 2*layer->params[PADDING] - layer->params[DILATION]*(layer->params[WEIGHT_W] - 1) - 1) / layer->params[STRIDE] + 1;
         layer->params[OUT_C] = layer->params[IN_C];
         return;
     }

@@ -382,7 +382,7 @@ void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst)
     }
 }
 
-void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm)
+void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
 {
     #ifdef DEBUG
     if (rpool == NULL || nasm == NULL)
@@ -404,10 +404,14 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm)
     if (rpool->gpu_idx < 0)
     {
         nasm->data = aspen_calloc (total_mem_req, 1);
+        if (input_data != NULL)
+            memcpy (nasm->data, input_data, nasm->ldata_arr[0].out_mat_mem_size);
     }
     else
     {
         nasm->data = aspen_gpu_calloc (total_mem_req, 1, rpool->gpu_idx);
+        if (input_data != NULL)
+            aspen_host_to_gpu_async_memcpy (nasm->data, input_data, nasm->ldata_arr[0].out_mat_mem_size, rpool->gpu_idx);
     }
     if (nasm->data == NULL)
     {

@@ -6,6 +6,391 @@
 
 extern char* branch_info;
 
+char *read_check_and_return (FILE *fp, char *buffer, char *check_str, unsigned int *line_num)
+{
+    if (fgets(buffer, MAX_STRING_LEN, fp) == NULL)
+    {
+        FPRT (stderr,"ASPEN DNN file parse error: Unexpected EOF.\n");
+        return NULL;
+    }
+    (*line_num)++;
+    buffer[strcspn(buffer, "\n")] = 0;
+    char *line = buffer;
+    while (*line == ' ' || *line == '\t')
+        line++;
+    if (strncmp(line, check_str, strlen(check_str)) != 0)
+    {
+        FPRT(stderr,"Wrong ASPEN DNN file format at line %d, expected \"%s\", got \"%s\"\n", *line_num, check_str, line);
+        return NULL;
+    }
+    return line + strlen(check_str);
+}
+
+char *read_and_return_if_EOF (FILE *fp, char *buffer, char *check_str, unsigned int *line_num)
+{
+    if (fgets(buffer, MAX_STRING_LEN, fp) == NULL)
+    {
+        return NULL;
+    }
+    (*line_num)++;
+    buffer[strcspn(buffer, "\n")] = 0;
+    char *line = buffer;
+    while (*line == ' ' || *line == '\t')
+        line++;
+    if (strncmp(line, check_str, strlen(check_str)) != 0)
+    {
+        FPRT(stderr,"Wrong ASPEN DNN file format at line %d, expected \"%s\", got \"%s\"\n", *line_num, check_str, line);
+        return NULL;
+    }
+    return line + strlen(check_str);
+}
+
+void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
+{
+    FILE *fp = fopen(input_path, "rb");
+    if (fp == NULL)
+    {
+        FPRT(stderr,"ASPEN DNN file %s not found.\n", input_path);
+        return;
+    }
+    
+    float *bn_var = NULL, *bn_mean = NULL, *bn_weight = NULL;
+    char line[MAX_STRING_LEN] = {0};
+    char* ptr;
+    unsigned int line_num = 0;
+    int file_layer_num = 0;
+    size_t data_size = 0;
+    LAYER_TENSORS tensor_type = NULL_TENSOR;
+    if ((ptr = read_check_and_return (fp, line, "ASPEN_DATA", &line_num)) == NULL)
+    {
+        FPRT(stderr,"ASPEN DNN file %s parse error: Missing ASPEN_DATA.\n", input_path);
+        fclose (fp);
+        return;
+    }
+    if ((ptr = read_check_and_return (fp, line, "LAYER:", &line_num)) == NULL)
+    {
+        FPRT(stderr,"ASPEN DNN file %s parse error: Missing LAYER.\n", input_path);
+        if (bn_mean != NULL)
+            free (bn_mean);
+        if (bn_weight != NULL)
+            free (bn_weight);
+        if (bn_var != NULL)
+            free (bn_var);
+        fclose (fp);
+        return;
+    }
+    while (feof(fp) == 0)
+    {
+        file_layer_num = atoi(ptr);
+        int layer_num = 0;
+        unsigned int weighted_layer = 0;
+        for (int i = 0; i < dnn->num_layers; i++)
+        {
+            if (dnn->layers[i].type == CONV_LAYER 
+                || dnn->layers[i].type == FC_LAYER)
+            {
+                weighted_layer++;
+                if (weighted_layer == file_layer_num)
+                {
+                    layer_num = i;
+                    break;
+                }
+            }
+        }
+        aspen_layer_t *layer = &dnn->layers[layer_num];
+        if ((ptr = read_check_and_return (fp, line, "TENSOR_TYPE:", &line_num)) == NULL)
+        {
+            FPRT(stderr,"ASPEN DNN file %s parse error: Missing TENSOR_TYPE.\n", input_path);
+            if (bn_mean != NULL)
+                free (bn_mean);
+            if (bn_weight != NULL)
+                free (bn_weight);
+            if (bn_var != NULL)
+                free (bn_var);
+            fclose (fp);
+            return;
+        }
+        if (strcmp(ptr, "INPUT") == 0)
+            tensor_type = INPUT_TENSOR;
+        else if (strcmp(ptr, "OUTPUT") == 0)
+            tensor_type = OUTPUT_TENSOR;
+        else if (strcmp(ptr, "WEIGHT") == 0)
+            tensor_type = WEIGHT_TENSOR;
+        else if (strcmp(ptr, "BIAS") == 0)
+            tensor_type = BIAS_TENSOR;
+        else if (strcmp(ptr, "BN_VAR") == 0)
+            tensor_type = BN_VAR_TENSOR;
+        else if (strcmp(ptr, "BN_MEAN") == 0)
+            tensor_type = BN_MEAN_TENSOR;
+        else if (strcmp(ptr, "BN_WEIGHT") == 0)
+            tensor_type = BN_WEIGHT_TENSOR;
+        else
+        {
+            ptr[20] = '\0';
+            FPRT(stderr,"ASPEN DNN file %s file layer %d parse error: Invalid TENSOR_TYPE %s.\n", 
+                input_path, file_layer_num, ptr);
+            if (bn_mean != NULL)
+                free (bn_mean);
+            if (bn_weight != NULL)
+                free (bn_weight);
+            if (bn_var != NULL)
+                free (bn_var);
+            fclose (fp);
+            return;
+        }
+        if ((ptr = read_check_and_return (fp, line, "DATA_SIZE:", &line_num)) == NULL)
+        {
+            FPRT(stderr,"ASPEN DNN file %s parse error: Missing DATA_SIZE.\n", input_path);
+            if (bn_mean != NULL)
+                free (bn_mean);
+            if (bn_weight != NULL)
+                free (bn_weight);
+            if (bn_var != NULL)
+                free (bn_var);
+            fclose (fp);
+            return;
+        }
+        data_size = atoi(ptr);
+        if ((ptr = read_check_and_return (fp, line, "DATA_START:", &line_num)) == NULL)
+        {
+            FPRT(stderr,"ASPEN DNN file %s parse error: Missing DATA_START.\n", input_path);
+            if (bn_mean != NULL)
+                free (bn_mean);
+            if (bn_weight != NULL)
+                free (bn_weight);
+            if (bn_var != NULL)
+                free (bn_var);
+            fclose (fp);
+            return;
+        }
+        void *buffer = malloc(data_size);
+        if (buffer == NULL)
+        {
+            FPRT(stderr,"ASPEN DNN file %s parse error: Failed to allocate memory.\n", input_path);
+            free (buffer);
+            if (bn_mean != NULL)
+                free (bn_mean);
+            if (bn_weight != NULL)
+                free (bn_weight);
+            if (bn_var != NULL)
+                free (bn_var);
+            fclose (fp);
+            return;
+        }
+        if (fread(buffer, data_size, 1, fp) != 1)
+        {
+            FPRT(stderr,"ASPEN DNN file %s parse error: Failed to read data.\n", input_path);
+            free (buffer);
+            if (bn_mean != NULL)
+                free (bn_mean);
+            if (bn_weight != NULL)
+                free (bn_weight);
+            if (bn_var != NULL)
+                free (bn_var);
+            fclose (fp);
+            return;
+        }
+        if ((ptr = read_check_and_return (fp, line, "DATA_END", &line_num)) == NULL)
+        {
+            FPRT(stderr,"ASPEN DNN file %s parse error: Missing DATA_END.\n", input_path);
+            free (buffer);
+            if (bn_mean != NULL)
+                free (bn_mean);
+            if (bn_weight != NULL)
+                free (bn_weight);
+            if (bn_var != NULL)
+                free (bn_var);
+            fclose (fp);    
+            return;
+        }
+        if (tensor_type == WEIGHT_TENSOR)
+        {
+            if (layer->tensors[WEIGHT_TENSOR] != NULL)
+            {
+                LAYER_PARAMS weight_dim_order[] = {OUT_C, IN_C, WEIGHT_H, WEIGHT_W};
+                for (int i = 0; i < layer->tensors[WEIGHT_TENSOR]->num_dims; i++)
+                {
+                    layer->tensors[WEIGHT_TENSOR]->data_dim_order[i] = weight_dim_order[i];
+                }
+                if (layer->tensors[WEIGHT_TENSOR]->num_elements*layer->tensors[WEIGHT_TENSOR]->element_size == data_size)
+                    copy_ptr_to_aspen_tensor (layer->tensors[WEIGHT_TENSOR], buffer);
+                else
+                {
+                    FPRT(stderr,"ASPEN DNN file %s parse error: Layer %d WEIGHT_TENSOR size mismatch:\
+                        Tensor: %d, File: %ld.\n", input_path, layer_num,
+                            layer->tensors[WEIGHT_TENSOR]->num_elements*layer->tensors[WEIGHT_TENSOR]->element_size,
+                            data_size);
+                    assert(0);
+                    free (buffer);
+                    if (bn_mean != NULL)
+                        free (bn_mean);
+                    if (bn_weight != NULL)
+                        free (bn_weight);
+                    if (bn_var != NULL)
+                        free (bn_var);
+                    fclose (fp);
+                    return;
+                }
+            }
+            else 
+            {
+                FPRT(stderr,"ASPEN DNN file %s parse error: Layer %d missing WEIGHT_TENSOR.\n",
+                    input_path, layer_num);
+                free (buffer);
+                if (bn_mean != NULL)
+                    free (bn_mean);
+                if (bn_weight != NULL)
+                    free (bn_weight);
+                if (bn_var != NULL)
+                    free (bn_var);
+                fclose (fp);
+                return;
+            }
+            free (buffer);
+        }
+        else if (tensor_type == BIAS_TENSOR)
+        {
+            if (layer->tensors[BIAS_TENSOR] != NULL)
+            {
+                LAYER_PARAMS bias_dim_order[] = {OUT_C, IN_C};
+                for (int i = 0; i < layer->tensors[BIAS_TENSOR]->num_dims; i++)
+                {
+                    layer->tensors[BIAS_TENSOR]->data_dim_order[i] = bias_dim_order[i];
+                }
+                if (layer->tensors[BIAS_TENSOR]->num_elements*layer->tensors[BIAS_TENSOR]->element_size == data_size)
+                    copy_ptr_to_aspen_tensor (layer->tensors[BIAS_TENSOR], buffer);
+                else
+                {
+                    FPRT(stderr,"ASPEN DNN file %s parse error: Layer %d BIAS_TENSOR size mismatch:\
+                        Tensor: %d, File: %ld.\n", input_path, layer_num,
+                            layer->tensors[BIAS_TENSOR]->num_elements*layer->tensors[BIAS_TENSOR]->element_size,
+                            data_size);
+                    free (buffer);
+                    if (bn_mean != NULL)
+                        free (bn_mean);
+                    if (bn_weight != NULL)
+                        free (bn_weight);
+                    if (bn_var != NULL)
+                        free (bn_var);
+                    fclose (fp);
+                    return;
+                }
+            }
+            else 
+            {
+                FPRT(stderr,"ASPEN DNN file %s parse error: Layer %d missing BIAS_TENSOR.\n", input_path, layer_num);
+                free (buffer);
+                if (bn_mean != NULL)
+                    free (bn_mean);
+                if (bn_weight != NULL)
+                    free (bn_weight);
+                if (bn_var != NULL)
+                    free (bn_var);
+                fclose (fp);
+                return;
+            }
+            free (buffer);
+        }
+        else if (tensor_type == BN_VAR_TENSOR)
+        {
+            if (bn_var == NULL)
+                bn_var = (float *)buffer;
+            else
+            {
+                FPRT(stderr,"ASPEN DNN file %s parse error: Duplicate BN_VAR.\n", input_path);
+                free (buffer);
+                if (bn_mean != NULL)
+                    free (bn_mean);
+                if (bn_weight != NULL)
+                    free (bn_weight);
+                if (bn_var != NULL)
+                    free (bn_var);
+                fclose (fp);
+                return;
+            }
+        }
+        else if (tensor_type == BN_MEAN_TENSOR)
+        {
+            if (bn_mean == NULL)
+                bn_mean = (float *)buffer;
+            else
+            {
+                FPRT(stderr,"ASPEN DNN file %s parse error: Duplicate BN_MEAN.\n", input_path);
+                free (buffer);
+                if (bn_mean != NULL)
+                    free (bn_mean);
+                if (bn_weight != NULL)
+                    free (bn_weight);
+                if (bn_var != NULL)
+                    free (bn_var);
+                fclose (fp);
+                return;
+            }
+        }
+        else if (tensor_type == BN_WEIGHT_TENSOR)
+        {
+            if (bn_weight == NULL)
+                bn_weight = (float *)buffer;
+            else
+            {
+                FPRT(stderr,"ASPEN DNN file %s parse error: Duplicate BN_WEIGHT.\n", input_path);
+                free (buffer);
+                if (bn_mean != NULL)
+                    free (bn_mean);
+                if (bn_weight != NULL)
+                    free (bn_weight);
+                if (bn_var != NULL)
+                    free (bn_var);
+                fclose (fp);
+                return;
+            }
+        }
+        if (bn_var != NULL && bn_mean != NULL && bn_weight != NULL)
+        {
+            fold_batchnorm_float (bn_var, bn_mean, bn_weight,
+                                  layer->tensors[WEIGHT_TENSOR]->data,
+                                  layer->tensors[BIAS_TENSOR]->data,
+                                  layer->params[OUT_C], layer->params[IN_C],
+                                  layer->params[WEIGHT_H], layer->params[WEIGHT_W]);
+            free(bn_var);
+            free(bn_mean);
+            free(bn_weight);
+            bn_var = NULL;
+            bn_mean = NULL;
+            bn_weight = NULL;
+        }
+        // printf ("Layer %d data loaded from file info string LAYER: %d, TENSOR_TYPE: %s, DATA_SIZE: %ld\n",
+        //      layer_num, file_layer_num, tensor_type_str[tensor_type], data_size);
+        if ((ptr = read_check_and_return (fp, line, "LAYER_END", &line_num)) == NULL)
+        {
+            FPRT(stderr,"ASPEN DNN file %s parse error: Missing LAYER_END.\n", input_path);
+            if (bn_mean != NULL)
+                free (bn_mean);
+            if (bn_weight != NULL)
+                free (bn_weight);
+            if (bn_var != NULL)
+                free (bn_var);
+            fclose (fp);
+            return;
+        }
+        if ((ptr = read_and_return_if_EOF (fp, line, "LAYER:", &line_num)) == NULL)
+        {
+            break;
+        }
+    }
+    fclose (fp);
+    for (int i = 0; i < dnn->num_layers; i++)
+    {
+        aspen_layer_t *layer = dnn->layers + i;
+        if (layer->type == CONV_LAYER)
+        {
+            // printf ("Reordering weight tensor for layer %d\n", i);
+            LAYER_PARAMS weight_dim_order[] = {OUT_C, WEIGHT_H, WEIGHT_W, IN_C};
+            reorder_aspen_tensor (&layer->tensors[WEIGHT_TENSOR], weight_dim_order);
+        }
+    }
+}
+
 void apu_save_dnn_to_file(aspen_dnn_t *dnn, char *filename)
 {
     FILE *fp = fopen(filename, "wb");
@@ -41,7 +426,7 @@ void apu_save_dnn_to_file(aspen_dnn_t *dnn, char *filename)
         }
         fprintf(fp, "\tLAYER_PARAMS_END\n");
         fprintf(fp, "\tLAYER_TENSORS:\n");
-        for (unsigned int j = 0; j < NUM_TENSOR_ELEMENTS; j++)
+        for (unsigned int j = 0; j < NUM_TENSORS; j++)
         {
             if (layer->tensors[j] != NULL)
             {
@@ -73,26 +458,6 @@ void apu_save_dnn_to_file(aspen_dnn_t *dnn, char *filename)
     }
     fprintf(fp, "ASPEN_DNN_END\n");
     fclose(fp);
-}
-
-char *read_check_and_return (FILE *fp, char *buffer, char *check_str, unsigned int *line_num)
-{
-    if (fgets(buffer, MAX_STRING_LEN, fp) == NULL)
-    {
-        FPRT(stderr,"ASPEN DNN file parse error: Unexpected EOF.\n");
-        return NULL;
-    }
-    (*line_num)++;
-    buffer[strcspn(buffer, "\n")] = 0;
-    char *line = buffer;
-    while (*line == ' ' || *line == '\t')
-        line++;
-    if (strncmp(line, check_str, strlen(check_str)) != 0)
-    {
-        FPRT(stderr,"Wrong ASPEN DNN file format at line %d, expected \"%s\", got \"%s\"\n", *line_num, check_str, line);
-        return NULL;
-    }
-    return line + strlen(check_str);
 }
 
 aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *line_num, unsigned int skip_alloc)
@@ -217,7 +582,7 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
             apu_destroy_dnn(dnn);
             return NULL;
         }
-        for (unsigned int j = 0; j < NUM_TENSOR_ELEMENTS; j++)
+        for (unsigned int j = 0; j < NUM_TENSORS; j++)
         {
             fgets (line, MAX_STRING_LEN, *fp_t);
             *line_num += 1;
@@ -306,6 +671,7 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
                     num_elements *= tensor->dims[tensor->data_dim_order[k]];
                 }
                 tensor->num_elements = num_elements;
+                tensor->element_size = layer->dnn->element_size;
                 if (skip_alloc == 0)
                 {
                     tensor->data = aspen_calloc (num_elements, layer->dnn->element_size);

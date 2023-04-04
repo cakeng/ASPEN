@@ -1,9 +1,10 @@
 #include <stdio.h>
 #include "aspen.h"
+#include "util.h"
 
 int main(void)
 {
-    print_build_info();
+    print_aspen_build_info();
     // aspen_dnn_t *resnet50_dnn = apu_create_dnn("data/cfg/resnet50.cfg", NULL);
     // if (resnet50_dnn == NULL) 
     // {
@@ -30,29 +31,34 @@ int main(void)
 
     aspen_dnn_t *resnet50_dnn = NULL;
     nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50.nasm", &resnet50_dnn);
-    nasm_t *resnet50_4_nasm = apu_load_nasm_from_file ("data/resnet50_4.nasm", &resnet50_dnn);
+    // nasm_t *resnet50_4_nasm = apu_load_nasm_from_file ("data/resnet50_4.nasm", &resnet50_dnn);
 
-    rpool_t *rpool = rpool_init (0);
-    ase_group_t *ase_group = ase_group_init (4, 0);
-    ase_group_set_rpool (ase_group, rpool);
+    apu_load_dnn_data_from_file (resnet50_dnn, "data/resnet50_data.bin");
 
-    rpool_add_nasm (rpool, resnet50_4_nasm, 0.5);
-    rpool_add_nasm (rpool, resnet50_nasm, 1.0);
+    // rpool_t *rpool = rpool_init (0);
+    // ase_group_t *ase_group = ase_group_init (4, 0);
+    // ase_group_set_rpool (ase_group, rpool);
+
+    // rpool_add_nasm (rpool, resnet50_4_nasm, 0.5);
+    // rpool_add_nasm (rpool, resnet50_nasm, 1.0);
+    // // print_rpool_info (rpool);
+    // // print_nasm_info(resnet50_4_nasm, 0);
+    // print_dnn_info(resnet50_dnn, 0);
+
+    // ase_group_run (ase_group);
+    // ase_wait_for_nasm_completion (resnet50_nasm);
+    // ase_wait_for_nasm_completion (resnet50_4_nasm);
+    // ase_group_stop (ase_group);
+    
+    // print_nasm_info(resnet50_4_nasm, 0);
     // print_rpool_info (rpool);
-    // print_nasm_info(resnet50_4_nasm, 0);
 
-    ase_group_run (ase_group);
-    ase_wait_for_nasm_completion (resnet50_nasm);
-    ase_wait_for_nasm_completion (resnet50_4_nasm);
-    ase_group_stop (ase_group);
+    aspen_run_naive (resnet50_dnn, 1, "data/dog_input.bin");
     
-    // print_nasm_info(resnet50_4_nasm, 0);
-    print_rpool_info (rpool);
-    
-    ase_group_destroy (ase_group);
-    rpool_destroy (rpool);
-    apu_destroy_nasm (resnet50_4_nasm);
+    // ase_group_destroy (ase_group);
+    // rpool_destroy (rpool);
+    // apu_destroy_nasm (resnet50_4_nasm);
     apu_destroy_nasm (resnet50_nasm);
     apu_destroy_dnn (resnet50_dnn);
-    return 0;
+    // return 0;
 }

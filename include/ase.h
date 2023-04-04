@@ -42,7 +42,7 @@ void ase_stop (ase_t *ase);
 
 void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst);
 void update_children (rpool_t *rpool, ninst_t *ninst);
-void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm);
+void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data);
 
 void set_ldata_out_mat_mem_pos (nasm_ldata_t *ldata);
 void set_ninst_out_mat_mem_pos (ninst_t *ninst);

@@ -4,6 +4,8 @@
 *.txt
 *.*rep
 *.pth
+*.tmp
+*.bin
 main
 data/*.aspen
 data/*.nasm

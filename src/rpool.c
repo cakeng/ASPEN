@@ -156,7 +156,7 @@ void add_ref_ases (rpool_t *rpool, unsigned int num_ases)
     }
 }
 
-void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, float weight)
+void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, float weight, void* input_data)
 {
     if (rpool == NULL)
     {
@@ -183,7 +183,7 @@ void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, float weight)
         num_queues = 1;
     nasm->gpu_idx = rpool->gpu_idx;
     rpool_add_queue_group (rpool, info_str, num_queues, weight, NULL, whitelist);
-    push_first_layer_to_rpool (rpool, nasm);
+    push_first_layer_to_rpool (rpool, nasm, input_data);
 }
 
 void rpool_add_queue_group 
