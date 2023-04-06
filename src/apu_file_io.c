@@ -775,10 +775,7 @@ void apu_save_nasm_to_file(nasm_t *nasm, char *filename)
             fprintf (fp, "\tPARENT_NINSTS_END\n");
             fprintf (fp, "\tNUM_INPUT_POS:%d\n", ninst->num_input_pos);
             fprintf (fp, "\tINPUT_POS:\n");
-            for (unsigned int k = 0; k < ninst->num_input_pos; k++)
-            {
-                fprintf (fp, "\t\t%d %d\n", k, ninst->input_pos_idx_arr[k]);
-            }
+            fwrite (ninst->input_pos_idx_arr, sizeof(int), ninst->num_input_pos, fp);
             fprintf (fp, "\tINPUT_POS_END\n");
         }
     }
@@ -965,18 +962,7 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
                 fclose (fp);
                 return NULL;
             }
-            for (unsigned int k = 0; k < ninst->num_input_pos; k++)
-            {
-                fgets (line, MAX_STRING_LEN, fp);
-                line_num += 1;
-                ptr = line;
-                while (*ptr == ' ' || *ptr == '\t')
-                    ptr++;
-                int input_pos_num = 0;
-                int input_pos_idx = 0;
-                sscanf(ptr, "%d %d", &input_pos_num, &input_pos_idx);
-                ninst->input_pos_idx_arr[input_pos_num] = input_pos_idx;
-            }
+            fread (ninst->input_pos_idx_arr, sizeof(int), ninst->num_input_pos, fp);
             if ((ptr = read_check_and_return (fp, line, "INPUT_POS_END", &line_num)) == NULL)
             {
                 FPRT(stderr,"ASPEN DNN file %s parse error: Missing INPUT_POS_END.\n", filename);

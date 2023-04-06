@@ -604,7 +604,7 @@ void rpool_push_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int n
         unsigned int ninst_idx = ninst - ninst->ldata->ninst_arr_start; 
         float queue_per_layer = rpool->ref_ases * NUM_QUEUE_PER_ASE * NUM_QUEUE_PER_LAYER;
         unsigned int queue_val = (layer->layer_idx - 1)*queue_per_layer
-        + (ninst_idx / (ninst->ldata->num_ninst/queue_per_layer/4));
+        + (ninst_idx / (ninst->ldata->num_ninst/queue_per_layer/16));
         if (queue_val < 0)
             queue_val = 0;
         void* input_conds[NUM_RPOOL_CONDS] = {[RPOOL_DNN] = (void*)layer->dnn,

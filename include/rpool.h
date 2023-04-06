@@ -9,7 +9,7 @@
 #define MAX_QUEUE_GROUPS 128
 #define MAX_NUM_QUEUES 1024*4
 #define NUM_QUEUE_PER_ASE ((float)1/4)
-#define NUM_QUEUE_PER_LAYER ((float)1/2)
+#define NUM_QUEUE_PER_LAYER ((float)1/4)
 
 struct rpool_queue_t
 {

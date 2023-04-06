@@ -21,7 +21,7 @@ void *ase_thread_runtime (void* thread_info)
                 rpool_fetch_ninsts (ase->rpool, ase->scratchpad, ASE_NINST_CACHE_BALLANCE - ase->ninst_cache->num_stored);
             push_ninsts_to_queue (ase->ninst_cache, ase->scratchpad, fetch_num);
             #ifdef DEBUG
-            PRT ("Thread %d fetched %d ninsts from rpool\n", ase->thread_id, fetch_num);
+            // PRT ("Thread %d fetched %d ninsts from rpool\n", ase->thread_id, fetch_num);
             // print_rpool_info (ase->rpool);
             // print_rpool_queue_info (ase->ninst_cache);
             #endif
@@ -32,7 +32,7 @@ void *ase_thread_runtime (void* thread_info)
                 pop_ninsts_from_queue_back (ase->ninst_cache, ase->scratchpad, ase->ninst_cache->num_stored - ASE_NINST_CACHE_BALLANCE);
             rpool_push_ninsts (ase->rpool, ase->scratchpad, push_num);
             #ifdef DEBUG
-            PRT ("Thread %d pushed %d ninsts to rpool\n", ase->thread_id, push_num);
+            // PRT ("Thread %d pushed %d ninsts to rpool\n", ase->thread_id, push_num);
             #endif
             // print_rpool_info (ase->rpool);
             // print_rpool_queue_info (ase->ninst_cache);
@@ -51,8 +51,8 @@ void *ase_thread_runtime (void* thread_info)
             }
             else 
             {
-                PRT ("Thread %d running ninst #%d - N%d:L%d:%d\n", ase->thread_id, i,
-                    ninst->ldata->nasm->nasm_id, ninst->ldata->layer->layer_idx, ninst->ninst_idx);
+                // PRT ("Thread %d running ninst #%d - N%d:L%d:%d\n", ase->thread_id, i,
+                //     ninst->ldata->nasm->nasm_id, ninst->ldata->layer->layer_idx, ninst->ninst_idx);
             }
             if (ninst->state != NINST_READY)
             {
@@ -66,10 +66,10 @@ void *ase_thread_runtime (void* thread_info)
             unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
             if (num_ninst_completed == ninst->ldata->num_ninst - 1)
             {
-                #ifdef DEBUG
-                printf ("\t\tThread %d completed layer %d of nasm %d\n", 
-                    ase->thread_id, ninst->ldata->layer->layer_idx, ninst->ldata->nasm->nasm_id);
-                #endif
+                // #ifdef DEBUG
+                // printf ("\t\tThread %d completed layer %d of nasm %d\n", 
+                //     ase->thread_id, ninst->ldata->layer->layer_idx, ninst->ldata->nasm->nasm_id);
+                // #endif
                 if (ninst->ldata == &ninst->ldata->nasm->ldata_arr[ninst->ldata->nasm->num_ldata - 1])
                 {
                     // Last layer of the nasm is completed.
@@ -401,17 +401,26 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
         nasm_ldata_t *ldata = &nasm->ldata_arr[i];
         total_mem_req += ldata->out_mat_mem_size;
     }
-    if (rpool->gpu_idx < 0)
+    nasm->data = aspen_calloc (total_mem_req, 1);
+    if (input_data != NULL)
     {
-        nasm->data = aspen_calloc (total_mem_req, 1);
-        if (input_data != NULL)
-            memcpy (nasm->data, input_data, nasm->ldata_arr[0].out_mat_mem_size);
+        nasm_ldata_t *ldata = &nasm->ldata_arr[0];
+        aspen_layer_t *layer = ldata->layer;
+        size_t num_cols = 0;
+        if (layer->params[OUT_H] != 0 && layer->params[OUT_W] != 0)
+            num_cols = layer->params[BATCH] * layer->params[OUT_H] * layer->params[OUT_W];
+        for (int i = 0; i < num_cols; i++)
+            memcpy 
+                ((char*)nasm->data + i * ldata->out_mat_stride * nasm->dnn->element_size, 
+                (char*)input_data + i * ldata->out_mat_dims[OUT_H] * nasm->dnn->element_size, 
+                ldata->out_mat_dims[OUT_H] * nasm->dnn->element_size);
     }
-    else
+    if (rpool->gpu_idx >= 0)
     {
-        nasm->data = aspen_gpu_calloc (total_mem_req, 1, rpool->gpu_idx);
-        if (input_data != NULL)
-            aspen_host_to_gpu_async_memcpy (nasm->data, input_data, nasm->ldata_arr[0].out_mat_mem_size, rpool->gpu_idx);
+        void *temp_gpu_data = aspen_gpu_calloc (total_mem_req, 1, rpool->gpu_idx);
+        aspen_host_to_gpu_async_memcpy (temp_gpu_data, nasm->data, nasm->ldata_arr[0].out_mat_mem_size, rpool->gpu_idx);
+        aspen_free(nasm->data);
+        nasm->data = temp_gpu_data;
     }
     if (nasm->data == NULL)
     {
