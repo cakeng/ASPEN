@@ -22,7 +22,8 @@ void copy_aspen_tensor_to_tensor  (aspen_tensor_t *dst, aspen_tensor_t *src);
 void copy_aspen_tensor_to_gpu  (aspen_tensor_t *tensor, int gpu_num);
 void copy_aspen_tensor_from_gpu  (aspen_tensor_t *tensor, int gpu_num);
 void reorder_aspen_tensor (aspen_tensor_t **tensor_ptr, LAYER_PARAMS *order);
-void* get_aspen_tensor_element_ptr (aspen_tensor_t *tensor, unsigned int *pos);
+void *get_aspen_tensor_data (aspen_tensor_t *tensor, LAYER_PARAMS *output_order);
+void *get_aspen_tensor_element_ptr (aspen_tensor_t *tensor, unsigned int *pos);
 void destroy_aspen_tensor(aspen_tensor_t *tensor);
 
 nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size);

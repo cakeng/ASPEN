@@ -199,7 +199,7 @@ void reorder_aspen_tensor (aspen_tensor_t **tensor_ptr, LAYER_PARAMS *order)
     for (int idx = 0; idx < tensor->num_elements; idx++)
     {
         get_tensor_pos_from_idx (tensor, idx, pos);
-        void *src = get_aspen_tensor_element_ptr (tensor, pos);
+        void *src = (char*) tensor->data + idx * tensor->element_size;
         void *dst = get_aspen_tensor_element_ptr (new_tensor, pos);
         memcpy (dst, src, tensor->element_size);
     }
@@ -213,6 +213,23 @@ void reorder_aspen_tensor (aspen_tensor_t **tensor_ptr, LAYER_PARAMS *order)
     }
     *tensor_ptr = new_tensor;
     destroy_aspen_tensor (tensor);
+}
+void *get_aspen_tensor_data (aspen_tensor_t *tensor, LAYER_PARAMS *output_order)
+{
+    void *output = calloc (tensor->num_elements, tensor->element_size);
+    aspen_tensor_t *new_tensor = init_aspen_tensor (tensor->dims, output_order, tensor->num_dims, tensor->element_size);
+    unsigned int pos[NUM_PARAM_ELEMENTS] = {0};
+    
+    for (int idx = 0; idx < tensor->num_elements; idx++)
+    {
+        get_tensor_pos_from_idx (tensor, idx, pos);
+        void *src = (char*) tensor->data + idx * tensor->element_size;
+        void *dst = (char*) output + get_tensor_idx_from_pos (new_tensor, pos) * tensor->element_size;
+        memcpy (dst, src, tensor->element_size);
+    }
+
+    destroy_aspen_tensor (new_tensor);
+    return output;
 }
 void* get_aspen_tensor_element_ptr (aspen_tensor_t *tensor, unsigned int *pos)
 {
@@ -1112,7 +1129,7 @@ void print_tensor_info (aspen_tensor_t *tensor, int print_data)
                     }
                     printf(": ");
                 }
-                printf("%4e ", *((float*)tensor->data + i));
+                printf("%3.3e ", *((float*)tensor->data + i));
             }
             printf("\n");
         }
@@ -1286,14 +1303,32 @@ void print_ninst_info (ninst_t *ninst, int print_data)
     }
     printf("\n");
 }
-void *aspen_load_input_from_file(char *input_filename, unsigned int *input_dims, unsigned int element_size);
+void *aspen_load_input_from_file(char *input_filename, unsigned int *input_dims, unsigned int element_size)
 {
-
-    void * file_data = load_arr (input_filename, input_dims, sizeof(float));
+    size_t num_elements = 1;
+    for (int i = 0; i < NUM_PARAM_ELEMENTS; i++)
+    {
+        if (input_dims[i] != 0)
+            num_elements *= input_dims[i];
+    }
+    void *file_data = load_arr (input_filename, num_elements * element_size);
+    void *output = aspen_calloc (num_elements, element_size);
+    if (input_dims [OUT_C] != 0 && input_dims [OUT_H] != 0 && input_dims [OUT_W] != 0)
+    {
+        // Convert from NCHW to NHWC
+        NCHW_to_NHWC (file_data, output, 
+            input_dims [BATCH], input_dims [OUT_C], input_dims [OUT_H], input_dims [OUT_W], element_size);
+    }
+    else
+    {
+        memcpy (output, file_data, num_elements * element_size);
+    }
+    free (file_data);
+    return output;
 }
 
 // Change to add a new layer type
-void apu_run_naive (aspen_dnn_t* dnn, unsigned int batch_size, void *input_data)
+void aspen_run_naive (aspen_dnn_t* dnn, unsigned int batch_size, void *input_data)
 {
     if (dnn == NULL)
     {
@@ -1307,67 +1342,57 @@ void apu_run_naive (aspen_dnn_t* dnn, unsigned int batch_size, void *input_data)
         layer->params[BATCH] = batch_size;
         create_layer_output_tensor (layer);
     }
-    // Load input data
-    if (input_data != NULL)
+    memcpy (dnn->layers[0].tensors[OUTPUT_TENSOR]->data, input_data, 
+        dnn->layers[0].tensors[OUTPUT_TENSOR]->num_elements * dnn->layers[0].tensors[OUTPUT_TENSOR]->element_size);
+    for (int i = 0; i < dnn->num_layers; i++)
     {
-        LAYER_PARAMS dim_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
-        aspen_tensor_t *temp_input_tensor = init_aspen_tensor (dnn->layers[0].params, dim_order, 4, dnn->element_size);
-        calloc_aspen_tensor (temp_input_tensor);
-        copy_ptr_to_aspen_tensor (temp_input_tensor, input_data);
-        reorder_aspen_tensor (&temp_input_tensor, dnn->layers[0].tensors[OUTPUT_TENSOR]->data_dim_order);
-        copy_aspen_tensor_to_tensor (dnn->layers[0].tensors[OUTPUT_TENSOR], temp_input_tensor);
-        destroy_aspen_tensor (temp_input_tensor);
+        aspen_layer_t *layer = &dnn->layers[i];
+        float *input = (float*)layer->parent_layers[PARENT_0]->tensors[OUTPUT_TENSOR]->data;
+        float *input2 = NULL;
+        if (layer->parent_layers[PARENT_1] != NULL)
+        {
+            input2 = (float*)layer->parent_layers[PARENT_1]->tensors[OUTPUT_TENSOR]->data;
+        }
+        float *output = (float*)layer->tensors[OUTPUT_TENSOR]->data;
+        if (layer->type == CONV_LAYER)
+        {
+            naive_conv2d (input, layer->tensors[WEIGHT_TENSOR]->data, layer->tensors[BIAS_TENSOR]->data, &output,
+                layer->params[BATCH], layer->params[IN_C], layer->params[IN_H], layer->params[IN_W],
+                layer->params[OUT_C], layer->params[WEIGHT_H], layer->params[WEIGHT_W],
+                layer->params[STRIDE], layer->params[PADDING]);
+        }
+        else if (layer->type == MAXPOOL_LAYER)
+        {
+            naive_maxpool2d (input, &output, layer->params[BATCH], layer->params[IN_C], layer->params[IN_H], layer->params[IN_W],
+                layer->params[WEIGHT_H], layer->params[WEIGHT_W], layer->params[STRIDE], layer->params[PADDING]);
+        }
+        else if (layer->type == AVGPOOL_LAYER)
+        {
+            naive_avgpool2d (input, &output, layer->params[BATCH], layer->params[IN_C], layer->params[IN_H], layer->params[IN_W],
+                layer->params[WEIGHT_H], layer->params[WEIGHT_W], layer->params[STRIDE], layer->params[PADDING]);
+        }
+        else if (layer->type == SOFTMAX_LAYER)
+        {
+            naive_softmax (input, &output, layer->params[BATCH], layer->tensors[OUTPUT_TENSOR]->num_elements/ layer->params[BATCH]);
+        }
+        else if (layer->type == FC_LAYER)
+        {
+            naive_fully_connected (input, layer->tensors[WEIGHT_TENSOR]->data, layer->tensors[BIAS_TENSOR]->data, &output,
+                layer->params[BATCH], layer->params[IN_C], layer->params[OUT_C]);
+        }
+        else if (layer->type == RESIDUAL_LAYER)
+        {
+            naive_residual (input, input2, &output, layer->tensors[OUTPUT_TENSOR]->num_elements);
+        }
+        else if (layer->type == INPUT_LAYER)
+        {
+        }
+        else 
+        {
+            FPRT (stderr, "Error: Layer type not supported.\n");
+            assert (0);
+        }
+        naive_activate (output, layer->tensors[OUTPUT_TENSOR]->num_elements, layer->activation);
+        PRT ("apu_run_naive: Layer %d done.\n", i);
     }
-
-    // for (int i = 0; i < dnn->num_layers; i++)
-    // {
-    //     aspen_layer_t *layer = &dnn->layers[i];
-    //     float *input = (float*)layer->parent_layers[PARENT_0]->tensors[OUTPUT_TENSOR]->data;
-    //     float *input2 = NULL;
-    //     if (layer->parent_layers[PARENT_1] != NULL)
-    //     {
-    //         input2 = (float*)layer->parent_layers[PARENT_1]->tensors[OUTPUT_TENSOR]->data;
-    //     }
-    //     float *output = (float*)layer->tensors[OUTPUT_TENSOR]->data;
-    //     if (layer->type == CONV_LAYER)
-    //     {
-    //         naive_conv2d (input, layer->tensors[WEIGHT_TENSOR]->data, layer->tensors[BIAS_TENSOR]->data, &output,
-    //             layer->params[BATCH], layer->params[IN_C], layer->params[IN_H], layer->params[IN_W],
-    //             layer->params[OUT_C], layer->params[WEIGHT_H], layer->params[WEIGHT_W],
-    //             layer->params[STRIDE], layer->params[PADDING]);
-    //     }
-    //     else if (layer->type == MAXPOOL_LAYER)
-    //     {
-    //         naive_maxpool2d (input, &output, layer->params[BATCH], layer->params[IN_C], layer->params[IN_H], layer->params[IN_W],
-    //             layer->params[WEIGHT_H], layer->params[WEIGHT_W], layer->params[STRIDE], layer->params[PADDING]);
-    //     }
-    //     else if (layer->type == AVGPOOL_LAYER)
-    //     {
-    //         naive_avgpool2d (input, &output, layer->params[BATCH], layer->params[IN_C], layer->params[IN_H], layer->params[IN_W],
-    //             layer->params[WEIGHT_H], layer->params[WEIGHT_W], layer->params[STRIDE], layer->params[PADDING]);
-    //     }
-    //     else if (layer->type == SOFTMAX_LAYER)
-    //     {
-    //         naive_softmax (input, &output, layer->tensors[OUTPUT_TENSOR]->num_elements);
-    //     }
-    //     else if (layer->type == FC_LAYER)
-    //     {
-    //         naive_fully_connected (input, layer->tensors[WEIGHT_TENSOR]->data, layer->tensors[BIAS_TENSOR]->data, &output,
-    //             layer->params[BATCH], layer->params[IN_C], layer->params[OUT_C]);
-    //     }
-    //     else if (layer->type == RESIDUAL_LAYER)
-    //     {
-    //         naive_residual (input, input2, &output, layer->tensors[OUTPUT_TENSOR]->num_elements);
-    //     }
-    //     else if (layer->type == INPUT_LAYER)
-    //     {
-    //     }
-    //     else 
-    //     {
-    //         FPRT (stderr, "Error: Layer type not supported.\n");
-    //         assert (0);
-    //     }
-    //     naive_activate (output, layer->tensors[OUTPUT_TENSOR]->num_elements, layer->activation);
-    //     PRT ("apu_run_naive: Layer %d done.\n", i);
-    // }
 }

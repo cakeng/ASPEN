@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <math.h>
+#include <float.h>
 #include <limits.h>
 #include <pthread.h>
 #include <time.h>

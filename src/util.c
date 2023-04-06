@@ -278,7 +278,7 @@ unsigned int get_smallest_dividable (unsigned int num, unsigned int divider)
 
 void* load_arr (char *file_path, unsigned int size)
 {
-    void *input = malloc (size);
+    void *input = calloc (size, 1);
     FILE *fptr = fopen(file_path, "rb");
     if (fptr != NULL)
     {
@@ -288,6 +288,7 @@ void* load_arr (char *file_path, unsigned int size)
     }
     else
     {
+        FPRT (stderr, "Error: Failed to open file %s. Exiting.\n", file_path);
         free (input);
         return NULL;
     }
@@ -319,6 +320,96 @@ void fold_batchnorm_float (float *bn_var, float *bn_mean, float *bn_weight,
     }
 }
 
+void NHWC_to_NCHW (void *input, void *output, unsigned int n, unsigned int c, unsigned int h, unsigned int w, unsigned int element_size)
+{
+    if (input == NULL)
+    {
+        printf ("Error: Input is NULL.\n");
+        return;
+    }
+    if (output == NULL)
+    {
+        printf ("Error: Output is NULL.\n");
+        return;
+    }
+    if (input == output)
+    {
+        printf ("Error: Input and output are the same.\n");
+        return;
+    }
+    for (int ni = 0; ni < n; ni++)
+    {
+        for (int ci = 0; ci < c; ci++)
+        {
+            for (int hi = 0; hi < h; hi++)
+            {
+                for (int wi = 0; wi < w; wi++)
+                {
+                    char* input_ptr = (char*)input + (ni*h*w*c + hi*w*c + wi*c + ci)*element_size;
+                    char* output_ptr = (char*)output + (ni*c*h*w + ci*h*w + hi*w + wi)*element_size;
+                    memcpy (output_ptr, input_ptr, element_size);
+                }
+            }
+        }
+    }
+}
+void NCHW_to_NHWC (void *input, void *output, unsigned int n, unsigned int c, unsigned int h, unsigned int w, unsigned int element_size)
+{
+    if (input == NULL)
+    {
+        printf ("Error: Input is NULL.\n");
+        return;
+    }
+    if (output == NULL)
+    {
+        printf ("Error: Output is NULL.\n");
+        return;
+    }
+    if (input == output)
+    {
+        printf ("Error: Input and output are the same.\n");
+        return;
+    }
+    for (int ni = 0; ni < n; ni++)
+    {
+        for (int ci = 0; ci < c; ci++)
+        {
+            for (int hi = 0; hi < h; hi++)
+            {
+                for (int wi = 0; wi < w; wi++)
+                {
+                    char* input_ptr = (char*)input + (ni*c*h*w + ci*h*w + hi*w + wi)*element_size;
+                    char* output_ptr = (char*)output + (ni*h*w*c + hi*w*c + wi*c + ci)*element_size;
+                    memcpy (output_ptr, input_ptr, element_size);
+                }
+            }
+        }
+    }
+}
+
+void set_float_tensor_val (float *output, unsigned int n, unsigned int c, unsigned int h, unsigned int w)
+{
+    if (output == NULL)
+    {
+        printf ("Error: Output is NULL.\n");
+        return;
+    }
+    for (int ni = 0; ni < n; ni++)
+    {
+        for (int ci = 0; ci < c; ci++)
+        {
+            for (int hi = 0; hi < h; hi++)
+            {
+                for (int wi = 0; wi < w; wi++)
+                {
+                    float* output_ptr = output + (ni*h*w*c + hi*w*c + wi*c + ci);
+                    *output_ptr = (float)(ni*h*w*c + hi*w*c + wi*c + ci);
+                }
+            }
+        }
+    }
+}
+
 int compare_float_array (float *input1, float* input2, int num_to_compare, float epsilon_ratio, int skip_val)
 {
     int num = 0;
@@ -344,6 +435,47 @@ int compare_float_array (float *input1, float* input2, int num_to_compare, float
     printf ("Compare_array_f32 complete.\nTotal of %d errors detected out of %d SP floats, with epsilon ratio of %1.1e.\n", num, num_to_compare,epsilon_ratio);
     return num;
 }
+
+void get_probability_results (char *class_data_path, float* probabilities, unsigned int num)
+{
+    int buffer_length = 256;
+    char buffer[num][buffer_length];
+    FILE *fptr = fopen(class_data_path, "r");
+    if (fptr == NULL)
+    {
+        printf ("Error in get_probability_results: Cannot open file %s.\n", class_data_path);
+        return;
+    }
+    for (int i = 0; i < num; i++)
+    {
+        fgets(buffer[i], buffer_length, fptr);
+        for (char *ptr = buffer[i]; *ptr != '\0'; ptr++)
+        {
+            if (*ptr == '\n')
+            {
+                *ptr = '\0';
+            }
+        }
+    }
+    fclose(fptr);
+    printf ("Results:\n");
+    for (int i = 0; i < 5; i++)
+    {
+        float max_val = -INFINITY;
+        int max_idx = 0;
+        for (int j = 0; j < num; j++)
+        {
+            if (max_val < *(probabilities + j))
+            {
+                max_val = *(probabilities + j);
+                max_idx = j;
+            }
+        }
+        printf ("%d: %s - %2.2f%%\n", i+1, buffer[max_idx], max_val*100);
+        *(probabilities + max_idx) = -INFINITY;
+    }
+}
+
 
 int compare_float_tensor (float *input1, float* input2, int n, int c, int h ,int w, int num_to_compare, float epsilon_ratio, int skip_val)
 {
@@ -383,4 +515,75 @@ int compare_float_tensor (float *input1, float* input2, int n, int c, int h ,int
     }
     printf ("Compare_tensor_f32 complete.\nTotal of %d errors detected out of %d SP floats, with epsilon ratio of %1.1e.\n", num, n*c*h*w, epsilon_ratio);
     return num;
+}
+
+void print_float_array (float *input, int num, int newline_num)
+{
+    int i;
+    printf ("Printing Array of size %d...\n", num);
+    for (i = 0; i < num; i++)
+    {
+        const float val = *(input + i);
+        if (val < 0.0)
+        {
+            printf ("\t%3.3ef", val);
+        }
+        else
+        {
+            printf ("\t %3.3ef", val);
+        }
+        if (i%newline_num == newline_num-1)
+        {
+            printf("\n");
+        }
+    }
+    if (i%newline_num != newline_num-1)
+    {
+        printf("\n");
+    }
+}
+
+void print_float_tensor (float *input, int n, int c, int h, int w)
+{
+    printf ("\t");
+    int size_arr[] = {n, c, h};
+    int newline = w;
+    for (int i = 2; i >= 0; i--)
+    {
+        newline *= size_arr[i];
+        if (newline > 20)
+        {
+            newline /= size_arr[i];
+            break;
+        }
+    }
+    size_t idx = 0;
+    for (int ni = 0; ni < n; ni++)
+    {
+        for (int ci = 0; ci < c; ci++)
+        {
+            for (int hi = 0; hi < h; hi++)
+            {
+                for (int wi = 0; wi < w; wi++)
+                {
+                    if (idx%newline == 0)
+                    {
+                        printf("\n(%d, %d, %d, %d):\t", ni, ci, hi, wi);
+                    }
+                    const float val = *(input + ni*c*h*w + ci*h*w + hi*w + wi);
+                    if (val < 0.0)
+                    {
+                        printf ("\t%3.3ef", val);
+                    }
+                    else
+                    {
+                        printf ("\t %3.3ef", val);
+                    }
+                    idx++;
+                    
+                }
+            }
+        }
+    }
+    printf ("\n");
 }
