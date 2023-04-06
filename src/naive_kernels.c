@@ -103,6 +103,78 @@ void naive_conv2d
     }
 }
 
+void naive_conv2d_im2col_mm
+(const float *input, const float *kernel, const float *bias, float **output_ptr, 
+    unsigned int batch_size, unsigned int input_channels, unsigned int height, unsigned int width,  
+        unsigned int output_channels, unsigned int kernel_width , unsigned int kernel_height, 
+            unsigned int stride, unsigned int padding)
+{
+    if (input == NULL)
+        FPRT (stderr, "Error in naive_convolution_im2col_mm: input is NULL.\n");
+    if (kernel == NULL)
+        FPRT (stderr, "Error in naive_convolution_im2col_mm: kernel is NULL.\n");
+    if (output_ptr == NULL)
+        FPRT (stderr, "Error in naive_convolution_im2col_mm: output is NULL.\n");
+    float *output = *output_ptr;
+    unsigned int output_width = (width - kernel_width + 2 * padding) / stride + 1;
+    unsigned int output_height = (height - kernel_height + 2 * padding) / stride + 1;
+    unsigned int output_size = batch_size * output_width * output_height * output_channels;
+    if (output == NULL)
+        output = (float *) aspen_calloc (output_size, sizeof (float));
+    else
+        memset (output, 0, output_size * sizeof (float));
+
+    unsigned int im2col_size = batch_size * output_height * output_width * kernel_height * kernel_width * input_channels;
+    float *im2col_mat = (float *) aspen_calloc (im2col_size, sizeof (float));
+    unsigned M = output_channels, N = batch_size * output_height * output_width, K = kernel_height * kernel_width * input_channels;
+    // im2col
+    #pragma omp parallel for collapse(3)
+    for (unsigned int b = 0; b < batch_size; b++)
+    {
+        for (unsigned int h = 0; h < output_height; h++)
+        {
+            for (unsigned int w = 0; w < output_width; w++)
+            {
+                float* im2col_col = im2col_mat + b * output_height * output_width * kernel_height * kernel_width * input_channels + 
+                    h * output_width * kernel_height * kernel_width * input_channels + 
+                    w * kernel_height * kernel_width * input_channels;
+                for (unsigned int kh = 0; kh < kernel_height; kh++)
+                {
+                    for (unsigned int kw = 0; kw < kernel_width; kw++)
+                    {
+                        unsigned int ih = h * stride + kh - padding;
+                        unsigned int iw = w * stride + kw - padding;
+                        if (ih >= height || iw >= width)
+                        {
+                            im2col_col += input_channels;
+                            continue;
+                        }
+                        const float *input_col = input + b * height * width * input_channels + 
+                            (h * stride + kh - padding) * width * input_channels + 
+                            (w * stride + kw - padding) * input_channels;
+                        memcpy (im2col_col, input_col, input_channels * sizeof (float));
+                        im2col_col += input_channels;
+                    }
+                }
+            }
+        }
+    }
+    #pragma omp parallel for collapse(2)
+    for (int m = 0; m < M; m++)
+    {
+        for (int n = 0; n < N; n++)
+        {
+            float sum = bias == NULL ? 0 : bias[m];
+            for (int k = 0; k < K; k++)
+            {
+                sum += kernel[m * K + k] * im2col_mat[n * K + k];
+            }
+            output[n * M + m] = sum;
+        }
+    }
+    aspen_free (im2col_mat);
+}
+
 void naive_maxpool2d
 (const float *input, float **output_ptr, 
     unsigned int batch_size, unsigned int channels, unsigned int height, unsigned int width,  
@@ -288,5 +360,253 @@ void naive_softmax (float *input, float **output_ptr, unsigned int num_batch, un
         }
         for (int j = 0; j < num_elements; j++)
             output[i * num_elements + j] /= sum;
+    }
+}
+
+void matmul_f32_base(float *A, float *B, float **C, int k, int m, int n)
+{
+    for (int kidx = 0; kidx < k; kidx++)
+    {
+        for (int nidx = 0; nidx < n; nidx++)
+        {
+            for (int midx = 0; midx < m; midx++)
+            {
+                *(*(C + nidx) + midx) += A[kidx*m + midx] * (*(B + k*nidx + kidx));
+            }
+        }
+    }
+}
+void matmul_f32_base_8x1(float *A, float *B, float **C, int k)
+{
+    for (int kidx = 0; kidx < k; kidx++)
+    {
+        for (int nidx = 0; nidx < 1; nidx++)
+        {
+            for (int midx = 0; midx < 8; midx++)
+            {
+                *(*(C + nidx) + midx) += A[kidx*8 + midx] * (*(B + k*nidx + kidx));
+            }
+        }
+    }
+}
+void matmul_f32_base_8x2(float *A, float *B, float **C, int k)
+{
+    for (int kidx = 0; kidx < k; kidx++)
+    {
+        for (int nidx = 0; nidx < 2; nidx++)
+        {
+            for (int midx = 0; midx < 8; midx++)
+            {
+                *(*(C + nidx) + midx) += A[kidx*8 + midx] * (*(B + k*nidx + kidx));
+            }
+        }
+    }
+}
+void matmul_f32_base_8x3(float *A, float *B, float **C, int k)
+{
+    for (int kidx = 0; kidx < k; kidx++)
+    {
+        for (int nidx = 0; nidx < 3; nidx++)
+        {
+            for (int midx = 0; midx < 8; midx++)
+            {
+                *(*(C + nidx) + midx) += A[kidx*8 + midx] * (*(B + k*nidx + kidx));
+            }
+        }
+    }
+}
+void matmul_f32_base_8x4(float *A, float *B, float **C, int k)
+{
+    for (int kidx = 0; kidx < k; kidx++)
+    {
+        for (int nidx = 0; nidx < 4; nidx++)
+        {
+            for (int midx = 0; midx < 8; midx++)
+            {
+                *(*(C + nidx) + midx) += A[kidx*8 + midx] * (*(B + k*nidx + kidx));
+            }
+        }
+    }
+}
+void matmul_f32_base_8x5(float *A, float *B, float **C, int k)
+{
+    for (int kidx = 0; kidx < k; kidx++)
+    {
+        for (int nidx = 0; nidx < 5; nidx++)
+        {
+            for (int midx = 0; midx < 8; midx++)
+            {
+                *(*(C + nidx) + midx) += A[kidx*8 + midx] * (*(B + k*nidx + kidx));
+            }
+        }
+    }
+}
+void matmul_f32_base_8x6(float *A, float *B, float **C, int k)
+{
+    for (int kidx = 0; kidx < k; kidx++)
+    {
+        for (int nidx = 0; nidx < 6; nidx++)
+        {
+            for (int midx = 0; midx < 8; midx++)
+            {
+                *(*(C + nidx) + midx) += A[kidx*8 + midx] * (*(B + k*nidx + kidx));
+            }
+        }
+    }
+}
+void matmul_f32_base_8x7(float *A, float *B, float **C, int k)
+{
+    for (int kidx = 0; kidx < k; kidx++)
+    {
+        for (int nidx = 0; nidx < 7; nidx++)
+        {
+            for (int midx = 0; midx < 8; midx++)
+            {
+                *(*(C + nidx) + midx) += A[kidx*8 + midx] * (*(B + k*nidx + kidx));
+            }
+        }
+    }
+}
+void matmul_f32_base_8x8(float *A, float *B, float **C, int k)
+{
+    for (int kidx = 0; kidx < k; kidx++)
+    {
+        for (int nidx = 0; nidx < 8; nidx++)
+        {
+            for (int midx = 0; midx < 8; midx++)
+            {
+                *(*(C + nidx) + midx) += A[kidx*8 + midx] * (*(B + k*nidx + kidx));
+            }
+        }
+    }
+}
+void matmul_f32_base_8x9(float *A, float *B, float **C, int k)
+{
+    for (int kidx = 0; kidx < k; kidx++)
+    {
+        for (int nidx = 0; nidx < 9; nidx++)
+        {
+            for (int midx = 0; midx < 8; midx++)
+            {
+                *(*(C + nidx) + midx) += A[kidx*8 + midx] * (*(B + k*nidx + kidx));
+            }
+        }
+    }
+}
+void matmul_f32_base_8x10(float *A, float *B, float **C, int k)
+{
+    for (int kidx = 0; kidx < k; kidx++)
+    {
+        for (int nidx = 0; nidx < 10; nidx++)
+        {
+            for (int midx = 0; midx < 8; midx++)
+            {
+                *(*(C + nidx) + midx) += A[kidx*8 + midx] * (*(B + k*nidx + kidx));
+            }
+        }
+    }
+}
+void matmul_f32_base_8x11(float *A, float *B, float **C, int k)
+{
+    for (int kidx = 0; kidx < k; kidx++)
+    {
+        for (int nidx = 0; nidx < 11; nidx++)
+        {
+            for (int midx = 0; midx < 8; midx++)
+            {
+                *(*(C + nidx) + midx) += A[kidx*8 + midx] * (*(B + k*nidx + kidx));
+            }
+        }
+    }
+}
+void matmul_f32_base_8x12(float *A, float *B, float **C, int k)
+{
+    for (int kidx = 0; kidx < k; kidx++)
+    {
+        for (int nidx = 0; nidx < 12; nidx++)
+        {
+            for (int midx = 0; midx < 8; midx++)
+            {
+                *(*(C + nidx) + midx) += A[kidx*8 + midx] * (*(B + k*nidx + kidx));
+            }
+        }
+    }
+}
+
+void matmul_f32_base_16x1(float *A, float *B, float **C, int k)
+{
+    for (int kidx = 0; kidx < k; kidx++)
+    {
+        for (int nidx = 0; nidx < 1; nidx++)
+        {
+            for (int midx = 0; midx < 16; midx++)
+            {
+                *(*(C + nidx) + midx) += A[kidx*8 + (midx/8)*k*8 + (midx%8)] * (*(B + k*nidx + kidx));
+            }
+        }
+    }
+}
+void matmul_f32_base_32x1(float *A, float *B, float **C, int k)
+{
+    for (int kidx = 0; kidx < k; kidx++)
+    {
+        for (int nidx = 0; nidx < 1; nidx++)
+        {
+            for (int midx = 0; midx < 32; midx++)
+            {
+                *(*(C + nidx) + midx) += A[kidx*8 + (midx/8)*k*8 + (midx%8)] * (*(B + k*nidx + kidx));
+            }
+        }
+    }
+}
+void matmul_f32_base_64x1(float *A, float *B, float **C, int k)
+{
+    for (int kidx = 0; kidx < k; kidx++)
+    {
+        for (int nidx = 0; nidx < 1; nidx++)
+        {
+            for (int midx = 0; midx < 64; midx++)
+            {
+                *(*(C + nidx) + midx) += A[kidx*8 + (midx/8)*k*8 + (midx%8)] * (*(B + k*nidx + kidx));
+            }
+        }
+    }
+}
+
+void maxpool2d_f32_base (float **input, float *output, int kernel_size, int cin)
+{
+    for (int kidx = 0; kidx < cin; kidx++)
+    {
+        float val = -INFINITY;
+        for (int i = 0; i < kernel_size; i++)
+        {
+            float* input_ptr = *(input + i);
+            if (val < *(input_ptr + kidx))
+            {
+                val = *(input_ptr + kidx);
+            }
+        }
+        *(output + kidx) = val;
+    }
+}
+
+void avgpool2d_f32_base (float **input, float *output, int kernel_size, int cin)
+{
+    for (int kidx = 0; kidx < cin; kidx++)
+    {
+        float val = 0.0f;
+        for (int i = 0; i < kernel_size; i++)
+        {
+            val += *(*(input + i) + kidx);
+        }
+        *(output + kidx) = val/kernel_size;
+    }
+}
+
+void residual_f32_base (float **input, float *output, int cin)
+{
+    for (int kidx = 0; kidx < cin; kidx++)
+    {
+        *(output + kidx) = *(*(input + 0) + kidx) + *(*(input + 1) + kidx);
     }
 }

@@ -55,6 +55,8 @@ struct ninst_t
     ninst_t **child_ninst_arr;
     unsigned int num_child_ninsts;
     
+    int *input_pos_idx_arr;
+    unsigned int num_input_pos;
     void *out_mat;
     rpool_t *affinity_pool;
 };

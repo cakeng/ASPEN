@@ -387,6 +387,94 @@ void update_ldata_child_list (nasm_ldata_t *ldata)
         }
     }
 }
+
+void ninst_find_input_pos_idx (ninst_t *ninst)
+{
+    nasm_ldata_t *ldata = ninst->ldata;
+    aspen_layer_t *layer = ldata->layer;
+    if (layer->type == CONV_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER)
+    {
+        unsigned int parent_stride = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr)->out_mat_stride;
+        unsigned int num_input_pos = ldata->ninst_tile_dims[OUT_W]*layer->params[WEIGHT_H]*layer->params[WEIGHT_W];
+        ninst->num_input_pos = num_input_pos;
+        ninst->input_pos_idx_arr = calloc(num_input_pos, sizeof(unsigned int));
+        unsigned int input_pos_idx = 0;
+        for (unsigned int tile_w = 0; tile_w < ldata->ninst_tile_dims[OUT_W]; tile_w++)
+        {
+            unsigned int out_mat_pos[2] = {ninst->out_mat_pos[OUT_W] + tile_w, 0};
+            unsigned int out_tensor_pos[NUM_PARAM_ELEMENTS] = {0}, in_tensor_pos[NUM_PARAM_ELEMENTS] = {0}; 
+            get_tensor_pos_from_out_mat_pos(ldata, out_mat_pos, out_tensor_pos);
+            in_tensor_pos[BATCH] = out_tensor_pos[BATCH];
+            nasm_ldata_t *parent_ldata = ldata->nasm->ldata_arr + ldata->parent_ldata_idx_arr[PARENT_0];
+            aspen_layer_t *parent_layer = parent_ldata->layer;
+            in_tensor_pos[OUT_C] = 0;
+            for (int j = 0; j < layer->params[WEIGHT_H]; j++)
+            {
+                in_tensor_pos[OUT_H] = out_tensor_pos[OUT_H]*layer->params[STRIDE]
+                    + j*layer->params[DILATION] - layer->params[PADDING];
+                for (int k = 0; k < layer->params[WEIGHT_W]; k++)
+                {
+                    in_tensor_pos[OUT_W] = out_tensor_pos[OUT_W]*layer->params[STRIDE]
+                        + k*layer->params[DILATION] - layer->params[PADDING];
+                    if (in_tensor_pos[BATCH] >= 0 && in_tensor_pos[BATCH] < ldata->nasm->batch_size && in_tensor_pos[OUT_C] >= 0 && in_tensor_pos[OUT_C] < layer->params[IN_C] &&
+                        in_tensor_pos[OUT_H] >= 0 && in_tensor_pos[OUT_H] < layer->params[IN_H] && in_tensor_pos[OUT_W] >= 0 && in_tensor_pos[OUT_W] < layer->params[IN_W])
+                    {
+                        unsigned int input_pos = (in_tensor_pos[BATCH] * parent_layer->params[OUT_H] * parent_layer->params[OUT_W] * parent_layer->params[OUT_C]
+                            + in_tensor_pos[OUT_H] * parent_layer->params[IN_W]
+                            + in_tensor_pos[OUT_W]) * parent_ldata->out_mat_stride;
+                        ninst->input_pos_idx_arr[input_pos_idx] = input_pos;
+                    }
+                    else
+                    {
+                        ninst->input_pos_idx_arr[input_pos_idx] = -1;
+                    }
+                    input_pos_idx++;
+                }
+            }
+        }
+    }
+    else if (layer->type == RESIDUAL_LAYER)
+    {
+        unsigned int parent_stride = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr)->out_mat_stride;
+        unsigned int parent_stride2 = (ldata->parent_ldata_idx_arr[PARENT_1] + ldata->nasm->ldata_arr)->out_mat_stride;
+        unsigned int num_input_pos = ldata->ninst_tile_dims[OUT_W]*2;
+        ninst->num_input_pos = num_input_pos;
+        ninst->input_pos_idx_arr = calloc(num_input_pos, sizeof(unsigned int));
+        unsigned int input_pos_idx = 0;
+        for (unsigned int tile_w = 0; tile_w < ldata->ninst_tile_dims[OUT_W]; tile_w++)
+        {
+            ninst->input_pos_idx_arr [input_pos_idx] = (ninst->out_mat_pos[OUT_W] + tile_w) * parent_stride;
+            input_pos_idx++;
+            ninst->input_pos_idx_arr [input_pos_idx] = (ninst->out_mat_pos[OUT_W] + tile_w) * parent_stride2;
+            input_pos_idx++;
+        }
+
+    }
+    else if (layer->type == SOFTMAX_LAYER || layer->type == FC_LAYER)
+    {
+        unsigned int parent_stride = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr)->out_mat_stride;
+        unsigned int num_input_pos = ldata->ninst_tile_dims[OUT_W];
+        ninst->num_input_pos = num_input_pos;
+        ninst->input_pos_idx_arr = calloc(num_input_pos, sizeof(unsigned int));
+        unsigned int input_pos_idx = 0;
+        for (unsigned int tile_w = 0; tile_w < ldata->ninst_tile_dims[OUT_W]; tile_w++)
+        {
+            ninst->input_pos_idx_arr [input_pos_idx] = (ninst->out_mat_pos[OUT_W] + tile_w) * parent_stride;
+            input_pos_idx++;
+        }
+    }
+    else if (layer->type == INPUT_LAYER)
+    {
+        // printf ("\n");
+        return;
+    }
+    else
+    {
+        FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], __LINE__, __FILE__);
+        assert (0);
+    }
+}
+
 // Change to add a new layer type
 void ninst_find_parent (ninst_t *ninst)
 {
@@ -611,6 +699,7 @@ void ninst_find_parent (ninst_t *ninst)
     //     ninst_t *parent = ninst->parent_ninst_idx_arr[i] + ldata->nasm->ninst_arr;
     //     printf ("\tparent_ninst %d, layer %d, ninst %d\n", i, parent->ldata->layer->layer_idx, parent->ninst_idx);
     // }
+    ninst_find_input_pos_idx (ninst);
 }
 
 void init_ninst (nasm_ldata_t *ldata, ninst_t *ninst_ptr, int ninst_idx)
@@ -629,6 +718,8 @@ void destroy_ninst (ninst_t *ninst)
         free (ninst->parent_ninst_idx_arr);
     if (ninst->child_ninst_arr != NULL)
         free (ninst->child_ninst_arr);
+    if (ninst->input_pos_idx_arr != NULL)
+        free (ninst->input_pos_idx_arr);
 }
 
 nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size)
@@ -1282,6 +1373,17 @@ void print_ninst_info (ninst_t *ninst, int print_data)
         printf("L%ld:%d ", child_ninst->ldata - child_ninst->ldata->nasm->ldata_arr,
             child_ninst->ninst_idx);
     }
+    printf("\n\t\tInput pos indexes (%d): ", ninst->num_input_pos);
+    for (int i = 0; i < ninst->num_input_pos; i++)
+    {
+        if (ninst->input_pos_idx_arr == NULL)
+        {
+            printf("\n\t\t\tError: Input pos index array is NULL.\n");
+            break;  
+        }
+        printf("%d ", ninst->input_pos_idx_arr[i]);
+    }
+    printf ("\n");
     if (print_data)
     {
         printf("\n\t\tData:");

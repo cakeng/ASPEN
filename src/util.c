@@ -476,6 +476,67 @@ void get_probability_results (char *class_data_path, float* probabilities, unsig
     }
 }
 
+double get_time_secs ()
+{
+    static int initiallized = 0;
+    static struct timeval zero_time;
+    if (initiallized == 0)
+    {
+        initiallized = 1;
+        gettimeofday (&zero_time, NULL);
+        printf ("Program clock initialized to zero.\n");
+    }
+    
+    struct timeval now;
+    gettimeofday (&now, NULL);
+    long sec = now.tv_sec - zero_time.tv_sec;
+    long usec = now.tv_usec - zero_time.tv_usec;
+    return sec + usec*1e-6;
+}
+
+double get_time_secs_suppressed ()
+{
+    static int initiallized = 0;
+    static struct timeval zero_time;
+    if (initiallized == 0)
+    {
+        initiallized = 1;
+        gettimeofday (&zero_time, NULL);
+    }
+    struct timeval now;
+    gettimeofday (&now, NULL);
+    long sec = now.tv_sec - zero_time.tv_sec;
+    long usec = now.tv_usec - zero_time.tv_usec;
+    return sec + usec*1e-6;
+}
+
+void get_elapsed_time (char *name)
+{
+    static int call_num = 0;
+    static double last = 0;
+    double now = get_time_secs();
+    double elapsed = now - last;
+    if (call_num > 0)
+    {
+        printf ("Time measurement %s (%d): %6.6f - %6.6f secs elapsed since last measurement.\n", name, call_num, now, elapsed);
+    }
+    call_num++;
+    last = now;
+}
+
+void get_elapsed_time_only()
+{
+    static int call_num = 0;
+    static double last = 0;
+    double now = get_time_secs_suppressed ();
+    double elapsed = now - last;
+    if (call_num > 0)
+    {
+        printf ("%6.6f", elapsed);
+    }
+    call_num++;
+    last = now;
+}
 
 int compare_float_tensor (float *input1, float* input2, int n, int c, int h ,int w, int num_to_compare, float epsilon_ratio, int skip_val)
 {

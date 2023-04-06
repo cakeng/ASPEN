@@ -1,7 +1,7 @@
 TARGET=main
 ALIB=libasapen.a
 OBJECTS=build_info.o apu.o apu_file_io.o input_parser.o darknet_parser.o util.o 
-OBJECTS+=rpool.o ase.o naive_kernels.o
+OBJECTS+=rpool.o ase.o naive_kernels.o tiled_kernels.o avx2_kernels.o neon_kernels.o
 AVX2=1
 NEON=0
 GPU=0
@@ -20,7 +20,7 @@ BUILD_INFO_GCC = $(shell gcc --version | grep -Ei "gcc \([0-9a-zA-Z\. -~]+\) [0-
 BUILD_INFO_UNAME = $(shell uname -srvpim)
 BUILD_INFO_BRANCH = $(shell git log -1 | grep -Eio "commit [0-9a-zA-Z]+")
 BUILD_INFO_NVCC = 
-OPTS=-O3 -march=native -ffast-math -funroll-loops
+OPTS=-O3 -march=native -ffast-math -funroll-loops -Wno-unused-result -Wno-unused-variable
 LDFLAGS=-lm -lopenblas -lgomp
 COMMON=-I/usr/local/cuda/include/ -Iinclude/
 ifeq ($(DEBUG), 1) 
@@ -37,9 +37,11 @@ BUILD_INFO_NVCC = $(shell nvcc --version | grep -Eoi "Build .*")
 OPTS+=-DGPU
 endif
 ifeq ($(AVX2), 1)
-OPTS+=-mavx2 -mfma -DUSE_AVX2
+OPTS+=-mavx2 -mfma -DAVX2
 endif
-
+ifeq ($(NEON), 1)
+OPTS+=-DNEON
+endif
 ifeq ($(SUPPRESS_OUTPUT), 1) 
 OPTS+=-D_SUPPRESS_OUTPUT
 endif
