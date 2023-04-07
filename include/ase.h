@@ -5,9 +5,10 @@
 #include "nasm.h"
 #include "rpool.h"
 #include "util.h"
+#include "kernels.h"
 
-#define ASE_NINST_CACHE_BALLANCE 12
-#define ASE_NINST_CACHE_DIFF 6
+#define ASE_NINST_CACHE_BALLANCE 6
+#define ASE_NINST_CACHE_DIFF 4
 #define ASE_SCRATCHPAD_SIZE 1024*1024*32 // 32 MB
 
 struct ase_group_t

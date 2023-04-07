@@ -19,12 +19,13 @@
 #define MAX_PARENT_NINST_NUM (1<<20) // 1M
 #define MAX_NUM_GPUS 16
 #define NINST_H_MIN 32
-#define NINST_W_MIN 16
+#define NINST_W_MIN 7
 #define MEM_ALIGN 64
 #define GPU_MEM_STREAM_HOST_TO_GPU 31
 #define GPU_MEM_STREAM_GPU_TO_HOST 30
 #define GPU_MEM_STREAM_KERNEL_MAX 29
 // #define GPU 1
+#define OPENBLAS 1
 
 #if SUPPRESS_OUTPUT == 0
 #define PRT(...) printf(__VA_ARGS__) 

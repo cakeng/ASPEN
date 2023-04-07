@@ -6,6 +6,8 @@
 #include "util.h"
 #include "kernels.h"
 
+#define MIN_NINST_TILE_PER_LAYER (64)
+
 aspen_dnn_t *init_aspen_dnn (unsigned int num_layers, char* name);
 
 void init_aspen_layer (aspen_layer_t *layer, unsigned int layer_num, aspen_dnn_t *dnn);

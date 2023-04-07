@@ -20,6 +20,7 @@ void *ase_thread_runtime (void* thread_info)
             unsigned int fetch_num = 
                 rpool_fetch_ninsts (ase->rpool, ase->scratchpad, ASE_NINST_CACHE_BALLANCE - ase->ninst_cache->num_stored);
             push_ninsts_to_queue (ase->ninst_cache, ase->scratchpad, fetch_num);
+            // PRT ("Thread %d fetched %d ninsts from rpool\n", ase->thread_id, fetch_num);
             #ifdef DEBUG
             // PRT ("Thread %d fetched %d ninsts from rpool\n", ase->thread_id, fetch_num);
             // print_rpool_info (ase->rpool);
@@ -31,6 +32,7 @@ void *ase_thread_runtime (void* thread_info)
             unsigned int push_num = 
                 pop_ninsts_from_queue_back (ase->ninst_cache, ase->scratchpad, ase->ninst_cache->num_stored - ASE_NINST_CACHE_BALLANCE);
             rpool_push_ninsts (ase->rpool, ase->scratchpad, push_num);
+            // PRT ("Thread %d pushed %d ninsts to rpool\n", ase->thread_id, push_num);
             #ifdef DEBUG
             // PRT ("Thread %d pushed %d ninsts to rpool\n", ase->thread_id, push_num);
             #endif
@@ -43,6 +45,8 @@ void *ase_thread_runtime (void* thread_info)
         {
             ninst_t *ninst;
             pop_ninsts_from_queue (ase->ninst_cache, &ninst, 1);
+            // PRT ("Thread %d running ninst #%d - N%d:L%d:%d\n", ase->thread_id, i,
+            //         ninst->ldata->nasm->nasm_id, ninst->ldata->layer->layer_idx, ninst->ninst_idx);
             #ifdef DEBUG
             if (ninst == NULL)
             {
@@ -51,8 +55,8 @@ void *ase_thread_runtime (void* thread_info)
             }
             else 
             {
-                // PRT ("Thread %d running ninst #%d - N%d:L%d:%d\n", ase->thread_id, i,
-                //     ninst->ldata->nasm->nasm_id, ninst->ldata->layer->layer_idx, ninst->ninst_idx);
+                PRT ("Thread %d running ninst #%d - N%d:L%d:%d\n", ase->thread_id, i,
+                    ninst->ldata->nasm->nasm_id, ninst->ldata->layer->layer_idx, ninst->ninst_idx);
             }
             if (ninst->state != NINST_READY)
             {
@@ -61,6 +65,20 @@ void *ase_thread_runtime (void* thread_info)
             }
             #endif
             // Execute.
+            
+            if (ase->gpu_idx < 0)
+            {
+                switch (ninst->ldata->layer->type)
+                {
+                    case CONV_LAYER:
+                        tiled_conv2d (ninst, ase);
+                        break;
+                    default:
+                        // FPRT (stderr, "ERROR: ase_thread_runtime: layer type %s is not supported\n", layer_type_str[ninst->ldata->layer->type]);
+                        
+                }
+            }
+
             ninst->state = NINST_COMPLETED;
             update_children_to_cache (ase->ninst_cache, ninst);
             unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);

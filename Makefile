@@ -5,6 +5,7 @@ OBJECTS+=rpool.o ase.o naive_kernels.o tiled_kernels.o avx2_kernels.o neon_kerne
 AVX2=1
 NEON=0
 GPU=0
+OPENBLAS=1
 DEBUG=0
 SUPPRESS_OUTPUT=0
 
@@ -41,6 +42,10 @@ OPTS+=-mavx2 -mfma -DAVX2
 endif
 ifeq ($(NEON), 1)
 OPTS+=-DNEON
+endif
+ifeq ($(OPENBLAS), 1) 
+OPTS+=-DOPENBLAS
+LDFLAGS+=-lopenblas
 endif
 ifeq ($(SUPPRESS_OUTPUT), 1) 
 OPTS+=-D_SUPPRESS_OUTPUT

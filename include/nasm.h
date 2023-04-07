@@ -33,7 +33,6 @@ struct nasm_ldata_t
     unsigned int out_mat_stride;
     size_t out_mat_mem_size;
     void *out_mat;
-    
     unsigned int ninst_tile_dims [2];
     ninst_t *ninst_arr_start;
     
@@ -47,6 +46,7 @@ struct ninst_t
     NINST_STATE state;
     unsigned int ninst_idx;
     unsigned int out_mat_pos [2];
+    unsigned int tile_dims [2];
 
     unsigned int *parent_ninst_idx_arr;
     unsigned int num_parent_ninsts;
@@ -57,6 +57,7 @@ struct ninst_t
     
     int *input_pos_idx_arr;
     unsigned int num_input_pos;
+    unsigned int input_col_size;
     void *out_mat;
     rpool_t *affinity_pool;
 };
