@@ -10,6 +10,7 @@
 #include <limits.h>
 #include <pthread.h>
 #include <time.h>
+#include <sys/time.h>
 #include <assert.h>
 #include <stdatomic.h>
 #include <stdlib.h>
@@ -18,8 +19,8 @@
 #define MAX_STRING_LEN 256
 #define MAX_PARENT_NINST_NUM (1<<20) // 1M
 #define MAX_NUM_GPUS 16
-#define NINST_H_MIN 32
-#define NINST_W_MIN 7
+#define NINST_H_MIN 8
+#define NINST_W_MIN 8
 #define MEM_ALIGN 64
 #define GPU_MEM_STREAM_HOST_TO_GPU 31
 #define GPU_MEM_STREAM_GPU_TO_HOST 30

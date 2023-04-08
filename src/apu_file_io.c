@@ -533,7 +533,14 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
         }
         for (unsigned int j = 0; j < NUM_PARENT_ELEMENTS; j++)
         {
-            fgets (line, MAX_STRING_LEN, *fp_t);
+            void *tmp = fgets (line, MAX_STRING_LEN, *fp_t);
+            if (tmp == NULL)
+            {
+                FPRT(stderr,"ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
+                    filename, __LINE__, __FILE__);
+                apu_destroy_dnn(dnn);
+                return NULL;
+            }
             *line_num += 1;
             ptr = line;
             while (*ptr == ' ' || *ptr == '\t')
@@ -560,7 +567,14 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
         }
         for (unsigned int j = 0; j < NUM_PARAM_ELEMENTS; j++)
         {
-            fgets (line, MAX_STRING_LEN, *fp_t);
+            void *tmp = fgets (line, MAX_STRING_LEN, *fp_t);
+            if (tmp == NULL)
+            {
+                FPRT(stderr,"ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
+                    filename, __LINE__, __FILE__);
+                apu_destroy_dnn(dnn);
+                return NULL;
+            }
             *line_num += 1;
             ptr = line;
             while (*ptr == ' ' || *ptr == '\t')
@@ -584,7 +598,14 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
         }
         for (unsigned int j = 0; j < NUM_TENSORS; j++)
         {
-            fgets (line, MAX_STRING_LEN, *fp_t);
+            void * tmp = fgets (line, MAX_STRING_LEN, *fp_t);
+            if (tmp == NULL)
+            {
+                FPRT(stderr,"ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
+                    filename, __LINE__, __FILE__);
+                apu_destroy_dnn(dnn);
+                return NULL;
+            }
             *line_num += 1;
             ptr = line;
             while (*ptr == ' ' || *ptr == '\t')
@@ -619,7 +640,14 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
                 }
                 for (unsigned int k = 0; k < MAX_TENSOR_DIMS; k++)
                 {
-                    fgets (line, MAX_STRING_LEN, *fp_t);
+                    void * tmp = fgets (line, MAX_STRING_LEN, *fp_t);
+                    if (tmp == NULL)
+                    {
+                        FPRT(stderr,"ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
+                            filename, __LINE__, __FILE__);
+                        apu_destroy_dnn(dnn);
+                        return NULL;
+                    }
                     *line_num += 1;
                     ptr = line;
                     while (*ptr == ' ' || *ptr == '\t')
@@ -643,7 +671,14 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
                 }
                 for (unsigned int k = 0; k < NUM_PARAM_ELEMENTS; k++)
                 {
-                    fgets (line, MAX_STRING_LEN, *fp_t);
+                    void * tmp = fgets (line, MAX_STRING_LEN, *fp_t);
+                    if (tmp == NULL)
+                    {
+                        FPRT(stderr,"ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
+                            filename, __LINE__, __FILE__);
+                        apu_destroy_dnn(dnn);
+                        return NULL;
+                    }
                     *line_num += 1;
                     ptr = line;
                     while (*ptr == ' ' || *ptr == '\t')
@@ -681,7 +716,13 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
                         apu_destroy_dnn(dnn);
                         return NULL;
                     }
-                    fread (tensor->data, layer->dnn->element_size, num_elements, *fp_t);
+                    size_t val = fread (tensor->data, layer->dnn->element_size, num_elements, *fp_t);
+                    if (val != num_elements)
+                    {
+                        FPRT(stderr,"ASPEN DNN file %s parse error: Failed to read tensor data.\n", filename);
+                        apu_destroy_dnn(dnn);
+                        return NULL;
+                    }
                     if (aspen_num_gpus > 0)
                     {
                         for (unsigned int k = 0; k < aspen_num_gpus; k++)
@@ -773,10 +814,17 @@ void apu_save_nasm_to_file(nasm_t *nasm, char *filename)
                 fprintf (fp, "\t\t%d %d\n", k, ninst->parent_ninst_idx_arr[k]);
             }
             fprintf (fp, "\tPARENT_NINSTS_END\n");
+            fprintf (fp, "\tNUM_CHILD_NINSTS:%d\n", ninst->num_child_ninsts);
+            fprintf (fp, "\tCHILD_NINST_IDXES:\n");
+            for (unsigned int k = 0; k < ninst->num_child_ninsts; k++)
+            {
+                fprintf (fp, "\t\t%d %ld\n", k, ninst->child_ninst_arr[k] - nasm->ninst_arr);
+            }
+            fprintf (fp, "\tCHILD_NINST_IDXES_END\n");
             fprintf (fp, "\tNUM_INPUT_POS:%d\n", ninst->num_input_pos);
-            fprintf (fp, "\tINPUT_POS:\n");
-            fwrite (ninst->input_pos_idx_arr, sizeof(int), ninst->num_input_pos, fp);
-            fprintf (fp, "\tINPUT_POS_END\n");
+            // fprintf (fp, "\tINPUT_POS:\n");
+            // fwrite (ninst->input_pos_idx_arr, sizeof(int), ninst->num_input_pos, fp);
+            // fprintf (fp, "\tINPUT_POS_END\n");
         }
     }
     fprintf (fp, "NASM_NINSTS_END\n");
@@ -926,7 +974,16 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
             }
             for (unsigned int k = 0; k < ninst->num_parent_ninsts; k++)
             {
-                fgets (line, MAX_STRING_LEN, fp);
+                void * tmp = fgets (line, MAX_STRING_LEN, fp);
+                if (tmp == NULL)
+                {
+                    FPRT(stderr,"ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
+                        filename, __LINE__, __FILE__);
+                    apu_destroy_nasm (nasm);
+                    *output_dnn = NULL;
+                    fclose (fp);
+                    return NULL;
+                }
                 line_num += 1;
                 ptr = line;
                 while (*ptr == ' ' || *ptr == '\t')
@@ -944,6 +1001,53 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
                 fclose (fp);
                 return NULL;
             }
+            if ((ptr = read_check_and_return (fp, line, "NUM_CHILD_NINSTS:", &line_num)) == NULL)
+            {
+                FPRT(stderr,"ASPEN DNN file %s parse error: Missing NUM_CHILD_NINSTS.\n", filename);
+                apu_destroy_nasm (nasm);
+                *output_dnn = NULL;
+                fclose (fp);
+                return NULL;
+            }
+            ninst->num_child_ninsts = atoi(ptr);
+            if ((ptr = read_check_and_return (fp, line, "CHILD_NINST_IDXES:", &line_num)) == NULL)
+            {
+                FPRT(stderr,"ASPEN DNN file %s parse error: Missing CHILD_NINST_IDXES.\n", filename);
+                apu_destroy_nasm (nasm);
+                *output_dnn = NULL;
+                fclose (fp);
+                return NULL;
+            }
+            ninst->child_ninst_arr = calloc (ninst->num_child_ninsts, sizeof(ninst_t *));
+            for (unsigned int k = 0; k < ninst->num_child_ninsts; k++)
+            {
+                void * tmp = fgets (line, MAX_STRING_LEN, fp);
+                if (tmp == NULL)
+                {
+                    FPRT(stderr,"ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
+                        filename, __LINE__, __FILE__);
+                    apu_destroy_nasm (nasm);
+                    *output_dnn = NULL;
+                    fclose (fp);
+                    return NULL;
+                }
+                line_num += 1;
+                ptr = line;
+                while (*ptr == ' ' || *ptr == '\t')
+                    ptr++;
+                int child_num = 0;
+                size_t child_ninst_idx = 0;
+                sscanf(ptr, "%d %ld", &child_num, &child_ninst_idx);
+                ninst->child_ninst_arr[child_num] = child_ninst_idx + nasm->ninst_arr;
+            }
+            if ((ptr = read_check_and_return (fp, line, "CHILD_NINST_IDXES_END", &line_num)) == NULL)
+            {
+                FPRT(stderr,"ASPEN DNN file %s parse error: Missing CHILD_NINST_IDXES_END.\n", filename);
+                apu_destroy_nasm (nasm);
+                *output_dnn = NULL;
+                fclose (fp);
+                return NULL;
+            }
             if ((ptr = read_check_and_return (fp, line, "NUM_INPUT_POS:", &line_num)) == NULL)
             {
                 FPRT(stderr,"ASPEN DNN file %s parse error: Missing NUM_INPUT_POS.\n", filename);
@@ -953,31 +1057,24 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
                 return NULL;
             }
             ninst->num_input_pos = atoi(ptr);
-            ninst->input_pos_idx_arr = calloc (ninst->num_input_pos, sizeof(int));
-            if ((ptr = read_check_and_return (fp, line, "INPUT_POS:", &line_num)) == NULL)
-            {
-                FPRT(stderr,"ASPEN DNN file %s parse error: Missing INPUT_POS.\n", filename);
-                apu_destroy_nasm (nasm);
-                *output_dnn = NULL;
-                fclose (fp);
-                return NULL;
-            }
-            fread (ninst->input_pos_idx_arr, sizeof(int), ninst->num_input_pos, fp);
-            if ((ptr = read_check_and_return (fp, line, "INPUT_POS_END", &line_num)) == NULL)
-            {
-                FPRT(stderr,"ASPEN DNN file %s parse error: Missing INPUT_POS_END.\n", filename);
-                apu_destroy_nasm (nasm);
-                *output_dnn = NULL;
-                fclose (fp);
-                return NULL;
-            }
-        }
-    }
-    for (int i = 0; i < nasm->num_ldata; i++)
-    {
-        for (int j = 0; j < nasm->ldata_arr[i].num_ninst; j++)
-        {
-            set_child_list (&nasm->ldata_arr[i].ninst_arr_start[j]);
+            // ninst->input_pos_idx_arr = calloc (ninst->num_input_pos, sizeof(int));
+            // if ((ptr = read_check_and_return (fp, line, "INPUT_POS:", &line_num)) == NULL)
+            // {
+            //     FPRT(stderr,"ASPEN DNN file %s parse error: Missing INPUT_POS.\n", filename);
+            //     apu_destroy_nasm (nasm);
+            //     *output_dnn = NULL;
+            //     fclose (fp);
+            //     return NULL;
+            // }
+            // fread (ninst->input_pos_idx_arr, sizeof(int), ninst->num_input_pos, fp);
+            // if ((ptr = read_check_and_return (fp, line, "INPUT_POS_END", &line_num)) == NULL)
+            // {
+            //     FPRT(stderr,"ASPEN DNN file %s parse error: Missing INPUT_POS_END.\n", filename);
+            //     apu_destroy_nasm (nasm);
+            //     *output_dnn = NULL;
+            //     fclose (fp);
+            //     return NULL;
+            // }
         }
     }
     if ((ptr = read_check_and_return (fp, line, "NASM_NINSTS_END", &line_num)) == NULL)

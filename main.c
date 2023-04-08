@@ -8,37 +8,37 @@
 int main(void)
 {
     print_aspen_build_info();
-    aspen_dnn_t *resnet50_dnn = apu_create_dnn("data/cfg/resnet50.cfg", NULL);
-    if (resnet50_dnn == NULL) 
-    {
-        printf("Error: Failed to create DNN\n");
-        return -1;
-    }
-    // print_dnn_info(resnet50_dnn, 0);
-    apu_save_dnn_to_file (resnet50_dnn, "data/resnet50.aspen");
-    aspen_dnn_t *resnet50_dnn_2 = apu_load_dnn_from_file ("data/resnet50.aspen");
-    if (resnet50_dnn_2 == NULL) 
-    {
-        printf("Error: Failed to read DNN\n");
-        return -1;
-    }
-    // print_dnn_info (resnet50_dnn_2, 0);
-    nasm_t *resnet50_nasm = apu_create_nasm(resnet50_dnn, 5e5, 1);
-    if (resnet50_nasm == NULL) 
-    {
-        printf("Error: Failed to create NASM\n");
-        return -1;
-    }
-    // print_nasm_info(resnet50_nasm, 0);
-    apu_save_nasm_to_file (resnet50_nasm, "data/resnet50.nasm");
+    // aspen_dnn_t *resnet50_dnn = apu_create_dnn("data/cfg/resnet50_test.cfg", NULL);
+    // if (resnet50_dnn == NULL) 
+    // {
+    //     printf("Error: Failed to create DNN\n");
+    //     return -1;
+    // }
+    // // print_dnn_info(resnet50_dnn, 0);
+    // apu_save_dnn_to_file (resnet50_dnn, "data/resnet50.aspen");
+    // aspen_dnn_t *resnet50_dnn_2 = apu_load_dnn_from_file ("data/resnet50.aspen");
+    // if (resnet50_dnn_2 == NULL) 
+    // {
+    //     printf("Error: Failed to read DNN\n");
+    //     return -1;
+    // }
+    // // print_dnn_info (resnet50_dnn_2, 0);
+    // nasm_t *resnet50_nasm = apu_create_nasm(resnet50_dnn, 5e5, 4);
+    // if (resnet50_nasm == NULL) 
+    // {
+    //     printf("Error: Failed to create NASM\n");
+    //     return -1;
+    // }
+    // // print_nasm_info(resnet50_nasm, 0);
+    // apu_save_nasm_to_file (resnet50_nasm, "data/resnet50.nasm");
 
-    // aspen_dnn_t *resnet50_dnn = NULL;
-    // nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50.nasm", &resnet50_dnn);
+    aspen_dnn_t *resnet50_dnn = NULL;
+    nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50.nasm", &resnet50_dnn);
     // nasm_t *resnet50_4_nasm = apu_load_nasm_from_file ("data/resnet50_4.nasm", &resnet50_dnn);
 
     apu_load_dnn_data_from_file (resnet50_dnn, "data/resnet50_data.bin");
     unsigned int input_params[NUM_PARAM_ELEMENTS] =
-        {[BATCH] = 1, [OUT_C] = 3, [OUT_H] = 224, [OUT_W] = 224};
+        {[BATCH] = 4, [OUT_C] = 3, [OUT_H] = 224, [OUT_W] = 224};
     void *dog_data = aspen_load_input_from_file ("data/batched_input_64.bin", input_params, sizeof(float));
     rpool_t *rpool = rpool_init (0);
     ase_group_t *ase_group = ase_group_init (64, 0);
@@ -60,32 +60,46 @@ int main(void)
     // print_rpool_info (rpool);
     aspen_run_naive (resnet50_dnn, input_params[BATCH], dog_data);
     get_elapsed_time ("run_naive");
-    for (int i = 0; i < 1; i++)
+    for (int i = 0; i < 70; i++)
     {
+        printf ("\tLayer %d - Type %s\n", i, layer_type_str[resnet50_dnn->layers[i].type]);
         aspen_layer_t *layer = &resnet50_dnn->layers[i];
+        nasm_ldata_t *ldata = &resnet50_nasm->ldata_arr[i];
+        assert (ldata->layer == layer);
         LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
         void *layer_output = get_aspen_tensor_data 
             (layer->tensors[OUTPUT_TENSOR], output_order);
+        void *ldata_output = get_ldata_output (ldata, output_order);
+        void *ldata_raw_output = get_packed_ldata_output_colwise (ldata);
         char filename[256];
-        sprintf (filename, "resnet50_layer%d.bin", i);
-        size_t data_size = layer->tensors[OUTPUT_TENSOR]->num_elements * sizeof(float);
-        void *expected_output = load_arr (filename, layer->tensors[OUTPUT_TENSOR]->num_elements*sizeof(float));
-        compare_float_tensor (layer_output, expected_output, 
-            layer->params[BATCH], layer->params[OUT_C], layer->params[OUT_H], layer->params[OUT_W],
-            layer->tensors[OUTPUT_TENSOR]->num_elements, 1e-2, 100);
+        // sprintf (filename, "resnet50_layer%d.bin", i);
+        // size_t data_size = layer->tensors[OUTPUT_TENSOR]->num_elements * sizeof(float);
+        // void *expected_output = load_arr (filename, layer->tensors[OUTPUT_TENSOR]->num_elements*sizeof(float));
         
-        // printf ("Computed output for layer %d:\n", i);
-        // print_float_tensor (dog_data, layer->params[BATCH], 
-        //     layer->params[OUT_H], layer->params[OUT_W], layer->params[OUT_C]);
         // printf ("Expected output for layer %d:\n", i);
-        // print_float_tensor (expected_output, layer->params[BATCH], layer->params[OUT_C], 
+        // print_float_tensor (layer_output, layer->params[BATCH], layer->params[OUT_C], 
         //     layer->params[OUT_H], layer->params[OUT_W]);
+        // printf ("Computed output for layer %d:\n", i);
+        // print_float_tensor (ldata_output, layer->params[BATCH], layer->params[OUT_C], 
+        //     layer->params[OUT_H], layer->params[OUT_W]);
+        // printf ("Raw output for layer %d:\n", i);
+        // print_float_tensor (ldata_raw_output, layer->params[BATCH], layer->params[OUT_H], 
+        //     layer->params[OUT_W], layer->params[OUT_C]);
+
+        compare_float_tensor (layer_output, ldata_output, 
+            layer->params[BATCH], layer->params[OUT_C], layer->params[OUT_H], layer->params[OUT_W],
+            layer->tensors[OUTPUT_TENSOR]->num_elements, 1e-2, 1e-4, 100);
+        // compare_float_tensor (expected_output, layer_output, 
+        //     layer->params[BATCH], layer->params[OUT_C], layer->params[OUT_H], layer->params[OUT_W],
+        //     layer->tensors[OUTPUT_TENSOR]->num_elements, 1e-2, 1e-4, 100);
         
-        free (expected_output);
+        // free (expected_output);
+        free (ldata_output);
+        free (ldata_raw_output);
         free (layer_output);
     }
 
-    aspen_layer_t *layer = &resnet50_dnn->layers[73];
+    aspen_layer_t *layer = &resnet50_dnn->layers[resnet50_dnn->num_layers-1];
     LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
     float *layer_output = get_aspen_tensor_data 
         (layer->tensors[OUTPUT_TENSOR], output_order);

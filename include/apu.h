@@ -45,4 +45,8 @@ void get_out_mat_pos_from_nist (nasm_ldata_t *ldata, ninst_t *ninst, unsigned in
 void get_out_mat_pos_from_tensor_pos (nasm_ldata_t *ldata, unsigned int *tensor_pos, unsigned int *out_mat_pos);
 void get_tensor_pos_from_out_mat_pos (nasm_ldata_t *ldata, unsigned int *out_mat_pos, unsigned int *tensor_pos);
 void get_tensor_pos_from_nist (nasm_ldata_t *ldata, ninst_t *ninst, unsigned int *tensor_pos);
+
+void *get_packed_ldata_output_colwise (nasm_ldata_t *ldata);
+void *get_packed_ldata_output_rowwise (nasm_ldata_t *ldata);
+void *get_ldata_output (nasm_ldata_t *ldata, LAYER_PARAMS *order);
 #endif /* _APU_H_ */

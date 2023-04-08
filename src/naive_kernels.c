@@ -622,55 +622,64 @@ void naive_sgemm_tiled(const unsigned int M, const unsigned int N, const unsigne
 void naive_sgemm_vectorized_without_omp(const unsigned int M, const unsigned int N, const unsigned int K,
 		 const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc)
 {
-    for (unsigned int n = 0; n < N; n += _VEC_SIZE_N)
+    for (unsigned int n = 0; n < N - (N%_VEC_SIZE_N); n += _VEC_SIZE_N)
     {
-        for (unsigned int m = 0; m < - (M%_VEC_SIZE_M); m += _VEC_SIZE_M)
+        for (unsigned int m = 0; m < M - (M%_VEC_SIZE_M); m += _VEC_SIZE_M)
         {
-            for (unsigned int k = 0; k < K - (K%_VEC_SIZE_K); k += _VEC_SIZE_K)
+            for (unsigned int nn = n; nn < n + _VEC_SIZE_N; nn++)
             {
-                for (unsigned int j = 0; j < _VEC_SIZE_N; j++)
+                for (unsigned int mm = m; mm < m + _VEC_SIZE_M; mm++)
                 {
-                    if (n + j >= N)
-                        break;
-                    for (unsigned int i = 0; i < _VEC_SIZE_M; i++)
+                    float c = C[nn * ldc + mm];
+                    for (unsigned int k = 0; k < K; k++)
                     {
-                        float c = C[(n + j) * ldc + (m + i)];
-                        for (unsigned int l = 0; l < _VEC_SIZE_K; l++)
-                        {
-                            c += A[(m + i) * lda + (k + l)] * B[(n + j) * ldb + (k + l)];
-                        }
-                        C[(n + j) * ldc + (m + i)] = c;
+                        c += A[mm * lda + k] * B[nn * ldb + k];
                     }
-                }
-            }
-            for (unsigned int i = 0; i < _VEC_SIZE_M; i++)
-            {
-                if (m + i >= M)
-                    break;
-                for (unsigned int j = 0; j < _VEC_SIZE_N; j++)
-                {
-                    float c = C[(n + j) * ldc + (m + i)];
-                    for (unsigned int k = K - K%_VEC_SIZE_K; k < K; k++)
-                    {
-                        c += A[(m + i) * lda + k] * B[(n + j) * ldb + k];
-                    }
-                    C[(n + j) * ldc + (m + i)] = c;
+                    C[nn * ldc + mm] = c;
                 }
             }
         }
-        for (unsigned int m = M - M%_VEC_SIZE_M; m < M; m++)
+    }
+    for (unsigned int m = 0; m < M - (M%_VEC_SIZE_M); m += _VEC_SIZE_M)
+    {
+        for (unsigned int n = N - (N%_VEC_SIZE_N); n < N; n++)
         {
-            for (unsigned int j = 0; j < _VEC_SIZE_N; j++)
+            for (unsigned int mm = m; mm < m + _VEC_SIZE_M; mm++)
             {
-                if (n + j >= N)
-                    break;
-                float c = C[(n + j) * ldc + m];
+                float c = C[n * ldc + mm];
                 for (unsigned int k = 0; k < K; k++)
                 {
-                    c += A[m * lda + k] * B[(n + j) * ldb + k];
+                    c += A[mm * lda + k] * B[n * ldb + k];
                 }
-                C[(n + j) * ldc + m] = c;
+                C[n * ldc + mm] = c;
             }
+        }
+    }
+    for (unsigned int n = 0; n < N - (N%_VEC_SIZE_N); n += _VEC_SIZE_N)
+    {
+        for (unsigned int m = M - (M%_VEC_SIZE_M); m < M; m++)
+        {
+            for (unsigned int nn = n; nn < n + _VEC_SIZE_N; nn++)
+            {
+                float c = C[nn * ldc + m];
+                for (unsigned int k = 0; k < K; k++)
+                {
+                    c += A[m * lda + k] * B[nn * ldb + k];
+                }
+                C[nn * ldc + m] = c;
+            }
+        }
+    }
+    for (unsigned int m = M - (M%_VEC_SIZE_M); m < M; m++)
+    {
+        for (unsigned int n = N - (N%_VEC_SIZE_N); n < N; n++)
+        {
+            float c = C[n * ldc + m];
+            for (unsigned int k = 0; k < K; k++)
+            {
+                c += A[m * lda + k] * B[n * ldb + k];
+            }
+            C[n * ldc + m] = c;
         }
     }
 }   

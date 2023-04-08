@@ -282,7 +282,14 @@ void* load_arr (char *file_path, unsigned int size)
     FILE *fptr = fopen(file_path, "rb");
     if (fptr != NULL)
     {
-        fread (input, sizeof(char), size, fptr);
+        size_t num = fread (input, sizeof(char), size, fptr);
+        if (num != size)
+        {
+            FPRT (stderr, "Error: Failed to read file %s. Exiting.\n", file_path);
+            free (input);
+            fclose(fptr);
+            return NULL;
+        }
         fclose(fptr);
         return input;
     }
@@ -436,6 +443,42 @@ int compare_float_array (float *input1, float* input2, int num_to_compare, float
     return num;
 }
 
+int compare_float_tensor (float *input1, float* input2, int n, int c, int h ,int w, int num_to_compare, float epsilon_ratio, float epsilon_abs, int skip_val)
+{
+    int num = 0;
+    printf ("Compare_tensor_f32 running...\n");
+    // // #pragma omp parallel for
+    for (int ni = 0; ni < n; ni++)
+    {
+        for (int ci = 0; ci < c; ci++)
+        {
+            for (int hi = 0; hi < h; hi++)
+            {
+                for (int wi = 0; wi < w; wi++)
+                {
+                    int i = ni*c*h*w + ci*h*w + hi*w + wi;
+                    float delta = fabs(*(input1 + i) - *(input2 + i));
+                    if ((delta / fabs(*(input1 + i))) >= epsilon_ratio && delta >= epsilon_abs)
+                    {
+                        num++;
+                        if (num < skip_val)
+                        {
+                            printf ("\tCompare failed at index (%d, %d, %d, %d). Value1: %3.3e, Value2: %3.3e, Diff: %1.2e (%2.2e%%)\n"
+                                , ni, ci, hi, wi, *(input1 + i), *(input2 + i), delta, delta*100.0/(*(input1 + i)<0? -*(input1 + i):*(input1 + i)));
+                        }
+                        else if (num == skip_val)
+                        {
+                            printf ("\tToo many errors... (More than %d)\n", skip_val);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    printf ("Compare_tensor_f32 complete.\nTotal of %d errors detected out of %d SP floats, with epsilon ratio of %1.1e.\n", num, n*c*h*w, epsilon_ratio);
+    return num;
+}
+
 void get_probability_results (char *class_data_path, float* probabilities, unsigned int num)
 {
     int buffer_length = 256;
@@ -448,7 +491,12 @@ void get_probability_results (char *class_data_path, float* probabilities, unsig
     }
     for (int i = 0; i < num; i++)
     {
-        fgets(buffer[i], buffer_length, fptr);
+        void *tmp = fgets(buffer[i], buffer_length, fptr);
+        if (tmp == NULL)
+        {
+            printf ("Error in get_probability_results: Cannot read file %s.\n", class_data_path);
+            return;
+        }
         for (char *ptr = buffer[i]; *ptr != '\0'; ptr++)
         {
             if (*ptr == '\n')
@@ -536,46 +584,6 @@ void get_elapsed_time_only()
     }
     call_num++;
     last = now;
-}
-
-int compare_float_tensor (float *input1, float* input2, int n, int c, int h ,int w, int num_to_compare, float epsilon_ratio, int skip_val)
-{
-    int num = 0;
-    printf ("Compare_tensor_f32 running...\n");
-    // // #pragma omp parallel for
-    for (int ni = 0; ni < n; ni++)
-    {
-        for (int ci = 0; ci < c; ci++)
-        {
-            for (int hi = 0; hi < h; hi++)
-            {
-                for (int wi = 0; wi < w; wi++)
-                {
-                    int i = ni*c*h*w + ci*h*w + hi*w + wi;
-                    float delta = *(input1 + i) - *(input2 + i);
-                    if (delta < 0.0)
-                    {
-                        delta = 0 - delta;
-                    }
-                    if ((delta / *(input1 + i)) >= epsilon_ratio)
-                    {
-                        num++;
-                        if (num < skip_val)
-                        {
-                            printf ("\tCompare failed at index (%d, %d, %d, %d). Value1: %3.3e, Value2: %3.3e, Diff: %1.2e (%2.2e%%)\n"
-                                , ni, ci, hi, wi, *(input1 + i), *(input2 + i), delta, delta*100.0/(*(input1 + i)<0? -*(input1 + i):*(input1 + i)));
-                        }
-                        else if (num == skip_val)
-                        {
-                            printf ("\tToo many errors... (More than %d)\n", skip_val);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    printf ("Compare_tensor_f32 complete.\nTotal of %d errors detected out of %d SP floats, with epsilon ratio of %1.1e.\n", num, n*c*h*w, epsilon_ratio);
-    return num;
 }
 
 void print_float_array (float *input, int num, int newline_num)

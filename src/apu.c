@@ -231,6 +231,49 @@ void *get_aspen_tensor_data (aspen_tensor_t *tensor, LAYER_PARAMS *output_order)
     destroy_aspen_tensor (new_tensor);
     return output;
 }
+
+void *get_ldata_output (nasm_ldata_t *ldata, LAYER_PARAMS *order)
+{
+    if (ldata == NULL)
+    {
+        FPRT (stderr, "Error in get_ldata_output: ldata is NULL.\n");
+        return NULL;
+    }
+    void *packed_data = get_packed_ldata_output_colwise (ldata);
+    if (packed_data == NULL)
+    {
+        FPRT (stderr, "Error in get_ldata_output: get_packed_ldata_output_colwise failed.\n");
+        return NULL;
+    }
+    aspen_layer_t *layer = ldata->layer;
+    aspen_tensor_t *tensor = NULL;
+    if (layer->type == CONV_LAYER || layer->type == INPUT_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER 
+        || layer->type == RESIDUAL_LAYER)
+    {
+        LAYER_PARAMS org_order[] = {BATCH, OUT_H, OUT_W, OUT_C};
+        tensor = init_aspen_tensor (layer->params, org_order, 4, layer->dnn->element_size);
+        tensor->data = packed_data;
+        reorder_aspen_tensor (&tensor, order);
+        return tensor->data;
+    }
+    else if (layer->type == FC_LAYER || layer->type == SOFTMAX_LAYER)
+    {
+        LAYER_PARAMS org_order[] = {BATCH, OUT_C};
+        tensor = init_aspen_tensor (layer->params, org_order, 2, layer->dnn->element_size);
+        tensor->data = packed_data;
+        reorder_aspen_tensor (&tensor, order);
+        return tensor->data;
+    }
+    else 
+    {
+        FPRT (stderr, "Error in get_ldata_output: unsupported layer type.\n");
+    }
+    free (packed_data);
+    return NULL;
+}
+
+
+
 void* get_aspen_tensor_element_ptr (aspen_tensor_t *tensor, unsigned int *pos)
 {
     unsigned int idx = get_tensor_idx_from_pos (tensor, pos);
@@ -265,12 +308,22 @@ void fill_tensor_with_nums (aspen_tensor_t *tensor)
         ((float *)tensor->data)[i] = out;
     }
 }
-void fill_tensor_with_fixed_num (aspen_tensor_t *tensor, float num)
+void fill_tensor_with_fixed_nums (aspen_tensor_t *tensor, float num)
 {
     if (tensor == NULL || tensor->data == NULL)
         return;
     for (size_t i = 0; i < tensor->num_elements; i++)
     {
+        ((float *)tensor->data)[i] = num;
+    }
+}
+void fill_tensor_with_rand_nums (aspen_tensor_t *tensor, float range_abs)
+{
+    if (tensor == NULL || tensor->data == NULL)
+        return;
+    for (size_t i = 0; i < tensor->num_elements; i++)
+    {
+        float num = (((float)rand() / (float)RAND_MAX) - 0.5) * 2 * range_abs;
         ((float *)tensor->data)[i] = num;
     }
 }
@@ -322,15 +375,15 @@ void create_layer_tensors (aspen_layer_t *layer)
         FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], __LINE__, __FILE__);
         assert (0);
     }
-    #ifdef DEBUG
+
     for (int i = 0; i < NUM_TENSORS; i++)
     {
         if (layer->tensors[i] != NULL)
         {
-            fill_tensor_with_nums (layer->tensors[i]);
+            fill_tensor_with_rand_nums (layer->tensors[i], 1.0);
         }
     }
-    #endif
+    // fill_tensor_with_fixed_nums (layer->tensors[WEIGHT_TENSOR], 1);
 }
 // Change to add a new layer type
 void create_layer_output_tensor (aspen_layer_t *layer)
@@ -394,74 +447,74 @@ void ninst_find_input_pos_idx (ninst_t *ninst)
     aspen_layer_t *layer = ldata->layer;
     if (layer->type == CONV_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER)
     {
-        unsigned int parent_stride = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr)->out_mat_stride;
+        // unsigned int parent_stride = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr)->out_mat_stride;
         unsigned int num_input_pos = ninst->tile_dims[OUT_W]*layer->params[WEIGHT_H]*layer->params[WEIGHT_W];
         ninst->num_input_pos = num_input_pos;
-        ninst->input_pos_idx_arr = calloc(num_input_pos, sizeof(unsigned int));
-        unsigned int input_pos_idx = 0;
-        for (unsigned int tile_w = 0; tile_w < ninst->tile_dims[OUT_W]; tile_w++)
-        {
-            unsigned int out_mat_pos[2] = {ninst->out_mat_pos[OUT_W] + tile_w, 0};
-            unsigned int out_tensor_pos[NUM_PARAM_ELEMENTS] = {0}, in_tensor_pos[NUM_PARAM_ELEMENTS] = {0}; 
-            get_tensor_pos_from_out_mat_pos(ldata, out_mat_pos, out_tensor_pos);
-            in_tensor_pos[BATCH] = out_tensor_pos[BATCH];
-            nasm_ldata_t *parent_ldata = ldata->nasm->ldata_arr + ldata->parent_ldata_idx_arr[PARENT_0];
-            aspen_layer_t *parent_layer = parent_ldata->layer;
-            in_tensor_pos[OUT_C] = 0;
-            for (int j = 0; j < layer->params[WEIGHT_H]; j++)
-            {
-                in_tensor_pos[OUT_H] = out_tensor_pos[OUT_H]*layer->params[STRIDE]
-                    + j*layer->params[DILATION] - layer->params[PADDING];
-                for (int k = 0; k < layer->params[WEIGHT_W]; k++)
-                {
-                    in_tensor_pos[OUT_W] = out_tensor_pos[OUT_W]*layer->params[STRIDE]
-                        + k*layer->params[DILATION] - layer->params[PADDING];
-                    if (in_tensor_pos[BATCH] >= 0 && in_tensor_pos[BATCH] < ldata->nasm->batch_size && in_tensor_pos[OUT_C] >= 0 && in_tensor_pos[OUT_C] < layer->params[IN_C] &&
-                        in_tensor_pos[OUT_H] >= 0 && in_tensor_pos[OUT_H] < layer->params[IN_H] && in_tensor_pos[OUT_W] >= 0 && in_tensor_pos[OUT_W] < layer->params[IN_W])
-                    {
-                        unsigned int input_pos = (in_tensor_pos[BATCH] * parent_layer->params[OUT_H] * parent_layer->params[OUT_W] * parent_layer->params[OUT_C]
-                            + in_tensor_pos[OUT_H] * parent_layer->params[IN_W]
-                            + in_tensor_pos[OUT_W]) * parent_ldata->out_mat_stride;
-                        ninst->input_pos_idx_arr[input_pos_idx] = input_pos;
-                    }
-                    else
-                    {
-                        ninst->input_pos_idx_arr[input_pos_idx] = -1;
-                    }
-                    input_pos_idx++;
-                }
-            }
-        }
+        // ninst->input_pos_idx_arr = calloc(num_input_pos, sizeof(unsigned int));
+        // unsigned int input_pos_idx = 0;
+        // for (unsigned int tile_w = 0; tile_w < ninst->tile_dims[OUT_W]; tile_w++)
+        // {
+        //     unsigned int out_mat_pos[2] = {ninst->out_mat_pos[OUT_W] + tile_w, 0};
+        //     unsigned int out_tensor_pos[NUM_PARAM_ELEMENTS] = {0}, in_tensor_pos[NUM_PARAM_ELEMENTS] = {0}; 
+        //     get_tensor_pos_from_out_mat_pos(ldata, out_mat_pos, out_tensor_pos);
+        //     in_tensor_pos[BATCH] = out_tensor_pos[BATCH];
+        //     nasm_ldata_t *parent_ldata = ldata->nasm->ldata_arr + ldata->parent_ldata_idx_arr[PARENT_0];
+        //     aspen_layer_t *parent_layer = parent_ldata->layer;
+        //     in_tensor_pos[OUT_C] = 0;
+        //     for (int j = 0; j < layer->params[WEIGHT_H]; j++)
+        //     {
+        //         in_tensor_pos[OUT_H] = out_tensor_pos[OUT_H]*layer->params[STRIDE]
+        //             + j*layer->params[DILATION] - layer->params[PADDING];
+        //         for (int k = 0; k < layer->params[WEIGHT_W]; k++)
+        //         {
+        //             in_tensor_pos[OUT_W] = out_tensor_pos[OUT_W]*layer->params[STRIDE]
+        //                 + k*layer->params[DILATION] - layer->params[PADDING];
+        //             if (in_tensor_pos[BATCH] >= 0 && in_tensor_pos[BATCH] < ldata->nasm->batch_size && in_tensor_pos[OUT_C] >= 0 && in_tensor_pos[OUT_C] < layer->params[IN_C] &&
+        //                 in_tensor_pos[OUT_H] >= 0 && in_tensor_pos[OUT_H] < layer->params[IN_H] && in_tensor_pos[OUT_W] >= 0 && in_tensor_pos[OUT_W] < layer->params[IN_W])
+        //             {
+        //                 unsigned int input_pos = (in_tensor_pos[BATCH] * parent_layer->params[OUT_H] * parent_layer->params[OUT_W] * parent_layer->params[OUT_C]
+        //                     + in_tensor_pos[OUT_H] * parent_layer->params[IN_W]
+        //                     + in_tensor_pos[OUT_W]) * parent_ldata->out_mat_stride;
+        //                 ninst->input_pos_idx_arr[input_pos_idx] = input_pos;
+        //             }
+        //             else
+        //             {
+        //                 ninst->input_pos_idx_arr[input_pos_idx] = -1;
+        //             }
+        //             input_pos_idx++;
+        //         }
+        //     }
+        // }
     }
     else if (layer->type == RESIDUAL_LAYER)
     {
-        unsigned int parent_stride = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr)->out_mat_stride;
-        unsigned int parent_stride2 = (ldata->parent_ldata_idx_arr[PARENT_1] + ldata->nasm->ldata_arr)->out_mat_stride;
+        // unsigned int parent_stride = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr)->out_mat_stride;
+        // unsigned int parent_stride2 = (ldata->parent_ldata_idx_arr[PARENT_1] + ldata->nasm->ldata_arr)->out_mat_stride;
         unsigned int num_input_pos = ninst->tile_dims[OUT_W]*2;
         ninst->num_input_pos = num_input_pos;
-        ninst->input_pos_idx_arr = calloc(num_input_pos, sizeof(unsigned int));
-        unsigned int input_pos_idx = 0;
-        for (unsigned int tile_w = 0; tile_w < ninst->tile_dims[OUT_W]; tile_w++)
-        {
-            ninst->input_pos_idx_arr [input_pos_idx] = (ninst->out_mat_pos[OUT_W] + tile_w) * parent_stride;
-            input_pos_idx++;
-            ninst->input_pos_idx_arr [input_pos_idx] = (ninst->out_mat_pos[OUT_W] + tile_w) * parent_stride2;
-            input_pos_idx++;
-        }
+        // ninst->input_pos_idx_arr = calloc(num_input_pos, sizeof(unsigned int));
+        // unsigned int input_pos_idx = 0;
+        // for (unsigned int tile_w = 0; tile_w < ninst->tile_dims[OUT_W]; tile_w++)
+        // {
+        //     ninst->input_pos_idx_arr [input_pos_idx] = (ninst->out_mat_pos[OUT_W] + tile_w) * parent_stride;
+        //     input_pos_idx++;
+        //     ninst->input_pos_idx_arr [input_pos_idx] = (ninst->out_mat_pos[OUT_W] + tile_w) * parent_stride2;
+        //     input_pos_idx++;
+        // }
 
     }
     else if (layer->type == SOFTMAX_LAYER || layer->type == FC_LAYER)
     {
-        unsigned int parent_stride = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr)->out_mat_stride;
+        // unsigned int parent_stride = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr)->out_mat_stride;
         unsigned int num_input_pos = ninst->tile_dims[OUT_W];
         ninst->num_input_pos = num_input_pos;
-        ninst->input_pos_idx_arr = calloc(num_input_pos, sizeof(unsigned int));
-        unsigned int input_pos_idx = 0;
-        for (unsigned int tile_w = 0; tile_w < ninst->tile_dims[OUT_W]; tile_w++)
-        {
-            ninst->input_pos_idx_arr [input_pos_idx] = (ninst->out_mat_pos[OUT_W] + tile_w) * parent_stride;
-            input_pos_idx++;
-        }
+        // ninst->input_pos_idx_arr = calloc(num_input_pos, sizeof(unsigned int));
+        // unsigned int input_pos_idx = 0;
+        // for (unsigned int tile_w = 0; tile_w < ninst->tile_dims[OUT_W]; tile_w++)
+        // {
+        //     ninst->input_pos_idx_arr [input_pos_idx] = (ninst->out_mat_pos[OUT_W] + tile_w) * parent_stride;
+        //     input_pos_idx++;
+        // }
     }
     else if (layer->type == INPUT_LAYER)
     {
@@ -722,8 +775,8 @@ void destroy_ninst (ninst_t *ninst)
         free (ninst->parent_ninst_idx_arr);
     if (ninst->child_ninst_arr != NULL)
         free (ninst->child_ninst_arr);
-    if (ninst->input_pos_idx_arr != NULL)
-        free (ninst->input_pos_idx_arr);
+    // if (ninst->input_pos_idx_arr != NULL)
+    //     free (ninst->input_pos_idx_arr);
 }
 
 nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size)
@@ -820,6 +873,7 @@ nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned 
         }
         PRT ("Layer %d, parents for %d ninsts found.\n", i, new_nasm->ldata_arr[i].num_ninst);
     }
+    #pragma omp parallel for
     for (int i = 0; i < new_nasm->num_ninst; i++)
     {
         set_child_list (&new_nasm->ninst_arr[i]);
@@ -1115,6 +1169,60 @@ void get_tensor_pos_from_nist (nasm_ldata_t *ldata, ninst_t *ninst, unsigned int
     get_out_mat_pos_from_nist (ldata, ninst, out_mat_pos);
     get_tensor_pos_from_out_mat_pos (ldata, out_mat_pos, tensor_pos);
 }
+
+void *get_packed_ldata_output_colwise (nasm_ldata_t *ldata)
+{
+    if (ldata == NULL)
+    {
+        FPRT (stderr, "Error in get_packed_ldata_output_colwise: ldata is NULL.\n");
+        return NULL;
+    }
+    void *packed_data = NULL;
+    size_t elem_size = ldata->layer->dnn->element_size;
+    size_t data_size = ldata->out_mat_dims[OUT_H] * ldata->out_mat_dims[OUT_W] * elem_size;
+    packed_data = calloc (1, data_size);
+    if (packed_data == NULL)
+    {
+        FPRT (stderr, "Error in get_packed_ldata_output_colwise: calloc failed.\n");
+        return NULL;
+    }
+    for (unsigned int w = 0; w < ldata->out_mat_dims[OUT_W]; w++)
+    {
+        void *packed_ptr = packed_data + w * ldata->out_mat_dims[OUT_H] * elem_size;
+        void *input_ptr = ldata->out_mat + w * ldata->out_mat_stride * elem_size;
+        memcpy (packed_ptr, input_ptr, ldata->out_mat_dims[OUT_H] * elem_size);
+    }
+    return packed_data;
+}
+
+void *get_packed_ldata_output_rowwise (nasm_ldata_t *ldata)
+{
+    if (ldata == NULL)
+    {
+        FPRT (stderr, "Error in get_packed_ldata_output_rolwise: ldata is NULL.\n");
+        return NULL;
+    }
+    void *packed_data = NULL;
+    size_t elem_size = ldata->layer->dnn->element_size;
+    size_t data_size = ldata->out_mat_dims[OUT_H] * ldata->out_mat_dims[OUT_W] * elem_size;
+    packed_data = calloc (1, data_size);
+    if (packed_data == NULL)
+    {
+        FPRT (stderr, "Error in get_packed_ldata_output_rolwise: calloc failed.\n");
+        return NULL;
+    }
+    for (unsigned int w = 0; w < ldata->out_mat_dims[OUT_W]; w++)
+    {
+        for (unsigned int h = 0; h < ldata->out_mat_dims[OUT_H]; h++)
+        {
+            void *packed_ptr = packed_data + (h * ldata->out_mat_dims[OUT_W] + w) * elem_size;
+            void *input_ptr = ldata->out_mat + (w * ldata->out_mat_stride + h) * elem_size;
+            memcpy (packed_ptr, input_ptr, elem_size);
+        }
+    }
+    return packed_data;
+}
+
 
 void print_dnn_info (aspen_dnn_t *dnn, int print_data)
 {

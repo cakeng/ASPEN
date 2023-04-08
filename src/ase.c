@@ -21,11 +21,11 @@ void *ase_thread_runtime (void* thread_info)
                 rpool_fetch_ninsts (ase->rpool, ase->scratchpad, ASE_NINST_CACHE_BALLANCE - ase->ninst_cache->num_stored);
             push_ninsts_to_queue (ase->ninst_cache, ase->scratchpad, fetch_num);
             // PRT ("Thread %d fetched %d ninsts from rpool\n", ase->thread_id, fetch_num);
-            #ifdef DEBUG
+            // #ifdef DEBUG
             // PRT ("Thread %d fetched %d ninsts from rpool\n", ase->thread_id, fetch_num);
             // print_rpool_info (ase->rpool);
             // print_rpool_queue_info (ase->ninst_cache);
-            #endif
+            // #endif
         }
         else if (ase->ninst_cache->num_stored > ASE_NINST_CACHE_BALLANCE + ASE_NINST_CACHE_DIFF)
         {
@@ -33,11 +33,11 @@ void *ase_thread_runtime (void* thread_info)
                 pop_ninsts_from_queue_back (ase->ninst_cache, ase->scratchpad, ase->ninst_cache->num_stored - ASE_NINST_CACHE_BALLANCE);
             rpool_push_ninsts (ase->rpool, ase->scratchpad, push_num);
             // PRT ("Thread %d pushed %d ninsts to rpool\n", ase->thread_id, push_num);
-            #ifdef DEBUG
+            // #ifdef DEBUG
             // PRT ("Thread %d pushed %d ninsts to rpool\n", ase->thread_id, push_num);
-            #endif
             // print_rpool_info (ase->rpool);
             // print_rpool_queue_info (ase->ninst_cache);
+            // #endif
         }
 
         unsigned int num_ninsts = ase->ninst_cache->num_stored;
@@ -47,23 +47,23 @@ void *ase_thread_runtime (void* thread_info)
             pop_ninsts_from_queue (ase->ninst_cache, &ninst, 1);
             // PRT ("Thread %d running ninst #%d - N%d:L%d:%d\n", ase->thread_id, i,
             //         ninst->ldata->nasm->nasm_id, ninst->ldata->layer->layer_idx, ninst->ninst_idx);
-            #ifdef DEBUG
-            if (ninst == NULL)
-            {
-                FPRT (stderr, "ERROR: ase_thread_runtime: ninst is NULL\n");
-                assert (0);
-            }
-            else 
-            {
-                PRT ("Thread %d running ninst #%d - N%d:L%d:%d\n", ase->thread_id, i,
-                    ninst->ldata->nasm->nasm_id, ninst->ldata->layer->layer_idx, ninst->ninst_idx);
-            }
-            if (ninst->state != NINST_READY)
-            {
-                FPRT (stderr, "ERROR: ase_thread_runtime: ninst->state != NINST_READY\n");
-                assert (0);
-            }
-            #endif
+            // #ifdef DEBUG
+            // if (ninst == NULL)
+            // {
+            //     FPRT (stderr, "ERROR: ase_thread_runtime: ninst is NULL\n");
+            //     assert (0);
+            // }
+            // else 
+            // {
+            //     PRT ("Thread %d running ninst #%d - N%d:L%d:%d\n", ase->thread_id, i,
+            //         ninst->ldata->nasm->nasm_id, ninst->ldata->layer->layer_idx, ninst->ninst_idx);
+            // }
+            // if (ninst->state != NINST_READY)
+            // {
+            //     FPRT (stderr, "ERROR: ase_thread_runtime: ninst->state != NINST_READY\n");
+            //     assert (0);
+            // }
+            // #endif
             // Execute.
             
             if (ase->gpu_idx < 0)
@@ -72,6 +72,21 @@ void *ase_thread_runtime (void* thread_info)
                 {
                     case CONV_LAYER:
                         tiled_conv2d (ninst, ase);
+                        break;
+                    case MAXPOOL_LAYER:
+                        tiled_maxpool2d (ninst, ase);
+                        break;
+                    case AVGPOOL_LAYER:
+                        tiled_avgpool2d (ninst, ase);
+                        break;
+                    case FC_LAYER:
+                        tiled_fully_connected (ninst, ase);
+                        break;
+                    case RESIDUAL_LAYER:
+                        tiled_residual (ninst, ase);
+                        break;
+                    case SOFTMAX_LAYER:
+                        tiled_softmax (ninst, ase);
                         break;
                     default:
                         // FPRT (stderr, "ERROR: ase_thread_runtime: layer type %s is not supported\n", layer_type_str[ninst->ldata->layer->type]);
@@ -88,12 +103,17 @@ void *ase_thread_runtime (void* thread_info)
                 // printf ("\t\tThread %d completed layer %d of nasm %d\n", 
                 //     ase->thread_id, ninst->ldata->layer->layer_idx, ninst->ldata->nasm->nasm_id);
                 // #endif
-                if (ninst->ldata == &ninst->ldata->nasm->ldata_arr[ninst->ldata->nasm->num_ldata - 1])
+                nasm_t *nasm = ninst->ldata->nasm;
+                unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
+                if (num_ldata_completed == nasm->num_ldata - 1)
                 {
-                    // Last layer of the nasm is completed.
+                    // All layers of the nasm is completed.
                     rpool_queue_group_t *rpool_queue_group 
                         = get_queue_group_from_nasm (ase->rpool, ninst->ldata->nasm);
                     set_queue_group_weight (ase->rpool, rpool_queue_group, 0);
+                    pthread_mutex_lock (&nasm->nasm_mutex);
+                    pthread_cond_signal (&nasm->nasm_cond);
+                    pthread_mutex_unlock (&nasm->nasm_mutex);
                 }
             }
         }
@@ -236,45 +256,6 @@ void ase_group_stop (ase_group_t *ase_group)
     }
 }
 
-unsigned int ase_check_nasm_completion_all_layers (nasm_t *nasm)
-{
-    #ifdef DEBUG
-    if (nasm == NULL)
-    {
-        FPRT (stderr, "ERROR: ase_check_nasm_completion: nasm is NULL\n");
-        assert (0);
-    }
-    #endif
-    for (int i = 0; i < nasm->num_ldata; i++)
-    {
-        while (atomic_load(&nasm->ldata_arr[i].num_ninst_completed) != nasm->ldata_arr[i].num_ninst)
-        {
-
-        }
-        PRT ("\t\tNASM %d Layer %d completed\n", nasm->nasm_id, i);
-    }
-    return 1;
-}
-
-
-void ase_group_run_until_nasm_completion (ase_group_t *ase_group, nasm_t *nasm)
-{
-    ase_group_run (ase_group);
-    while (ase_check_nasm_completion (nasm) == 0)
-    {
-        
-    }
-    ase_group_stop (ase_group);
-}
-
-void ase_wait_for_nasm_completion (nasm_t *nasm)
-{
-    while (ase_check_nasm_completion (nasm) == 0)
-    {
-        
-    }
-}
-
 unsigned int ase_check_nasm_completion (nasm_t *nasm)
 {
     #ifdef DEBUG
@@ -284,10 +265,33 @@ unsigned int ase_check_nasm_completion (nasm_t *nasm)
         assert (0);
     }
     #endif
-    nasm_ldata_t *last_ldata = &nasm->ldata_arr[nasm->num_ldata - 1];
-    if (atomic_load(&last_ldata->num_ninst_completed) == last_ldata->num_ninst)
+    if (atomic_load(&nasm->num_ldata_completed) == nasm->num_ldata)
         return 1;
     return 0;
+}
+
+void ase_group_run_until_nasm_completion (ase_group_t *ase_group, nasm_t *nasm)
+{
+    pthread_mutex_lock (&nasm->nasm_mutex);
+    if (ase_check_nasm_completion (nasm) == 1)
+    {
+        pthread_mutex_unlock (&nasm->nasm_mutex);
+        return;
+    }
+    ase_group_run (ase_group);
+    pthread_cond_wait (&nasm->nasm_cond, &nasm->nasm_mutex);
+    ase_group_stop (ase_group);
+}
+
+void ase_wait_for_nasm_completion (nasm_t *nasm)
+{
+    pthread_mutex_lock (&nasm->nasm_mutex);
+    if (ase_check_nasm_completion (nasm) == 1)
+    {
+        pthread_mutex_unlock (&nasm->nasm_mutex);
+        return;
+    }
+    pthread_cond_wait (&nasm->nasm_cond, &nasm->nasm_mutex);
 }
 
 void ase_run (ase_t *ase)
@@ -300,7 +304,6 @@ void ase_run (ase_t *ase)
     unsigned int state = atomic_exchange (&ase->run, 1);
     if (state == 1)
     {
-        FPRT (stderr, "ERROR: ase_run: ase is already running\n");
         return;
     }
     else 
@@ -319,7 +322,6 @@ void ase_stop (ase_t *ase)
     unsigned int state = atomic_exchange (&ase->run, 0);
     if (state == 0)
     {
-        FPRT (stderr, "ERROR: ase_stop: ase is already stopped\n");
         return;
     }
     else 
@@ -426,7 +428,7 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
         aspen_layer_t *layer = ldata->layer;
         size_t num_cols = 0;
         if (layer->params[OUT_H] != 0 && layer->params[OUT_W] != 0)
-            num_cols = layer->params[BATCH] * layer->params[OUT_H] * layer->params[OUT_W];
+            num_cols = nasm->batch_size * layer->params[OUT_H] * layer->params[OUT_W];
         for (int i = 0; i < num_cols; i++)
             memcpy 
                 ((char*)nasm->data + i * ldata->out_mat_stride * nasm->dnn->element_size, 
@@ -463,6 +465,7 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
         atomic_fetch_add (&ninst->ldata->num_ninst_completed , 1);
         update_children (rpool, ninst);
     }
+    atomic_fetch_add (&nasm->num_ldata_completed, 1);
 }
 
 void set_ldata_out_mat_mem_pos (nasm_ldata_t *ldata)

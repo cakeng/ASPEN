@@ -11,12 +11,16 @@ struct nasm_t
     nasm_ldata_t *ldata_arr;
     ninst_t *ninst_arr;
     unsigned int num_ldata;
+    _Atomic unsigned int num_ldata_completed;
     unsigned int num_ninst;
     unsigned int flop_per_ninst;
     size_t total_flops;
     
     int gpu_idx;
     void *data;
+
+    pthread_mutex_t nasm_mutex;
+    pthread_cond_t nasm_cond;
 };
 
 struct nasm_ldata_t
@@ -55,9 +59,8 @@ struct ninst_t
     ninst_t **child_ninst_arr;
     unsigned int num_child_ninsts;
     
-    int *input_pos_idx_arr;
+    // int *input_pos_idx_arr;
     unsigned int num_input_pos;
-    unsigned int input_col_size;
     void *out_mat;
     rpool_t *affinity_pool;
 };

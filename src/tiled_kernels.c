@@ -24,8 +24,8 @@ void *prepare_input (ninst_t *ninst, void *buffer)
             {
                 for (int kw = 0; kw < layer->params[WEIGHT_W]; kw++)
                 {
-                    int in_h = out_h + kh - layer->params[PADDING];
-                    int in_w = out_w + kw - layer->params[PADDING];
+                    int in_h = out_h * layer->params[STRIDE] + kh  - layer->params[PADDING];
+                    int in_w = out_w * layer->params[STRIDE] + kw  - layer->params[PADDING];
                     if (in_h < 0 || in_h >= p_layer->params[OUT_H] || in_w < 0 || in_w >= p_layer->params[OUT_W])
                     {
                         input_ptr_arr[num_idx++] = NULL;
@@ -55,7 +55,7 @@ void tiled_conv2d (ninst_t *ninst, ase_t *ase)
     unsigned int input_col_size = p_ldata->out_mat_dims[OUT_H];
     void **input_ptr_arr = ase->scratchpad;   
     char *input = (char *) scratchpad;
-    const unsigned int input_pos_per_n = ninst->num_input_pos/ninst->tile_dims[OUT_W];
+    // const unsigned int input_pos_per_n = ninst->num_input_pos/ninst->tile_dims[OUT_W];
     const unsigned int M = ninst->tile_dims[OUT_H];
     const unsigned int N = ninst->tile_dims[OUT_W];
     const unsigned int K = layer->params[WEIGHT_H] * layer->params[WEIGHT_W] * layer->params[IN_C];
@@ -71,7 +71,6 @@ void tiled_conv2d (ninst_t *ninst, ase_t *ase)
     // {
     //     for (unsigned int i = input_pos_per_n * n; i < input_pos_per_n * (n + _TILE_SIZE_N); i++)
     //     {
-    //         void * input_ptr = ninst->input_pos_idx_arr[i] * layer->dnn->element_size + (char *) p_ldata->out_mat;
     //         if (input_ptr_arr[i] == NULL)
     //         {
     //             memset (input, 0, input_col_size * layer->dnn->element_size);
@@ -127,7 +126,6 @@ void tiled_conv2d (ninst_t *ninst, ase_t *ase)
 
     for (unsigned int i = 0; i < ninst->num_input_pos; i++)
     {
-        void * input_ptr = ninst->input_pos_idx_arr[i] * layer->dnn->element_size + (char *) p_ldata->out_mat;
         if (input_ptr_arr[i] == NULL)
         {
             memset (input, 0, input_col_size * layer->dnn->element_size);
@@ -138,35 +136,136 @@ void tiled_conv2d (ninst_t *ninst, ase_t *ase)
         }
         input += input_col_size * layer->dnn->element_size;
     }
-    naive_sgemm_without_omp (M, N, K, A, lda, B, ldb, C, ldc);
+    naive_sgemm_vectorized_without_omp (M, N, K, A, lda, B, ldb, C, ldc);
 
     for (unsigned int n = 0; n < N; n++)
     {
+        float *out_vec = (float *)C + n * ldc;
+        float *bias = (float*)layer->tensors[BIAS_TENSOR]->data + ninst->out_mat_pos[OUT_H];
         if (layer->tensors[BIAS_TENSOR] != NULL)
         {
-            for (unsigned int m = 0; m < M; m++)
-            {
-                *((float*)C + n * ldc + m) += *((float*)layer->tensors[BIAS_TENSOR]->data + m);
-            }
+        for (unsigned int m = 0; m < M; m++)
+        {
+            out_vec[m] += bias[m];
         }
-        naive_activate (C + n * ldc, M, layer->activation);
+        }
+        naive_activate (out_vec, M, layer->activation);
     }
 }
 void tiled_maxpool2d (ninst_t *ninst, ase_t *ase)
 {
-
+    nasm_ldata_t *ldata = ninst->ldata;
+    aspen_layer_t *layer = ninst->ldata->layer;
+    prepare_input (ninst, ase->scratchpad);
+    void **input_ptr_arr = ase->scratchpad;   
+    const unsigned int input_pos_per_n = ninst->num_input_pos/ninst->tile_dims[OUT_W];
+    const unsigned int M = ninst->tile_dims[OUT_H];
+    const unsigned int N = ninst->tile_dims[OUT_W];
+    const unsigned int ldc = ldata->out_mat_stride;
+    void *C = ninst->out_mat;
+    for (int n = 0; n < N; n++)
+    {
+        float *out_vec = (float*)C + n * ldc;
+        float *input_vec = (float *)input_ptr_arr[n*input_pos_per_n];
+        if (input_vec == NULL)
+        {
+            for (int m = 0; m < M; m++)
+            {
+                out_vec[m] = -INFINITY;
+            }
+        }
+        else
+        {
+            input_vec += + ninst->out_mat_pos[OUT_H];
+            memcpy (out_vec, input_vec, M * layer->dnn->element_size);
+        }
+        for (int i = 1; i < input_pos_per_n; i++)
+        {
+            input_vec = (float *)input_ptr_arr[n*input_pos_per_n + i];
+            if (input_vec != NULL)
+            {
+                input_vec += + ninst->out_mat_pos[OUT_H];
+                for (int m = 0; m < M; m++)
+                {
+                    out_vec[m] = out_vec[m] >= input_vec[m] ? out_vec[m] : input_vec[m];
+                }
+            }
+        }
+        naive_activate (out_vec, M, layer->activation);
+    }
 }
 void tiled_avgpool2d (ninst_t *ninst, ase_t *ase)
 {
-
+    nasm_ldata_t *ldata = ninst->ldata;
+    aspen_layer_t *layer = ninst->ldata->layer;
+    prepare_input (ninst, ase->scratchpad);
+    void **input_ptr_arr = ase->scratchpad;   
+    const unsigned int input_pos_per_n = ninst->num_input_pos/ninst->tile_dims[OUT_W];
+    const unsigned int M = ninst->tile_dims[OUT_H];
+    const unsigned int N = ninst->tile_dims[OUT_W];
+    const unsigned int ldc = ldata->out_mat_stride;
+    void *C = ninst->out_mat;
+    for (int n = 0; n < N; n++)
+    {
+        float *out_vec = (float*)C + n * ldc;
+        float *input_vec = input_ptr_arr[n*input_pos_per_n];
+        if (input_vec == NULL)
+        {
+            for (int m = 0; m < M; m++)
+            {
+                out_vec[m] = 0;
+            }
+        }
+        else
+        {
+            memcpy (out_vec, input_vec, M * layer->dnn->element_size);
+        }
+        for (int i = 1; i < input_pos_per_n; i++)
+        {
+            input_vec = input_ptr_arr[n*input_pos_per_n + i];
+            if (input_vec != NULL)
+            {
+                for (int m = 0; m < M; m++)
+                {
+                    out_vec[m] += input_vec[m];
+                }
+            }
+        }
+        for (int m = 0; m < M; m++)
+        {
+            out_vec[m] /= input_pos_per_n;
+        }
+        naive_activate (out_vec, M, layer->activation);
+    }
 }
 void tiled_fully_connected (ninst_t *ninst, ase_t *ase)
 {
+    
 
 }
 void tiled_residual (ninst_t *ninst, ase_t *ase)
 {
+    nasm_ldata_t *ldata = ninst->ldata;
+    aspen_layer_t *layer = ninst->ldata->layer;
+    nasm_ldata_t *p0_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
+    nasm_ldata_t *p1_ldata = (ldata->parent_ldata_idx_arr[PARENT_1] + ldata->nasm->ldata_arr);
+    const unsigned int M = ninst->tile_dims[OUT_H];
+    const unsigned int N = ninst->tile_dims[OUT_W];
+    const unsigned int ldc = ldata->out_mat_stride;
+    void *C = ninst->out_mat;
 
+    for (int n = 0; n < N; n++)
+    {
+        unsigned int w_pos = ninst->out_mat_pos[OUT_W] + n;
+        float *input_0 = (float*)p0_ldata->out_mat + w_pos * p0_ldata->out_mat_stride + ninst->out_mat_pos[OUT_H];
+        float *input_1 = (float*)p1_ldata->out_mat + w_pos * p1_ldata->out_mat_stride + ninst->out_mat_pos[OUT_H];
+        float *out_vec = (float*)C + n * ldc;
+        for (int m = 0; m < M; m++)
+        {
+            out_vec[m] = input_0[m] + input_1[m];
+        }
+        naive_activate (out_vec, M, layer->activation);
+    }
 }
 void tiled_softmax (ninst_t *ninst, ase_t *ase)
 {
