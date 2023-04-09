@@ -100,7 +100,7 @@ typedef struct rpool_queue_group_t rpool_queue_group_t;
 typedef struct ase_t ase_t;     // Asynchronous scheduling engine
 typedef struct ase_group_t ase_group_t;
 
-void *aspen_load_input_from_file(char *input_filename, unsigned int *input_dims, unsigned int element_size);
+void *aspen_load_input_NHWC(char *input_filename, unsigned int *input_dims, unsigned int element_size);
 void aspen_run_naive (aspen_dnn_t* dnn, unsigned int batch_size, void *input_data);
 
 aspen_dnn_t *apu_create_dnn(char *input_path, char *data_path);
@@ -115,7 +115,8 @@ void apu_save_nasm_to_file(nasm_t *nasm, char *filename);
 
 rpool_t *rpool_init (int gpu_idx);
 void rpool_destroy (rpool_t *rpool);
-void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, float weight, void* input_data);
+void rpool_add_nasm_raw_input (rpool_t *rpool, nasm_t* nasm, float weight, void* input_data);
+void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, float weight, char *input_filename);
 void rpool_set_nasm_weight (rpool_t *rpool, nasm_t* nasm, float weight);
 void rpool_add_queue_group (rpool_t *rpool, char *queue_group_info, unsigned int num_queues, float weight, void **blacklist, void **whitelist);
 void rpool_queue_group_set_blacklist (rpool_queue_group_t *rpool_queue_group, void **blacklist);

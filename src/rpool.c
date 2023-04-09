@@ -156,21 +156,21 @@ void add_ref_ases (rpool_t *rpool, unsigned int num_ases)
     }
 }
 
-void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, float weight, void* input_data)
+void rpool_add_nasm_raw_input (rpool_t *rpool, nasm_t* nasm, float weight, void* input_data)
 {
     if (rpool == NULL)
     {
-        FPRT (stderr, "ERROR: rpool_add_nasm: rpool is NULL.\n");
+        FPRT (stderr, "ERROR: rpool_add_nasm_raw_input: rpool is NULL.\n");
         return;
     }
     if (nasm == NULL)
     {
-        FPRT (stderr, "ERROR: rpool_add_nasm: nasm is NULL.\n");
+        FPRT (stderr, "ERROR: rpool_add_nasm_raw_input: nasm is NULL.\n");
         return;
     }
     if (weight <= 0)
     {
-        FPRT (stderr, "ERROR: rpool_add_nasm: weight must be positive. Cannot add nasm \"%s_nasm_%d\".\n", nasm->dnn->name, nasm->nasm_id);
+        FPRT (stderr, "ERROR: rpool_add_nasm_raw_input: weight must be positive. Cannot add nasm \"%s_nasm_%d\".\n", nasm->dnn->name, nasm->nasm_id);
         return;
     }
     char info_str[MAX_STRING_LEN*2];
@@ -184,6 +184,30 @@ void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, float weight, void* input_dat
     nasm->gpu_idx = rpool->gpu_idx;
     rpool_add_queue_group (rpool, info_str, num_queues, weight, NULL, whitelist);
     push_first_layer_to_rpool (rpool, nasm, input_data);
+}
+
+void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, float weight, char *input_filename)
+{
+    aspen_dnn_t *dnn = nasm->dnn;
+    aspen_layer_t *first_layer = &dnn->layers[0];
+    void *data = NULL;
+    unsigned int input_params[NUM_PARAM_ELEMENTS] = {0};
+    input_params[BATCH] = nasm->batch_size;
+    if (first_layer->params[OUT_C] != 0 && first_layer->params[OUT_H] != 0 && first_layer->params[OUT_W] != 0)
+    {
+        input_params[OUT_C] = first_layer->params[OUT_C];
+        input_params[OUT_H] = first_layer->params[OUT_H];
+        input_params[OUT_W] = first_layer->params[OUT_W];
+        data = aspen_load_input_NHWC ("data/batched_input_64.bin", input_params, sizeof(float));
+    }
+    else
+    {
+        FPRT (stderr, "ERROR: rpool_add_nasm: first layer of dnn \"%s\" does not have output dimensions. Cannot add nasm \"%s_nasm_%d\".\n", 
+            dnn->name, dnn->name, nasm->nasm_id);
+        return;
+    }
+    rpool_add_nasm_raw_input (rpool, nasm, weight, data);
+    aspen_free (data); 
 }
 
 void rpool_add_queue_group 

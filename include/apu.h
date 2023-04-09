@@ -6,7 +6,7 @@
 #include "util.h"
 #include "kernels.h"
 
-#define MIN_NINST_TILE_PER_LAYER (64)
+#define MIN_NINST_TILE_PER_LAYER (400)
 
 aspen_dnn_t *init_aspen_dnn (unsigned int num_layers, char* name);
 
@@ -29,7 +29,6 @@ void *get_aspen_tensor_element_ptr (aspen_tensor_t *tensor, unsigned int *pos);
 void destroy_aspen_tensor(aspen_tensor_t *tensor);
 
 nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size);
-void set_child_list (ninst_t *ninst);
 
 void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata, aspen_layer_t *layer);
 void destroy_nasm_ldata_arr (nasm_ldata_t *ldata_arr, int num_ldata);

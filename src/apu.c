@@ -850,7 +850,7 @@ void set_child_list (ninst_t *ninst)
     nasm_ldata_t *ldata = ninst->ldata;
     nasm_t *nasm = ldata->nasm;
     unsigned int child_idx = 0;
-    for (int i = 0; i < nasm->num_ldata; i++)
+    for (size_t i = ldata - nasm->ldata_arr; i < nasm->num_ldata; i++) // May cause a bug if child ninst is in previous ldata.
     {
         for (int j = 0; j < nasm->ldata_arr[i].num_ninst; j++)
         {
@@ -877,7 +877,7 @@ void set_child_list (ninst_t *ninst)
 nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size)
 {
     nasm_t *new_nasm = apu_create_nasm_without_finding_ninst_parents(dnn, flop_per_ninst, batch_size);
-
+    PRT ("APU: Graphing ninsts...\n");
     for (int i = 0; i < new_nasm->num_ldata; i++)
     {
         #pragma omp parallel for
@@ -885,13 +885,20 @@ nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned 
         {
             ninst_find_parent (&new_nasm->ldata_arr[i].ninst_arr_start[j]);
         }
-        PRT ("Layer %d, parents for %d ninsts found.\n", i, new_nasm->ldata_arr[i].num_ninst);
+        PRT ("APU: Layer %d, parents for %d ninsts found.\n", i, new_nasm->ldata_arr[i].num_ninst);
+
     }
-    #pragma omp parallel for
-    for (int i = 0; i < new_nasm->num_ninst; i++)
+    PRT ("\n");
+    for (int i = 0; i < new_nasm->num_ldata; i++)
     {
-        set_child_list (&new_nasm->ninst_arr[i]);
+        #pragma omp parallel for
+        for (int j = 0; j < new_nasm->ldata_arr[i].num_ninst; j++)
+        {
+            set_child_list (&new_nasm->ldata_arr[i].ninst_arr_start[j]);
+        }
+        PRT ("Layer %d, children for %d ninsts found.\n", i, new_nasm->ldata_arr[i].num_ninst);
     }
+    PRT ("\n");
     // Calculat total flops
     new_nasm->total_flops = 0;
     for (int i = 0; i < new_nasm->num_ldata; i++)
@@ -1054,6 +1061,7 @@ void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata_ptr, aspen_layer_t *laye
     if (layer->type == SOFTMAX_LAYER)
     {
         ldata_ptr->ninst_tile_dims[OUT_H] = ldata_ptr->out_mat_dims[OUT_H];
+        ldata_ptr->ninst_tile_dims[OUT_W] = 1;
     }
     unsigned int out_w = get_smallest_dividable (ldata_ptr->out_mat_dims[OUT_W], ldata_ptr->ninst_tile_dims[OUT_W]);
     unsigned int out_h = get_smallest_dividable (ldata_ptr->out_mat_dims[OUT_H], ldata_ptr->ninst_tile_dims[OUT_H]);
@@ -1536,7 +1544,7 @@ void print_ninst_info (ninst_t *ninst, int print_data)
     }
     printf("\n");
 }
-void *aspen_load_input_from_file(char *input_filename, unsigned int *input_dims, unsigned int element_size)
+void *aspen_load_input_NHWC(char *input_filename, unsigned int *input_dims, unsigned int element_size)
 {
     size_t num_elements = 1;
     for (int i = 0; i < NUM_PARAM_ELEMENTS; i++)

@@ -271,7 +271,7 @@ int aspen_get_next_stream (int gpu_num)
     return stream_num[gpu_num];
 }
 
-unsigned int get_smallest_dividable (unsigned int num, unsigned int divider)
+size_t get_smallest_dividable (size_t num, size_t divider)
 {
     return (num/divider + (num%divider != 0))*divider;
 }
@@ -445,7 +445,6 @@ int compare_float_array (float *input1, float* input2, int num_to_compare, float
 
 int compare_float_tensor (float *input1, float* input2, int n, int c, int h ,int w, float epsilon_ratio, float epsilon_abs, int skip_val)
 {
-    int num_to_compare = n*c*h*w;
     int num = 0;
     printf ("Compare_tensor_f32 running...\n");
     // // #pragma omp parallel for

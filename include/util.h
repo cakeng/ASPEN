@@ -19,7 +19,7 @@ void aspen_sync_gpu_stream (int gpu_num, int stream_num);
 int aspen_get_next_stream (int gpu_num);
 void aspen_gpu_free (void *ptr, int gpu_num);
 
-unsigned int get_smallest_dividable (unsigned int num, unsigned int divider);
+size_t get_smallest_dividable (size_t num, size_t divider);
 
 void* load_arr (char *file_path, unsigned int size);
 void save_arr (void *input, char *file_path, unsigned int size);

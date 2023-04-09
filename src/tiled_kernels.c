@@ -1,7 +1,5 @@
 #include "kernels.h"
 
-
-
 void *prepare_input (ninst_t *ninst, void *buffer)
 {
     nasm_ldata_t *ldata = ninst->ldata;

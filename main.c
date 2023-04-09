@@ -23,37 +23,35 @@ int main(void)
     //     return -1;
     // }
     // // print_dnn_info (resnet50_dnn_2, 0);
-    // nasm_t *resnet50_nasm = apu_create_nasm(resnet50_dnn, 5e5, 4);
+    // nasm_t *resnet50_nasm = apu_create_nasm(resnet50_dnn, 10e6, 64);
     // if (resnet50_nasm == NULL) 
     // {
     //     printf("Error: Failed to create NASM\n");
     //     return -1;
     // }
     // // print_nasm_info(resnet50_nasm, 0);
-    // apu_save_nasm_to_file (resnet50_nasm, "data/resnet50.nasm");
+    // char nasm_file_name [1024] = {0};
+    // sprintf (nasm_file_name, "data/resnet50_B%d_%2.1e.nasm", resnet50_nasm->batch_size,
+    //     (double)resnet50_nasm->flop_per_ninst);
+    // apu_save_nasm_to_file (resnet50_nasm, nasm_file_name);
 
     aspen_dnn_t *resnet50_dnn = NULL;
-    nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50.nasm", &resnet50_dnn);
+    nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_B64_1.0e+07.nasm", &resnet50_dnn);
     // nasm_t *resnet50_4_nasm = apu_load_nasm_from_file ("data/resnet50_4.nasm", &resnet50_dnn);
 
     apu_load_dnn_data_from_file (resnet50_dnn, "data/resnet50_data.bin");
-    unsigned int input_params[NUM_PARAM_ELEMENTS] =
-        {[BATCH] = 4, [OUT_C] = 3, [OUT_H] = 224, [OUT_W] = 224};
-    void *dog_data = aspen_load_input_from_file ("data/batched_input_64.bin", input_params, sizeof(float));
+    
     rpool_t *rpool = rpool_init (-1);
     ase_group_t *ase_group = ase_group_init (64, -1);
     ase_group_set_rpool (ase_group, rpool);
 
-    // rpool_add_nasm (rpool, resnet50_4_nasm, 0.5, dog_data);
-    rpool_add_nasm (rpool, resnet50_nasm, 1.0, dog_data);
+    // rpool_add_nasm_raw_input (rpool, resnet50_4_nasm, 0.5, dog_data);
+    rpool_add_nasm (rpool, resnet50_nasm, 1.0, "data/batched_input_64.bin");
     // print_rpool_info (rpool);
     // print_nasm_info(resnet50_nasm, 0);
     // print_dnn_info(resnet50_dnn, 0);
 
     get_elapsed_time ("init");
-    aspen_run_naive (resnet50_dnn, input_params[BATCH], dog_data);
-    get_elapsed_time ("run_naive");
-
     ase_group_run (ase_group);
     ase_wait_for_nasm_completion (resnet50_nasm);
     // ase_wait_for_nasm_completion (resnet50_4_nasm);
@@ -61,6 +59,12 @@ int main(void)
     get_elapsed_time ("run_aspen");
     
     // print_rpool_info (rpool);
+
+    // unsigned int input_params[NUM_PARAM_ELEMENTS] =
+    //     {[BATCH] = 1, [OUT_C] = 3, [OUT_H] = 224, [OUT_W] = 224};
+    // void *dog_data = aspen_load_input_NHWC ("data/batched_input_64.bin", input_params, sizeof(float));
+    // aspen_run_naive (resnet50_dnn, input_params[BATCH], dog_data);
+    // get_elapsed_time ("run_naive");
     
     
     // for (int i = 70; i < resnet50_dnn->num_layers; i++)
@@ -114,7 +118,7 @@ int main(void)
     LAYER_PARAMS output_order[] = {BATCH, OUT_C};
     float *layer_output = ase_get_nasm_result (resnet50_nasm, output_order);
     // print_float_array (layer_output, 1000*input_params[BATCH], 1000);
-    for (int i = 0; i < input_params[BATCH]; i++)
+    for (int i = 0; i < resnet50_nasm->batch_size; i++)
     {
         get_probability_results ("data/imagenet_classes.txt", layer_output + 1000*i, 1000);
     }
