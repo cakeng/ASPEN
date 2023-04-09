@@ -24,7 +24,7 @@ int main(void)
         return -1;
     }
     // print_dnn_info (resnet50_dnn_2, 0);
-    nasm_t *resnet50_nasm = apu_create_nasm(resnet50_dnn, 10e6, 1);
+    nasm_t *resnet50_nasm = apu_create_nasm(resnet50_dnn, 10e6, 4);
     if (resnet50_nasm == NULL) 
     {
         printf("Error: Failed to create NASM\n");
