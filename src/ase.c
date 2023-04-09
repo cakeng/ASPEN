@@ -312,6 +312,7 @@ void ase_run (ase_t *ase)
         pthread_mutex_unlock (&ase->thread_mutex);
     }
 }
+
 void ase_stop (ase_t *ase)
 {
     if (ase == NULL)
@@ -329,8 +330,6 @@ void ase_stop (ase_t *ase)
         pthread_mutex_lock (&ase->thread_mutex);
     }
 }
-
-
 
 void update_children (rpool_t *rpool, ninst_t *ninst)
 {
@@ -516,4 +515,15 @@ void set_ninst_out_mat_mem_pos (ninst_t *ninst)
         + (ninst->out_mat_pos[OUT_W]*ldata->out_mat_stride + ninst->out_mat_pos[OUT_H])
             *ldata->nasm->dnn->element_size;
     
+}
+
+void *ase_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS *order)
+{
+    nasm_ldata_t *ldata = &nasm->ldata_arr[ldata_idx];
+    return get_ldata_output (ldata, order);
+}
+
+void *ase_get_nasm_result (nasm_t *nasm, LAYER_PARAMS *order)
+{
+    return ase_get_ldata_result (nasm, nasm->num_ldata - 1, order);
 }

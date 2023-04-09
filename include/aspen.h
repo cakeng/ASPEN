@@ -26,7 +26,7 @@
 #define GPU_MEM_STREAM_GPU_TO_HOST 30
 #define GPU_MEM_STREAM_KERNEL_MAX 29
 // #define GPU 1
-#define OPENBLAS 1
+// #define OPENBLAS 1
 
 #if SUPPRESS_OUTPUT == 0
 #define PRT(...) printf(__VA_ARGS__) 

@@ -3,6 +3,7 @@
 
 #include "aspen.h"
 #include "nasm.h"
+#include "apu.h"
 #include "rpool.h"
 #include "util.h"
 #include "kernels.h"

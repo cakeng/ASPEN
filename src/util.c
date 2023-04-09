@@ -417,7 +417,7 @@ void set_float_tensor_val (float *output, unsigned int n, unsigned int c, unsign
     }
 }
 
-int compare_float_array (float *input1, float* input2, int num_to_compare, float epsilon_ratio, int skip_val)
+int compare_float_array (float *input1, float* input2, int num_to_compare, float epsilon_ratio, float epsilon_abs, int skip_val)
 {
     int num = 0;
     printf ("Compare_array_f32 running...\n");
@@ -425,7 +425,7 @@ int compare_float_array (float *input1, float* input2, int num_to_compare, float
     for (int i = 0; i < num_to_compare; i++)
     {
         float delta = fabsf(*(input1 + i) - *(input2 + i));
-        if ((delta / fabsf(*(input1 + i))) >= epsilon_ratio)
+        if ((delta / fabsf(*(input1 + i))) >= epsilon_ratio && delta >= epsilon_abs)
         {
             num++;
             if (num < skip_val)
@@ -443,8 +443,9 @@ int compare_float_array (float *input1, float* input2, int num_to_compare, float
     return num;
 }
 
-int compare_float_tensor (float *input1, float* input2, int n, int c, int h ,int w, int num_to_compare, float epsilon_ratio, float epsilon_abs, int skip_val)
+int compare_float_tensor (float *input1, float* input2, int n, int c, int h ,int w, float epsilon_ratio, float epsilon_abs, int skip_val)
 {
+    int num_to_compare = n*c*h*w;
     int num = 0;
     printf ("Compare_tensor_f32 running...\n");
     // // #pragma omp parallel for

@@ -30,8 +30,8 @@ void NHWC_to_NCHW (void *input, void *output, unsigned int n, unsigned int c, un
 void NCHW_to_NHWC (void *input, void *output, unsigned int n, unsigned int c, unsigned int h, unsigned int w, unsigned int element_size);
 void set_float_tensor_val (float *output, unsigned int n, unsigned int c, unsigned int h, unsigned int w);
 
-int compare_float_array (float *input1, float* input2, int num_to_compare, float epsilon_ratio, int skip_val);
-int compare_float_tensor (float *input1, float* input2, int n, int c, int h ,int w, int num_to_compare, float epsilon_ratio, float epsilon_abs, int skip_val);
+int compare_float_array (float *input1, float* input2, int num_to_compare, float epsilon_ratio, float epsilon_abs, int skip_val);
+int compare_float_tensor (float *input1, float* input2, int n, int c, int h ,int w, float epsilon_ratio, float epsilon_abs, int skip_val);
 
 void get_probability_results (char *class_data_path, float* probabilities, unsigned int num);
 void get_elapsed_time (char *name);

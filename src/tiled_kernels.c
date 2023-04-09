@@ -176,7 +176,7 @@ void tiled_maxpool2d (ninst_t *ninst, ase_t *ase)
         }
         else
         {
-            input_vec += + ninst->out_mat_pos[OUT_H];
+            input_vec += ninst->out_mat_pos[OUT_H];
             memcpy (out_vec, input_vec, M * layer->dnn->element_size);
         }
         for (int i = 1; i < input_pos_per_n; i++)
@@ -208,23 +208,22 @@ void tiled_avgpool2d (ninst_t *ninst, ase_t *ase)
     for (int n = 0; n < N; n++)
     {
         float *out_vec = (float*)C + n * ldc;
-        float *input_vec = input_ptr_arr[n*input_pos_per_n];
+        float *input_vec = (float*)input_ptr_arr[n*input_pos_per_n];
         if (input_vec == NULL)
         {
-            for (int m = 0; m < M; m++)
-            {
-                out_vec[m] = 0;
-            }
+            memset (out_vec, 0, M * layer->dnn->element_size);
         }
         else
         {
+            input_vec += ninst->out_mat_pos[OUT_H];
             memcpy (out_vec, input_vec, M * layer->dnn->element_size);
         }
         for (int i = 1; i < input_pos_per_n; i++)
         {
-            input_vec = input_ptr_arr[n*input_pos_per_n + i];
+            input_vec = (float*)input_ptr_arr[n*input_pos_per_n + i];
             if (input_vec != NULL)
             {
+                input_vec += ninst->out_mat_pos[OUT_H];
                 for (int m = 0; m < M; m++)
                 {
                     out_vec[m] += input_vec[m];
@@ -267,7 +266,35 @@ void tiled_residual (ninst_t *ninst, ase_t *ase)
         naive_activate (out_vec, M, layer->activation);
     }
 }
+
 void tiled_softmax (ninst_t *ninst, ase_t *ase)
 {
+    nasm_ldata_t *ldata = ninst->ldata;
+    nasm_ldata_t *p0_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
+    const unsigned int M = ninst->tile_dims[OUT_H];
+    const unsigned int N = ninst->tile_dims[OUT_W];
+    const unsigned int ldc = ldata->out_mat_stride;
+    void *C = ninst->out_mat;
 
+    for (int n = 0; n < N; n++)
+    {
+        unsigned int w_pos = ninst->out_mat_pos[OUT_W] + n;
+        float *input = (float*)p0_ldata->out_mat + w_pos * p0_ldata->out_mat_stride + ninst->out_mat_pos[OUT_H];
+        float *output = (float*)C + n * ldc;
+        float max = input[0];
+        for (int m = 1; m < M; m++)
+        {
+            max = max >= input[m] ? max : input[m];
+        }
+        float sum = 0;
+        for (int m = 0; m < M; m++)
+        {
+            output[m] = expf (input[m] - max);
+            sum += output[m];
+        }
+        for (int m = 0; m < M; m++)
+        {
+            output[m] /= sum;
+        }
+    }
 }

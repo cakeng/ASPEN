@@ -100,11 +100,15 @@ aspen_tensor_t *init_aspen_tensor (unsigned int *params_arr, LAYER_PARAMS *dim_o
     new_tensor->num_dims = num_dims;
     new_tensor->num_elements = 1;
     new_tensor->element_size = element_size;
+    int idx = 0;
     for (int i = 0; i < num_dims; i++)
     {
-        new_tensor->data_dim_order[i] = dim_order_arr[i];
-        new_tensor->dims[dim_order_arr[i]] = params_arr[dim_order_arr[i]];
-        new_tensor->num_elements *= new_tensor->dims[dim_order_arr[i]];
+        if (params_arr[dim_order_arr[i]] <= 0)
+            continue;
+        new_tensor->data_dim_order[idx] = dim_order_arr[idx];
+        new_tensor->dims[dim_order_arr[idx]] = params_arr[dim_order_arr[idx]];
+        new_tensor->num_elements *= new_tensor->dims[dim_order_arr[idx]];
+        idx++;
     }
     return new_tensor;
 }
@@ -239,40 +243,50 @@ void *get_ldata_output (nasm_ldata_t *ldata, LAYER_PARAMS *order)
         FPRT (stderr, "Error in get_ldata_output: ldata is NULL.\n");
         return NULL;
     }
-    void *packed_data = get_packed_ldata_output_colwise (ldata);
-    if (packed_data == NULL)
-    {
-        FPRT (stderr, "Error in get_ldata_output: get_packed_ldata_output_colwise failed.\n");
-        return NULL;
-    }
+    size_t elem_size = ldata->layer->dnn->element_size;
+    size_t data_size = ldata->out_mat_dims[OUT_H] * ldata->out_mat_dims[OUT_W] * elem_size;
+    void *tmp_data = get_packed_ldata_output_colwise (ldata);
+    void *packed_data = aspen_calloc (ldata->out_mat_dims[OUT_H] * ldata->out_mat_dims[OUT_W], elem_size);
+    memcpy (packed_data, tmp_data, data_size);
+    free (tmp_data);
     aspen_layer_t *layer = ldata->layer;
     aspen_tensor_t *tensor = NULL;
     if (layer->type == CONV_LAYER || layer->type == INPUT_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER 
         || layer->type == RESIDUAL_LAYER)
     {
         LAYER_PARAMS org_order[] = {BATCH, OUT_H, OUT_W, OUT_C};
-        tensor = init_aspen_tensor (layer->params, org_order, 4, layer->dnn->element_size);
+        unsigned int params[NUM_PARAM_ELEMENTS];
+        memcpy (params, layer->params, NUM_PARAM_ELEMENTS * sizeof (unsigned int));
+        params[BATCH] = ldata->nasm->batch_size;
+        tensor = init_aspen_tensor (params, org_order, 4, layer->dnn->element_size);
         tensor->data = packed_data;
         reorder_aspen_tensor (&tensor, order);
-        return tensor->data;
+        void *output = calloc (ldata->out_mat_dims[OUT_H] * ldata->out_mat_dims[OUT_W], elem_size);
+        memcpy (output, tensor->data, data_size);
+        destroy_aspen_tensor (tensor);
+        return output;
     }
     else if (layer->type == FC_LAYER || layer->type == SOFTMAX_LAYER)
     {
         LAYER_PARAMS org_order[] = {BATCH, OUT_C};
-        tensor = init_aspen_tensor (layer->params, org_order, 2, layer->dnn->element_size);
+        unsigned int params[NUM_PARAM_ELEMENTS];
+        memcpy (params, layer->params, NUM_PARAM_ELEMENTS * sizeof (unsigned int));
+        params[BATCH] = ldata->nasm->batch_size;
+        tensor = init_aspen_tensor (params, org_order, 2, layer->dnn->element_size);
         tensor->data = packed_data;
         reorder_aspen_tensor (&tensor, order);
-        return tensor->data;
+        void *output = calloc (ldata->out_mat_dims[OUT_H] * ldata->out_mat_dims[OUT_W], elem_size);
+        memcpy (output, tensor->data, data_size);
+        destroy_aspen_tensor (tensor);
+        return output;
     }
     else 
     {
         FPRT (stderr, "Error in get_ldata_output: unsupported layer type.\n");
     }
-    free (packed_data);
+    aspen_free (packed_data);
     return NULL;
 }
-
-
 
 void* get_aspen_tensor_element_ptr (aspen_tensor_t *tensor, unsigned int *pos)
 {
@@ -1037,6 +1051,10 @@ void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata_ptr, aspen_layer_t *laye
     ldata_ptr->flop_per_output = 1;
     get_out_mat_info (ldata_ptr);
     get_ninst_tile_dims (ldata_ptr);
+    if (layer->type == SOFTMAX_LAYER)
+    {
+        ldata_ptr->ninst_tile_dims[OUT_H] = ldata_ptr->out_mat_dims[OUT_H];
+    }
     unsigned int out_w = get_smallest_dividable (ldata_ptr->out_mat_dims[OUT_W], ldata_ptr->ninst_tile_dims[OUT_W]);
     unsigned int out_h = get_smallest_dividable (ldata_ptr->out_mat_dims[OUT_H], ldata_ptr->ninst_tile_dims[OUT_H]);
     if (layer->type != FC_LAYER && layer->type != SOFTMAX_LAYER)
