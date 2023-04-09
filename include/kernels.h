@@ -72,28 +72,6 @@ void naive_sgemm_tiled(const unsigned int M, const unsigned int N, const unsigne
 void naive_sgemm_vectorized(const unsigned int M, const unsigned int N, const unsigned int K,
 		 const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc);
 
-void matmul_f32_base(float *A, float *B, float **C, int k, int m, int n);
-void matmul_f32_base_8x1(float *A, float *B, float **C, int k);
-void matmul_f32_base_8x2(float *A, float *B, float **C, int k);
-void matmul_f32_base_8x3(float *A, float *B, float **C, int k);
-void matmul_f32_base_8x4(float *A, float *B, float **C, int k);
-void matmul_f32_base_8x5(float *A, float *B, float **C, int k);
-void matmul_f32_base_8x6(float *A, float *B, float **C, int k);
-void matmul_f32_base_8x7(float *A, float *B, float **C, int k);
-void matmul_f32_base_8x8(float *A, float *B, float **C, int k);
-void matmul_f32_base_8x9(float *A, float *B, float **C, int k);
-void matmul_f32_base_8x10(float *A, float *B, float **C, int k);
-void matmul_f32_base_8x11(float *A, float *B, float **C, int k);
-void matmul_f32_base_8x12(float *A, float *B, float **C, int k);
-
-void matmul_f32_base_16x1(float *A, float *B, float **C, int k);
-void matmul_f32_base_32x1(float *A, float *B, float **C, int k);
-void matmul_f32_base_64x1(float *A, float *B, float **C, int k);
-
-void maxpool2d_f32_base (float **input, float *output, int kernel_size, int cin);
-void avgpool2d_f32_base (float **input, float *output, int kernel_size, int cin);
-void residual_f32_base (float **input, float *output, int cin);
-
 #ifdef AVX2
 #include <immintrin.h>
 // avx2 accelerated matmul kernels

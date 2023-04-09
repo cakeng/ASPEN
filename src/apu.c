@@ -23,7 +23,7 @@ aspen_dnn_t *apu_create_dnn (char *input_path, char *weight_path)
             LAYER_PARAMS weight_dim_order[] = {OUT_C, WEIGHT_H, WEIGHT_W, IN_C, SUB_C};
             unsigned int params[NUM_PARAM_ELEMENTS] = {0};
             memcpy (params, layer->params, sizeof(unsigned int) * NUM_PARAM_ELEMENTS);
-            params[SUB_C] = 1;
+            params[SUB_C] = _VEC_SIZE_M;
             params[OUT_C] = (layer->params[OUT_C] + params[SUB_C] - 1) / params[SUB_C];
             reorder_aspen_tensor (&layer->tensors[WEIGHT_TENSOR], params, weight_dim_order, 5);
         }

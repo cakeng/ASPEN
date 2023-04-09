@@ -346,7 +346,7 @@ void naive_softmax (float *input, float **output_ptr, unsigned int num_batch, un
         float sum = 0;
         for (int j = 0; j < num_elements; j++)
         {
-            output[i * num_elements + j] = exp (input[i * num_elements + j] - max);
+            output[i * num_elements + j] = expf (input[i * num_elements + j] - max);
             sum += output[i * num_elements + j];
         }
         for (int j = 0; j < num_elements; j++)
@@ -405,7 +405,7 @@ void naive_sgemm_vectorized(const unsigned int M, const unsigned int N, const un
                     float c = C[nn * ldc + mm];
                     for (unsigned int k = 0; k < K; k++)
                     {
-                        c += A[mm * lda + k] * B[nn * ldb + k];
+                        c += A[((mm/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M + (mm%_VEC_SIZE_M)] * B[nn * ldb + k];
                     }
                     C[nn * ldc + mm] = c;
                 }
@@ -422,7 +422,7 @@ void naive_sgemm_vectorized(const unsigned int M, const unsigned int N, const un
                 float c = C[n * ldc + mm];
                 for (unsigned int k = 0; k < K; k++)
                 {
-                    c += A[mm * lda + k] * B[n * ldb + k];
+                    c += A[((mm/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M + (mm%_VEC_SIZE_M)] * B[n * ldb + k];
                 }
                 C[n * ldc + mm] = c;
             }
@@ -438,7 +438,7 @@ void naive_sgemm_vectorized(const unsigned int M, const unsigned int N, const un
                 float c = C[nn * ldc + m];
                 for (unsigned int k = 0; k < K; k++)
                 {
-                    c += A[m * lda + k] * B[nn * ldb + k];
+                    c += A[((m/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M + (m%_VEC_SIZE_M)] * B[nn * ldb + k];
                 }
                 C[nn * ldc + m] = c;
             }
@@ -451,7 +451,7 @@ void naive_sgemm_vectorized(const unsigned int M, const unsigned int N, const un
             float c = C[n * ldc + m];
             for (unsigned int k = 0; k < K; k++)
             {
-                c += A[m * lda + k] * B[n * ldb + k];
+                c += A[((m/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M + (m%_VEC_SIZE_M)] * B[n * ldb + k];
             }
             C[n * ldc + m] = c;
         }
@@ -631,7 +631,7 @@ void naive_sgemm_vectorized_without_omp(const unsigned int M, const unsigned int
                     float c = C[nn * ldc + mm];
                     for (unsigned int k = 0; k < K; k++)
                     {
-                        c += A[mm * lda + k] * B[nn * ldb + k];
+                        c += A[((mm/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M + (mm%_VEC_SIZE_M)] * B[nn * ldb + k];
                     }
                     C[nn * ldc + mm] = c;
                 }
@@ -647,7 +647,7 @@ void naive_sgemm_vectorized_without_omp(const unsigned int M, const unsigned int
                 float c = C[n * ldc + mm];
                 for (unsigned int k = 0; k < K; k++)
                 {
-                    c += A[mm * lda + k] * B[n * ldb + k];
+                    c += A[((mm/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M + (mm%_VEC_SIZE_M)] * B[n * ldb + k];
                 }
                 C[n * ldc + mm] = c;
             }
@@ -662,7 +662,7 @@ void naive_sgemm_vectorized_without_omp(const unsigned int M, const unsigned int
                 float c = C[nn * ldc + m];
                 for (unsigned int k = 0; k < K; k++)
                 {
-                    c += A[m * lda + k] * B[nn * ldb + k];
+                    c += A[((m/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M + (m%_VEC_SIZE_M)] * B[nn * ldb + k];
                 }
                 C[nn * ldc + m] = c;
             }
@@ -675,257 +675,9 @@ void naive_sgemm_vectorized_without_omp(const unsigned int M, const unsigned int
             float c = C[n * ldc + m];
             for (unsigned int k = 0; k < K; k++)
             {
-                c += A[m * lda + k] * B[n * ldb + k];
+                c += A[((m/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M + (m%_VEC_SIZE_M)] * B[n * ldb + k];
             }
             C[n * ldc + m] = c;
         }
     }
 }   
-
-void matmul_f32_base(float *A, float *B, float **C, int k, int m, int n)
-{
-    for (int kidx = 0; kidx < k; kidx++)
-    {
-        for (int nidx = 0; nidx < n; nidx++)
-        {
-            for (int midx = 0; midx < m; midx++)
-            {
-                *(*(C + nidx) + midx) += A[kidx*m + midx] * (*(B + k*nidx + kidx));
-            }
-        }
-    }
-}
-void matmul_f32_base_8x1(float *A, float *B, float **C, int k)
-{
-    for (int kidx = 0; kidx < k; kidx++)
-    {
-        for (int nidx = 0; nidx < 1; nidx++)
-        {
-            for (int midx = 0; midx < 8; midx++)
-            {
-                *(*(C + nidx) + midx) += A[kidx*8 + midx] * (*(B + k*nidx + kidx));
-            }
-        }
-    }
-}
-void matmul_f32_base_8x2(float *A, float *B, float **C, int k)
-{
-    for (int kidx = 0; kidx < k; kidx++)
-    {
-        for (int nidx = 0; nidx < 2; nidx++)
-        {
-            for (int midx = 0; midx < 8; midx++)
-            {
-                *(*(C + nidx) + midx) += A[kidx*8 + midx] * (*(B + k*nidx + kidx));
-            }
-        }
-    }
-}
-void matmul_f32_base_8x3(float *A, float *B, float **C, int k)
-{
-    for (int kidx = 0; kidx < k; kidx++)
-    {
-        for (int nidx = 0; nidx < 3; nidx++)
-        {
-            for (int midx = 0; midx < 8; midx++)
-            {
-                *(*(C + nidx) + midx) += A[kidx*8 + midx] * (*(B + k*nidx + kidx));
-            }
-        }
-    }
-}
-void matmul_f32_base_8x4(float *A, float *B, float **C, int k)
-{
-    for (int kidx = 0; kidx < k; kidx++)
-    {
-        for (int nidx = 0; nidx < 4; nidx++)
-        {
-            for (int midx = 0; midx < 8; midx++)
-            {
-                *(*(C + nidx) + midx) += A[kidx*8 + midx] * (*(B + k*nidx + kidx));
-            }
-        }
-    }
-}
-void matmul_f32_base_8x5(float *A, float *B, float **C, int k)
-{
-    for (int kidx = 0; kidx < k; kidx++)
-    {
-        for (int nidx = 0; nidx < 5; nidx++)
-        {
-            for (int midx = 0; midx < 8; midx++)
-            {
-                *(*(C + nidx) + midx) += A[kidx*8 + midx] * (*(B + k*nidx + kidx));
-            }
-        }
-    }
-}
-void matmul_f32_base_8x6(float *A, float *B, float **C, int k)
-{
-    for (int kidx = 0; kidx < k; kidx++)
-    {
-        for (int nidx = 0; nidx < 6; nidx++)
-        {
-            for (int midx = 0; midx < 8; midx++)
-            {
-                *(*(C + nidx) + midx) += A[kidx*8 + midx] * (*(B + k*nidx + kidx));
-            }
-        }
-    }
-}
-void matmul_f32_base_8x7(float *A, float *B, float **C, int k)
-{
-    for (int kidx = 0; kidx < k; kidx++)
-    {
-        for (int nidx = 0; nidx < 7; nidx++)
-        {
-            for (int midx = 0; midx < 8; midx++)
-            {
-                *(*(C + nidx) + midx) += A[kidx*8 + midx] * (*(B + k*nidx + kidx));
-            }
-        }
-    }
-}
-void matmul_f32_base_8x8(float *A, float *B, float **C, int k)
-{
-    for (int kidx = 0; kidx < k; kidx++)
-    {
-        for (int nidx = 0; nidx < 8; nidx++)
-        {
-            for (int midx = 0; midx < 8; midx++)
-            {
-                *(*(C + nidx) + midx) += A[kidx*8 + midx] * (*(B + k*nidx + kidx));
-            }
-        }
-    }
-}
-void matmul_f32_base_8x9(float *A, float *B, float **C, int k)
-{
-    for (int kidx = 0; kidx < k; kidx++)
-    {
-        for (int nidx = 0; nidx < 9; nidx++)
-        {
-            for (int midx = 0; midx < 8; midx++)
-            {
-                *(*(C + nidx) + midx) += A[kidx*8 + midx] * (*(B + k*nidx + kidx));
-            }
-        }
-    }
-}
-void matmul_f32_base_8x10(float *A, float *B, float **C, int k)
-{
-    for (int kidx = 0; kidx < k; kidx++)
-    {
-        for (int nidx = 0; nidx < 10; nidx++)
-        {
-            for (int midx = 0; midx < 8; midx++)
-            {
-                *(*(C + nidx) + midx) += A[kidx*8 + midx] * (*(B + k*nidx + kidx));
-            }
-        }
-    }
-}
-void matmul_f32_base_8x11(float *A, float *B, float **C, int k)
-{
-    for (int kidx = 0; kidx < k; kidx++)
-    {
-        for (int nidx = 0; nidx < 11; nidx++)
-        {
-            for (int midx = 0; midx < 8; midx++)
-            {
-                *(*(C + nidx) + midx) += A[kidx*8 + midx] * (*(B + k*nidx + kidx));
-            }
-        }
-    }
-}
-void matmul_f32_base_8x12(float *A, float *B, float **C, int k)
-{
-    for (int kidx = 0; kidx < k; kidx++)
-    {
-        for (int nidx = 0; nidx < 12; nidx++)
-        {
-            for (int midx = 0; midx < 8; midx++)
-            {
-                *(*(C + nidx) + midx) += A[kidx*8 + midx] * (*(B + k*nidx + kidx));
-            }
-        }
-    }
-}
-
-void matmul_f32_base_16x1(float *A, float *B, float **C, int k)
-{
-    for (int kidx = 0; kidx < k; kidx++)
-    {
-        for (int nidx = 0; nidx < 1; nidx++)
-        {
-            for (int midx = 0; midx < 16; midx++)
-            {
-                *(*(C + nidx) + midx) += A[kidx*8 + (midx/8)*k*8 + (midx%8)] * (*(B + k*nidx + kidx));
-            }
-        }
-    }
-}
-void matmul_f32_base_32x1(float *A, float *B, float **C, int k)
-{
-    for (int kidx = 0; kidx < k; kidx++)
-    {
-        for (int nidx = 0; nidx < 1; nidx++)
-        {
-            for (int midx = 0; midx < 32; midx++)
-            {
-                *(*(C + nidx) + midx) += A[kidx*8 + (midx/8)*k*8 + (midx%8)] * (*(B + k*nidx + kidx));
-            }
-        }
-    }
-}
-void matmul_f32_base_64x1(float *A, float *B, float **C, int k)
-{
-    for (int kidx = 0; kidx < k; kidx++)
-    {
-        for (int nidx = 0; nidx < 1; nidx++)
-        {
-            for (int midx = 0; midx < 64; midx++)
-            {
-                *(*(C + nidx) + midx) += A[kidx*8 + (midx/8)*k*8 + (midx%8)] * (*(B + k*nidx + kidx));
-            }
-        }
-    }
-}
-
-void maxpool2d_f32_base (float **input, float *output, int kernel_size, int cin)
-{
-    for (int kidx = 0; kidx < cin; kidx++)
-    {
-        float val = -INFINITY;
-        for (int i = 0; i < kernel_size; i++)
-        {
-            float* input_ptr = *(input + i);
-            if (val < *(input_ptr + kidx))
-            {
-                val = *(input_ptr + kidx);
-            }
-        }
-        *(output + kidx) = val;
-    }
-}
-
-void avgpool2d_f32_base (float **input, float *output, int kernel_size, int cin)
-{
-    for (int kidx = 0; kidx < cin; kidx++)
-    {
-        float val = 0.0f;
-        for (int i = 0; i < kernel_size; i++)
-        {
-            val += *(*(input + i) + kidx);
-        }
-        *(output + kidx) = val/kernel_size;
-    }
-}
-
-void residual_f32_base (float **input, float *output, int cin)
-{
-    for (int kidx = 0; kidx < cin; kidx++)
-    {
-        *(output + kidx) = *(*(input + 0) + kidx) + *(*(input + 1) + kidx);
-    }
-}
