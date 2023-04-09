@@ -93,8 +93,21 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
                 if (weighted_layer == file_layer_num)
                 {
                     layer_num = i;
+                    // PRT ("File Layer %d loading into DNN layer %d: ", file_layer_num, layer_num);
                     break;
                 }
+            }
+            if (i == dnn->num_layers - 1)
+            {
+                FPRT(stderr,"ASPEN DNN file %s parse error: Invalid file LAYER %d.\n", input_path, file_layer_num);
+                if (bn_mean != NULL)
+                    free (bn_mean);
+                if (bn_weight != NULL)
+                    free (bn_weight);
+                if (bn_var != NULL)
+                    free (bn_var);
+                fclose (fp);
+                return;
             }
         }
         aspen_layer_t *layer = &dnn->layers[layer_num];
@@ -138,6 +151,7 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
             fclose (fp);
             return;
         }
+        // PRT ("Tensor type %s.\n", tensor_type_str[tensor_type]);
         if ((ptr = read_check_and_return (fp, line, "DATA_SIZE:", &line_num)) == NULL)
         {
             FPRT(stderr,"ASPEN DNN file %s parse error: Missing DATA_SIZE.\n", input_path);
@@ -379,16 +393,6 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
         }
     }
     fclose (fp);
-    for (int i = 0; i < dnn->num_layers; i++)
-    {
-        aspen_layer_t *layer = dnn->layers + i;
-        if (layer->type == CONV_LAYER)
-        {
-            // printf ("Reordering weight tensor for layer %d\n", i);
-            LAYER_PARAMS weight_dim_order[] = {OUT_C, WEIGHT_H, WEIGHT_W, IN_C};
-            reorder_aspen_tensor (&layer->tensors[WEIGHT_TENSOR], weight_dim_order);
-        }
-    }
 }
 
 void apu_save_dnn_to_file(aspen_dnn_t *dnn, char *filename)

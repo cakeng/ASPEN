@@ -2,8 +2,6 @@
 
 void naive_activate (float *input, unsigned int num_elements, LAYER_ACT activation_type)
 {
-    if (input == NULL)
-        FPRT (stderr, "Error in naive_activate: input is NULL.\n");
     if (activation_type == NO_ACTIVATION || activation_type == LINEAR)
         return;
     if (activation_type == RELU)
@@ -40,7 +38,7 @@ void naive_activate (float *input, unsigned int num_elements, LAYER_ACT activati
         FPRT (stderr, "Error in naive_activate: unknown activation type.\n");
 }
 
-// Input and output is in NHWC format. Kernel is in OHWI format.
+// Input and output is in NHWC format. Kernel is in (O/8)HWI8 format.
 void naive_conv2d
 (const float *input, const float *kernel, const float *bias, float **output_ptr, 
     unsigned int batch_size, unsigned int input_channels, unsigned int height, unsigned int width,  
@@ -82,15 +80,15 @@ void naive_conv2d
                             int iw = ow * stride + kw - padding;
                             if (ih >= 0 && ih < height && iw >= 0 && iw < width)
                             {
-                                unsigned int kernel_index = oc * kernel_width * kernel_height * input_channels + 
+                                unsigned int kernel_index = ((oc/_VEC_SIZE_M) * kernel_width * kernel_height * input_channels + 
                                     kh * kernel_width * input_channels + 
-                                    kw * input_channels;
+                                    kw * input_channels) * _VEC_SIZE_M + (oc%_VEC_SIZE_M);
                                 unsigned int input_index = b * width * height * input_channels + 
                                     ih * width * input_channels + 
                                     iw * input_channels;
                                 for (unsigned int ic = 0; ic < input_channels; ic++)
                                 {
-                                    output[output_index] += input[input_index + ic] * kernel[kernel_index + ic];
+                                    output[output_index] += input[input_index + ic] * kernel[kernel_index + ic* _VEC_SIZE_M];
                                 }
                             }
                         }

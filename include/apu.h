@@ -15,7 +15,7 @@ void create_layer_tensors (aspen_layer_t *layer);
 void create_layer_output_tensor (aspen_layer_t *layer);
 void destroy_aspen_layers (aspen_layer_t* layers, unsigned int num_layers);
 
-aspen_tensor_t *init_aspen_tensor (unsigned int *params_arr, LAYER_PARAMS *dim_info_arr, int num_dims, unsigned int element_size);
+aspen_tensor_t *init_aspen_tensor (unsigned int *params_arr, LAYER_PARAMS *order, int num_dims, unsigned int element_size);
 void calloc_aspen_tensor (aspen_tensor_t *tensor);
 void calloc_aspen_gpu_tensors (aspen_tensor_t *tensor);
 void copy_ptr_to_aspen_tensor  (aspen_tensor_t *tensor, void *ptr);
@@ -23,7 +23,7 @@ void copy_aspen_tensor_to_ptr  (aspen_tensor_t *tensor, void *ptr);
 void copy_aspen_tensor_to_tensor  (aspen_tensor_t *dst, aspen_tensor_t *src);
 void copy_aspen_tensor_to_gpu  (aspen_tensor_t *tensor, int gpu_num);
 void copy_aspen_tensor_from_gpu  (aspen_tensor_t *tensor, int gpu_num);
-void reorder_aspen_tensor (aspen_tensor_t **tensor_ptr, LAYER_PARAMS *order);
+void reorder_aspen_tensor (aspen_tensor_t **tensor_ptr, unsigned int *params_arr, LAYER_PARAMS *order, int num_dims);
 void *get_aspen_tensor_data (aspen_tensor_t *tensor, LAYER_PARAMS *output_order);
 void *get_aspen_tensor_element_ptr (aspen_tensor_t *tensor, unsigned int *pos);
 void destroy_aspen_tensor(aspen_tensor_t *tensor);

@@ -14,6 +14,20 @@ aspen_dnn_t *apu_create_dnn (char *input_path, char *weight_path)
     aspen_dnn_t *new_dnn = parse_input (input_path);
     if (weight_path != NULL)
         apu_load_dnn_data_from_file (new_dnn, weight_path);
+    for (int i = 0; i < new_dnn->num_layers; i++)
+    {
+        aspen_layer_t *layer = new_dnn->layers + i;
+        if (layer->type == CONV_LAYER)
+        {
+            // printf ("Reordering weight tensor for layer %d\n", i);
+            LAYER_PARAMS weight_dim_order[] = {OUT_C, WEIGHT_H, WEIGHT_W, IN_C, SUB_C};
+            unsigned int params[NUM_PARAM_ELEMENTS] = {0};
+            memcpy (params, layer->params, sizeof(unsigned int) * NUM_PARAM_ELEMENTS);
+            params[SUB_C] = 1;
+            params[OUT_C] = (layer->params[OUT_C] + params[SUB_C] - 1) / params[SUB_C];
+            reorder_aspen_tensor (&layer->tensors[WEIGHT_TENSOR], params, weight_dim_order, 5);
+        }
+    }
     return new_dnn;
 }
 
@@ -94,7 +108,7 @@ void destroy_aspen_layers (aspen_layer_t* layers, unsigned int num_layers)
     free (layers);
 }
 
-aspen_tensor_t *init_aspen_tensor (unsigned int *params_arr, LAYER_PARAMS *dim_order_arr, int num_dims, unsigned int element_size)
+aspen_tensor_t *init_aspen_tensor (unsigned int *params_arr, LAYER_PARAMS *order, int num_dims, unsigned int element_size)
 {
     aspen_tensor_t *new_tensor = (aspen_tensor_t *) calloc(1, sizeof(aspen_tensor_t));
     new_tensor->num_dims = num_dims;
@@ -103,11 +117,11 @@ aspen_tensor_t *init_aspen_tensor (unsigned int *params_arr, LAYER_PARAMS *dim_o
     int idx = 0;
     for (int i = 0; i < num_dims; i++)
     {
-        if (params_arr[dim_order_arr[i]] <= 0)
+        if (params_arr[order[i]] <= 0)
             continue;
-        new_tensor->data_dim_order[idx] = dim_order_arr[idx];
-        new_tensor->dims[dim_order_arr[idx]] = params_arr[dim_order_arr[idx]];
-        new_tensor->num_elements *= new_tensor->dims[dim_order_arr[idx]];
+        new_tensor->data_dim_order[idx] = order[idx];
+        new_tensor->dims[order[idx]] = params_arr[order[idx]];
+        new_tensor->num_elements *= new_tensor->dims[order[idx]];
         idx++;
     }
     return new_tensor;
@@ -123,7 +137,16 @@ void calloc_aspen_tensor (aspen_tensor_t *tensor)
         FPRT (stderr, "Cannot calloc tensor with 0 elements or 0 element size.\n");
         assert (0);
     }
-    tensor->data = aspen_calloc(tensor->num_elements, tensor->element_size);
+    size_t size = 1;
+    for (int i = 0; i < tensor->num_dims; i++)
+    {
+        if (i == tensor->num_dims - 1)
+            size *= tensor->dims[tensor->data_dim_order[i]] 
+                - (tensor->dims[tensor->data_dim_order[i]]%_VEC_SIZE_M) + _VEC_SIZE_M;
+        else
+            size *= tensor->dims[tensor->data_dim_order[i]];
+    }
+    tensor->data = aspen_calloc(size, tensor->element_size);
 }
 void calloc_aspen_gpu_tensors (aspen_tensor_t *tensor)
 {
@@ -192,10 +215,16 @@ void copy_aspen_tensor_from_gpu  (aspen_tensor_t *tensor, int gpu_idx)
         return;
     aspen_gpu_to_host_memcpy (tensor->data, tensor->data_gpu[gpu_idx], tensor->num_elements * tensor->element_size, gpu_idx);
 }
-void reorder_aspen_tensor (aspen_tensor_t **tensor_ptr, LAYER_PARAMS *order)
+
+void reorder_aspen_tensor (aspen_tensor_t **tensor_ptr, unsigned int *params_arr, LAYER_PARAMS *order, int num_dims)
 {
     aspen_tensor_t *tensor = *tensor_ptr;
-    aspen_tensor_t *new_tensor = init_aspen_tensor (tensor->dims, order, tensor->num_dims, tensor->element_size);
+    aspen_tensor_t *new_tensor = init_aspen_tensor (params_arr, order, num_dims, tensor->element_size);
+    if (new_tensor->num_elements < tensor->num_elements)
+    {
+        FPRT (stderr, "Error: cannot reorder tensor into smaller number of elements.\n");
+        assert (0);
+    }
     calloc_aspen_tensor (new_tensor);
 
     unsigned int pos[NUM_PARAM_ELEMENTS] = {0};
@@ -203,6 +232,11 @@ void reorder_aspen_tensor (aspen_tensor_t **tensor_ptr, LAYER_PARAMS *order)
     for (int idx = 0; idx < tensor->num_elements; idx++)
     {
         get_tensor_pos_from_idx (tensor, idx, pos);
+        if (params_arr [SUB_C] > 0)
+        {
+            pos[SUB_C] = pos[OUT_C] % params_arr [SUB_C];
+            pos[OUT_C] = pos[OUT_C] / params_arr [SUB_C];
+        }
         void *src = (char*) tensor->data + idx * tensor->element_size;
         void *dst = get_aspen_tensor_element_ptr (new_tensor, pos);
         memcpy (dst, src, tensor->element_size);
@@ -218,6 +252,7 @@ void reorder_aspen_tensor (aspen_tensor_t **tensor_ptr, LAYER_PARAMS *order)
     *tensor_ptr = new_tensor;
     destroy_aspen_tensor (tensor);
 }
+
 void *get_aspen_tensor_data (aspen_tensor_t *tensor, LAYER_PARAMS *output_order)
 {
     void *output = calloc (tensor->num_elements, tensor->element_size);
@@ -260,7 +295,7 @@ void *get_ldata_output (nasm_ldata_t *ldata, LAYER_PARAMS *order)
         params[BATCH] = ldata->nasm->batch_size;
         tensor = init_aspen_tensor (params, org_order, 4, layer->dnn->element_size);
         tensor->data = packed_data;
-        reorder_aspen_tensor (&tensor, order);
+        reorder_aspen_tensor (&tensor, tensor->dims, order, tensor->num_dims);
         void *output = calloc (ldata->out_mat_dims[OUT_H] * ldata->out_mat_dims[OUT_W], elem_size);
         memcpy (output, tensor->data, data_size);
         destroy_aspen_tensor (tensor);
@@ -274,7 +309,7 @@ void *get_ldata_output (nasm_ldata_t *ldata, LAYER_PARAMS *order)
         params[BATCH] = ldata->nasm->batch_size;
         tensor = init_aspen_tensor (params, org_order, 2, layer->dnn->element_size);
         tensor->data = packed_data;
-        reorder_aspen_tensor (&tensor, order);
+        reorder_aspen_tensor (&tensor, tensor->dims, order, tensor->num_dims);
         void *output = calloc (ldata->out_mat_dims[OUT_H] * ldata->out_mat_dims[OUT_W], elem_size);
         memcpy (output, tensor->data, data_size);
         destroy_aspen_tensor (tensor);
@@ -394,7 +429,7 @@ void create_layer_tensors (aspen_layer_t *layer)
     {
         if (layer->tensors[i] != NULL)
         {
-            fill_tensor_with_rand_nums (layer->tensors[i], 1.0);
+            fill_tensor_with_nums (layer->tensors[i]);
         }
     }
     // fill_tensor_with_fixed_nums (layer->tensors[WEIGHT_TENSOR], 1);
