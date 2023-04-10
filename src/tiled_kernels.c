@@ -1,5 +1,7 @@
 #include "kernels.h"
 
+#define _SKIP_KERNELS 0
+
 void *prepare_input (ninst_t *ninst, void *buffer)
 {
     nasm_ldata_t *ldata = ninst->ldata;
@@ -53,7 +55,7 @@ void tiled_conv2d (ninst_t *ninst, ase_t *ase)
     unsigned int input_col_size = p_ldata->out_mat_dims[OUT_H];
     void **input_ptr_arr = ase->scratchpad;   
     char *input = (char *) scratchpad;
-    // const unsigned int input_pos_per_n = ninst->num_input_pos/ninst->tile_dims[OUT_W];
+    const unsigned int input_pos_per_n = ninst->num_input_pos/ninst->tile_dims[OUT_W];
     const unsigned int M = ninst->tile_dims[OUT_H];
     const unsigned int N = ninst->tile_dims[OUT_W];
     const unsigned int K = layer->params[WEIGHT_H] * layer->params[WEIGHT_W] * layer->params[IN_C];
@@ -63,66 +65,61 @@ void tiled_conv2d (ninst_t *ninst, ase_t *ase)
     const void *A = layer->tensors[WEIGHT_TENSOR]->data + ninst->out_mat_pos[OUT_H] * K * layer->dnn->element_size;
     const void *B = scratchpad;
     void *C = ninst->out_mat;
+    #if _SKIP_KERNELS == 0
+    void (*matmul_kernel) (const unsigned int M, const unsigned int N, const unsigned int K,
+		 const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc) 
+            = NULL;
+    if (layer->dnn->element_size == sizeof(float))
+    {
+        #ifdef AVX2
+        matmul_kernel = &avx2_sgemm_vectorized;
+        #else
+        matmul_kernel = &naive_sgemm_vectorized_without_omp;
+        #endif
+    }
+    else
+    {
+        FPRT(stderr, "ERROR: Unsupported element size %d, at line %d in file %s\n" , layer->dnn->element_size, __LINE__, __FILE__);
+        assert (0);
+    }
 
-    // unsigned int n = 0;
-    // for (; n < N - (N%_TILE_SIZE_N); n += _TILE_SIZE_N)
-    // {
-    //     for (unsigned int i = input_pos_per_n * n; i < input_pos_per_n * (n + _TILE_SIZE_N); i++)
-    //     {
-    //         if (input_ptr_arr[i] == NULL)
-    //         {
-    //             memset (input, 0, input_col_size * layer->dnn->element_size);
-    //         }
-    //         else
-    //         {
-    //             memcpy (input, input_ptr_arr[i], input_col_size * layer->dnn->element_size);
-    //         }
-    //         input += input_col_size * layer->dnn->element_size;
-    //     }
-    //     unsigned int k = 0;
-    //     for (; k < K - (K%_TILE_SIZE_K); k += _TILE_SIZE_K)
-    //     {
-    //         unsigned int m = 0;
-    //         for (; m < M - (M%_TILE_SIZE_M); m += _TILE_SIZE_M)
-    //         {
-    //             naive_sgemm_vectorized_without_omp (_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K, 
-    //                 A + m * lda + k, lda, B + k, ldb, C + ldc * n + m, ldc);
-    //         }
-    //         naive_sgemm_vectorized_without_omp (M%_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K, 
-    //                 A + m * lda + k, lda, B + k, ldb, C + ldc * n + m, ldc);
-    //     }
-    //     unsigned int m = 0;
-    //     for (; m < M - (M%_TILE_SIZE_M); m += _TILE_SIZE_M)
-    //     {
-    //         naive_sgemm_vectorized_without_omp (_TILE_SIZE_M, _TILE_SIZE_N, K%_TILE_SIZE_K, 
-    //             A + m * lda + k, lda, B + k, ldb, C + ldc * n + m, ldc);
-    //     }
-    //     naive_sgemm_vectorized_without_omp (M%_TILE_SIZE_M, _TILE_SIZE_N, K%_TILE_SIZE_K, 
-    //         A + m * lda + k, lda, B + k, ldb, C + ldc * n + m, ldc);
-    // }
-    // for (unsigned int i = input_pos_per_n * n; i < input_pos_per_n * N; i++)
-    // {
-    //     void * input_ptr = ninst->input_pos_idx_arr[i] * layer->dnn->element_size + (char *) p_ldata->out_mat;
-    //     if (input_ptr_arr[i] == NULL)
-    //     {
-    //         memset (input, 0, input_col_size * layer->dnn->element_size);
-    //     }
-    //     else
-    //     {
-    //         memcpy (input, input_ptr_arr[i], input_col_size * layer->dnn->element_size);
-    //     }
-    //     input += input_col_size * layer->dnn->element_size;
-    // }
-    // unsigned int k = 0;
-    // for (; k < K - (K%_TILE_SIZE_K); k += _TILE_SIZE_K)
-    // {
-    //     naive_sgemm_vectorized_without_omp (M, N%_TILE_SIZE_N, _TILE_SIZE_K, 
-    //             A + k, lda, B + k, ldb, C + ldc * n, ldc);
-    // }
-    // naive_sgemm_vectorized_without_omp (M, N%_TILE_SIZE_N, K%_TILE_SIZE_K, 
-    //         A + k, lda, B + k, ldb, C + ldc * n, ldc);
-
-    for (unsigned int i = 0; i < ninst->num_input_pos; i++)
+    unsigned int n = 0;
+    for (; n < N - (N%_TILE_SIZE_N); n += _TILE_SIZE_N)
+    {
+        for (unsigned int i = input_pos_per_n * n; i < input_pos_per_n * (n + _TILE_SIZE_N); i++)
+        {
+            if (input_ptr_arr[i] == NULL)
+            {
+                memset (input, 0, input_col_size * layer->dnn->element_size);
+            }
+            else
+            {
+                memcpy (input, input_ptr_arr[i], input_col_size * layer->dnn->element_size);
+            }
+            input += input_col_size * layer->dnn->element_size;
+        }
+        unsigned int k = 0;
+        for (; k < K - (K%_TILE_SIZE_K); k += _TILE_SIZE_K)
+        {
+            unsigned int m = 0;
+            for (; m < M - (M%_TILE_SIZE_M); m += _TILE_SIZE_M)
+            {
+                matmul_kernel (_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K, 
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            }
+            matmul_kernel (M%_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K, 
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+        }
+        unsigned int m = 0;
+        for (; m < M - (M%_TILE_SIZE_M); m += _TILE_SIZE_M)
+        {
+            matmul_kernel (_TILE_SIZE_M, _TILE_SIZE_N, K%_TILE_SIZE_K, 
+                (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+        }
+        matmul_kernel (M%_TILE_SIZE_M, _TILE_SIZE_N, K%_TILE_SIZE_K, 
+            (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+    }
+    for (unsigned int i = input_pos_per_n * n; i < input_pos_per_n * N; i++)
     {
         if (input_ptr_arr[i] == NULL)
         {
@@ -134,7 +131,14 @@ void tiled_conv2d (ninst_t *ninst, ase_t *ase)
         }
         input += input_col_size * layer->dnn->element_size;
     }
-    naive_sgemm_vectorized_without_omp (M, N, K, A, lda, B, ldb, C, ldc);
+    unsigned int k = 0;
+    for (; k < K - (K%_TILE_SIZE_K); k += _TILE_SIZE_K)
+    {
+        matmul_kernel (M, N, _TILE_SIZE_K, 
+                (float*)A + (k*_VEC_SIZE_M), lda, (float*)B + (n*ldb + k), ldb, (float*)C + (ldc * n), ldc);
+    }
+    matmul_kernel (M, N, K%_TILE_SIZE_K, 
+            (float*)A + (k*_VEC_SIZE_M), lda, (float*)B + (n*ldb + k), ldb, (float*)C + (ldc * n), ldc);
 
     for (unsigned int n = 0; n < N; n++)
     {
@@ -149,6 +153,7 @@ void tiled_conv2d (ninst_t *ninst, ase_t *ase)
         }
         naive_activate (out_vec, M, layer->activation);
     }
+    #endif
 }
 void tiled_maxpool2d (ninst_t *ninst, ase_t *ase)
 {
@@ -161,6 +166,7 @@ void tiled_maxpool2d (ninst_t *ninst, ase_t *ase)
     const unsigned int N = ninst->tile_dims[OUT_W];
     const unsigned int ldc = ldata->out_mat_stride;
     void *C = ninst->out_mat;
+    #if _SKIP_KERNELS == 0
     for (int n = 0; n < N; n++)
     {
         float *out_vec = (float*)C + n * ldc;
@@ -191,6 +197,7 @@ void tiled_maxpool2d (ninst_t *ninst, ase_t *ase)
         }
         naive_activate (out_vec, M, layer->activation);
     }
+    #endif
 }
 void tiled_avgpool2d (ninst_t *ninst, ase_t *ase)
 {
@@ -203,6 +210,7 @@ void tiled_avgpool2d (ninst_t *ninst, ase_t *ase)
     const unsigned int N = ninst->tile_dims[OUT_W];
     const unsigned int ldc = ldata->out_mat_stride;
     void *C = ninst->out_mat;
+    #if _SKIP_KERNELS == 0
     for (int n = 0; n < N; n++)
     {
         float *out_vec = (float*)C + n * ldc;
@@ -234,6 +242,7 @@ void tiled_avgpool2d (ninst_t *ninst, ase_t *ase)
         }
         naive_activate (out_vec, M, layer->activation);
     }
+    #endif
 }
 void tiled_fully_connected (ninst_t *ninst, ase_t *ase)
 {
@@ -250,7 +259,7 @@ void tiled_residual (ninst_t *ninst, ase_t *ase)
     const unsigned int N = ninst->tile_dims[OUT_W];
     const unsigned int ldc = ldata->out_mat_stride;
     void *C = ninst->out_mat;
-
+    #if _SKIP_KERNELS == 0
     for (int n = 0; n < N; n++)
     {
         unsigned int w_pos = ninst->out_mat_pos[OUT_W] + n;
@@ -263,6 +272,7 @@ void tiled_residual (ninst_t *ninst, ase_t *ase)
         }
         naive_activate (out_vec, M, layer->activation);
     }
+    #endif
 }
 
 void tiled_softmax (ninst_t *ninst, ase_t *ase)
@@ -273,7 +283,7 @@ void tiled_softmax (ninst_t *ninst, ase_t *ase)
     const unsigned int N = ninst->tile_dims[OUT_W];
     const unsigned int ldc = ldata->out_mat_stride;
     void *C = ninst->out_mat;
-
+    #if _SKIP_KERNELS == 0
     for (int n = 0; n < N; n++)
     {
         unsigned int w_pos = ninst->out_mat_pos[OUT_W] + n;
@@ -295,4 +305,5 @@ void tiled_softmax (ninst_t *ninst, ase_t *ase)
             output[m] /= sum;
         }
     }
+    #endif
 }

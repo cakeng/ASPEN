@@ -14,7 +14,8 @@ void *ase_thread_runtime (void* thread_info)
         {   
             pthread_cond_wait(&ase->thread_cond, &ase->thread_mutex); 
         }
-        if (ase->ninst_cache->num_stored < ASE_NINST_CACHE_BALLANCE - ASE_NINST_CACHE_DIFF)
+        if ((ase->ninst_cache->num_stored < ASE_NINST_CACHE_BALLANCE - ASE_NINST_CACHE_DIFF) || 
+            ase->ninst_cache->num_stored == 0)
         {
             
             unsigned int fetch_num = 

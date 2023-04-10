@@ -17,14 +17,14 @@ int main(void)
     }
     // print_dnn_info(resnet50_dnn, 0);
     apu_save_dnn_to_file (resnet50_dnn, "data/resnet50.aspen");
-    aspen_dnn_t *resnet50_dnn_2 = apu_load_dnn_from_file ("data/resnet50.aspen");
-    if (resnet50_dnn_2 == NULL) 
-    {
-        printf("Error: Failed to read DNN\n");
-        return -1;
-    }
+    // aspen_dnn_t *resnet50_dnn_2 = apu_load_dnn_from_file ("data/resnet50.aspen");
+    // if (resnet50_dnn_2 == NULL) 
+    // {
+    //     printf("Error: Failed to read DNN\n");
+    //     return -1;
+    // }
     // print_dnn_info (resnet50_dnn_2, 0);
-    nasm_t *resnet50_nasm = apu_create_nasm(resnet50_dnn, 10e6, 4);
+    nasm_t *resnet50_nasm = apu_create_nasm(resnet50_dnn, 10e5, 1);
     if (resnet50_nasm == NULL) 
     {
         printf("Error: Failed to create NASM\n");
@@ -37,7 +37,7 @@ int main(void)
     apu_save_nasm_to_file (resnet50_nasm, nasm_file_name);
 
     // aspen_dnn_t *resnet50_dnn = NULL;
-    // nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_B64_1.0e+07.nasm", &resnet50_dnn);
+    // nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_B1_1.0e+07.nasm", &resnet50_dnn);
     // nasm_t *resnet50_4_nasm = apu_load_nasm_from_file ("data/resnet50_4.nasm", &resnet50_dnn);
     
     rpool_t *rpool = rpool_init (-1);

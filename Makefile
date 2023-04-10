@@ -21,7 +21,7 @@ BUILD_INFO_GCC = $(shell gcc --version | grep -Ei "gcc \([0-9a-zA-Z\. -~]+\) [0-
 BUILD_INFO_UNAME = $(shell uname -srvpim)
 BUILD_INFO_BRANCH = $(shell git log -1 | grep -Eio "commit [0-9a-zA-Z]+")
 BUILD_INFO_NVCC = 
-OPTS=-O3 -march=native -ffast-math -funroll-loops
+OPTS=-O3 -march=native -funroll-loops
 LDFLAGS=-lm -lopenblas -lgomp
 COMMON=-I/usr/local/cuda/include/ -Iinclude/
 ifeq ($(DEBUG), 1) 

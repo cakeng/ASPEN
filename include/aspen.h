@@ -14,6 +14,15 @@
 #include <assert.h>
 #include <stdatomic.h>
 #include <stdlib.h>
+#ifdef AVX2
+#include <immintrin.h>
+#endif //_AVX2
+#ifdef NEON
+#include <arm_neon.h>
+#endif //_NEON
+#ifdef OPENBLAS
+#include <cblas.h>
+#endif
 
 #define MAX_TENSOR_DIMS 8
 #define MAX_STRING_LEN 256
@@ -30,11 +39,7 @@
 
 #if SUPPRESS_OUTPUT == 0
 #define PRT(...) printf(__VA_ARGS__) 
-#if DEBUG == 1
 #define FPRT(...) fprintf(__VA_ARGS__) 
-#else
-#define FPRT(...) fprintf(stderr, "////An error has occurred////\n") 
-#endif
 #else
 #define PRT(...)
 #define FPRT(...) fprintf(stderr, "////An error has occurred////\n") 

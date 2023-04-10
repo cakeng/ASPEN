@@ -56,6 +56,10 @@ aspen_dnn_t *init_aspen_dnn (unsigned int num_layers, char* name)
     {
         init_aspen_layer(new_dnn->layers + i, i, new_dnn);
     }
+    #ifdef AVX2
+    _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+    _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+    #endif
     #ifdef GPU
     if (use_gpu == 1 && aspen_num_gpus == -1)
     {

@@ -365,7 +365,7 @@ void naive_sgemm(const unsigned int M, const unsigned int N, const unsigned int 
             float c = C[n * ldc + m];
             for (unsigned int k = 0; k < K; k++)
             {
-                c += A[m * lda + k] * B[n * ldb + k];
+                c += A[((m/_VEC_SIZE_M) * lda + k)*_VEC_SIZE_M + (m%_VEC_SIZE_M)] * B[n * ldb + k];
             }
             C[n * ldc + m] = c;
         }
@@ -382,7 +382,7 @@ void naive_sgemm_without_omp(const unsigned int M, const unsigned int N, const u
             float c = C[n * ldc + m];
             for (unsigned int k = 0; k < K; k++)
             {
-                c += A[m * lda + k] * B[n * ldb + k];
+                c += A[((m/_VEC_SIZE_M) * lda + k)*_VEC_SIZE_M + (m%_VEC_SIZE_M)] * B[n * ldb + k];
             }
             C[n * ldc + m] = c;
         }
@@ -452,165 +452,6 @@ void naive_sgemm_vectorized(const unsigned int M, const unsigned int N, const un
             for (unsigned int k = 0; k < K; k++)
             {
                 c += A[((m/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M + (m%_VEC_SIZE_M)] * B[n * ldb + k];
-            }
-            C[n * ldc + m] = c;
-        }
-    }
-}   
-
-void naive_sgemm_tiled(const unsigned int M, const unsigned int N, const unsigned int K,
-		 const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc)
-{
-    // 8 by 8 tiled matrix multiplication
-    #pragma omp parallel for collapse(2)
-    for (unsigned int n = 0; n < N/_TILE_SIZE_N; n++)
-    {
-        for (unsigned int m = 0; m < M/_TILE_SIZE_M; m++)
-        {
-            for (unsigned int k = 0; k < K/_TILE_SIZE_K; k++)
-            {
-                for (unsigned int nn = n*_TILE_SIZE_N; nn < (n + 1)*_TILE_SIZE_N; nn += _VEC_SIZE_N)
-                {
-                    for (unsigned int mm = m*_TILE_SIZE_M; mm < (m + 1)*_TILE_SIZE_M; mm += _VEC_SIZE_M)
-                    {
-                        for (unsigned int kk = k*_TILE_SIZE_K; kk < (k + 1)*_TILE_SIZE_K; kk += _VEC_SIZE_K)
-                        {
-                            for (unsigned int i = 0; i < _VEC_SIZE_M; i++)
-                            {
-                                for (unsigned int j = 0; j < _VEC_SIZE_N; j++)
-                                {
-                                    float c = C[(nn + j) * ldc + (mm + i)];
-                                    for (unsigned int l = 0; l < _VEC_SIZE_K; l++)
-                                    {
-                                        c += A[(mm + i) * lda + (kk + l)] * B[(nn + j) * ldb + (kk + l)];
-                                    }
-                                    C[(nn + j) * ldc + (mm + i)] = c;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            for (unsigned int nn = n*_TILE_SIZE_N; nn < (n + 1)*_TILE_SIZE_N; nn += _VEC_SIZE_N)
-            {
-                for (unsigned int mm = m*_TILE_SIZE_M; mm < (m + 1)*_TILE_SIZE_M; mm += _VEC_SIZE_M)
-                {
-                    for (unsigned int i = 0; i < _VEC_SIZE_M; i++)
-                    {
-                        for (unsigned int j = 0; j < _VEC_SIZE_N; j++)
-                        {
-                            float c = C[(nn + j) * ldc + (mm + i)];
-                            for (unsigned int k = K - K%_TILE_SIZE_K; k < K; k++)
-                            {
-                                c += A[(mm + i) * lda + k] * B[(nn + j) * ldb + k];
-                            }
-                            C[(nn + j) * ldc + (mm + i)] = c;
-                        }
-                    }
-                }
-            }
-        }
-    }
-    #pragma omp parallel for
-    for (unsigned int n = N - N%_TILE_SIZE_N; n < N - (N%_VEC_SIZE_N); n += _VEC_SIZE_N)
-    {
-        for (unsigned int m = 0; m < M - (M%_VEC_SIZE_M); m += _VEC_SIZE_M)
-        {
-            for (unsigned int k = 0; k < K/_TILE_SIZE_K; k++)
-            {
-                for (unsigned int kk = k*_TILE_SIZE_K; kk < (k + 1)*_TILE_SIZE_K; kk += _VEC_SIZE_K)
-                {
-                    for (unsigned int i = 0; i < _VEC_SIZE_M; i++)
-                    {
-                        for (unsigned int j = 0; j < _VEC_SIZE_N; j++)
-                        {
-                            float c = C[(n + j) * ldc + (m + i)];
-                            for (unsigned int l = 0; l < _VEC_SIZE_K; l++)
-                            {
-                                c += A[(m + i) * lda + (kk + l)] * B[(n + j) * ldb + (kk + l)];
-                            }
-                            C[(n + j) * ldc + (m + i)] = c;
-                        }
-                    }
-                }
-            }
-            for (unsigned int i = 0; i < _VEC_SIZE_M; i++)
-            {
-                for (unsigned int j = 0; j < _VEC_SIZE_N; j++)
-                {
-                    float c = C[(n + j) * ldc + (m + i)];
-                    for (unsigned int k = K - K%_TILE_SIZE_K; k < K; k++)
-                    {
-                        c += A[(m + i) * lda + k] * B[(n + j) * ldb + k];
-                    }
-                    C[(n + j) * ldc + (m + i)] = c;
-                }
-            }
-        }
-    }
-    for (unsigned int n = N - (N%_VEC_SIZE_N); n < N; n++)
-    {
-        for (unsigned int m = 0; m < M; m++)
-        {
-            float c = C[n * ldc + m];
-            for (unsigned int k = 0; k < K; k++)
-            {
-                c += A[m * lda + k] * B[n * ldb + k];
-            }
-            C[n * ldc + m] = c;
-        }
-    }
-    #pragma omp parallel for
-    for (unsigned int n = 0; n < N/_TILE_SIZE_N; n++)
-    {
-        for (unsigned int m = M - M%_TILE_SIZE_M; m < M - (M%_VEC_SIZE_M); m += _VEC_SIZE_M)
-        {
-            for (unsigned int k = 0; k < K/_TILE_SIZE_K; k++)
-            {
-                for (unsigned int nn = n*_TILE_SIZE_N; nn < (n + 1)*_TILE_SIZE_N; nn += _VEC_SIZE_N)
-                {
-                    for (unsigned int kk = k*_TILE_SIZE_K; kk < (k + 1)*_TILE_SIZE_K; kk += _VEC_SIZE_K)
-                    {
-                        for (unsigned int i = 0; i < _VEC_SIZE_M; i++)
-                        {
-                            for (unsigned int j = 0; j < _VEC_SIZE_N; j++)
-                            {
-                                float c = C[(nn + j) * ldc + (m + i)];
-                                for (unsigned int l = 0; l < _VEC_SIZE_K; l++)
-                                {
-                                    c += A[(m + i) * lda + (kk + l)] * B[(nn + j) * ldb + (kk + l)];
-                                }
-                                C[(nn + j) * ldc + (m + i)] = c;
-                            }
-                        }
-                    }
-                }
-            }
-            for (unsigned int nn = n*_TILE_SIZE_N; nn < (n + 1)*_TILE_SIZE_N; nn += _VEC_SIZE_N)
-            {
-                for (unsigned int i = 0; i < _VEC_SIZE_M; i++)
-                {
-                    for (unsigned int j = 0; j < _VEC_SIZE_N; j++)
-                    {
-                        float c = C[(nn + j) * ldc + (m + i)];
-                        for (unsigned int k = K - K%_TILE_SIZE_K; k < K; k++)
-                        {
-                            c += A[(m + i) * lda + k] * B[(nn + j) * ldb + k];
-                        }
-                        C[(nn + j) * ldc + (m + i)] = c;
-                    }
-                }
-            }
-        }
-    }
-    for (unsigned int n = 0; n < N; n++)
-    {
-        for (unsigned int m = M - M%_VEC_SIZE_M; m < M; m++)
-        {
-            float c = C[n * ldc + m];
-            for (unsigned int k = 0; k < K; k++)
-            {
-                c += A[m * lda + k] * B[n * ldb + k];
             }
             C[n * ldc + m] = c;
         }
