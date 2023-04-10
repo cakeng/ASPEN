@@ -28,8 +28,8 @@
 #define MAX_STRING_LEN 256
 #define MAX_PARENT_NINST_NUM (1<<20) // 1M
 #define MAX_NUM_GPUS 16
-#define NINST_H_MIN 8
-#define NINST_W_MIN 8
+#define NINST_H_MIN (64)
+#define NINST_W_MIN (12)
 #define MEM_ALIGN 64
 #define GPU_MEM_STREAM_HOST_TO_GPU 31
 #define GPU_MEM_STREAM_GPU_TO_HOST 30
@@ -142,8 +142,8 @@ void print_aspen_build_info(void);
 void print_dnn_info (aspen_dnn_t *dnn, int print_data);
 void print_layer_info (aspen_layer_t *layer, int print_data);
 void print_tensor_info (aspen_tensor_t *tensor, int print_data);
-void print_nasm_info (nasm_t *nasm, int print_data);
-void print_ldata_info (nasm_ldata_t *ldata, int print_data);
+void print_nasm_info (nasm_t *nasm, int print_ninst, int print_data);
+void print_ldata_info (nasm_ldata_t *ldata, int print_ninst, int print_data);
 void print_ninst_info (ninst_t *ninst, int print_data);
 void print_rpool_queue_info (rpool_queue_t *rpool_queue);
 void print_rpool_queue_group_info (rpool_queue_group_t *rpool_queue_group);

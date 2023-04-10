@@ -45,6 +45,15 @@ struct rpool_t
     int gpu_idx;
 };
 
+struct cpool_t
+{
+    _Atomic unsigned int num_groups;
+    rpool_queue_group_t queue_arr[MAX_QUEUE_GROUPS];
+    rpool_queue_t default_queue;
+    _Atomic unsigned int ref_ases;
+    int gpu_idx;
+};
+
 void rpool_init_queue (rpool_queue_t *rpool_queue);
 void rpool_destroy_queue (rpool_queue_t *rpool_queue);
 

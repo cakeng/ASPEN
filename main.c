@@ -24,7 +24,7 @@ int main(void)
     //     return -1;
     // }
     // print_dnn_info (resnet50_dnn_2, 0);
-    nasm_t *resnet50_nasm = apu_create_nasm(resnet50_dnn, 10e5, 1);
+    nasm_t *resnet50_nasm = apu_create_nasm(resnet50_dnn, 10e6, 4);
     if (resnet50_nasm == NULL) 
     {
         printf("Error: Failed to create NASM\n");
@@ -41,13 +41,13 @@ int main(void)
     // nasm_t *resnet50_4_nasm = apu_load_nasm_from_file ("data/resnet50_4.nasm", &resnet50_dnn);
     
     rpool_t *rpool = rpool_init (-1);
-    ase_group_t *ase_group = ase_group_init (64, -1);
+    ase_group_t *ase_group = ase_group_init (16, -1);
     ase_group_set_rpool (ase_group, rpool);
 
     // rpool_add_nasm_raw_input (rpool, resnet50_4_nasm, 0.5, dog_data);
     rpool_add_nasm (rpool, resnet50_nasm, 1.0, "data/batched_input_64.bin");
     // print_rpool_info (rpool);
-    // print_nasm_info(resnet50_nasm, 0);
+    print_nasm_info(resnet50_nasm, 0, 0);
     // print_dnn_info(resnet50_dnn, 0);
 
     get_elapsed_time ("init");

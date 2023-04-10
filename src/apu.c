@@ -498,76 +498,70 @@ void ninst_find_input_pos_idx (ninst_t *ninst)
 {
     nasm_ldata_t *ldata = ninst->ldata;
     aspen_layer_t *layer = ldata->layer;
+    nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
+    aspen_layer_t *p_layer = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr)->layer;
     if (layer->type == CONV_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER)
     {
-        // unsigned int parent_stride = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr)->out_mat_stride;
+        unsigned int parent_stride = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr)->out_mat_stride;
         unsigned int num_input_pos = ninst->tile_dims[OUT_W]*layer->params[WEIGHT_H]*layer->params[WEIGHT_W];
         ninst->num_input_pos = num_input_pos;
-        // ninst->input_pos_idx_arr = calloc(num_input_pos, sizeof(unsigned int));
-        // unsigned int input_pos_idx = 0;
-        // for (unsigned int tile_w = 0; tile_w < ninst->tile_dims[OUT_W]; tile_w++)
-        // {
-        //     unsigned int out_mat_pos[2] = {ninst->out_mat_pos[OUT_W] + tile_w, 0};
-        //     unsigned int out_tensor_pos[NUM_PARAM_ELEMENTS] = {0}, in_tensor_pos[NUM_PARAM_ELEMENTS] = {0}; 
-        //     get_tensor_pos_from_out_mat_pos(ldata, out_mat_pos, out_tensor_pos);
-        //     in_tensor_pos[BATCH] = out_tensor_pos[BATCH];
-        //     nasm_ldata_t *parent_ldata = ldata->nasm->ldata_arr + ldata->parent_ldata_idx_arr[PARENT_0];
-        //     aspen_layer_t *parent_layer = parent_ldata->layer;
-        //     in_tensor_pos[OUT_C] = 0;
-        //     for (int j = 0; j < layer->params[WEIGHT_H]; j++)
-        //     {
-        //         in_tensor_pos[OUT_H] = out_tensor_pos[OUT_H]*layer->params[STRIDE]
-        //             + j*layer->params[DILATION] - layer->params[PADDING];
-        //         for (int k = 0; k < layer->params[WEIGHT_W]; k++)
-        //         {
-        //             in_tensor_pos[OUT_W] = out_tensor_pos[OUT_W]*layer->params[STRIDE]
-        //                 + k*layer->params[DILATION] - layer->params[PADDING];
-        //             if (in_tensor_pos[BATCH] >= 0 && in_tensor_pos[BATCH] < ldata->nasm->batch_size && in_tensor_pos[OUT_C] >= 0 && in_tensor_pos[OUT_C] < layer->params[IN_C] &&
-        //                 in_tensor_pos[OUT_H] >= 0 && in_tensor_pos[OUT_H] < layer->params[IN_H] && in_tensor_pos[OUT_W] >= 0 && in_tensor_pos[OUT_W] < layer->params[IN_W])
-        //             {
-        //                 unsigned int input_pos = (in_tensor_pos[BATCH] * parent_layer->params[OUT_H] * parent_layer->params[OUT_W] * parent_layer->params[OUT_C]
-        //                     + in_tensor_pos[OUT_H] * parent_layer->params[IN_W]
-        //                     + in_tensor_pos[OUT_W]) * parent_ldata->out_mat_stride;
-        //                 ninst->input_pos_idx_arr[input_pos_idx] = input_pos;
-        //             }
-        //             else
-        //             {
-        //                 ninst->input_pos_idx_arr[input_pos_idx] = -1;
-        //             }
-        //             input_pos_idx++;
-        //         }
-        //     }
-        // }
+        ninst->input_pos_idx_arr = calloc(num_input_pos, sizeof(int));
+        int *input_idx_arr = ninst->input_pos_idx_arr;
+        unsigned int num_idx = 0;
+        unsigned int mat_w = ninst->out_mat_pos[OUT_W];
+        for (; mat_w < ninst->out_mat_pos[OUT_W] + ninst->tile_dims[OUT_W]; mat_w++)
+        {
+            unsigned int out_b = mat_w / (layer->params[OUT_H] * layer->params[OUT_W]); 
+            unsigned int out_h = (mat_w % (layer->params[OUT_H] * layer->params[OUT_W])) / layer->params[OUT_W];
+            unsigned int out_w = mat_w % layer->params[OUT_W];
+            unsigned int in_b = out_b;
+            for (int kh = 0; kh < layer->params[WEIGHT_H]; kh++)
+            {
+                for (int kw = 0; kw < layer->params[WEIGHT_W]; kw++)
+                {
+                    int in_h = out_h * layer->params[STRIDE] + kh  - layer->params[PADDING];
+                    int in_w = out_w * layer->params[STRIDE] + kw  - layer->params[PADDING];
+                    if (in_h < 0 || in_h >= p_layer->params[OUT_H] || in_w < 0 || in_w >= p_layer->params[OUT_W])
+                    {
+                        input_idx_arr[num_idx++] = -1;
+                        continue;
+                    }
+                    int in_idx = in_b * p_layer->params[OUT_H] * p_layer->params[OUT_W] 
+                        + in_h * p_layer->params[OUT_W] + in_w;
+                    input_idx_arr[num_idx++] = in_idx;
+                }
+            }
+        }
     }
     else if (layer->type == RESIDUAL_LAYER)
     {
-        // unsigned int parent_stride = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr)->out_mat_stride;
-        // unsigned int parent_stride2 = (ldata->parent_ldata_idx_arr[PARENT_1] + ldata->nasm->ldata_arr)->out_mat_stride;
+        unsigned int parent_stride = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr)->out_mat_stride;
+        unsigned int parent_stride2 = (ldata->parent_ldata_idx_arr[PARENT_1] + ldata->nasm->ldata_arr)->out_mat_stride;
         unsigned int num_input_pos = ninst->tile_dims[OUT_W]*2;
         ninst->num_input_pos = num_input_pos;
-        // ninst->input_pos_idx_arr = calloc(num_input_pos, sizeof(unsigned int));
-        // unsigned int input_pos_idx = 0;
-        // for (unsigned int tile_w = 0; tile_w < ninst->tile_dims[OUT_W]; tile_w++)
-        // {
-        //     ninst->input_pos_idx_arr [input_pos_idx] = (ninst->out_mat_pos[OUT_W] + tile_w) * parent_stride;
-        //     input_pos_idx++;
-        //     ninst->input_pos_idx_arr [input_pos_idx] = (ninst->out_mat_pos[OUT_W] + tile_w) * parent_stride2;
-        //     input_pos_idx++;
-        // }
+        ninst->input_pos_idx_arr = calloc(num_input_pos, sizeof(unsigned int));
+        unsigned int input_pos_idx = 0;
+        for (unsigned int tile_w = 0; tile_w < ninst->tile_dims[OUT_W]; tile_w++)
+        {
+            ninst->input_pos_idx_arr [input_pos_idx] = (ninst->out_mat_pos[OUT_W] + tile_w) * parent_stride;
+            input_pos_idx++;
+            ninst->input_pos_idx_arr [input_pos_idx] = (ninst->out_mat_pos[OUT_W] + tile_w) * parent_stride2;
+            input_pos_idx++;
+        }
 
     }
     else if (layer->type == SOFTMAX_LAYER || layer->type == FC_LAYER)
     {
-        // unsigned int parent_stride = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr)->out_mat_stride;
+        unsigned int parent_stride = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr)->out_mat_stride;
         unsigned int num_input_pos = ninst->tile_dims[OUT_W];
         ninst->num_input_pos = num_input_pos;
-        // ninst->input_pos_idx_arr = calloc(num_input_pos, sizeof(unsigned int));
-        // unsigned int input_pos_idx = 0;
-        // for (unsigned int tile_w = 0; tile_w < ninst->tile_dims[OUT_W]; tile_w++)
-        // {
-        //     ninst->input_pos_idx_arr [input_pos_idx] = (ninst->out_mat_pos[OUT_W] + tile_w) * parent_stride;
-        //     input_pos_idx++;
-        // }
+        ninst->input_pos_idx_arr = calloc(num_input_pos, sizeof(unsigned int));
+        unsigned int input_pos_idx = 0;
+        for (unsigned int tile_w = 0; tile_w < ninst->tile_dims[OUT_W]; tile_w++)
+        {
+            ninst->input_pos_idx_arr [input_pos_idx] = (ninst->out_mat_pos[OUT_W] + tile_w) * parent_stride;
+            input_pos_idx++;
+        }
     }
     else if (layer->type == INPUT_LAYER)
     {
@@ -1404,7 +1398,7 @@ void print_tensor_info (aspen_tensor_t *tensor, int print_data)
     }
 }
 
-void print_nasm_info (nasm_t *nasm, int print_data)
+void print_nasm_info (nasm_t *nasm, int print_ninst, int print_data)
 {
     if (nasm == NULL)
     {
@@ -1421,12 +1415,12 @@ void print_nasm_info (nasm_t *nasm, int print_data)
     printf("Total FLOPs: %ld\n", nasm->total_flops);
     for (int i = 0; i < nasm->num_ldata; i++)
     {
-        print_ldata_info(&nasm->ldata_arr[i], print_data);
+        print_ldata_info(&nasm->ldata_arr[i], print_ninst, print_data);
     }
     printf("//////////////////////// End of NASM Info ////////////////////////\n");
 }
 
-void print_ldata_info (nasm_ldata_t *ldata, int print_data)
+void print_ldata_info (nasm_ldata_t *ldata, int print_ninst, int print_data)
 {
     if (ldata == NULL)
     {
@@ -1487,10 +1481,13 @@ void print_ldata_info (nasm_ldata_t *ldata, int print_data)
     printf("Ldata Ninst Tile Dimensions: (H: %d, W: %d)\n", 
         ldata->ninst_tile_dims[OUT_H], ldata->ninst_tile_dims[OUT_W]);
     printf("Number of ninst: %d, Completed: %d\n", ldata->num_ninst, ldata->num_ninst_completed);
-    for (int i = 0; i < ldata->num_ninst; i++)
+    if (print_ninst)
     {
-        printf ("\tNinst %d: ", i);
-        print_ninst_info(&ldata->ninst_arr_start[i], print_data);
+        for (int i = 0; i < ldata->num_ninst; i++)
+        {
+            printf ("\tNinst %d: ", i);
+            print_ninst_info(&ldata->ninst_arr_start[i], print_data);
+        }
     }
     printf("////////////////////////  End of ldata Info  ////////////////////////\n");
 }

@@ -826,9 +826,9 @@ void apu_save_nasm_to_file(nasm_t *nasm, char *filename)
             }
             fprintf (fp, "\tCHILD_NINST_IDXES_END\n");
             fprintf (fp, "\tNUM_INPUT_POS:%d\n", ninst->num_input_pos);
-            // fprintf (fp, "\tINPUT_POS:\n");
-            // fwrite (ninst->input_pos_idx_arr, sizeof(int), ninst->num_input_pos, fp);
-            // fprintf (fp, "\tINPUT_POS_END\n");
+            fprintf (fp, "\tINPUT_POS:\n");
+            fwrite (ninst->input_pos_idx_arr, sizeof(int), ninst->num_input_pos, fp);
+            fprintf (fp, "\tINPUT_POS_END\n");
         }
     }
     fprintf (fp, "NASM_NINSTS_END\n");
@@ -1061,24 +1061,24 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
                 return NULL;
             }
             ninst->num_input_pos = atoi(ptr);
-            // ninst->input_pos_idx_arr = calloc (ninst->num_input_pos, sizeof(int));
-            // if ((ptr = read_check_and_return (fp, line, "INPUT_POS:", &line_num)) == NULL)
-            // {
-            //     FPRT(stderr,"ASPEN DNN file %s parse error: Missing INPUT_POS.\n", filename);
-            //     apu_destroy_nasm (nasm);
-            //     *output_dnn = NULL;
-            //     fclose (fp);
-            //     return NULL;
-            // }
-            // fread (ninst->input_pos_idx_arr, sizeof(int), ninst->num_input_pos, fp);
-            // if ((ptr = read_check_and_return (fp, line, "INPUT_POS_END", &line_num)) == NULL)
-            // {
-            //     FPRT(stderr,"ASPEN DNN file %s parse error: Missing INPUT_POS_END.\n", filename);
-            //     apu_destroy_nasm (nasm);
-            //     *output_dnn = NULL;
-            //     fclose (fp);
-            //     return NULL;
-            // }
+            ninst->input_pos_idx_arr = calloc (ninst->num_input_pos, sizeof(int));
+            if ((ptr = read_check_and_return (fp, line, "INPUT_POS:", &line_num)) == NULL)
+            {
+                FPRT(stderr,"ASPEN DNN file %s parse error: Missing INPUT_POS.\n", filename);
+                apu_destroy_nasm (nasm);
+                *output_dnn = NULL;
+                fclose (fp);
+                return NULL;
+            }
+            fread (ninst->input_pos_idx_arr, sizeof(int), ninst->num_input_pos, fp);
+            if ((ptr = read_check_and_return (fp, line, "INPUT_POS_END", &line_num)) == NULL)
+            {
+                FPRT(stderr,"ASPEN DNN file %s parse error: Missing INPUT_POS_END.\n", filename);
+                apu_destroy_nasm (nasm);
+                *output_dnn = NULL;
+                fclose (fp);
+                return NULL;
+            }
         }
     }
     if ((ptr = read_check_and_return (fp, line, "NASM_NINSTS_END", &line_num)) == NULL)

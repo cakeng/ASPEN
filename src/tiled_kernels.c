@@ -14,7 +14,7 @@ void *prepare_input (ninst_t *ninst, void *buffer)
     if (layer->type == CONV_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER)
     {
         unsigned int mat_w = ninst->out_mat_pos[OUT_W];
-        for (; mat_w < ninst->out_mat_pos[OUT_W] + ldata->ninst_tile_dims[OUT_W]; mat_w++)
+        for (; mat_w < ninst->out_mat_pos[OUT_W] + ninst->tile_dims[OUT_W]; mat_w++)
         {
             unsigned int out_b = mat_w / (layer->params[OUT_H] * layer->params[OUT_W]); 
             unsigned int out_h = (mat_w % (layer->params[OUT_H] * layer->params[OUT_W])) / layer->params[OUT_W];
@@ -51,10 +51,10 @@ void tiled_conv2d (ninst_t *ninst, ase_t *ase)
     nasm_ldata_t *ldata = ninst->ldata;
     aspen_layer_t *layer = ninst->ldata->layer;
     nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
-    void *scratchpad = prepare_input (ninst, ase->scratchpad);
+    // void *scratchpad = prepare_input (ninst, ase->scratchpad);
     unsigned int input_col_size = p_ldata->out_mat_dims[OUT_H];
-    void **input_ptr_arr = ase->scratchpad;   
-    char *input = (char *) scratchpad;
+    // void **input_ptr_arr = ase->scratchpad;   
+    char *input = ase->scratchpad; // (char *) scratchpad;
     const unsigned int input_pos_per_n = ninst->num_input_pos/ninst->tile_dims[OUT_W];
     const unsigned int M = ninst->tile_dims[OUT_H];
     const unsigned int N = ninst->tile_dims[OUT_W];
@@ -63,95 +63,133 @@ void tiled_conv2d (ninst_t *ninst, ase_t *ase)
     const unsigned int ldb = K;
     const unsigned int ldc = ldata->out_mat_stride;
     const void *A = layer->tensors[WEIGHT_TENSOR]->data + ninst->out_mat_pos[OUT_H] * K * layer->dnn->element_size;
-    const void *B = scratchpad;
+    const void *B = ase->scratchpad;
     void *C = ninst->out_mat;
     #if _SKIP_KERNELS == 0
-    void (*matmul_kernel) (const unsigned int M, const unsigned int N, const unsigned int K,
-		 const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc) 
-            = NULL;
-    if (layer->dnn->element_size == sizeof(float))
-    {
-        #ifdef AVX2
-        matmul_kernel = &avx2_sgemm_vectorized;
-        #else
-        matmul_kernel = &naive_sgemm_vectorized_without_omp;
-        #endif
-    }
-    else
-    {
-        FPRT(stderr, "ERROR: Unsupported element size %d, at line %d in file %s\n" , layer->dnn->element_size, __LINE__, __FILE__);
-        assert (0);
-    }
-
+    const unsigned int rem_n = N % _TILE_SIZE_N;
+    const unsigned int rem_m = M % _TILE_SIZE_M;
+    const unsigned int rem_k = K % _TILE_SIZE_K;
     unsigned int n = 0;
-    for (; n < N - (N%_TILE_SIZE_N); n += _TILE_SIZE_N)
+    // <M, N, K> = <M, _TILE_SIZE_N, K>
+    for (; n < N - rem_n; n += _TILE_SIZE_N)
     {
         for (unsigned int i = input_pos_per_n * n; i < input_pos_per_n * (n + _TILE_SIZE_N); i++)
         {
-            if (input_ptr_arr[i] == NULL)
+            void *input_ptr = ninst->input_pos_idx_arr[i]*p_ldata->out_mat_stride + (float *) p_ldata->out_mat;
+            if (ninst->input_pos_idx_arr[i] == -1)
             {
                 memset (input, 0, input_col_size * layer->dnn->element_size);
             }
             else
             {
-                memcpy (input, input_ptr_arr[i], input_col_size * layer->dnn->element_size);
+                memcpy (input, input_ptr, input_col_size * layer->dnn->element_size);
             }
             input += input_col_size * layer->dnn->element_size;
         }
         unsigned int k = 0;
-        for (; k < K - (K%_TILE_SIZE_K); k += _TILE_SIZE_K)
+        // <M, N, K> = <M, _TILE_SIZE_N, _TILE_SIZE_K>
+        for (; k < K - rem_k; k += _TILE_SIZE_K)
         {
             unsigned int m = 0;
-            for (; m < M - (M%_TILE_SIZE_M); m += _TILE_SIZE_M)
+            // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K>
+            for (; m < M - rem_m; m += _TILE_SIZE_M)
             {
-                matmul_kernel (_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K, 
+                SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K, 
                     (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
             }
-            matmul_kernel (M%_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K, 
-                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            // <M, N, K> = <rem_m, _TILE_SIZE_N, _TILE_SIZE_K>
+            if (rem_m != 0)
+                SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, _TILE_SIZE_K, 
+                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+        
         }
-        unsigned int m = 0;
-        for (; m < M - (M%_TILE_SIZE_M); m += _TILE_SIZE_M)
+        // <M, N, K> = <M, _TILE_SIZE_N, rem_k>
+        if (rem_k != 0)
         {
-            matmul_kernel (_TILE_SIZE_M, _TILE_SIZE_N, K%_TILE_SIZE_K, 
+            unsigned int m = 0;
+            // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, rem_k>
+            for (; m < M - rem_m; m += _TILE_SIZE_M)
+            {
+                SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, rem_k,
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            }
+            // <M, N, K> = <rem_m, _TILE_SIZE_N, rem_k>
+            SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, rem_k, 
                 (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
         }
-        matmul_kernel (M%_TILE_SIZE_M, _TILE_SIZE_N, K%_TILE_SIZE_K, 
-            (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+        for (unsigned int nn = n; nn < n + _TILE_SIZE_N; nn++)
+        {
+            float *out_vec = (float *)C + nn * ldc;
+            float *bias = (float*)layer->tensors[BIAS_TENSOR]->data + ninst->out_mat_pos[OUT_H];
+            if (layer->tensors[BIAS_TENSOR] != NULL)
+            {
+            for (unsigned int m = 0; m < M; m++)
+            {
+                out_vec[m] += bias[m];
+            }
+            }
+            naive_activate (out_vec, M, layer->activation);
+        }
     }
-    for (unsigned int i = input_pos_per_n * n; i < input_pos_per_n * N; i++)
+    // <M, N, K> = <M, rem_n, K>
+    if (rem_n != 0)
     {
-        if (input_ptr_arr[i] == NULL)
+        for (unsigned int i = input_pos_per_n * n; i < input_pos_per_n * N; i++)
         {
-            memset (input, 0, input_col_size * layer->dnn->element_size);
+            void *input_ptr = ninst->input_pos_idx_arr[i]*p_ldata->out_mat_stride + (float *) p_ldata->out_mat;
+                if (ninst->input_pos_idx_arr[i] == -1)
+            {
+                memset (input, 0, input_col_size * layer->dnn->element_size);
+            }
+            else
+            {
+                memcpy (input, input_ptr, input_col_size * layer->dnn->element_size);
+            }
+            input += input_col_size * layer->dnn->element_size;
         }
-        else
+        unsigned int k = 0;
+        // <M, N, K> = <M, rem_n, _TILE_SIZE_K>
+        for (; k < K - rem_k; k += _TILE_SIZE_K)
         {
-            memcpy (input, input_ptr_arr[i], input_col_size * layer->dnn->element_size);
+            unsigned int m = 0;
+            // <M, N, K> = <_TILE_SIZE_M, rem_n, _TILE_SIZE_K>
+            for (; m < M - rem_m; m += _TILE_SIZE_M)
+            {
+                SGEMM_KERNEL_TILE_M (_TILE_SIZE_M, rem_n, _TILE_SIZE_K, 
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            }
+            // <M, N, K> = <rem_m, rem_n, _TILE_SIZE_K>
+            if (rem_m != 0)
+                SGEMM_KERNEL (rem_m, rem_n, _TILE_SIZE_K, 
+                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
         }
-        input += input_col_size * layer->dnn->element_size;
-    }
-    unsigned int k = 0;
-    for (; k < K - (K%_TILE_SIZE_K); k += _TILE_SIZE_K)
-    {
-        matmul_kernel (M, N, _TILE_SIZE_K, 
-                (float*)A + (k*_VEC_SIZE_M), lda, (float*)B + (n*ldb + k), ldb, (float*)C + (ldc * n), ldc);
-    }
-    matmul_kernel (M, N, K%_TILE_SIZE_K, 
-            (float*)A + (k*_VEC_SIZE_M), lda, (float*)B + (n*ldb + k), ldb, (float*)C + (ldc * n), ldc);
-
-    for (unsigned int n = 0; n < N; n++)
-    {
-        float *out_vec = (float *)C + n * ldc;
-        float *bias = (float*)layer->tensors[BIAS_TENSOR]->data + ninst->out_mat_pos[OUT_H];
-        if (layer->tensors[BIAS_TENSOR] != NULL)
+        // <M, N, K> = <M, rem_n, rem_k>
+        if (rem_k != 0)
         {
-        for (unsigned int m = 0; m < M; m++)
+            unsigned int m = 0;
+            // <M, N, K> = <_TILE_SIZE_M, rem_n, rem_k>
+            for (; m < M - rem_m; m += _TILE_SIZE_M)
+            {
+                SGEMM_KERNEL_TILE_M (_TILE_SIZE_M, rem_n, rem_k,
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            }
+            // <M, N, K> = <rem_m, rem_n, rem_k>
+            SGEMM_KERNEL (rem_m, rem_n, rem_k, 
+                (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+        }
+        for (unsigned int nn = n; nn < N; nn++)
         {
-            out_vec[m] += bias[m];
+            float *out_vec = (float *)C + nn * ldc;
+            float *bias = (float*)layer->tensors[BIAS_TENSOR]->data + ninst->out_mat_pos[OUT_H];
+            if (layer->tensors[BIAS_TENSOR] != NULL)
+            {
+            for (unsigned int m = 0; m < M; m++)
+            {
+                out_vec[m] += bias[m];
+            }
+            }
+            naive_activate (out_vec, M, layer->activation);
         }
-        }
-        naive_activate (out_vec, M, layer->activation);
     }
     #endif
 }

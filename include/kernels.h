@@ -5,15 +5,25 @@
 #include "ase.h"
 #include "util.h"
 
-#define __L1_CACHE 32768
-#define __L2_CACHE 512*1024
-#define __SLACK 1024
 #define _TILE_SIZE_M 128
-#define _TILE_SIZE_N 128
-#define _TILE_SIZE_K 128
+#define _TILE_SIZE_N 120
+#define _TILE_SIZE_K 368
 #define _VEC_SIZE_M 8
 #define _VEC_SIZE_N 12
 #define _VEC_SIZE_K 8
+
+#if AVX2
+#define SGEMM_KERNEL avx2_sgemm_vectorized
+#define SGEMM_KERNEL_FULL_TILE avx2_sgemm_full_tile
+#define SGEMM_KERNEL_TILE_M avx2_sgemm_tile_M
+#define SGEMM_KERNEL_TILE_N avx2_sgemm_tile_N
+#elif NEON
+#else
+#define SGEMM_KERNEL naive_sgemm_vectorized
+#define SGEMM_KERNEL_FULL_TILE naive_sgemm_vectorized
+#define SGEMM_KERNEL_TILE_M naive_sgemm_vectorized
+#define SGEMM_KERNEL_TILE_N naive_sgemm_vectorized
+#endif
 
 void tiled_conv2d (ninst_t *ninst, ase_t *ase);
 void tiled_maxpool2d (ninst_t *ninst, ase_t *ase);
@@ -69,8 +79,13 @@ void naive_sgemm_vectorized (const unsigned int M, const unsigned int N, const u
 #ifdef AVX2
 // avx2 accelerated matmul kernels
 void avx2_sgemm_vectorized (const unsigned int M, const unsigned int N, const unsigned int K,
-		 const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc);
-
+    const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc);
+void avx2_sgemm_full_tile(const unsigned int M, const unsigned int N, const unsigned int K,
+    const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc);
+void avx2_sgemm_tile_M(const unsigned int M, const unsigned int N, const unsigned int K,
+    const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc);
+void avx2_sgemm_tile_N(const unsigned int M, const unsigned int N, const unsigned int K,
+    const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc);
 #endif //_AVX2
 
 #ifdef NEON
