@@ -15,6 +15,7 @@
 #include <assert.h>
 #include <stdatomic.h>
 #include <stdlib.h>
+
 #ifdef AVX2
 #include <immintrin.h>
 #endif //_AVX2

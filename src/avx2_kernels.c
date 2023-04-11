@@ -603,9 +603,7 @@ void avx2_sgemm_full_tile(const unsigned int M, const unsigned int N, const unsi
             }
             #endif
         }
-
     }
-    
 }   
 void avx2_sgemm_tile_M(const unsigned int M, const unsigned int N, const unsigned int K,
 		 const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc)

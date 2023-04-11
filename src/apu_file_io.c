@@ -788,7 +788,7 @@ void apu_save_nasm_to_file(nasm_t *nasm, char *filename)
     }
     if (filename == NULL)
     {
-        FPRT(stderr,"ASPEN NASM file %s not specified.\n", filename);
+        FPRT(stderr,"ASPEN NASM file name not specified.\n");
         return;
     }
     apu_save_dnn_to_file (nasm->dnn, filename);
@@ -1070,7 +1070,16 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
                 fclose (fp);
                 return NULL;
             }
-            fread (ninst->input_pos_idx_arr, sizeof(int), ninst->num_input_pos, fp);
+            size_t val = fread (ninst->input_pos_idx_arr, sizeof(int), ninst->num_input_pos, fp);
+            if (val != ninst->num_input_pos)
+            {
+                FPRT(stderr,"ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
+                    filename, __LINE__, __FILE__);
+                apu_destroy_nasm (nasm);
+                *output_dnn = NULL;
+                fclose (fp);
+                return NULL;
+            }
             if ((ptr = read_check_and_return (fp, line, "INPUT_POS_END", &line_num)) == NULL)
             {
                 FPRT(stderr,"ASPEN DNN file %s parse error: Missing INPUT_POS_END.\n", filename);
