@@ -91,7 +91,7 @@ void *ase_thread_runtime (void* thread_info)
                         break;
                     default:
                         // FPRT (stderr, "ERROR: ase_thread_runtime: layer type %s is not supported\n", layer_type_str[ninst->ldata->layer->type]);
-                        
+                        break;
                 }
             }
 

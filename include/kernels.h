@@ -18,6 +18,10 @@
 #define SGEMM_KERNEL_TILE_M avx2_sgemm_tile_M
 #define SGEMM_KERNEL_TILE_N avx2_sgemm_tile_N
 #elif NEON
+#define SGEMM_KERNEL neon_sgemm_vectorized
+#define SGEMM_KERNEL_FULL_TILE neon_sgemm_vectorized
+#define SGEMM_KERNEL_TILE_M neon_sgemm_vectorized
+#define SGEMM_KERNEL_TILE_N neon_sgemm_vectorized
 #else
 #define SGEMM_KERNEL naive_sgemm_vectorized
 #define SGEMM_KERNEL_FULL_TILE naive_sgemm_vectorized
@@ -87,14 +91,9 @@ void avx2_sgemm_tile_M(const unsigned int M, const unsigned int N, const unsigne
 void avx2_sgemm_tile_N(const unsigned int M, const unsigned int N, const unsigned int K,
     const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc);
 #endif //_AVX2
-
 #ifdef NEON
-#include <arm_neon.h>
-
+void neon_sgemm_vectorized (const unsigned int M, const unsigned int N, const unsigned int K,
+    const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc);
 #endif //_NEON
-
-#ifdef OPENBLAS
-#include <cblas.h>
-#endif
 
 #endif // _KERNELS_H_
