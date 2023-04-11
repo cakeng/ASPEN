@@ -48,6 +48,7 @@ void *prepare_input (ninst_t *ninst, void *buffer)
 
 void tiled_conv2d (ninst_t *ninst, ase_t *ase)
 {
+    #if _SKIP_KERNELS == 0
     nasm_ldata_t *ldata = ninst->ldata;
     aspen_layer_t *layer = ninst->ldata->layer;
     nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
@@ -65,7 +66,6 @@ void tiled_conv2d (ninst_t *ninst, ase_t *ase)
     const void *A = layer->tensors[WEIGHT_TENSOR]->data + ninst->out_mat_pos[OUT_H] * K * layer->dnn->element_size;
     const void *B = ase->scratchpad;
     void *C = ninst->out_mat;
-    #if _SKIP_KERNELS == 0
     const unsigned int rem_n = N % _TILE_SIZE_N;
     const unsigned int rem_m = M % _TILE_SIZE_M;
     const unsigned int rem_k = K % _TILE_SIZE_K;
@@ -195,6 +195,7 @@ void tiled_conv2d (ninst_t *ninst, ase_t *ase)
 }
 void tiled_maxpool2d (ninst_t *ninst, ase_t *ase)
 {
+    #if _SKIP_KERNELS == 0
     nasm_ldata_t *ldata = ninst->ldata;
     aspen_layer_t *layer = ninst->ldata->layer;
     prepare_input (ninst, ase->scratchpad);
@@ -204,7 +205,6 @@ void tiled_maxpool2d (ninst_t *ninst, ase_t *ase)
     const unsigned int N = ninst->tile_dims[OUT_W];
     const unsigned int ldc = ldata->out_mat_stride;
     void *C = ninst->out_mat;
-    #if _SKIP_KERNELS == 0
     for (int n = 0; n < N; n++)
     {
         float *out_vec = (float*)C + n * ldc;
@@ -239,6 +239,7 @@ void tiled_maxpool2d (ninst_t *ninst, ase_t *ase)
 }
 void tiled_avgpool2d (ninst_t *ninst, ase_t *ase)
 {
+    #if _SKIP_KERNELS == 0
     nasm_ldata_t *ldata = ninst->ldata;
     aspen_layer_t *layer = ninst->ldata->layer;
     prepare_input (ninst, ase->scratchpad);
@@ -248,7 +249,6 @@ void tiled_avgpool2d (ninst_t *ninst, ase_t *ase)
     const unsigned int N = ninst->tile_dims[OUT_W];
     const unsigned int ldc = ldata->out_mat_stride;
     void *C = ninst->out_mat;
-    #if _SKIP_KERNELS == 0
     for (int n = 0; n < N; n++)
     {
         float *out_vec = (float*)C + n * ldc;
@@ -289,6 +289,7 @@ void tiled_fully_connected (ninst_t *ninst, ase_t *ase)
 }
 void tiled_residual (ninst_t *ninst, ase_t *ase)
 {
+    #if _SKIP_KERNELS == 0
     nasm_ldata_t *ldata = ninst->ldata;
     aspen_layer_t *layer = ninst->ldata->layer;
     nasm_ldata_t *p0_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
@@ -297,7 +298,6 @@ void tiled_residual (ninst_t *ninst, ase_t *ase)
     const unsigned int N = ninst->tile_dims[OUT_W];
     const unsigned int ldc = ldata->out_mat_stride;
     void *C = ninst->out_mat;
-    #if _SKIP_KERNELS == 0
     for (int n = 0; n < N; n++)
     {
         unsigned int w_pos = ninst->out_mat_pos[OUT_W] + n;
@@ -315,13 +315,13 @@ void tiled_residual (ninst_t *ninst, ase_t *ase)
 
 void tiled_softmax (ninst_t *ninst, ase_t *ase)
 {
+    #if _SKIP_KERNELS == 0
     nasm_ldata_t *ldata = ninst->ldata;
     nasm_ldata_t *p0_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
     const unsigned int M = ninst->tile_dims[OUT_H];
     const unsigned int N = ninst->tile_dims[OUT_W];
     const unsigned int ldc = ldata->out_mat_stride;
     void *C = ninst->out_mat;
-    #if _SKIP_KERNELS == 0
     for (int n = 0; n < N; n++)
     {
         unsigned int w_pos = ninst->out_mat_pos[OUT_W] + n;

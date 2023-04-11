@@ -9,6 +9,7 @@
 #include <float.h>
 #include <limits.h>
 #include <pthread.h>
+#include <stdint.h>
 #include <time.h>
 #include <sys/time.h>
 #include <assert.h>

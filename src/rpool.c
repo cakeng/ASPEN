@@ -1,8 +1,17 @@
 #include "rpool.h"
+static unsigned int _rand_seed = 19960930;
+inline unsigned int xors_rand ()
+{
+    _rand_seed ^= _rand_seed << 13;
+    _rand_seed ^= _rand_seed >> 17;
+    _rand_seed ^= _rand_seed << 5;
+    return _rand_seed;
+}
 
 void rpool_init_queue (rpool_queue_t *rpool_queue)
 {
-    atomic_store (&rpool_queue->occupied, 0);
+    // atomic_store (&rpool_queue->occupied, 0);
+    pthread_mutex_init (&rpool_queue->occupied_mutex, NULL);
     rpool_queue->idx_start = 0;
     rpool_queue->idx_end = 0;
     rpool_queue->max_stored = INIT_QUEUE_SIZE;
@@ -225,7 +234,7 @@ void rpool_add_queue_group
     }
     if (num_queues > MAX_NUM_QUEUES)
         num_queues = MAX_NUM_QUEUES;
-    unsigned int num_groups = atomic_load (&rpool->num_groups);
+    unsigned int num_groups = rpool->num_groups;
     if (num_groups + 1 >= MAX_QUEUE_GROUPS)
     {
         FPRT (stderr, "ERROR: rpool_add_queue_group: max number of queue groups (%d) reached. Cannot add queue group \"%s\".\n", 
@@ -238,7 +247,7 @@ void rpool_add_queue_group
     rpool_queue_group_set_whitelist (&rpool->queue_group_arr[num_groups], whitelist);
     rpool->queue_group_weight_arr[num_groups] = weight;
     rpool->queue_group_weight_sum += weight;
-    atomic_fetch_add (&rpool->num_groups, 1);
+    atomic_store (&rpool->num_groups, num_groups + 1);
 }
 void rpool_queue_group_set_blacklist (rpool_queue_group_t *rpool_queue_group, void **blacklist)
 {
@@ -347,8 +356,8 @@ unsigned int pop_ninsts_from_queue (rpool_queue_t *rpool_queue, ninst_t **ninst_
     }
     rpool_queue->idx_start = i;
     rpool_queue->num_stored -= num_ninsts;
-    if (rpool_queue->queue_group != NULL)
-        atomic_fetch_sub (&rpool_queue->queue_group->num_ninsts, num_ninsts);    
+    // if (rpool_queue->queue_group != NULL)
+    //     atomic_fetch_sub (&rpool_queue->queue_group->num_ninsts, num_ninsts);    
     return num_ninsts;
 }
 unsigned int pop_ninsts_from_queue_back (rpool_queue_t *rpool_queue, ninst_t **ninst_ptr_list, unsigned int max_ninsts_to_get)
@@ -378,8 +387,8 @@ unsigned int pop_ninsts_from_queue_back (rpool_queue_t *rpool_queue, ninst_t **n
     }
     rpool_queue->idx_end = i;
     rpool_queue->num_stored -= num_ninsts;
-    if (rpool_queue->queue_group != NULL)
-        atomic_fetch_sub (&rpool_queue->queue_group->num_ninsts, num_ninsts);
+    // if (rpool_queue->queue_group != NULL)
+    //     atomic_fetch_sub (&rpool_queue->queue_group->num_ninsts, num_ninsts);
     return num_ninsts;
 }
 void check_and_update_queue_size (rpool_queue_t *rpool_queue, unsigned int num_to_add)
@@ -432,8 +441,8 @@ void push_ninsts_to_queue (rpool_queue_t *rpool_queue, ninst_t **ninst_ptr_list,
     }
     rpool_queue->idx_end = i;
     rpool_queue->num_stored += num_ninsts;
-    if (rpool_queue->queue_group != NULL)
-        atomic_fetch_add (&rpool_queue->queue_group->num_ninsts, num_ninsts);
+    // if (rpool_queue->queue_group != NULL)
+    //     atomic_fetch_add (&rpool_queue->queue_group->num_ninsts, num_ninsts);
 }
 void push_ninsts_to_queue_front (rpool_queue_t *rpool_queue, ninst_t **ninst_ptr_list, unsigned int num_ninsts)
 {
@@ -460,8 +469,8 @@ void push_ninsts_to_queue_front (rpool_queue_t *rpool_queue, ninst_t **ninst_ptr
     }
     rpool_queue->idx_start = i;
     rpool_queue->num_stored += num_ninsts;
-    if (rpool_queue->queue_group != NULL)
-        atomic_fetch_add (&rpool_queue->queue_group->num_ninsts, num_ninsts);
+    // if (rpool_queue->queue_group != NULL)
+    //     atomic_fetch_add (&rpool_queue->queue_group->num_ninsts, num_ninsts);
 }
 rpool_queue_t *get_queue_for_fetching (rpool_t *rpool, void **input_cond)
 {
@@ -474,47 +483,50 @@ rpool_queue_t *get_queue_for_fetching (rpool_t *rpool, void **input_cond)
     #endif
     if (rpool->default_queue.num_stored > 0)
     {
-        if (atomic_exchange (&rpool->default_queue.occupied, 1) == 0)
+        // if (atomic_exchange (&rpool->default_queue.occupied, 1) == 0)
+        if (pthread_mutex_trylock (&rpool->default_queue.occupied_mutex) == 0)
             return &rpool->default_queue;
     }
-    rpool_queue_group_t *rpool_queue_group = NULL;
-    unsigned int num_tries = 0;
-    unsigned int num_groups = atomic_load (&rpool->num_groups);
-    while (rpool_queue_group == NULL)
-    {
-        float rand_weight = ((float) rand () / (float) RAND_MAX) * rpool->queue_group_weight_sum;
-        for (int i = 0; i < num_groups; i++)
-        {
-            if (rand_weight < rpool->queue_group_weight_arr[i])
-            {
-                if (input_cond == NULL)
-                    rpool_queue_group = &rpool->queue_group_arr[i];
-                else
-                {
-                    if (check_blacklist_cond (rpool->queue_group_arr[i].blacklist_conds, input_cond)
-                    && check_whitelist_cond (rpool->queue_group_arr[i].whitelist_conds, input_cond))
-                        rpool_queue_group = &rpool->queue_group_arr[i];
-                }
-                break;
-            }
-            rand_weight -= rpool->queue_group_weight_arr[i];
-        }
-        if (rpool_queue_group != NULL && atomic_load (&rpool_queue_group->num_ninsts) == 0)
-            rpool_queue_group = NULL;
-        num_tries++;
-        if (num_tries > 10)
-        {
-            return NULL;
-        }
-    }
-    atomic_fetch_add (&rpool_queue_group->num_fetched, 1);
+    rpool_queue_group_t *rpool_queue_group = &rpool->queue_group_arr[0];
+    // unsigned int num_tries = 0;
+    // unsigned int num_groups = rpool->num_groups;
+    // while (rpool_queue_group == NULL)
+    // {
+    //     float rand_weight = ((xors_rand () % RAND_MAX) / (float) RAND_MAX) * rpool->queue_group_weight_sum;
+    //     for (int i = 0; i < num_groups; i++)
+    //     {
+    //         if (rand_weight < rpool->queue_group_weight_arr[i])
+    //         {
+    //             if (input_cond == NULL)
+    //                 rpool_queue_group = &rpool->queue_group_arr[i];
+    //             else
+    //             {
+    //                 if (check_blacklist_cond (rpool->queue_group_arr[i].blacklist_conds, input_cond)
+    //                 && check_whitelist_cond (rpool->queue_group_arr[i].whitelist_conds, input_cond))
+    //                     rpool_queue_group = &rpool->queue_group_arr[i];
+    //             }
+    //             rpool_queue_group = &rpool->queue_group_arr[i];
+    //             break;
+    //         }
+    //         rand_weight -= rpool->queue_group_weight_arr[i];
+    //     }
+    //     // if (rpool_queue_group != NULL && atomic_load (&rpool_queue_group->num_ninsts) == 0)
+    //     //     rpool_queue_group = NULL;
+    //     num_tries++;
+    //     if (num_tries > 10)
+    //     {
+    //         return NULL;
+    //     }
+    // }
+    // atomic_fetch_add (&rpool_queue_group->num_fetched, 1);
     unsigned int num_queues = atomic_load (&rpool_queue_group->num_queues);
     for (int i = 0; i < num_queues; i++)
     {
         rpool_queue_t *rpool_queue = &rpool_queue_group->queue_arr[i];
         if (rpool_queue->num_stored > 0)
         {
-            if (atomic_exchange (&rpool_queue->occupied, 1) == 0)
+            // if (atomic_exchange (&rpool_queue->occupied, 1) == 0)
+            if (pthread_mutex_trylock (&rpool_queue->occupied_mutex) == 0)
             {
                 return rpool_queue;
             }
@@ -531,30 +543,31 @@ rpool_queue_t *get_queue_for_storing (rpool_t *rpool, unsigned int queue_val, vo
         return NULL;
     }
     #endif
-    rpool_queue_group_t *rpool_queue_group = NULL;
-    unsigned int num_groups = atomic_load (&rpool->num_groups);
-    for (int i = 0; i < num_groups; i++)
-    {
-        if (input_cond == NULL)
-            rpool_queue_group = &rpool->queue_group_arr[i];
-        else
-        {
-            if (check_blacklist_cond (rpool->queue_group_arr[i].blacklist_conds, input_cond)
-                && check_whitelist_cond (rpool->queue_group_arr[i].whitelist_conds, input_cond))
-            {
-                rpool_queue_group = &rpool->queue_group_arr[i];
-                break;
-            }
-        }     
-    }
-    if (rpool_queue_group == NULL)
-    {
-        while (atomic_exchange (&rpool->default_queue.occupied, 1) == 1)
-        {
-            // wait
-        }
-        return &rpool->default_queue;
-    }
+    rpool_queue_group_t *rpool_queue_group = &rpool->queue_group_arr[0];
+    // unsigned int num_groups = atomic_load (&rpool->num_groups);
+    // for (int i = 0; i < num_groups; i++)
+    // {
+    //     if (input_cond == NULL)
+    //         rpool_queue_group = &rpool->queue_group_arr[i];
+    //     else
+    //     {
+    //         if (check_blacklist_cond (rpool->queue_group_arr[i].blacklist_conds, input_cond)
+    //             && check_whitelist_cond (rpool->queue_group_arr[i].whitelist_conds, input_cond))
+    //         {
+    //             rpool_queue_group = &rpool->queue_group_arr[i];
+    //             break;
+    //         }
+    //     }     
+    // }
+    // if (rpool_queue_group == NULL)
+    // {
+    //     // while (atomic_exchange (&rpool->default_queue.occupied, 1) == 1)
+    //     // {
+    //     //     // wait
+    //     // }
+    //     pthread_mutex_lock (&rpool->default_queue.occupied_mutex);
+    //     return &rpool->default_queue;
+    // }
     rpool_queue_t *rpool_queue = NULL;
     unsigned int num_queues = atomic_load (&rpool_queue_group->num_queues);
     #ifdef DEBUG
@@ -567,7 +580,8 @@ rpool_queue_t *get_queue_for_storing (rpool_t *rpool, unsigned int queue_val, vo
     unsigned int queue_idx = queue_val % num_queues;
     while (rpool_queue == NULL)
     {
-        if (atomic_exchange (&rpool_queue_group->queue_arr[queue_idx].occupied, 1) == 0)
+        // if (atomic_exchange (&rpool_queue_group->queue_arr[queue_idx].occupied, 1) == 0)
+        if (pthread_mutex_trylock (&rpool_queue_group->queue_arr[queue_idx].occupied_mutex) == 0)
             rpool_queue = &rpool_queue_group->queue_arr[queue_idx];
         else
         {
@@ -600,7 +614,8 @@ unsigned int rpool_fetch_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsig
     if (rpool_queue == NULL)
         return 0;
     unsigned int num_ninsts = pop_ninsts_from_queue (rpool_queue, ninst_ptr_list, max_ninst_to_fetch);
-    atomic_store (&rpool_queue->occupied, 0);
+    // atomic_store (&rpool_queue->occupied, 0);
+    pthread_mutex_unlock (&rpool_queue->occupied_mutex);
     return num_ninsts;
 }
 
@@ -636,7 +651,8 @@ void rpool_push_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int n
                 [RPOOL_NASM] = (void*)ninst->ldata->nasm, [RPOOL_ASE] = NULL};
         rpool_queue = get_queue_for_storing (rpool, queue_val, input_conds);
         push_ninsts_to_queue (rpool_queue, &ninst, 1);
-        atomic_store (&rpool_queue->occupied, 0);
+        // atomic_store (&rpool_queue->occupied, 0);
+        pthread_mutex_unlock (&rpool_queue->occupied_mutex);
     }
 }
 
@@ -689,8 +705,10 @@ void print_rpool_info (rpool_t *rpool)
 }
 void print_rpool_queue_group_info (rpool_queue_group_t *rpool_queue_group)
 {
-    printf("\tQueue Group Info: %s, Stored: %d, Num Fetched: %d\n", rpool_queue_group->queue_group_info,
-            atomic_load (&rpool_queue_group->num_ninsts), atomic_load (&rpool_queue_group->num_fetched));
+    printf("\tQueue Group Info: %s", rpool_queue_group->queue_group_info);
+    // printf("\t, Stored: %d, Num Fetched: %d", 
+    //     atomic_load (&rpool_queue_group->num_ninsts), atomic_load (&rpool_queue_group->num_fetched));
+    printf("\n");
     printf("\tBlacklist Conditions\n");
     print_rpool_cond_list (rpool_queue_group->blacklist_conds);
     printf("\tWhitelist Conditions\n");
@@ -706,10 +724,11 @@ void print_rpool_queue_group_info (rpool_queue_group_t *rpool_queue_group)
 
 void print_rpool_queue_info (rpool_queue_t *rpool_queue)
 {
-    while (atomic_exchange (&rpool_queue->occupied, 1) == 1)
-    {
-        // wait
-    }
+    // while (atomic_exchange (&rpool_queue->occupied, 1) == 1)
+    // {
+    //     // wait
+    // }
+    pthread_mutex_lock (&rpool_queue->occupied_mutex);
     printf("\t\tNumber of ninsts stored: %d\n", rpool_queue->num_stored);
     printf("\t\tNumber of maximum ninsts: %d\n", rpool_queue->max_stored);
     printf("\t\tIndex range: %d ~ %d\n", rpool_queue->idx_start, rpool_queue->idx_end);
@@ -721,5 +740,6 @@ void print_rpool_queue_info (rpool_queue_t *rpool_queue)
             ninst->ldata - ninst->ldata->nasm->ldata_arr, ninst->ninst_idx);
     }
     printf("\n");
-    atomic_store (&rpool_queue->occupied, 0);
+    // atomic_store (&rpool_queue->occupied, 0);
+    pthread_mutex_unlock (&rpool_queue->occupied_mutex);
 }

@@ -24,7 +24,7 @@ int main(void)
     //     return -1;
     // }
     // print_dnn_info (resnet50_dnn_2, 0);
-    nasm_t *resnet50_nasm = apu_create_nasm(resnet50_dnn, 10e6, 4);
+    nasm_t *resnet50_nasm = apu_create_nasm(resnet50_dnn, 10e6, 1);
     if (resnet50_nasm == NULL) 
     {
         printf("Error: Failed to create NASM\n");
@@ -41,7 +41,7 @@ int main(void)
     // nasm_t *resnet50_4_nasm = apu_load_nasm_from_file ("data/resnet50_4.nasm", &resnet50_dnn);
     
     rpool_t *rpool = rpool_init (-1);
-    ase_group_t *ase_group = ase_group_init (16, -1);
+    ase_group_t *ase_group = ase_group_init (32, -1);
     ase_group_set_rpool (ase_group, rpool);
 
     // rpool_add_nasm_raw_input (rpool, resnet50_4_nasm, 0.5, dog_data);
@@ -59,11 +59,11 @@ int main(void)
     
     // print_rpool_info (rpool);
 
-    unsigned int input_params[NUM_PARAM_ELEMENTS] =
-        {[BATCH] = resnet50_nasm->batch_size, [OUT_C] = 3, [OUT_H] = 224, [OUT_W] = 224};
-    void *dog_data = aspen_load_input_NHWC ("data/batched_input_64.bin", input_params, sizeof(float));
-    aspen_run_naive (resnet50_dnn, input_params[BATCH], dog_data);
-    get_elapsed_time ("run_naive");
+    // unsigned int input_params[NUM_PARAM_ELEMENTS] =
+    //     {[BATCH] = resnet50_nasm->batch_size, [OUT_C] = 3, [OUT_H] = 224, [OUT_W] = 224};
+    // void *dog_data = aspen_load_input_NHWC ("data/batched_input_64.bin", input_params, sizeof(float));
+    // aspen_run_naive (resnet50_dnn, input_params[BATCH], dog_data);
+    // get_elapsed_time ("run_naive");
     
     
     // for (int i = 0; i < 2; i++)
