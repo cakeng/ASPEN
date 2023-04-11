@@ -62,9 +62,11 @@ public:
     void set_host_memory(float *A, float *B, float *C);
     void set_cuda_memory(float *A_cuda, float *B_cuda, float *c_float);
     void set_cuda_stream(cudaStream_t stream);
+    void set_cuda_event(cudaEvent_t event);
     void set_cuda_handle(cublasHandle_t handle);
     void print_handle_and_stream();
     void synchronize();
+    void awaitEvent();
     void set_mat_C (float val);
     std::vector<aspen_mat_mul *> split_mat_mul_by_num (int M_num, int N_num);
     std::vector<aspen_mat_mul *> split_mat_mul_by_size (int M_size, int N_size);
@@ -113,6 +115,7 @@ private:
     void *temp_cuda;
     cublasHandle_t handle;
     cudaStream_t stream;
+    cudaEvent_t event;
 };
 
 typedef enum run_type

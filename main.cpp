@@ -262,6 +262,7 @@ void aspen_run_cuBLAS (void *obj)
     for (auto &aspen_obj : *aspen_objs)
     {
         aspen_obj.run_cuBLAS();
+        aspen_obj.awaitEvent();
     }
     aspen_objs->back().copy_C_from_cuda();
     aspen_objs->back().synchronize();
@@ -396,25 +397,41 @@ int main(int argc, char **argv)
     // Create GPU handles and streams.
     cublasHandle_t cublas_handles[num_partition];
     cudaStream_t cuda_streams[num_partition];
+    cudaEvent_t cuda_events[num_partition];
     for (int i = 0; i < num_partition; ++i)
     {
         cublasCreate(&cublas_handles[i]);
         cudaStreamCreate(&cuda_streams[i]);
+        cudaEventCreate(&cuda_events[i]);
     }
 
     // Create the aspen_mat_mul objects, and set the right variables for the given GEMM,
     // including the memory locations, CUDA handles, and streams.
     std::vector<aspen_mat_mul> aspen_mat_mul_chain;
+
+    std::vector<aspen_mat_mul> aspen_mat_mul_list;
     for (int i = 1; i < num_gemm_chains+1; ++i)
     {
-        aspen_mat_mul_chain.emplace_back 
-            (M, N, K, 1.0, A_arr[i-1], K, C_out_arr[i-1], K, 0.0, C_out_arr[i], M);
-        aspen_mat_mul_chain.back().set_cuda_handle (cublas_handles[0]);
-        aspen_mat_mul_chain.back().set_cuda_stream (cuda_streams[0]);
-        aspen_mat_mul_chain.back().set_cuda_memory 
-            (A_cuda_arr[i-1], C_cuda_arr[i-1], C_cuda_arr[i]);
-        cudaMemcpy (A_cuda_arr[i-1], A_arr[i-1], M * K * sizeof(float), cudaMemcpyHostToDevice);
+        int partition_index = (i-1) % num_partition;
+        aspen_mat_mul_list.emplace_back(M, N, K, 1.0, A_arr[i-1], K, C_out_arr[i-1], K, 0.0, C_out_arr[i], M);
+        aspen_mat_mul_list.back().set_cuda_handle(cublas_handles[partition_index]);
+        aspen_mat_mul_list.back().set_cuda_stream(cuda_streams[partition_index]);
+        aspen_mat_mul_list.back().set_cuda_event(cuda_events[partition_index]);
+        aspen_mat_mul_list.back().set_cuda_memory(A_cuda_arr[i-1], C_cuda_arr[i-1], C_cuda_arr[i]);
+        cudaMemcpy(A_cuda_arr[i-1], A_arr[i-1], M * K * sizeof(float), cudaMemcpyHostToDevice);
     }
+
+    // Iterate over all created mat mul list and make child-parent connection between them
+    for(int i = aspen_mat_mul_list.size() - 1; i > 0; i--) {
+        fprintf(stdout, "For parent at address %p adding child of address %p\n", &aspen_mat_mul_list.at(i-1), &aspen_mat_mul_list.at(i));
+        aspen_mat_mul_list.at(i-1).add_child(&aspen_mat_mul_list.at(i));
+
+        if(i == 1) {
+            // Add initial chain head parent
+            aspen_mat_mul_chain.push_back(aspen_mat_mul_list.at(i-1));
+        }
+    }
+
     // Initialization complete.
     printf("done!\n");
 

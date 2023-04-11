@@ -101,6 +101,13 @@ void aspen_mat_mul::set_cuda_memory(float *A_cuda, float *B_cuda, float *C_cuda)
     this->C_cuda = C_cuda;
 }
 
+// Set the CUDA event for this aspen_mat_mul object to await its execution complete
+void aspen_mat_mul::set_cuda_event(cudaEvent_t event)
+{
+    this->event = event;
+}
+
+
 // Set the CUDA stream for this aspen_mat_mul object.
 void aspen_mat_mul::set_cuda_stream(cudaStream_t stream)
 {
@@ -119,11 +126,18 @@ void aspen_mat_mul::synchronize()
     check_CUDA(cudaStreamSynchronize(this->stream));
 }
 
+// Awaits event synchronization of this aspen_mat_mul object.
+void aspen_mat_mul::awaitEvent()
+{
+    check_CUDA(cudaEventSynchronize(this->event));
+}
+
 // Add a child aspen_mat_mul object to this aspen_mat_mul object.
 // Not currently used - Dynamic dependency tracking not implemented.
 void aspen_mat_mul::add_child(aspen_mat_mul *child)
 {
     this->children.push_back(child);
+    fprintf(stdout, "Addded child to %p, so total: %ld\n", this, children.size());
     child->num_parents++;
 }
 
@@ -143,12 +157,30 @@ void aspen_mat_mul::run_cuBLAS()
 {
     if (this->is_calculation_done)
         return;
-    check_cuBLAS(cublasSetStream (this->handle, this->stream));
-    check_cuBLAS(cublasSgemm (
-        this->handle, CUBLAS_OP_T, CUBLAS_OP_N, this->M, this->N, this->K, 
-        &this->alpha, this->A_cuda, this->stride_A, 
-        this->B_cuda, this->stride_B, &this->beta, 
-        this->C_cuda, this->stride_C));
+
+    fprintf(stdout, "This aspen at %p has %ld children\n", this, children.size());
+    for(auto *child : children) {
+        fprintf(stdout, "Executing child at address %p\n", &(*child));
+        child->run_cuBLAS();
+        calculated_parents++;
+        if(calculated_parents == num_parents) {
+            cudaEventRecord(this->event);
+        }
+    }
+    if(children.size() > 0) {
+        awaitEvent();
+    }
+    fprintf(stdout, "Running parent aspen (%p) itself\n", this);
+    check_cuBLAS(
+        cublasSetStream (this->handle, this->stream)
+    );
+    check_cuBLAS(
+        cublasSgemm (
+            this->handle, CUBLAS_OP_T, CUBLAS_OP_N, this->M, this->N, this->K, 
+            &this->alpha, this->A_cuda, this->stride_A, this->B_cuda, this->stride_B, 
+            &this->beta, this->C_cuda, this->stride_C
+        )
+    );
 }
 
 void aspen_mat_mul::run_custom_CUDA_GEMM()
