@@ -8,8 +8,8 @@
 #include "util.h"
 #include "kernels.h"
 
-#define ASE_NINST_CACHE_BALLANCE 1
-#define ASE_NINST_CACHE_DIFF 0
+#define ASE_NINST_CACHE_BALLANCE 2
+#define ASE_NINST_CACHE_DIFF 1
 #define ASE_SCRATCHPAD_SIZE 1024*1024*32 // 32 MB
 
 struct ase_group_t

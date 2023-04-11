@@ -41,7 +41,7 @@ int main(void)
     // nasm_t *resnet50_4_nasm = apu_load_nasm_from_file ("data/resnet50_4.nasm", &resnet50_dnn);
     
     rpool_t *rpool = rpool_init (-1);
-    ase_group_t *ase_group = ase_group_init (32, -1);
+    ase_group_t *ase_group = ase_group_init (64, -1);
     ase_group_set_rpool (ase_group, rpool);
 
     // rpool_add_nasm_raw_input (rpool, resnet50_4_nasm, 0.5, dog_data);
