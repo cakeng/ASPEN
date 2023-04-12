@@ -47,7 +47,7 @@ int main(void)
     // rpool_add_nasm_raw_input (rpool, resnet50_4_nasm, 0.5, dog_data);
     rpool_add_nasm (rpool, resnet50_nasm, 1.0, "data/batched_input_64.bin");
     // print_rpool_info (rpool);
-    print_nasm_info(resnet50_nasm, 0, 0);
+    // print_nasm_info(resnet50_nasm, 0, 0);
     // print_dnn_info(resnet50_dnn, 0);
 
     get_elapsed_time ("init");

@@ -19,9 +19,9 @@
 #define SGEMM_KERNEL_TILE_N avx2_sgemm_tile_N
 #elif NEON
 #define SGEMM_KERNEL neon_sgemm_vectorized
-#define SGEMM_KERNEL_FULL_TILE neon_sgemm_vectorized
-#define SGEMM_KERNEL_TILE_M neon_sgemm_vectorized
-#define SGEMM_KERNEL_TILE_N neon_sgemm_vectorized
+#define SGEMM_KERNEL_FULL_TILE neon_sgemm_full_tile
+#define SGEMM_KERNEL_TILE_M neon_sgemm_tile_M
+#define SGEMM_KERNEL_TILE_N neon_sgemm_tile_N
 #else
 #define SGEMM_KERNEL naive_sgemm_vectorized
 #define SGEMM_KERNEL_FULL_TILE naive_sgemm_vectorized

@@ -6,21 +6,24 @@ void *ase_thread_runtime (void* thread_info)
 {
     ase_t *ase = (ase_t*) thread_info;
     pthread_mutex_lock(&ase->thread_mutex);
-    while (atomic_load (&ase->kill) == 0)
+    while (ase->kill == 0)
     {
         // print_rpool_info (ase->rpool);
         // print_rpool_queue_info (ase->ninst_cache);
-        if (atomic_load (&ase->run) == 0)
+        if (ase->run == 0)
         {   
             pthread_cond_wait(&ase->thread_cond, &ase->thread_mutex); 
         }
-        if ((ase->ninst_cache->num_stored < ASE_NINST_CACHE_BALLANCE - ASE_NINST_CACHE_DIFF) || 
-            ase->ninst_cache->num_stored == 0)
+        // if ((ase->ninst_cache->num_stored < ASE_NINST_CACHE_BALLANCE - ASE_NINST_CACHE_DIFF) || 
+        //     ase->ninst_cache->num_stored == 0)
+        if (ase->target == NULL)
         {
-            
-            unsigned int fetch_num = 
-                rpool_fetch_ninsts (ase->rpool, ase->scratchpad, ASE_NINST_CACHE_BALLANCE - ase->ninst_cache->num_stored);
-            push_ninsts_to_queue (ase->ninst_cache, ase->scratchpad, fetch_num);
+            rpool_fetch_ninsts (ase->rpool, &ase->target, 1);
+            if (ase->target == NULL)
+                continue;
+            // unsigned int fetch_num = 
+            //     rpool_fetch_ninsts (ase->rpool, ase->scratchpad, ASE_NINST_CACHE_BALLANCE - ase->ninst_cache->num_stored);
+            // push_ninsts_to_queue (ase->ninst_cache, ase->scratchpad, fetch_num);
             // PRT ("Thread %d fetched %d ninsts from rpool\n", ase->thread_id, fetch_num);
             // #ifdef DEBUG
             // PRT ("Thread %d fetched %d ninsts from rpool\n", ase->thread_id, fetch_num);
@@ -28,11 +31,14 @@ void *ase_thread_runtime (void* thread_info)
             // print_rpool_queue_info (ase->ninst_cache);
             // #endif
         }
-        else if (ase->ninst_cache->num_stored > ASE_NINST_CACHE_BALLANCE + ASE_NINST_CACHE_DIFF)
+        // else if (ase->ninst_cache->num_stored > ASE_NINST_CACHE_BALLANCE + ASE_NINST_CACHE_DIFF)
+        if (ase->ninst_cache->num_stored > 0)
         {
-            unsigned int push_num = 
-                pop_ninsts_from_queue_back (ase->ninst_cache, ase->scratchpad, ase->ninst_cache->num_stored - ASE_NINST_CACHE_BALLANCE);
-            rpool_push_ninsts (ase->rpool, ase->scratchpad, push_num);
+            // unsigned int push_num = 
+            //     pop_ninsts_from_queue_back (ase->ninst_cache, ase->scratchpad, ase->ninst_cache->num_stored - ASE_NINST_CACHE_BALLANCE);
+            rpool_push_ninsts (ase->rpool, ase->ninst_cache->ninst_ptr_arr, ase->ninst_cache->num_stored);
+            ase->ninst_cache->num_stored = 0;
+            ase->ninst_cache->idx_end = 0;
             // PRT ("Thread %d pushed %d ninsts to rpool\n", ase->thread_id, push_num);
             // #ifdef DEBUG
             // PRT ("Thread %d pushed %d ninsts to rpool\n", ase->thread_id, push_num);
@@ -41,11 +47,11 @@ void *ase_thread_runtime (void* thread_info)
             // #endif
         }
 
-        unsigned int num_ninsts = ase->ninst_cache->num_stored;
-        for (int i = 0; i < num_ninsts; i++)
-        {
-            ninst_t *ninst;
-            pop_ninsts_from_queue (ase->ninst_cache, &ninst, 1);
+        // unsigned int num_ninsts = ase->ninst_cache->num_stored;
+        // for (int i = 0; i < num_ninsts; i++)
+        // {
+        //     ninst_t *ninst;
+        //     pop_ninsts_from_queue (ase->ninst_cache, &ninst, 1);
             // PRT ("Thread %d running ninst #%d - N%d:L%d:%d\n", ase->thread_id, i,
             //         ninst->ldata->nasm->nasm_id, ninst->ldata->layer->layer_idx, ninst->ninst_idx);
             // #ifdef DEBUG
@@ -66,7 +72,15 @@ void *ase_thread_runtime (void* thread_info)
             // }
             // #endif
             // Execute.
-            
+            ninst_t *ninst = ase->target;
+            ase->target = NULL;
+            #ifdef DEBUG 
+            if (child_ninst->state != NINST_READY)
+            {
+                FPRT (stderr, "Error: child_ninst->state != NINST_READY in ase_thread_runtime()\n");
+                assert (0);
+            }
+            #endif
             if (ase->gpu_idx < 0)
             {
                 switch (ninst->ldata->layer->type)
@@ -94,9 +108,7 @@ void *ase_thread_runtime (void* thread_info)
                         break;
                 }
             }
-
             ninst->state = NINST_COMPLETED;
-            update_children_to_cache (ase->ninst_cache, ninst);
             unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
             if (num_ninst_completed == ninst->ldata->num_ninst - 1)
             {
@@ -117,7 +129,9 @@ void *ase_thread_runtime (void* thread_info)
                     pthread_mutex_unlock (&nasm->nasm_mutex);
                 }
             }
-        }
+            // update_children_to_cache (ase->ninst_cache, ninst);
+            update_children_to_cache_but_prioritize_ase_target (ase->ninst_cache, ninst, &ase->target);
+        // }
     }
     return NULL;
 }
@@ -346,8 +360,6 @@ void update_children (rpool_t *rpool, ninst_t *ninst)
         assert (0);
     }
     #endif
-    if (ninst->state != NINST_COMPLETED)
-        return;
     for (int i = 0; i < ninst->num_child_ninsts; i++)
     {
         ninst_t *child_ninst = ninst->child_ninst_arr[i];
@@ -398,6 +410,44 @@ void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst)
             #endif
             child_ninst->state = NINST_READY;
             push_ninsts_to_queue (cache, &child_ninst, 1);
+        }
+    }
+}
+
+void update_children_to_cache_but_prioritize_ase_target (rpool_queue_t *cache, ninst_t *ninst, ninst_t **ase_target)
+{
+    #ifdef DEBUG
+    if (cache == NULL || ninst == NULL)
+    {
+        FPRT (stderr, "Error: Invalid arguments to ase_update_children_to_cache()\n");
+        assert (0);
+    }
+    if (ninst->state != NINST_COMPLETED)
+    {
+        FPRT (stderr, "Error: ninst->state != NINST_STATE_COMPLETED in ase_update_children_to_cache()\n");
+        assert (0);
+    }
+    #endif
+    if (ninst->state != NINST_COMPLETED)
+        return;
+    for (int i = 0; i < ninst->num_child_ninsts; i++)
+    {
+        ninst_t *child_ninst = ninst->child_ninst_arr[i];
+        unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
+        if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
+        {
+            #ifdef DEBUG 
+            if (child_ninst->state != NINST_NOT_READY)
+            {
+                FPRT (stderr, "Error: child_ninst->state != NINST_NOT_READY in ase_update_children_to_cache()\n");
+                assert (0);
+            }
+            #endif
+            child_ninst->state = NINST_READY;
+            if (*ase_target != NULL)
+                push_ninsts_to_queue (cache, &child_ninst, 1);
+            else
+                *ase_target = child_ninst;
         }
     }
 }
