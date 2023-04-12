@@ -7,6 +7,12 @@
 #include "kernels.h"
 
 #define MIN_NINST_TILE_PER_LAYER (100)
+#define LAYERS_PER_TRANSFORMER (12)
+extern LAYER_TYPE transformer_layer_types[LAYERS_PER_TRANSFORMER];
+extern int transformer_parents [LAYERS_PER_TRANSFORMER][2];
+// 1. Key MM, 2. Query MM, 3. Value MM, 4. K Reorder, 5. V Reorder, 
+// 6. K Attention, 7. V Attention, 8. Attention MM, 9. Residual, 10. LayerNorm, 
+// 11. Feedforward MM 1, 12. Feedforward MM 2, 13. Residual, 14. LayerNorm
 
 aspen_dnn_t *init_aspen_dnn (unsigned int num_layers, char* name);
 

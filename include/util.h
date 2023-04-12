@@ -2,6 +2,7 @@
 #define _UTIL_H_
 
 #include "aspen.h"
+#include "apu.h"
 #include "nasm.h"
 
 void *aspen_calloc (size_t num, size_t size);

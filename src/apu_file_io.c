@@ -87,7 +87,9 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
         for (int i = 0; i < dnn->num_layers; i++)
         {
             if (dnn->layers[i].type == CONV_LAYER 
-                || dnn->layers[i].type == FC_LAYER)
+                || dnn->layers[i].type == FC_LAYER
+                || dnn->layers[i].type == MATMUL_LAYER
+                || dnn->layers[i].type == LAYERNORM_LAYER)
             {
                 weighted_layer++;
                 if (weighted_layer == file_layer_num)
@@ -221,10 +223,29 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
         {
             if (layer->tensors[WEIGHT_TENSOR] != NULL)
             {
-                LAYER_PARAMS weight_dim_order[] = {OUT_C, IN_C, WEIGHT_H, WEIGHT_W};
-                for (int i = 0; i < layer->tensors[WEIGHT_TENSOR]->num_dims; i++)
+                if (layer->type == MATMUL_LAYER)
                 {
-                    layer->tensors[WEIGHT_TENSOR]->data_dim_order[i] = weight_dim_order[i];
+                    LAYER_PARAMS weight_dim_order[] = {MAT_M, MAT_K};
+                    for (int i = 0; i < layer->tensors[WEIGHT_TENSOR]->num_dims; i++)
+                    {
+                        layer->tensors[WEIGHT_TENSOR]->data_dim_order[i] = weight_dim_order[i];
+                    }
+                }
+                else if (layer->type == LAYERNORM_LAYER)
+                {
+                    LAYER_PARAMS weight_dim_order[] = {MAT_M};
+                    for (int i = 0; i < layer->tensors[WEIGHT_TENSOR]->num_dims; i++)
+                    {
+                        layer->tensors[WEIGHT_TENSOR]->data_dim_order[i] = weight_dim_order[i];
+                    }
+                }
+                else
+                {
+                    LAYER_PARAMS weight_dim_order[] = {OUT_C, IN_C, WEIGHT_H, WEIGHT_W};
+                    for (int i = 0; i < layer->tensors[WEIGHT_TENSOR]->num_dims; i++)
+                    {
+                        layer->tensors[WEIGHT_TENSOR]->data_dim_order[i] = weight_dim_order[i];
+                    }
                 }
                 if (layer->tensors[WEIGHT_TENSOR]->num_elements*layer->tensors[WEIGHT_TENSOR]->element_size == data_size)
                     copy_ptr_to_aspen_tensor (layer->tensors[WEIGHT_TENSOR], buffer);
@@ -266,11 +287,23 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
         {
             if (layer->tensors[BIAS_TENSOR] != NULL)
             {
-                LAYER_PARAMS bias_dim_order[] = {OUT_C, IN_C};
-                for (int i = 0; i < layer->tensors[BIAS_TENSOR]->num_dims; i++)
+                if (layer->type == MATMUL_LAYER || layer->type == LAYERNORM_LAYER)
                 {
-                    layer->tensors[BIAS_TENSOR]->data_dim_order[i] = bias_dim_order[i];
+                    LAYER_PARAMS weight_dim_order[] = {MAT_M};
+                    for (int i = 0; i < layer->tensors[WEIGHT_TENSOR]->num_dims; i++)
+                    {
+                        layer->tensors[WEIGHT_TENSOR]->data_dim_order[i] = weight_dim_order[i];
+                    }
                 }
+                else
+                {
+                    LAYER_PARAMS bias_dim_order[] = {OUT_C, IN_C};
+                    for (int i = 0; i < layer->tensors[BIAS_TENSOR]->num_dims; i++)
+                    {
+                        layer->tensors[BIAS_TENSOR]->data_dim_order[i] = bias_dim_order[i];
+                    }
+                }
+                
                 if (layer->tensors[BIAS_TENSOR]->num_elements*layer->tensors[BIAS_TENSOR]->element_size == data_size)
                     copy_ptr_to_aspen_tensor (layer->tensors[BIAS_TENSOR], buffer);
                 else

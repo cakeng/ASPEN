@@ -27,14 +27,24 @@ input_type get_input_type (char *filename)
     if (strcmp(ext, ".cfg") == 0) return darknet_cfg;
     return 0;
 }
+
 // Change to add a new layer type
 void set_layer_inout_sizes (aspen_layer_t *layer)
 {
     if (layer->type == INPUT_LAYER)
     {
-        layer->params[OUT_C] = layer->params[IN_C];
-        layer->params[OUT_H] = layer->params[IN_H];
-        layer->params[OUT_W] = layer->params[IN_W];
+        if (layer->params[MAT_M] != 0)
+        {
+            layer->params[OUT_H] = 1;
+            layer->params[OUT_W] = layer->params[MAT_N];
+            layer->params[OUT_C] = layer->params[MAT_M];
+        }
+        else
+        {
+            layer->params[OUT_C] = layer->params[IN_C];
+            layer->params[OUT_H] = layer->params[IN_H];
+            layer->params[OUT_W] = layer->params[IN_W];
+        }
         return;
     }
     layer->params[IN_H] = layer->parent_layers[PARENT_0]->params[OUT_H];
@@ -70,9 +80,24 @@ void set_layer_inout_sizes (aspen_layer_t *layer)
     }
     else if (layer->type == RESIDUAL_LAYER)
     {
-        layer->params[OUT_C] = layer->params[IN_C];
-        layer->params[OUT_H] = layer->params[IN_H];
-        layer->params[OUT_W] = layer->params[IN_W];
+        if (layer->params[MAT_M] != 0)
+        {
+            layer->params[OUT_H] = 1;
+            layer->params[OUT_W] = layer->params[MAT_N];
+            layer->params[OUT_C] = layer->params[MAT_M];
+        }
+        else
+        {
+            layer->params[OUT_C] = layer->params[IN_C];
+            layer->params[OUT_H] = layer->params[IN_H];
+            layer->params[OUT_W] = layer->params[IN_W];
+        }
+        return;
+    }
+    else if (layer->type == LAYERNORM_LAYER
+        || layer->type == K_ATTENTION_LAYER || layer->type == V_ATTENTION_LAYER || layer->type == MATMUL_LAYER)
+    {
+
         return;
     }
     else

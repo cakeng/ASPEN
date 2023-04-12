@@ -65,16 +65,18 @@ static inline cudaError_t check_CUDA(cudaError_t result)
 typedef enum {NINST_NOT_READY, NINST_READY, NINST_COMPLETED, NUM_NINST_STATES} NINST_STATE;
 typedef enum {NO_LAYER_TYPE, INPUT_LAYER, CONV_LAYER, FC_LAYER,
  RESIDUAL_LAYER, BATCHNORM_LAYER, YOLO_LAYER, ACTIVATION_LAYER, MAXPOOL_LAYER, AVGPOOL_LAYER,
- ROUTE_LAYER, SOFTMAX_LAYER, NUM_LAYER_ELEMENTS} LAYER_TYPE;
+ ROUTE_LAYER, SOFTMAX_LAYER,
+ MATMUL_LAYER, LAYERNORM_LAYER, K_ATTENTION_LAYER, V_ATTENTION_LAYER,
+ NUM_LAYER_ELEMENTS} LAYER_TYPE;
 typedef enum {
     OUT_W, OUT_H, OUT_C, BATCH, IN_W, IN_H, IN_C, WEIGHT_W, WEIGHT_H, SUB_C, STRIDE, PADDING, DILATION, GROUPS,
-    SEQ_LEN, HEAD_NUM, HIDDEN_PER_HEAD,
+    NUM_HIDDEN, NUM_HEAD, NUM_SEQ, MAT_M, MAT_N, MAT_K, SUB_M,
     FORM_BYTES, NUM_PARAM_ELEMENTS
 } LAYER_PARAMS;
 typedef enum {NULL_TENSOR, OUTPUT_TENSOR, INPUT_TENSOR, WEIGHT_TENSOR, BIAS_TENSOR, 
     BN_VAR_TENSOR, BN_MEAN_TENSOR, BN_WEIGHT_TENSOR, NUM_TENSORS} LAYER_TENSORS;
 typedef enum {PARENT_NONE, PARENT_0, PARENT_1, PARENT_WEIGHT, NUM_PARENT_ELEMENTS} LAYER_PARENTS;
-typedef enum {NO_ACTIVATION, SIGMOID, LINEAR, TANH, RELU, LEAKY_RELU, ELU, SELU, NUM_ACTIVATIONS} LAYER_ACT;
+typedef enum {NO_ACTIVATION, SIGMOID, LINEAR, TANH, RELU, LEAKY_RELU, ELU, SELU, GELU, NUM_ACTIVATIONS} LAYER_ACT;
 typedef enum {RPOOL_DNN, RPOOL_LAYER_TYPE, RPOOL_LAYER_IDX, RPOOL_NASM, RPOOL_ASE, NUM_RPOOL_CONDS} RPOOL_CONDS;
 
 extern char *ninst_state_str [NUM_NINST_STATES];
@@ -107,10 +109,13 @@ typedef struct rpool_queue_group_t rpool_queue_group_t;
 typedef struct ase_t ase_t;     // Asynchronous scheduling engine
 typedef struct ase_group_t ase_group_t;
 
+void *aspen_load_input(char *input_filename, unsigned int *input_dims, unsigned int element_size);
 void *aspen_load_input_NHWC(char *input_filename, unsigned int *input_dims, unsigned int element_size);
-void aspen_run_naive (aspen_dnn_t* dnn, unsigned int batch_size, void *input_data);
+void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data);
 
 aspen_dnn_t *apu_create_dnn(char *input_path, char *data_path);
+aspen_dnn_t *apu_create_transformer_dnn (unsigned int num_transformers,
+    unsigned int num_hidden, unsigned int num_head, char* name, char *weight_path);
 void apu_destroy_dnn(aspen_dnn_t *dnn);
 void apu_save_dnn_to_file(aspen_dnn_t *dnn, char *filename);
 void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path);

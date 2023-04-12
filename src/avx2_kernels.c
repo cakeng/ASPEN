@@ -550,10 +550,10 @@ void avx2_sgemm_full_tile(const unsigned int M, const unsigned int N, const unsi
             for (int kidx = 0; kidx < K; kidx++)
             {
                 const __m256 A_col = _mm256_load_ps(A_ptr);
-                A_ptr += 8;
                 const __m256 B_val0 = _mm256_broadcast_ss(B_ptr + ldb*0 + kidx);
                 const __m256 B_val1 = _mm256_broadcast_ss(B_ptr + ldb*1 + kidx);
                 const __m256 B_val2 = _mm256_broadcast_ss(B_ptr + ldb*2 + kidx);
+                A_ptr += 8;
                 o0 = _mm256_fmadd_ps(A_col, B_val0, o0);
                 o1 = _mm256_fmadd_ps(A_col, B_val1, o1);
                 o2 = _mm256_fmadd_ps(A_col, B_val2, o2);

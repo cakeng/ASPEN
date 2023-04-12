@@ -75,9 +75,9 @@ void *ase_thread_runtime (void* thread_info)
             ninst_t *ninst = ase->target;
             ase->target = NULL;
             #ifdef DEBUG 
-            if (child_ninst->state != NINST_READY)
+            if (ninst->state != NINST_READY)
             {
-                FPRT (stderr, "Error: child_ninst->state != NINST_READY in ase_thread_runtime()\n");
+                FPRT (stderr, "Error: ninst->state != NINST_READY in ase_thread_runtime()\n");
                 assert (0);
             }
             #endif
