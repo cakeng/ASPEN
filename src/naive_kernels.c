@@ -37,7 +37,7 @@ void naive_activate (float *input, unsigned int num_elements, LAYER_ACT activati
     else if (activation_type == GELU)
     {
         for (unsigned int i = 0; i < num_elements; i++)
-            input[i] = 0.5 * input[i] * (1 + tanh (sqrt (2 / 3.1415926535) * (input[i] + 0.044715 * pow (input[i], 3))));
+            input[i] = 0.5 * input[i] * (1 + erff ((input[i])*0.7071067811865475f));
     }
     else
         FPRT (stderr, "Error in naive_activate: unknown activation type.\n");
@@ -335,9 +335,38 @@ void naive_softmax (float *input, float *output, unsigned int num_batch, unsigne
     }
 }
 
-void naive_layernorm (const float *input, float *output, unsigned int num_elements, unsigned int M, unsigned int N)
+void naive_layernorm (const float *input, const float *kernel, const float *bias, 
+    float *output, unsigned int N, unsigned int M)
 {
-
+    #ifdef DEBUG
+    if (input == NULL)
+        FPRT (stderr, "Error in naive_convolution: input is NULL.\n");
+    if (kernel == NULL)
+        FPRT (stderr, "Error in naive_convolution: kernel is NULL.\n");
+    if (output == NULL)
+        FPRT (stderr, "Error in naive_convolution: output is NULL.\n");
+    #endif
+    #pragma omp parallel for
+    for (unsigned int i = 0; i < N; i++)
+    {
+        float mean = 0;
+        float var = 0;
+        for (unsigned int j = 0; j < M; j++)
+        {
+            mean += input[i * M + j];
+            var += input[i * M + j] * input[i * M + j];
+        }
+        mean /= M;
+        var /= M;
+        var -= mean * mean;
+        var = 1 / sqrtf (var + 1e-12);
+        for (unsigned int j = 0; j < M; j++)
+        {
+            output[i * M + j] = (input[i * M + j] - mean) * var * kernel[j];
+            if (bias != NULL)
+                output[i * M + j] = output[i * M + j] + bias[j];
+        }
+    }
 }
 
 void naive_k_attention (const float *input_1, const float *input_2, float *output, unsigned int batch_size
@@ -380,13 +409,6 @@ void naive_k_attention (const float *input_1, const float *input_2, float *outpu
                     *output_ptr = *input_ptr;
                 }
             }
-        }
-    }
-    #pragma omp parallel for collapse(2)
-    for (unsigned int b = 0; b < batch_size; b++)
-    {
-        for (unsigned int h = 0; h < num_heads; h++)
-        {
             const float *B = input_1 + b * num_hidden * num_seq + h * hidden_per_head;
             const float *A = key_temp + b * num_heads * seq_padded * K + h * seq_padded * K;
             float *C = output + b * num_heads * ldc * N + h * ldc * N;
@@ -431,7 +453,7 @@ void naive_v_attention (const float *input_1, const float *input_2, float *outpu
     const unsigned int ldc = num_hidden;
     float *val_temp = (float *) aspen_calloc (batch_size * num_heads * hph_padded * K, sizeof(float));
 
-    // #pragma omp parallel for collapse(2)
+    #pragma omp parallel for collapse(2)
     for (unsigned int b = 0; b < batch_size; b++)
     {
         for (unsigned int h = 0; h < num_heads; h++)
@@ -448,13 +470,6 @@ void naive_v_attention (const float *input_1, const float *input_2, float *outpu
                     *output_ptr = *input_ptr;
                 }
             }
-        }
-    }
-    // #pragma omp parallel for collapse(2)
-    for (unsigned int b = 0; b < batch_size; b++)
-    {
-        for (unsigned int h = 0; h < num_heads; h++)
-        {
             const float *B = input_1 + b * num_heads * ldb * N + h * ldb * N;
             const float *A = val_temp + b * num_heads * hph_padded * K + h * hph_padded * K;
             float *C = output + b * num_hidden * num_seq + h * hidden_per_head;
@@ -465,7 +480,7 @@ void naive_v_attention (const float *input_1, const float *input_2, float *outpu
 }
 
 void naive_sgemm_with_omp(const unsigned int M, const unsigned int N, const unsigned int K,
-		 const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc)
+    const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc)
 {
     #pragma omp parallel for collapse(2)
     for (unsigned int n = 0; n < N; n++)

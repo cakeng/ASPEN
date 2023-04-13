@@ -846,6 +846,11 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
             naive_v_attention (input, input2, output
                 , layer->params[BATCH], layer->params[NUM_HEAD], layer->params[NUM_HIDDEN], layer->params[NUM_SEQ]);
         }
+        else if (layer->type == LAYERNORM_LAYER)
+        {
+            naive_layernorm (input, layer->tensors[WEIGHT_TENSOR]->data, layer->tensors[BIAS_TENSOR]->data, output, 
+                layer->params[BATCH]*layer->params[MAT_N], layer->params[MAT_M]);
+        }
         else if (layer->type == INPUT_LAYER)
         {
             // Do nothing

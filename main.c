@@ -52,7 +52,7 @@ int main(void)
     // // print_nasm_info(bert_nasm, 0, 0);
     // // print_dnn_info(bert_dnn, 0);
 
-    // get_elapsed_time ("init");
+    get_elapsed_time ("init");
     // ase_group_run (ase_group);
     // ase_wait_for_nasm_completion (bert_nasm);
     // // ase_wait_for_nasm_completion (bert_4_nasm);
@@ -60,16 +60,14 @@ int main(void)
     // get_elapsed_time ("run_aspen");
     
     // print_rpool_info (rpool);
-    bert_dnn->num_layers = 6;
-    print_dnn_info(bert_dnn, 0);
+    // print_dnn_info(bert_dnn, 0);
     unsigned int input_params[NUM_PARAM_ELEMENTS] = {0};
     input_params[BATCH] = 1; input_params[NUM_SEQ] = 38; input_params[NUM_HIDDEN] = 768;
     void *dog_data = aspen_load_input ("data/Text_Len_38_Embedded_input.bin", input_params, sizeof(float));
     aspen_run_naive (bert_dnn, input_params, dog_data);
     get_elapsed_time ("run_naive");
     
-    
-    for (int i = 5; i < 6; i++)
+    for (int i = 144; i < 145; i++)
     {
         printf ("\tLayer %d - Type %s\n", i, layer_type_str[bert_dnn->layers[i].type]);
         aspen_layer_t *layer = &bert_dnn->layers[i];
@@ -81,19 +79,19 @@ int main(void)
         // void *ldata_output = get_ldata_output (ldata, output_order);
         // void *ldata_raw_output = get_packed_ldata_output_colwise (ldata);
         char filename[256];
-        sprintf (filename, "data/BERT_8_2_Context_layer_output.bin");
+        sprintf (filename, "data/BERT_22_transformer_layer_11_output.bin");
         // size_t elem_size = ldata->layer->dnn->element_size;
         // size_t data_size = ldata->out_mat_dims[OUT_H] * ldata->out_mat_dims[OUT_W] * elem_size;
         size_t elem_size = layer->dnn->element_size;
         size_t data_size = layer->tensors[OUTPUT_TENSOR]->num_elements * elem_size;
         void *expected_output = load_arr (filename, data_size);
 
-        printf ("Expected output for layer %d:\n", i);
-        print_float_tensor (expected_output, input_params[BATCH], 1
-            , layer->params[MAT_N], layer->params[MAT_M]);
-        printf ("Computed output for layer %d:\n", i);
-        print_float_tensor (layer_output, input_params[BATCH], 1
-            , layer->params[MAT_N], layer->params[MAT_M]);
+        // printf ("Expected output for layer %d:\n", i);
+        // print_float_tensor (expected_output, input_params[BATCH], 1
+        //     , layer->params[MAT_N], layer->params[MAT_M]);
+        // printf ("Computed output for layer %d:\n", i);
+        // print_float_tensor (layer_output, input_params[BATCH], 1
+        //     , layer->params[MAT_N], layer->params[MAT_M]);
         // printf ("Raw output for layer %d:\n", i);
         // print_float_tensor (ldata_raw_output, layer->params[BATCH], layer->params[OUT_H], 
         //     layer->params[OUT_W], layer->params[OUT_C]);

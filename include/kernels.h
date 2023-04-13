@@ -71,7 +71,8 @@ void naive_fully_connected
 (const float *input, const float *kernel, const float *bias, float *output, 
     unsigned int batch_size, unsigned int input_size, unsigned int output_size);
 
-void naive_layernorm (const float *input, float *output, unsigned int num_elements, unsigned int M, unsigned int N);
+void naive_layernorm (const float *input, const float *kernel, const float *bias, 
+    float *output, unsigned int N, unsigned int M);
 
 void naive_k_attention (const float *input_1, const float *input_2, float *output, unsigned int batch_size
     , unsigned int num_heads, unsigned int num_hidden, unsigned int num_seq);
