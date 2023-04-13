@@ -733,7 +733,7 @@ void neon_sgemm_vectorized(const unsigned int M, const unsigned int N, const uns
                 float c = C[nn * ldc + m];
                 for (unsigned int k = 0; k < K; k++)
                 {
-                    c += A[((m/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M + rem_m] * B[nn * ldb + k];
+                    c += A[((m/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M + (m%_VEC_SIZE_M)] * B[nn * ldb + k];
                 }
                 C[nn * ldc + m] = c;
             }
@@ -743,7 +743,7 @@ void neon_sgemm_vectorized(const unsigned int M, const unsigned int N, const uns
             float c = C[n * ldc + m];
             for (unsigned int k = 0; k < K; k++)
             {
-                c += A[((m/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M + rem_m] * B[n * ldb + k];
+                c += A[((m/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M + (m%_VEC_SIZE_M)] * B[n * ldb + k];
             }
             C[n * ldc + m] = c;
         }
@@ -1724,7 +1724,7 @@ void neon_sgemm_tile_N(const unsigned int M, const unsigned int N, const unsigne
                 float c = C[nn * ldc + m];
                 for (unsigned int k = 0; k < K; k++)
                 {
-                    c += A[((m/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M + rem_m] * B[nn * ldb + k];
+                    c += A[((m/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M + (m%_VEC_SIZE_M)] * B[nn * ldb + k];
                 }
                 C[nn * ldc + m] = c;
             }
@@ -1734,7 +1734,7 @@ void neon_sgemm_tile_N(const unsigned int M, const unsigned int N, const unsigne
             float c = C[n * ldc + m];
             for (unsigned int k = 0; k < K; k++)
             {
-                c += A[((m/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M + rem_m] * B[n * ldb + k];
+                c += A[((m/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M + (m%_VEC_SIZE_M)] * B[n * ldb + k];
             }
             C[n * ldc + m] = c;
         }

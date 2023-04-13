@@ -71,6 +71,11 @@ aspen_dnn_t *apu_create_transformer_dnn (unsigned int num_transformers,
                 layer->params [MAT_M] = 4 * num_hidden;
                 layer->activation = GELU;
             }
+            if (layer->type == K_ATTENTION_LAYER)
+            {
+                layer->params[MAT_M] = 0;
+                layer->params[MAT_K] = (num_hidden / num_head);
+            }
             layer->parent_layers [PARENT_0] = layer + transformer_parents[j][0];
             if (transformer_parents[j][1] != 1)
                 layer->parent_layers [PARENT_1] = layer + transformer_parents[j][1];
@@ -213,8 +218,7 @@ void calloc_aspen_tensor (aspen_tensor_t *tensor)
     for (int i = 0; i < tensor->num_dims; i++)
     {
         if (i == tensor->num_dims - 1)
-            size *= tensor->dims[tensor->data_dim_order[i]] 
-                - (tensor->dims[tensor->data_dim_order[i]]%_VEC_SIZE_M) + _VEC_SIZE_M;
+            size *= get_smallest_dividable (tensor->dims[tensor->data_dim_order[i]], _VEC_SIZE_M);
         else
             size *= tensor->dims[tensor->data_dim_order[i]];
     }
@@ -566,10 +570,16 @@ void create_layer_output_tensor (aspen_layer_t *layer)
         calloc_aspen_tensor (layer->tensors [OUTPUT_TENSOR]);
     }
     else if (layer->type == LAYERNORM_LAYER
-        || layer->type == K_ATTENTION_LAYER || layer->type == V_ATTENTION_LAYER || layer->type == MATMUL_LAYER)
+        || layer->type == V_ATTENTION_LAYER || layer->type == MATMUL_LAYER)
     {
         LAYER_PARAMS dim_order[] = {BATCH, MAT_N, MAT_M};
         layer->tensors [OUTPUT_TENSOR] = init_aspen_tensor (layer->params, dim_order, 3, layer->dnn->element_size);
+        calloc_aspen_tensor (layer->tensors [OUTPUT_TENSOR]);
+    }
+    else if (layer->type == K_ATTENTION_LAYER)
+    {
+        LAYER_PARAMS dim_order[] = {BATCH, NUM_HEAD, MAT_N, MAT_M};
+        layer->tensors [OUTPUT_TENSOR] = init_aspen_tensor (layer->params, dim_order, 4, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [OUTPUT_TENSOR]);
     }
     else
@@ -762,6 +772,11 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
         {
             layer->params[OUT_W] = input_params[NUM_SEQ];
         }
+        if (layer->type == K_ATTENTION_LAYER)
+        {
+            layer->params[MAT_M] = (input_params[NUM_SEQ]);
+            layer->params[MAT_K] = (input_params[NUM_HIDDEN] / layer->params[NUM_HEAD]);
+        }
         create_layer_output_tensor (layer);
     }
     print_dnn_info (dnn, 0);
@@ -779,33 +794,33 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
         float *output = (float*)layer->tensors[OUTPUT_TENSOR]->data;
         if (layer->type == CONV_LAYER)
         {
-            naive_conv2d_im2col_mm (input, layer->tensors[WEIGHT_TENSOR]->data, layer->tensors[BIAS_TENSOR]->data, &output,
+            naive_conv2d (input, layer->tensors[WEIGHT_TENSOR]->data, layer->tensors[BIAS_TENSOR]->data, output,
                 layer->params[BATCH], layer->params[IN_C], layer->params[IN_H], layer->params[IN_W],
                 layer->params[OUT_C], layer->params[WEIGHT_H], layer->params[WEIGHT_W],
                 layer->params[STRIDE], layer->params[PADDING]);
         }
         else if (layer->type == MAXPOOL_LAYER)
         {
-            naive_maxpool2d (input, &output, layer->params[BATCH], layer->params[IN_C], layer->params[IN_H], layer->params[IN_W],
+            naive_maxpool2d (input, output, layer->params[BATCH], layer->params[IN_C], layer->params[IN_H], layer->params[IN_W],
                 layer->params[WEIGHT_H], layer->params[WEIGHT_W], layer->params[STRIDE], layer->params[PADDING]);
         }
         else if (layer->type == AVGPOOL_LAYER)
         {
-            naive_avgpool2d (input, &output, layer->params[BATCH], layer->params[IN_C], layer->params[IN_H], layer->params[IN_W],
+            naive_avgpool2d (input, output, layer->params[BATCH], layer->params[IN_C], layer->params[IN_H], layer->params[IN_W],
                 layer->params[WEIGHT_H], layer->params[WEIGHT_W], layer->params[STRIDE], layer->params[PADDING]);
         }
         else if (layer->type == SOFTMAX_LAYER)
         {
-            naive_softmax (input, &output, layer->params[BATCH], layer->tensors[OUTPUT_TENSOR]->num_elements/ layer->params[BATCH]);
+            naive_softmax (input, output, layer->params[BATCH], layer->tensors[OUTPUT_TENSOR]->num_elements/ layer->params[BATCH]);
         }
         else if (layer->type == FC_LAYER)
         {
-            naive_fully_connected (input, layer->tensors[WEIGHT_TENSOR]->data, layer->tensors[BIAS_TENSOR]->data, &output,
+            naive_fully_connected (input, layer->tensors[WEIGHT_TENSOR]->data, layer->tensors[BIAS_TENSOR]->data, output,
                 layer->params[BATCH], layer->params[IN_C], layer->params[OUT_C]);
         }
         else if (layer->type == RESIDUAL_LAYER)
         {
-            naive_residual (input, input2, &output, layer->tensors[OUTPUT_TENSOR]->num_elements);
+            naive_residual (input, input2, output, layer->tensors[OUTPUT_TENSOR]->num_elements);
         }
         else if (layer->type == MATMUL_LAYER)
         {
@@ -820,6 +835,16 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
                     output[j*layer->params[MAT_M] + k] += ((float*)layer->tensors[BIAS_TENSOR]->data)[k];
                 }
             }
+        }
+        else if (layer->type == K_ATTENTION_LAYER)
+        {
+            naive_k_attention (input, input2, output
+                , layer->params[BATCH], layer->params[NUM_HEAD], layer->params[NUM_HIDDEN], layer->params[NUM_SEQ]);
+        }
+        else if (layer->type == V_ATTENTION_LAYER)
+        {
+            naive_v_attention (input, input2, output
+                , layer->params[BATCH], layer->params[NUM_HEAD], layer->params[NUM_HIDDEN], layer->params[NUM_SEQ]);
         }
         else if (layer->type == INPUT_LAYER)
         {

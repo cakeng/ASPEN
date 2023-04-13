@@ -22,13 +22,10 @@
 #ifdef NEON
 #include <arm_neon.h>
 #endif //_NEON
-#ifdef OPENBLAS
-#include <cblas.h>
-#endif
 
 #define MAX_TENSOR_DIMS 8
 #define MAX_STRING_LEN 256
-#define MAX_PARENT_NINST_NUM (1<<20) // 1M
+#define MAX_PARENT_NINST_NUM (1<<16) // 65536
 #define MAX_NUM_GPUS 16
 #define NINST_H_MIN (64)
 #define NINST_W_MIN (12)
@@ -37,7 +34,6 @@
 #define GPU_MEM_STREAM_GPU_TO_HOST 30
 #define GPU_MEM_STREAM_KERNEL_MAX 29
 // #define GPU 1
-// #define OPENBLAS 1
 
 #if SUPPRESS_OUTPUT == 0
 #define PRT(...) printf(__VA_ARGS__) 

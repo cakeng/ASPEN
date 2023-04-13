@@ -45,25 +45,21 @@ void naive_activate (float *input, unsigned int num_elements, LAYER_ACT activati
 
 // Input and output is in NHWC format. Kernel is in (O/8)HWI8 format.
 void naive_conv2d
-(const float *input, const float *kernel, const float *bias, float **output_ptr, 
+(const float *input, const float *kernel, const float *bias, float *output, 
     unsigned int batch_size, unsigned int input_channels, unsigned int height, unsigned int width,  
         unsigned int output_channels, unsigned int kernel_width , unsigned int kernel_height, 
             unsigned int stride, unsigned int padding)
 {
+    #ifdef DEBUG
     if (input == NULL)
         FPRT (stderr, "Error in naive_convolution: input is NULL.\n");
     if (kernel == NULL)
         FPRT (stderr, "Error in naive_convolution: kernel is NULL.\n");
-    if (output_ptr == NULL)
+    if (output == NULL)
         FPRT (stderr, "Error in naive_convolution: output is NULL.\n");
-    float *output = *output_ptr;
+    #endif
     unsigned int output_width = (width - kernel_width + 2 * padding) / stride + 1;
     unsigned int output_height = (height - kernel_height + 2 * padding) / stride + 1;
-    unsigned int output_size = batch_size * output_width * output_height * output_channels;
-    if (output == NULL)
-        output = (float *) aspen_calloc (output_size, sizeof (float));
-    else
-        memset (output, 0, output_size * sizeof (float));
 
     #pragma omp parallel for collapse(3)
     for (unsigned int b = 0; b < batch_size; b++)
@@ -107,25 +103,21 @@ void naive_conv2d
 }
 
 void naive_conv2d_im2col_mm
-(const float *input, const float *kernel, const float *bias, float **output_ptr, 
+(const float *input, const float *kernel, const float *bias, float *output, 
     unsigned int batch_size, unsigned int input_channels, unsigned int height, unsigned int width,  
         unsigned int output_channels, unsigned int kernel_width , unsigned int kernel_height, 
             unsigned int stride, unsigned int padding)
 {
+    #ifdef DEBUG
     if (input == NULL)
         FPRT (stderr, "Error in naive_convolution_im2col_mm: input is NULL.\n");
     if (kernel == NULL)
         FPRT (stderr, "Error in naive_convolution_im2col_mm: kernel is NULL.\n");
-    if (output_ptr == NULL)
+    if (output == NULL)
         FPRT (stderr, "Error in naive_convolution_im2col_mm: output is NULL.\n");
-    float *output = *output_ptr;
+    #endif
     unsigned int output_width = (width - kernel_width + 2 * padding) / stride + 1;
     unsigned int output_height = (height - kernel_height + 2 * padding) / stride + 1;
-    unsigned int output_size = batch_size * output_width * output_height * output_channels;
-    if (output == NULL)
-        output = (float *) aspen_calloc (output_size, sizeof (float));
-    else
-        memset (output, 0, output_size * sizeof (float));
 
     unsigned int im2col_size = batch_size * output_height * output_width * kernel_height * kernel_width * input_channels;
     float *im2col_mat = (float *) aspen_calloc (im2col_size, sizeof (float));
@@ -162,32 +154,30 @@ void naive_conv2d_im2col_mm
             }
         }
     }
-    for (int n = 0; n < N; n++)
+    if (bias != NULL)
     {
-        memcpy (output + n * M, bias, M * sizeof (float));
+        for (int n = 0; n < N; n++)
+        {
+            memcpy (output + n * M, bias, M * sizeof (float));
+        }
     }
-    // cblas_sgemm (CblasColMajor, CblasTrans, CblasNoTrans, M, N, K, 1.0, kernel, K, im2col_mat, K, 1.0, output, M);
-    naive_sgemm_vectorized (M, N, K, kernel, K, im2col_mat, K, output, M);
+    SGEMM_KERNEL_OMP (M, N, K, kernel, K, im2col_mat, K, output, M);
     aspen_free (im2col_mat);
 }
 
 void naive_maxpool2d
-(const float *input, float **output_ptr, 
+(const float *input, float *output, 
     unsigned int batch_size, unsigned int channels, unsigned int height, unsigned int width,  
         unsigned int kernel_height, unsigned int kernel_width, unsigned int stride, unsigned int padding)
 {
+    #ifdef DEBUG
     if (input == NULL)
         FPRT (stderr, "Error in naive_maxpool2d: input is NULL.\n");
-    if (output_ptr == NULL)
+    if (output == NULL)
         FPRT (stderr, "Error in naive_maxpool2d: output is NULL.\n");
-    float *output = *output_ptr;
+    #endif
     unsigned int output_width = (width - kernel_width + 2 * padding) / stride + 1;
     unsigned int output_height = (height - kernel_height + 2 * padding) / stride + 1;
-    unsigned int output_size = batch_size * output_width * output_height * channels;
-    if (output == NULL)
-        output = (float *) aspen_calloc (output_size, sizeof (float));
-    else
-        memset (output, 0, output_size * sizeof (float));
 
     #pragma omp parallel for collapse(3)
     for (unsigned int b = 0; b < batch_size; b++)
@@ -226,22 +216,18 @@ void naive_maxpool2d
 }
 
 void naive_avgpool2d
-(const float *input, float **output_ptr, 
+(const float *input, float *output, 
     unsigned int batch_size, unsigned int channels, unsigned int height, unsigned int width,  
         unsigned int kernel_height, unsigned int kernel_width, unsigned int stride, unsigned int padding)
 {
+    #ifdef DEBUG
     if (input == NULL)
         FPRT (stderr, "Error in naive_avgpool2d: input is NULL.\n");
-    if (output_ptr == NULL)
+    if (output == NULL)
         FPRT (stderr, "Error in naive_avgpool2d: output is NULL.\n");
-    float *output = *output_ptr;
+    #endif
     unsigned int output_width = (width - kernel_width + 2 * padding) / stride + 1;
     unsigned int output_height = (height - kernel_height + 2 * padding) / stride + 1;
-    unsigned int output_size = batch_size * output_width * output_height * channels;
-    if (output == NULL)
-        output = (float *) aspen_calloc (output_size, sizeof (float));
-    else
-        memset (output, 0, output_size * sizeof (float));
 
     #pragma omp parallel for collapse(3)
     for (unsigned int b = 0; b < batch_size; b++)
@@ -278,21 +264,17 @@ void naive_avgpool2d
 }
 
 void naive_fully_connected
-(const float *input, const float *kernel, const float *bias, float **output_ptr, 
+(const float *input, const float *kernel, const float *bias, float *output, 
     unsigned int batch_size, unsigned int input_size, unsigned int output_size)
 {
+    #ifdef DEBUG
     if (input == NULL)
         FPRT (stderr, "Error in naive_fully_connected: input is NULL.\n");
     if (kernel == NULL)
         FPRT (stderr, "Error in naive_fully_connected: kernel is NULL.\n");
-    if (output_ptr == NULL)
-        FPRT (stderr, "Error in naive_fully_connected: output is NULL.\n");
-    float *output = *output_ptr;
     if (output == NULL)
-        output = (float *) aspen_calloc (batch_size * output_size, sizeof (float));
-    else
-        memset (output, 0, batch_size * output_size * sizeof (float));
-
+        FPRT (stderr, "Error in naive_fully_connected: output is NULL.\n");
+    #endif
     #pragma omp parallel for collapse(2)
     for (unsigned int b = 0; b < batch_size; b++)
     {
@@ -312,34 +294,28 @@ void naive_fully_connected
 }
 
 void naive_residual
-(const float *input_1, const float *input_2, float **output_ptr, unsigned int num_elements)
+(const float *input_1, const float *input_2, float *output, unsigned int num_elements)
 {
+    #ifdef DEBUG
     if (input_1 == NULL)
         FPRT (stderr, "Error in naive_residual: input_1 is NULL.\n");
     if (input_2 == NULL)
         FPRT (stderr, "Error in naive_residual: input_2 is NULL.\n");
-    if (output_ptr == NULL)
-        FPRT (stderr, "Error in naive_residual: output is NULL.\n");
-    float *output = *output_ptr;
     if (output == NULL)
-        output = (float *) aspen_calloc (num_elements, sizeof (float));
-    else
-        memset (output, 0, num_elements * sizeof (float));
+        FPRT (stderr, "Error in naive_residual: output is NULL.\n");
+    #endif
     for (unsigned int i = 0; i < num_elements; i++)
         output[i] = input_1[i] + input_2[i];
 }
 
-void naive_softmax (float *input, float **output_ptr, unsigned int num_batch, unsigned int num_elements)
+void naive_softmax (float *input, float *output, unsigned int num_batch, unsigned int num_elements)
 {
+    #ifdef DEBUG
     if (input == NULL)
         FPRT (stderr, "Error in naive_softmax: input is NULL.\n");
-    if (output_ptr == NULL)
-        FPRT (stderr, "Error in naive_softmax: output is NULL.\n");
-    float *output = *output_ptr;
     if (output == NULL)
-        output = (float *) aspen_calloc (num_batch*num_elements, sizeof (float));
-    else
-        memset (output, 0, num_batch * num_elements * sizeof (float));
+        FPRT (stderr, "Error in naive_softmax: output is NULL.\n");
+    #endif
     for (int i = 0; i < num_batch; i++)
     {
         float max = input[i * num_elements];
@@ -359,7 +335,136 @@ void naive_softmax (float *input, float **output_ptr, unsigned int num_batch, un
     }
 }
 
-void naive_sgemm(const unsigned int M, const unsigned int N, const unsigned int K,
+void naive_layernorm (const float *input, float *output, unsigned int num_elements, unsigned int M, unsigned int N)
+{
+
+}
+
+void naive_k_attention (const float *input_1, const float *input_2, float *output, unsigned int batch_size
+    , unsigned int num_heads, unsigned int num_hidden, unsigned int num_seq)
+{
+    #ifdef DEBUG
+    if (input_1 == NULL)
+        FPRT (stderr, "Error in naive_k_attention: input_1 is NULL.\n");
+    if (input_2 == NULL)
+        FPRT (stderr, "Error in naive_k_attention: input_2 is NULL.\n");
+    if (output == NULL)
+        FPRT (stderr, "Error in naive_k_attention: output is NULL.\n");
+    #endif
+    const unsigned int seq_padded = get_smallest_dividable (num_seq, _VEC_SIZE_M);
+    const unsigned int hidden_per_head = num_hidden / num_heads;
+    const unsigned int M = num_seq;
+    const unsigned int N = num_seq;
+    const unsigned int K = hidden_per_head;
+    const unsigned int ldk = num_hidden;
+    const unsigned int lda = K;
+    const unsigned int ldb = num_hidden;
+    const unsigned int ldc = seq_padded;
+    float *key_temp = (float *) aspen_calloc (batch_size * num_heads * seq_padded * K, sizeof(float));
+
+    #pragma omp parallel for collapse(2)
+    for (unsigned int b = 0; b < batch_size; b++)
+    {
+        for (unsigned int h = 0; h < num_heads; h++)
+        {
+            const float *in_key_ptr = input_2 + b * num_hidden * num_seq + h * hidden_per_head;
+            float *out_key_ptr = key_temp + b * num_heads * seq_padded * K + h * seq_padded * K;
+            
+            for (unsigned int m = 0; m < M; m++)
+            {
+                for (unsigned int k = 0; k < K; k++)
+                {
+                    const float* input_ptr = in_key_ptr + m * ldk + k;
+                    float* output_ptr = out_key_ptr + ((m/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M 
+                        + (m % _VEC_SIZE_M);
+                    *output_ptr = *input_ptr;
+                }
+            }
+        }
+    }
+    #pragma omp parallel for collapse(2)
+    for (unsigned int b = 0; b < batch_size; b++)
+    {
+        for (unsigned int h = 0; h < num_heads; h++)
+        {
+            const float *B = input_1 + b * num_hidden * num_seq + h * hidden_per_head;
+            const float *A = key_temp + b * num_heads * seq_padded * K + h * seq_padded * K;
+            float *C = output + b * num_heads * ldc * N + h * ldc * N;
+            SGEMM_KERNEL (M, N, K, A, lda, B, ldb, C, ldc);
+            for (unsigned int i = 0; i < N; i++)
+            {
+                float total = 0;
+                for (unsigned int j = 0; j < M; j++)
+                {
+                    C[i*ldc + j] /= sqrtf (hidden_per_head);
+                    C[i*ldc + j] = expf (C[i*ldc + j]);
+                    total += C[i*ldc + j];
+                }
+                for (unsigned int j = 0; j < M; j++)
+                    C[i*ldc + j] /= total;
+            }
+        }
+    }
+    aspen_free (key_temp);
+}
+
+void naive_v_attention (const float *input_1, const float *input_2, float *output, unsigned int batch_size
+    , unsigned int num_heads, unsigned int num_hidden, unsigned int num_seq)
+{
+    #ifdef DEBUG
+    if (input_1 == NULL)
+        FPRT (stderr, "Error in naive_v_attention: input_1 is NULL.\n");
+    if (input_2 == NULL)
+        FPRT (stderr, "Error in naive_v_attention: input_2 is NULL.\n");
+    if (output == NULL)
+        FPRT (stderr, "Error in naive_v_attention: output is NULL.\n");
+    #endif
+    const unsigned int hidden_per_head = num_hidden / num_heads;
+    const unsigned int seq_padded = get_smallest_dividable (num_seq, _VEC_SIZE_M);
+    const unsigned int hph_padded = get_smallest_dividable (hidden_per_head, _VEC_SIZE_M);
+    const unsigned int M = hidden_per_head;
+    const unsigned int N = num_seq;
+    const unsigned int K = num_seq;
+    const unsigned int ldv = num_hidden;
+    const unsigned int lda = K;
+    const unsigned int ldb = seq_padded;
+    const unsigned int ldc = num_hidden;
+    float *val_temp = (float *) aspen_calloc (batch_size * num_heads * hph_padded * K, sizeof(float));
+
+    // #pragma omp parallel for collapse(2)
+    for (unsigned int b = 0; b < batch_size; b++)
+    {
+        for (unsigned int h = 0; h < num_heads; h++)
+        {
+            const float *in_val_ptr = input_2 + b * num_hidden * num_seq + h * hidden_per_head;
+            float *out_val_ptr = val_temp + b * num_heads * hph_padded * K + h * hph_padded * K;
+            for (unsigned int m = 0; m < M; m++)
+            {
+                for (unsigned int k = 0; k < K; k++)
+                {
+                    const float* input_ptr = in_val_ptr + k * ldv + m;
+                    float* output_ptr = out_val_ptr + ((m/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M 
+                        + (m % _VEC_SIZE_M);
+                    *output_ptr = *input_ptr;
+                }
+            }
+        }
+    }
+    // #pragma omp parallel for collapse(2)
+    for (unsigned int b = 0; b < batch_size; b++)
+    {
+        for (unsigned int h = 0; h < num_heads; h++)
+        {
+            const float *B = input_1 + b * num_heads * ldb * N + h * ldb * N;
+            const float *A = val_temp + b * num_heads * hph_padded * K + h * hph_padded * K;
+            float *C = output + b * num_hidden * num_seq + h * hidden_per_head;
+            SGEMM_KERNEL (M, N, K, A, lda, B, ldb, C, ldc);
+        }
+    }
+    aspen_free (val_temp);
+}
+
+void naive_sgemm_with_omp(const unsigned int M, const unsigned int N, const unsigned int K,
 		 const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc)
 {
     #pragma omp parallel for collapse(2)
@@ -377,7 +482,7 @@ void naive_sgemm(const unsigned int M, const unsigned int N, const unsigned int 
     }
 }   
 
-void naive_sgemm_without_omp(const unsigned int M, const unsigned int N, const unsigned int K,
+void naive_sgemm(const unsigned int M, const unsigned int N, const unsigned int K,
 		 const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc)
 {
     for (unsigned int n = 0; n < N; n++)
@@ -394,7 +499,7 @@ void naive_sgemm_without_omp(const unsigned int M, const unsigned int N, const u
     }
 }   
 
-void naive_sgemm_vectorized(const unsigned int M, const unsigned int N, const unsigned int K,
+void naive_sgemm_vectorized_with_omp (const unsigned int M, const unsigned int N, const unsigned int K,
 		 const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc)
 {
     // 8 by 8 tiled matrix multiplication
@@ -463,7 +568,7 @@ void naive_sgemm_vectorized(const unsigned int M, const unsigned int N, const un
     }
 }   
 
-void naive_sgemm_vectorized_without_omp(const unsigned int M, const unsigned int N, const unsigned int K,
+void naive_sgemm_vectorized(const unsigned int M, const unsigned int N, const unsigned int K,
 		 const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc)
 {
     for (unsigned int n = 0; n < N - (N%_VEC_SIZE_N); n += _VEC_SIZE_N)
