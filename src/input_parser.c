@@ -94,10 +94,18 @@ void set_layer_inout_sizes (aspen_layer_t *layer)
         }
         return;
     }
-    else if (layer->type == LAYERNORM_LAYER
-        || layer->type == K_ATTENTION_LAYER || layer->type == V_ATTENTION_LAYER || layer->type == MATMUL_LAYER)
+    else if (layer->type == MATMUL_LAYER)
     {
-
+        layer->params[MAT_K] = layer->parent_layers[PARENT_0]->params[MAT_M];
+        return;
+    }
+    else if (layer->type == V_ATTENTION_LAYER || layer->type == LAYERNORM_LAYER)
+    {
+        return;
+    }
+    else if (layer->type == K_ATTENTION_LAYER)
+    {
+        layer->params[MAT_K] = layer->params[NUM_HIDDEN] / layer->params[NUM_HEAD];
         return;
     }
     else

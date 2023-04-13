@@ -72,46 +72,6 @@ void ninst_find_input_pos_idx (ninst_t *ninst)
             }
         }
     }
-    else if (layer->type == RESIDUAL_LAYER)
-    {
-        unsigned int parent_stride = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr)->out_mat_stride;
-        unsigned int parent_stride2 = (ldata->parent_ldata_idx_arr[PARENT_1] + ldata->nasm->ldata_arr)->out_mat_stride;
-        unsigned int num_input_pos = ninst->tile_dims[OUT_W]*2;
-        ninst->num_input_pos = num_input_pos;
-        ninst->input_pos_idx_arr = calloc(num_input_pos, sizeof(unsigned int));
-        unsigned int input_pos_idx = 0;
-        for (unsigned int tile_w = 0; tile_w < ninst->tile_dims[OUT_W]; tile_w++)
-        {
-            ninst->input_pos_idx_arr [input_pos_idx] = (ninst->out_mat_pos[OUT_W] + tile_w) * parent_stride;
-            input_pos_idx++;
-            ninst->input_pos_idx_arr [input_pos_idx] = (ninst->out_mat_pos[OUT_W] + tile_w) * parent_stride2;
-            input_pos_idx++;
-        }
-
-    }
-    else if (layer->type == SOFTMAX_LAYER || layer->type == FC_LAYER)
-    {
-        unsigned int parent_stride = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr)->out_mat_stride;
-        unsigned int num_input_pos = ninst->tile_dims[OUT_W];
-        ninst->num_input_pos = num_input_pos;
-        ninst->input_pos_idx_arr = calloc(num_input_pos, sizeof(unsigned int));
-        unsigned int input_pos_idx = 0;
-        for (unsigned int tile_w = 0; tile_w < ninst->tile_dims[OUT_W]; tile_w++)
-        {
-            ninst->input_pos_idx_arr [input_pos_idx] = (ninst->out_mat_pos[OUT_W] + tile_w) * parent_stride;
-            input_pos_idx++;
-        }
-    }
-    else if (layer->type == INPUT_LAYER)
-    {
-        // printf ("\n");
-        return;
-    }
-    else
-    {
-        FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], __LINE__, __FILE__);
-        assert (0);
-    }
 }
 
 // Change to add a new layer type
@@ -309,6 +269,26 @@ void ninst_find_parent (ninst_t *ninst)
                     }
                 }
             }
+            else if (layer->type == LAYERNORM_LAYER)
+            {
+                
+                return;
+            }
+            else if (layer->type == MATMUL_LAYER)
+            {
+                
+                return;
+            }
+            else if (layer->type == K_ATTENTION_LAYER)
+            {
+                
+                return;
+            }
+            else if (layer->type == V_ATTENTION_LAYER)
+            {
+                
+                return;
+            }
             else if (layer->type == INPUT_LAYER)
             {
                 // printf ("\n");
@@ -365,10 +345,11 @@ void destroy_ninst (ninst_t *ninst)
     //     free (ninst->input_pos_idx_arr);
 }
 
-nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size)
+nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size, unsigned int transformer_seq_len)
 {
     nasm_t *new_nasm = (nasm_t *) calloc(1, sizeof(nasm_t));
     new_nasm->dnn = dnn;
+    new_nasm->tr_seq_len = transformer_seq_len;
     new_nasm->flop_per_ninst = flop_per_ninst > 0? flop_per_ninst : 1;
     new_nasm->batch_size = batch_size > 0? batch_size : 1;
     new_nasm->nasm_id = nasm_num;
@@ -448,7 +429,7 @@ void set_child_list (ninst_t *ninst)
 
 nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size)
 {
-    nasm_t *new_nasm = apu_create_nasm_without_finding_ninst_parents(dnn, flop_per_ninst, batch_size);
+    nasm_t *new_nasm = apu_create_nasm_without_finding_ninst_parents(dnn, flop_per_ninst, batch_size, 0);
     PRT ("APU: Graphing ninsts...\n");
     for (int i = 0; i < new_nasm->num_ldata; i++)
     {
@@ -482,9 +463,10 @@ nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned 
     return new_nasm;
 }
 
-nasm_t *apu_create_bert_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int seq_num, unsigned int batch_size)
+nasm_t *apu_create_transformer_encoder_nasm
+    (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size, unsigned int seq_num)
 {
-    nasm_t *new_nasm = apu_create_nasm_without_finding_ninst_parents(dnn, flop_per_ninst, batch_size);
+    nasm_t *new_nasm = apu_create_nasm_without_finding_ninst_parents(dnn, flop_per_ninst, batch_size, seq_num);
     PRT ("APU: Graphing ninsts...\n");
     for (int i = 0; i < new_nasm->num_ldata; i++)
     {
@@ -507,7 +489,7 @@ nasm_t *apu_create_bert_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsi
         PRT ("Layer %d, children for %d ninsts found.\n", i, new_nasm->ldata_arr[i].num_ninst);
     }
     PRT ("\n");
-    // Calculat total flops
+    // Calculate total flops
     new_nasm->total_flops = 0;
     for (int i = 0; i < new_nasm->num_ldata; i++)
     {
@@ -592,12 +574,41 @@ void get_out_mat_info (nasm_ldata_t *ldata)
         ldata->flop_per_output = 1;
         ldata->out_mat_dims[OUT_H] = layer->params[OUT_C];
         ldata->out_mat_dims[OUT_W] = layer->params[OUT_H]*layer->params[OUT_W]*ldata->nasm->batch_size;
+        if (ldata->nasm->tr_seq_len != 0)
+        {
+            ldata->out_mat_dims[OUT_H] = layer->params[MAT_M];
+            ldata->out_mat_dims[OUT_W] = ldata->nasm->tr_seq_len*ldata->nasm->batch_size;
+        }
     }
     else if (layer->type == SOFTMAX_LAYER)
     {
         ldata->flop_per_output = 1;
         ldata->out_mat_dims[OUT_H] = layer->params[OUT_C];
         ldata->out_mat_dims[OUT_W] = ldata->nasm->batch_size;
+    }
+    else if (layer->type == MATMUL_LAYER)
+    {
+        ldata->flop_per_output = 2*layer->params[MAT_K];
+        ldata->out_mat_dims[OUT_H] = layer->params[MAT_M];
+        ldata->out_mat_dims[OUT_W] = ldata->nasm->tr_seq_len*ldata->nasm->batch_size;
+    }
+    else if (layer->type == K_ATTENTION_LAYER)
+    {
+        ldata->flop_per_output = 2*layer->params[NUM_HIDDEN]/layer->params[NUM_HEAD];
+        ldata->out_mat_dims[OUT_H] = ldata->nasm->tr_seq_len;
+        ldata->out_mat_dims[OUT_W] = ldata->nasm->tr_seq_len*layer->params[NUM_HEAD]*ldata->nasm->batch_size;
+    }
+    else if (layer->type == V_ATTENTION_LAYER)
+    {
+        ldata->flop_per_output = 2*ldata->nasm->tr_seq_len;
+        ldata->out_mat_dims[OUT_H] = layer->params[MAT_M];
+        ldata->out_mat_dims[OUT_W] = ldata->nasm->tr_seq_len*ldata->nasm->batch_size;
+    }
+    else if (layer->type == LAYERNORM_LAYER)
+    {
+        ldata->flop_per_output = 1;
+        ldata->out_mat_dims[OUT_H] = layer->params[MAT_M];
+        ldata->out_mat_dims[OUT_W] = ldata->nasm->tr_seq_len*ldata->nasm->batch_size;
     }
     else
     {
@@ -666,40 +677,66 @@ void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata_ptr, aspen_layer_t *laye
     ldata_ptr->flop_per_output = 1;
     get_out_mat_info (ldata_ptr);
     get_ninst_tile_dims (ldata_ptr);
+    unsigned int out_w = 0;
+    unsigned int out_h = 0;
+    unsigned int unit_h = NINST_H_MIN;
+    unsigned int unit_w = NINST_W_MIN;
+    unsigned int hidden_per_head = 0;
     if (layer->type == SOFTMAX_LAYER)
     {
         ldata_ptr->ninst_tile_dims[OUT_H] = ldata_ptr->out_mat_dims[OUT_H];
         ldata_ptr->ninst_tile_dims[OUT_W] = 1;
     }
-    unsigned int out_w = get_smallest_dividable (ldata_ptr->out_mat_dims[OUT_W], ldata_ptr->ninst_tile_dims[OUT_W]);
-    unsigned int out_h = get_smallest_dividable (ldata_ptr->out_mat_dims[OUT_H], ldata_ptr->ninst_tile_dims[OUT_H]);
+    if (layer->params[NUM_HEAD] > 0)
+    {
+        hidden_per_head = layer->params[NUM_HIDDEN] / layer->params[NUM_HEAD];
+        unit_w = 8;
+        unit_h = layer->params[NUM_HIDDEN] / layer->params[NUM_HEAD] / 4;
+    }
+    out_w = get_smallest_dividable (ldata_ptr->out_mat_dims[OUT_W], ldata_ptr->ninst_tile_dims[OUT_W]);
+    out_h = get_smallest_dividable (ldata_ptr->out_mat_dims[OUT_H], ldata_ptr->ninst_tile_dims[OUT_H]);
     if (layer->type != FC_LAYER && layer->type != SOFTMAX_LAYER)
     {
         while ((out_w/ldata_ptr->ninst_tile_dims[OUT_W])*(out_h/ldata_ptr->ninst_tile_dims[OUT_H]) < MIN_NINST_TILE_PER_LAYER)
         {
-            if (ldata_ptr->ninst_tile_dims[OUT_W] > NINST_W_MIN)
+            if (ldata_ptr->ninst_tile_dims[OUT_W] > unit_w)
             {
                 ldata_ptr->ninst_tile_dims[OUT_W] /= 2;
-                while (ldata_ptr->ninst_tile_dims[OUT_W]%NINST_W_MIN != 0)
+                while (ldata_ptr->ninst_tile_dims[OUT_W]%unit_w != 0)
                 {
                     ldata_ptr->ninst_tile_dims[OUT_W]++;
                 }
             }
-            else if (ldata_ptr->ninst_tile_dims[OUT_H] > NINST_H_MIN)
+            else if (ldata_ptr->ninst_tile_dims[OUT_H] > unit_h)
             {
                 ldata_ptr->ninst_tile_dims[OUT_H] /= 2;
-                while (ldata_ptr->ninst_tile_dims[OUT_H]%NINST_H_MIN != 0)
+                while (ldata_ptr->ninst_tile_dims[OUT_H]%unit_h != 0)
                 {
                     ldata_ptr->ninst_tile_dims[OUT_H]++;
                 }
             }
             out_w = get_smallest_dividable (ldata_ptr->out_mat_dims[OUT_W], ldata_ptr->ninst_tile_dims[OUT_W]);
             out_h = get_smallest_dividable (ldata_ptr->out_mat_dims[OUT_H], ldata_ptr->ninst_tile_dims[OUT_H]);
-            if (ldata_ptr->ninst_tile_dims[OUT_W] == NINST_W_MIN && ldata_ptr->ninst_tile_dims[OUT_H] == NINST_H_MIN)
+            if (ldata_ptr->ninst_tile_dims[OUT_W] == unit_w && ldata_ptr->ninst_tile_dims[OUT_H] == unit_h)
             {
                 break;
             }
         }
+    }
+    if (layer->params[NUM_HEAD] > 0)
+    {
+        unsigned int old_h = ldata_ptr->ninst_tile_dims[OUT_H];
+        if (ldata_ptr->ninst_tile_dims[OUT_H] > hidden_per_head)
+            ldata_ptr->ninst_tile_dims[OUT_H] = hidden_per_head;
+        ldata_ptr->ninst_tile_dims[OUT_W] *= old_h / ldata_ptr->ninst_tile_dims[OUT_H];
+        if (ldata_ptr->ninst_tile_dims[OUT_W] > nasm->tr_seq_len)
+            ldata_ptr->ninst_tile_dims[OUT_W] = nasm->tr_seq_len;
+        while (nasm->tr_seq_len % ldata_ptr->ninst_tile_dims[OUT_W] != 0)
+        {
+            ldata_ptr->ninst_tile_dims[OUT_W]++;
+        }
+        out_w = get_smallest_dividable (ldata_ptr->out_mat_dims[OUT_W], ldata_ptr->ninst_tile_dims[OUT_W]);
+        out_h = get_smallest_dividable (ldata_ptr->out_mat_dims[OUT_H], ldata_ptr->ninst_tile_dims[OUT_H]);
     }
     ldata_ptr->out_mat_stride = out_h;
     ldata_ptr->out_mat_mem_size = get_smallest_dividable 
@@ -755,9 +792,17 @@ void get_out_mat_pos_from_tensor_pos (nasm_ldata_t *ldata, unsigned int *tensor_
     if (layer->type == CONV_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER || layer->type == INPUT_LAYER
         || layer->type == RESIDUAL_LAYER)
     {
-        out_mat_pos[OUT_H] = tensor_pos[OUT_C];
-        out_mat_pos[OUT_W] = tensor_pos[BATCH] * layer->params[OUT_H] * layer->params[OUT_W] + 
-            tensor_pos[OUT_H] * layer->params[OUT_W] + tensor_pos[OUT_W];
+        if (layer->params[MAT_M] == 0)
+        {
+            out_mat_pos[OUT_H] = tensor_pos[OUT_C];
+            out_mat_pos[OUT_W] = tensor_pos[BATCH] * layer->params[OUT_H] * layer->params[OUT_W] + 
+                tensor_pos[OUT_H] * layer->params[OUT_W] + tensor_pos[OUT_W];
+        }
+        else
+        {
+            out_mat_pos[OUT_H] = tensor_pos[MAT_M];
+            out_mat_pos[OUT_W] = tensor_pos[BATCH] * ldata->nasm->tr_seq_len + tensor_pos[MAT_N];
+        }
         return;
     }
     else if (layer->type == FC_LAYER || layer->type == SOFTMAX_LAYER)
@@ -765,6 +810,18 @@ void get_out_mat_pos_from_tensor_pos (nasm_ldata_t *ldata, unsigned int *tensor_
         out_mat_pos[OUT_H] = tensor_pos[OUT_C];
         out_mat_pos[OUT_W] = tensor_pos[BATCH];
         return;
+    }
+    else if (layer->type == MATMUL_LAYER || layer->type == LAYERNORM_LAYER || layer->type == V_ATTENTION_LAYER)
+    {
+        out_mat_pos[OUT_H] = tensor_pos[MAT_M];
+        out_mat_pos[OUT_W] = tensor_pos[BATCH] * ldata->nasm->tr_seq_len + tensor_pos[MAT_N];
+        return;
+    }
+    else if (layer->type == K_ATTENTION_LAYER)
+    {
+        ldata->out_mat_dims[OUT_H] = tensor_pos[MAT_M];
+        ldata->out_mat_dims[OUT_W] = tensor_pos[BATCH] * ldata->nasm->tr_seq_len * layer->params[NUM_HEAD] +
+            tensor_pos[NUM_HEAD] * ldata->nasm->tr_seq_len + tensor_pos[MAT_N];
     }
     else
     {
@@ -779,10 +836,22 @@ void get_tensor_pos_from_out_mat_pos (nasm_ldata_t *ldata, unsigned int *out_mat
     if (layer->type == CONV_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER || layer->type == INPUT_LAYER
         || layer->type == RESIDUAL_LAYER)
     {
-        tensor_pos[BATCH] = out_mat_pos[OUT_W] / (layer->params[OUT_H] * layer->params[OUT_W]); 
-        tensor_pos[OUT_C] = out_mat_pos[OUT_H];
-        tensor_pos[OUT_H] = (out_mat_pos[OUT_W] % (layer->params[OUT_H] * layer->params[OUT_W])) / layer->params[OUT_W];
-        tensor_pos[OUT_W] = out_mat_pos[OUT_W] % layer->params[OUT_W];
+        if (layer->params[MAT_M] == 0)
+        {
+            tensor_pos[BATCH] = out_mat_pos[OUT_W] / (layer->params[OUT_H] * layer->params[OUT_W]); 
+            tensor_pos[OUT_C] = out_mat_pos[OUT_H];
+            tensor_pos[OUT_H] = (out_mat_pos[OUT_W] % (layer->params[OUT_H] * layer->params[OUT_W])) / layer->params[OUT_W];
+            tensor_pos[OUT_W] = out_mat_pos[OUT_W] % layer->params[OUT_W];
+        }
+        else 
+        {
+            tensor_pos[BATCH] = out_mat_pos[OUT_W] / ldata->nasm->tr_seq_len;
+            tensor_pos[MAT_N] = out_mat_pos[OUT_W] % ldata->nasm->tr_seq_len;
+            tensor_pos[MAT_M] = out_mat_pos[OUT_H];
+            tensor_pos[OUT_C] = tensor_pos[MAT_M];
+            tensor_pos[OUT_H] = 1;
+            tensor_pos[OUT_W] = tensor_pos[MAT_N];
+        }
         return;
     }
     else if (layer->type == FC_LAYER || layer->type == SOFTMAX_LAYER)
@@ -790,6 +859,20 @@ void get_tensor_pos_from_out_mat_pos (nasm_ldata_t *ldata, unsigned int *out_mat
         tensor_pos[BATCH] = out_mat_pos[OUT_W];
         tensor_pos[OUT_C] = out_mat_pos[OUT_H];
         return;
+    }
+    else if (layer->type == MATMUL_LAYER || layer->type == LAYERNORM_LAYER || layer->type == V_ATTENTION_LAYER)
+    {
+        tensor_pos[BATCH] = out_mat_pos[OUT_W] / ldata->nasm->tr_seq_len;
+        tensor_pos[MAT_N] = out_mat_pos[OUT_W] % ldata->nasm->tr_seq_len;
+        tensor_pos[MAT_M] = out_mat_pos[OUT_H];
+    }
+    else if (layer->type == K_ATTENTION_LAYER)
+    {
+        tensor_pos[BATCH] = out_mat_pos[OUT_W] / (layer->params[NUM_HEAD] * ldata->nasm->tr_seq_len);
+        tensor_pos[NUM_HEAD] = (out_mat_pos[OUT_W] % (layer->params[NUM_HEAD] * ldata->nasm->tr_seq_len)) 
+            / ldata->nasm->tr_seq_len;
+        tensor_pos[MAT_N] = out_mat_pos[OUT_W] % ldata->nasm->tr_seq_len;
+        tensor_pos[MAT_M] = out_mat_pos[OUT_H];
     }
     else
     {
@@ -973,14 +1056,27 @@ void print_ninst_info (ninst_t *ninst, int print_data)
             ninst->out_mat_pos[OUT_H] + ninst->tile_dims[OUT_H] - 1
                 , ninst->out_mat_pos[OUT_W] + ninst->tile_dims[OUT_W] - 1);
     LAYER_TYPE layer_type = ninst->ldata->layer->type;
-    if (layer_type == CONV_LAYER || layer_type == MAXPOOL_LAYER || layer_type == AVGPOOL_LAYER || layer_type == INPUT_LAYER 
-        || layer_type == RESIDUAL_LAYER)
+    if ((layer_type == CONV_LAYER || layer_type == MAXPOOL_LAYER || layer_type == AVGPOOL_LAYER || layer_type == INPUT_LAYER 
+        || layer_type == RESIDUAL_LAYER) && ninst->ldata->layer->params[MAT_M] == 0)
     {
         unsigned int out_tensor_pos[NUM_PARAM_ELEMENTS]; 
         get_tensor_pos_from_nist (ninst->ldata, ninst, out_tensor_pos);
-        printf ("Tensor Pos: (%d,%d,%d,%d)", out_tensor_pos[BATCH], out_tensor_pos[OUT_C],
+        printf ("Tensor Pos (N,C,H,W): (%d,%d,%d,%d)", out_tensor_pos[BATCH], out_tensor_pos[OUT_C],
                     out_tensor_pos[OUT_H],
                      out_tensor_pos[OUT_W]);
+    }
+    else
+    {
+        unsigned int out_tensor_pos[NUM_PARAM_ELEMENTS]; 
+        get_tensor_pos_from_nist (ninst->ldata, ninst, out_tensor_pos);
+        if (layer_type == K_ATTENTION_LAYER)
+            printf ("Tensor Pos (B,M,N): (%d,%d,%d,%d)", out_tensor_pos[BATCH], out_tensor_pos[NUM_HEAD],
+                        out_tensor_pos[MAT_M],
+                        out_tensor_pos[MAT_N]);
+        else
+            printf ("Tensor Pos (B,H,M,N): (%d,%d,%d)", out_tensor_pos[BATCH],
+                    out_tensor_pos[MAT_M],
+                     out_tensor_pos[MAT_N]);
     }
     printf ("\n\t\tParent ninst (Completed: %d/%d): "
         , ninst->num_parent_ninsts_completed, ninst->num_parent_ninsts);

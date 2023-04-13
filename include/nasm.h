@@ -8,6 +8,7 @@ struct nasm_t
     unsigned int nasm_id;
     aspen_dnn_t *dnn;
     unsigned int batch_size;
+    unsigned int tr_seq_len;
     nasm_ldata_t *ldata_arr;
     ninst_t *ninst_arr;
     unsigned int num_ldata;

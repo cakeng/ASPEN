@@ -11,8 +11,8 @@
 extern LAYER_TYPE transformer_layer_types[LAYERS_PER_TRANSFORMER];
 extern int transformer_parents [LAYERS_PER_TRANSFORMER][2];
 // 1. Key MM, 2. Query MM, 3. Value MM,
-// 6. K Attention, 7. V Attention, 8. Attention MM, 9. Residual, 10. LayerNorm, 
-// 11. Feedforward MM 1, 12. Feedforward MM 2, 13. Residual, 14. LayerNorm
+// 4. K Attention, 5. V Attention, 6. Attention MM, 7. Residual, 8. LayerNorm, 
+// 9. Feedforward MM 1, 10. Feedforward MM 2, 11. Residual, 12. LayerNorm
 
 aspen_dnn_t *init_aspen_dnn (unsigned int num_layers, char* name);
 
@@ -34,7 +34,7 @@ void *get_aspen_tensor_data (aspen_tensor_t *tensor, LAYER_PARAMS *output_order)
 void *get_aspen_tensor_element_ptr (aspen_tensor_t *tensor, unsigned int *pos);
 void destroy_aspen_tensor(aspen_tensor_t *tensor);
 
-nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size);
+nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size, unsigned int transformer_seq_len);
 
 void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata, aspen_layer_t *layer);
 void destroy_nasm_ldata_arr (nasm_ldata_t *ldata_arr, int num_ldata);

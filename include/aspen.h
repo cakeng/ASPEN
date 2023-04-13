@@ -110,13 +110,15 @@ void *aspen_load_input_NHWC(char *input_filename, unsigned int *input_dims, unsi
 void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data);
 
 aspen_dnn_t *apu_create_dnn(char *input_path, char *data_path);
-aspen_dnn_t *apu_create_transformer_dnn (unsigned int num_transformers,
-    unsigned int num_hidden, unsigned int num_head, char* name, char *weight_path);
+aspen_dnn_t *apu_create_transformer_encoder_dnn (unsigned int num_transformers,
+    unsigned int num_hidden, unsigned int num_head, unsigned int ff_scale, char* name, char *weight_path);
 void apu_destroy_dnn(aspen_dnn_t *dnn);
 void apu_save_dnn_to_file(aspen_dnn_t *dnn, char *filename);
 void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path);
 aspen_dnn_t *apu_load_dnn_from_file(char *filename);
 nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size);
+nasm_t *apu_create_transformer_encoder_nasm
+  (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size, unsigned int seq_num);
 void apu_destroy_nasm(nasm_t *nasm);
 nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn);
 void apu_save_nasm_to_file(nasm_t *nasm, char *filename);

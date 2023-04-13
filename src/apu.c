@@ -43,8 +43,8 @@ aspen_dnn_t *apu_create_dnn (char *input_path, char *weight_path)
     return new_dnn;
 }
 
-aspen_dnn_t *apu_create_transformer_dnn (unsigned int num_transformers,
-    unsigned int num_hidden, unsigned int num_head, char* name, char *weight_path)
+aspen_dnn_t *apu_create_transformer_encoder_dnn (unsigned int num_transformers,
+    unsigned int num_hidden, unsigned int num_head, unsigned int ff_scale, char* name, char *weight_path)
 {
     if (num_hidden % num_head != 0)
     {
@@ -53,8 +53,6 @@ aspen_dnn_t *apu_create_transformer_dnn (unsigned int num_transformers,
     }
     aspen_dnn_t *new_dnn = init_aspen_dnn (num_transformers * LAYERS_PER_TRANSFORMER + 1, name);
     new_dnn->layers[0].type = INPUT_LAYER;
-    new_dnn->layers[0].params [NUM_HIDDEN] = num_hidden;
-    new_dnn->layers[0].params [NUM_HEAD] = num_head;
     new_dnn->layers[0].params [MAT_M] = num_hidden;
     set_layer_inout_sizes(&new_dnn->layers[0]);
     for (int i = 0; i < num_transformers; i++)
@@ -63,14 +61,19 @@ aspen_dnn_t *apu_create_transformer_dnn (unsigned int num_transformers,
         {
             aspen_layer_t *layer = new_dnn->layers + i * LAYERS_PER_TRANSFORMER + j + 1;
             layer->type = transformer_layer_types[j];
-            layer->params [NUM_HIDDEN] = num_hidden;
-            layer->params [NUM_HEAD] = num_head;
             layer->params [MAT_M] = num_hidden;
-            if (j == 8)
+            if (j == 8) // Feed-forward MM 1
             {
-                layer->params [MAT_M] = 4 * num_hidden;
+                layer->params [MAT_M] = ff_scale * num_hidden;
                 layer->activation = GELU;
             }
+            else if (j <= 4) // Attention layers 
+            {
+                layer->params [NUM_HIDDEN] = num_hidden;
+                layer->params [NUM_HEAD] = num_head;
+                layer->params [MAT_M] = num_hidden;
+            }
+            else
             if (layer->type == K_ATTENTION_LAYER)
             {
                 layer->params[MAT_M] = 0;
@@ -79,7 +82,6 @@ aspen_dnn_t *apu_create_transformer_dnn (unsigned int num_transformers,
             layer->parent_layers [PARENT_0] = layer + transformer_parents[j][0];
             if (transformer_parents[j][1] != 1)
                 layer->parent_layers [PARENT_1] = layer + transformer_parents[j][1];
-            layer->params [MAT_K] = layer->parent_layers [PARENT_0]->params [MAT_M];
             set_layer_inout_sizes(layer);
             create_layer_tensors (layer);
         }
@@ -779,7 +781,7 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
         }
         create_layer_output_tensor (layer);
     }
-    print_dnn_info (dnn, 0);
+    // print_dnn_info (dnn, 0);
     memcpy (dnn->layers[0].tensors[OUTPUT_TENSOR]->data, input_data, 
         dnn->layers[0].tensors[OUTPUT_TENSOR]->num_elements * dnn->layers[0].tensors[OUTPUT_TENSOR]->element_size);
     for (int i = 1; i < dnn->num_layers; i++)
@@ -794,7 +796,7 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
         float *output = (float*)layer->tensors[OUTPUT_TENSOR]->data;
         if (layer->type == CONV_LAYER)
         {
-            naive_conv2d (input, layer->tensors[WEIGHT_TENSOR]->data, layer->tensors[BIAS_TENSOR]->data, output,
+            naive_conv2d_im2col_mm (input, layer->tensors[WEIGHT_TENSOR]->data, layer->tensors[BIAS_TENSOR]->data, output,
                 layer->params[BATCH], layer->params[IN_C], layer->params[IN_H], layer->params[IN_W],
                 layer->params[OUT_C], layer->params[WEIGHT_H], layer->params[WEIGHT_W],
                 layer->params[STRIDE], layer->params[PADDING]);
@@ -825,7 +827,7 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
         else if (layer->type == MATMUL_LAYER)
         {
             memset (output, 0, layer->tensors[OUTPUT_TENSOR]->num_elements * layer->tensors[OUTPUT_TENSOR]->element_size);
-            naive_sgemm (layer->params[MAT_M], layer->params[MAT_N]*layer->params[BATCH], layer->params[MAT_K], 
+            SGEMM_KERNEL_OMP (layer->params[MAT_M], layer->params[MAT_N]*layer->params[BATCH], layer->params[MAT_K], 
                 layer->tensors[WEIGHT_TENSOR]->data, layer->params[MAT_K], input, layer->params[MAT_K], 
                     output, layer->params[MAT_M]);
             for (int j = 0; j < layer->params[MAT_N]*layer->params[BATCH]; j++)

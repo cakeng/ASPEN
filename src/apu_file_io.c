@@ -836,6 +836,7 @@ void apu_save_nasm_to_file(nasm_t *nasm, char *filename)
     fprintf (fp, "NUM_BATCH:%d\n", nasm->batch_size);
     fprintf (fp, "TOTAL_FLOPS:%ld\n", nasm->total_flops);
     fprintf (fp, "FLOP_PER_NINST:%d\n", nasm->flop_per_ninst);
+    fprintf (fp, "SEQ_LEN:%d\n", nasm->tr_seq_len);
     fprintf (fp, "NASM_NINSTS:\n");
     for (unsigned int i = 0; i < nasm->num_ldata; i++)
     {
@@ -943,7 +944,15 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
         return NULL;
     }
     flop_per_ninst = atoi(ptr);
-    nasm = apu_create_nasm_without_finding_ninst_parents (*output_dnn, flop_per_ninst, batch_size);
+    if ((ptr = read_check_and_return (fp, line, "SEQ_LEN:", &line_num)) == NULL)
+    {
+        FPRT(stderr,"ASPEN DNN file %s parse error: Missing SEQ_LEN.\n", filename);
+        *output_dnn = NULL;
+        fclose (fp);
+        return NULL;
+    }
+    unsigned int seq_len = atoi(ptr);
+    nasm = apu_create_nasm_without_finding_ninst_parents (*output_dnn, flop_per_ninst, batch_size, seq_len);
     if (nasm == NULL)
     {
         FPRT(stderr,"ASPEN DNN file %s parse error: Failed to create NASM.\n", filename);

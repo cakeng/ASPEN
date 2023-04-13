@@ -412,7 +412,7 @@ void naive_k_attention (const float *input_1, const float *input_2, float *outpu
             const float *B = input_1 + b * num_hidden * num_seq + h * hidden_per_head;
             const float *A = key_temp + b * num_heads * seq_padded * K + h * seq_padded * K;
             float *C = output + b * num_heads * ldc * N + h * ldc * N;
-            SGEMM_KERNEL (M, N, K, A, lda, B, ldb, C, ldc);
+            SGEMM_KERNEL_OMP (M, N, K, A, lda, B, ldb, C, ldc);
             for (unsigned int i = 0; i < N; i++)
             {
                 float total = 0;
@@ -473,7 +473,7 @@ void naive_v_attention (const float *input_1, const float *input_2, float *outpu
             const float *B = input_1 + b * num_heads * ldb * N + h * ldb * N;
             const float *A = val_temp + b * num_heads * hph_padded * K + h * hph_padded * K;
             float *C = output + b * num_hidden * num_seq + h * hidden_per_head;
-            SGEMM_KERNEL (M, N, K, A, lda, B, ldb, C, ldc);
+            SGEMM_KERNEL_OMP (M, N, K, A, lda, B, ldb, C, ldc);
         }
     }
     aspen_free (val_temp);
