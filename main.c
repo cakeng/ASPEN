@@ -43,7 +43,7 @@ int main(void)
     // // nasm_t *bert_4_nasm = apu_load_nasm_from_file ("data/bert_4.nasm", &bert_dnn);
     
     rpool_t *rpool = rpool_init (-1);
-    ase_group_t *ase_group = ase_group_init (1, -1);
+    ase_group_t *ase_group = ase_group_init (64, -1);
     ase_group_set_rpool (ase_group, rpool);
 
     // // rpool_add_nasm_raw_input (rpool, bert_4_nasm, 0.5, dog_data);
@@ -63,11 +63,11 @@ int main(void)
 
     unsigned int input_params[NUM_PARAM_ELEMENTS] = {0};
     input_params[BATCH] = 1; input_params[NUM_SEQ] = 38; input_params[NUM_HIDDEN] = 768;
-    void *dog_data = aspen_load_input ("data/Text_Len_487_Embedded_input.bin", input_params, sizeof(float));
+    void *dog_data = aspen_load_input ("data/Text_Len_38_Embedded_input.bin", input_params, sizeof(float));
     aspen_run_naive (bert_dnn, input_params, dog_data);
     get_elapsed_time ("run_naive");
     
-    for (int i = 1; i < 2; i++)
+    for (int i = 144; i < 145; i++)
     {
         printf ("\tLayer %d - Type %s\n", i, layer_type_str[bert_dnn->layers[i].type]);
         aspen_layer_t *layer = &bert_dnn->layers[i];
@@ -76,16 +76,16 @@ int main(void)
         LAYER_PARAMS output_order[] = {BATCH, MAT_N, MAT_M, 0};
         if (layer->type == K_ATTENTION_LAYER)
         {
-            output_order [2] = NUM_HEAD; 
-            output_order [3] = MAT_N; 
-            output_order [4] = MAT_M;
+            output_order [1] = NUM_HEAD; 
+            output_order [2] = MAT_N; 
+            output_order [3] = MAT_M;
         }
         void *layer_output = get_aspen_tensor_data 
             (layer->tensors[OUTPUT_TENSOR], output_order);
         void *ldata_output = get_ldata_output (ldata, output_order);
-        // void *ldata_raw_output = get_packed_ldata_output_colwise (ldata);
+        void *ldata_raw_output = get_packed_ldata_output_colwise (ldata);
         char filename[256];
-        sprintf (filename, "data/BERT_2_Key_output.bin");
+        sprintf (filename, "data/BERT_22_transformer_layer_11_output.bin");
         size_t elem_size = ldata->layer->dnn->element_size;
         size_t data_size = ldata->out_mat_dims[OUT_H] * ldata->out_mat_dims[OUT_W] * elem_size;
         // size_t elem_size = layer->dnn->element_size;
@@ -96,11 +96,11 @@ int main(void)
         // print_float_tensor (expected_output, input_params[BATCH], 1
         //     , layer->params[MAT_N], layer->params[MAT_M]);
         // printf ("Computed output for layer %d:\n", i);
-        // print_float_tensor (layer_output, input_params[BATCH], 1
+        // print_float_tensor (ldata_output, input_params[BATCH], 1
         //     , layer->params[MAT_N], layer->params[MAT_M]);
         // printf ("Raw output for layer %d:\n", i);
-        // print_float_tensor (ldata_raw_output, layer->params[BATCH], layer->params[OUT_H], 
-        //     layer->params[OUT_W], layer->params[OUT_C]);
+        // print_float_tensor (ldata_raw_output, input_params[BATCH], 1
+        //     , layer->params[MAT_N], layer->params[MAT_M]);
 
         // if (layer->tensors[WEIGHT_TENSOR] != NULL)
         // {
@@ -111,15 +111,15 @@ int main(void)
         //         print_float_tensor (layer->tensors[WEIGHT_TENSOR]->data, layer->tensors[WEIGHT_TENSOR]->dims[OUT_C], layer->tensors[WEIGHT_TENSOR]->dims[WEIGHT_H],
         //             layer->tensors[WEIGHT_TENSOR]->dims[WEIGHT_W], layer->tensors[WEIGHT_TENSOR]->dims[IN_C]);
         // }
-        compare_float_tensor (layer_output, ldata_output, 
+        compare_float_tensor (expected_output, ldata_output, 
             bert_nasm->batch_size, 1, layer->params[MAT_N], layer->params[MAT_M],
-            1e-2, 1e-4, 40);
+            1e-2, 1e-4, 20);
         // compare_float_tensor (expected_output, ldata_output, 
         //     bert_nasm->batch_size, layer->params[OUT_C], layer->params[OUT_H], layer->params[OUT_W],
         //     1e-2, 1e-4, 100);
         compare_float_tensor (expected_output, layer_output, 
             bert_nasm->batch_size, 1, layer->params[MAT_N], layer->params[MAT_M],
-            1e-2, 1e-4, 40);
+            1e-2, 1e-4, 20);
         
         free (expected_output);
         free (ldata_output);

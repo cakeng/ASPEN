@@ -893,15 +893,21 @@ void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata_ptr, aspen_layer_t *laye
             }
         }
     }
-    if (layer->params[NUM_HEAD] > 0)
+    if (layer->params[NUM_HEAD] > 0 || layer->type == LAYERNORM_LAYER)
     {
         unsigned int old_h = ldata_ptr->ninst_tile_dims[OUT_H];
         if (ldata_ptr->ninst_tile_dims[OUT_H] > hidden_per_head)
             ldata_ptr->ninst_tile_dims[OUT_H] = hidden_per_head;
-        ldata_ptr->ninst_tile_dims[OUT_W] *= old_h / ldata_ptr->ninst_tile_dims[OUT_H];
+        if (layer->type == LAYERNORM_LAYER)
+            ldata_ptr->ninst_tile_dims[OUT_H] = layer->params[MAT_M];
+        else if (layer->type == K_ATTENTION_LAYER)
+            ldata_ptr->ninst_tile_dims[OUT_H] = get_smallest_dividable (nasm->tr_seq_len, _VEC_SIZE_M);
+        ldata_ptr->ninst_tile_dims[OUT_W] = (float)ldata_ptr->ninst_tile_dims[OUT_W] * old_h / ldata_ptr->ninst_tile_dims[OUT_H];
         if (ldata_ptr->ninst_tile_dims[OUT_W] > nasm->tr_seq_len)
             ldata_ptr->ninst_tile_dims[OUT_W] = nasm->tr_seq_len;
-        while (nasm->tr_seq_len % ldata_ptr->ninst_tile_dims[OUT_W] != 0)
+        if (ldata_ptr->ninst_tile_dims[OUT_W] <= 0)
+            ldata_ptr->ninst_tile_dims[OUT_W] = 1;
+        while (nasm->tr_seq_len % ldata_ptr->ninst_tile_dims[OUT_W] != 0 && layer->type != LAYERNORM_LAYER)
         {
             ldata_ptr->ninst_tile_dims[OUT_W]++;
         }

@@ -63,7 +63,7 @@ void tiled_conv2d (ninst_t *ninst, ase_t *ase)
     const unsigned int lda = K;
     const unsigned int ldb = K;
     const unsigned int ldc = ldata->out_mat_stride;
-    const void *A = layer->tensors[WEIGHT_TENSOR]->data + ninst->out_mat_pos[OUT_H] * K * layer->dnn->element_size;
+    const void *A = (char*)layer->tensors[WEIGHT_TENSOR]->data + ninst->out_mat_pos[OUT_H] * lda * layer->dnn->element_size;
     const void *B = ase->scratchpad;
     void *C = ninst->out_mat;
     const unsigned int rem_n = N % _TILE_SIZE_N;
@@ -120,13 +120,13 @@ void tiled_conv2d (ninst_t *ninst, ase_t *ase)
         for (unsigned int nn = n; nn < n + _TILE_SIZE_N; nn++)
         {
             float *out_vec = (float *)C + nn * ldc;
-            float *bias = (float*)layer->tensors[BIAS_TENSOR]->data + ninst->out_mat_pos[OUT_H];
             if (layer->tensors[BIAS_TENSOR] != NULL)
             {
-            for (unsigned int m = 0; m < M; m++)
-            {
-                out_vec[m] += bias[m];
-            }
+                float *bias = (float*)layer->tensors[BIAS_TENSOR]->data + ninst->out_mat_pos[OUT_H];
+                for (unsigned int m = 0; m < M; m++)
+                {
+                    out_vec[m] += bias[m];
+                }
             }
             naive_activate (out_vec, M, layer->activation);
         }
@@ -180,19 +180,138 @@ void tiled_conv2d (ninst_t *ninst, ase_t *ase)
         for (unsigned int nn = n; nn < N; nn++)
         {
             float *out_vec = (float *)C + nn * ldc;
-            float *bias = (float*)layer->tensors[BIAS_TENSOR]->data + ninst->out_mat_pos[OUT_H];
             if (layer->tensors[BIAS_TENSOR] != NULL)
             {
-            for (unsigned int m = 0; m < M; m++)
-            {
-                out_vec[m] += bias[m];
-            }
+                float *bias = (float*)layer->tensors[BIAS_TENSOR]->data + ninst->out_mat_pos[OUT_H];
+                for (unsigned int m = 0; m < M; m++)
+                {
+                    out_vec[m] += bias[m];
+                }
             }
             naive_activate (out_vec, M, layer->activation);
         }
     }
     #endif
 }
+
+void tiled_matmul (ninst_t *ninst, ase_t *ase)
+{
+    #if _SKIP_KERNELS == 0
+    nasm_ldata_t *ldata = ninst->ldata;
+    aspen_layer_t *layer = ninst->ldata->layer;
+    nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
+    const unsigned int M = ninst->tile_dims[OUT_H];
+    const unsigned int N = ninst->tile_dims[OUT_W];
+    const unsigned int K = layer->params[MAT_K];
+    const unsigned int lda = K;
+    const unsigned int ldb = p_ldata->out_mat_stride;
+    const unsigned int ldc = ldata->out_mat_stride;
+    const void *A = (char*)layer->tensors[WEIGHT_TENSOR]->data + (ninst->out_mat_pos[OUT_H] * lda * layer->dnn->element_size);
+    const void *B = (char*)p_ldata->out_mat + (ninst->out_mat_pos[OUT_W] * ldb * layer->dnn->element_size);
+    void *C = ninst->out_mat;
+    const unsigned int rem_n = N % _TILE_SIZE_N;
+    const unsigned int rem_m = M % _TILE_SIZE_M;
+    const unsigned int rem_k = K % _TILE_SIZE_K;
+    unsigned int n = 0;
+
+    // <M, N, K> = <M, _TILE_SIZE_N, K>
+    for (; n < N - rem_n; n += _TILE_SIZE_N)
+    {
+        unsigned int k = 0;
+        // <M, N, K> = <M, _TILE_SIZE_N, _TILE_SIZE_K>
+        for (; k < K - rem_k; k += _TILE_SIZE_K)
+        {
+            unsigned int m = 0;
+            // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K>
+            for (; m < M - rem_m; m += _TILE_SIZE_M)
+            {
+                SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K, 
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            }
+            // <M, N, K> = <rem_m, _TILE_SIZE_N, _TILE_SIZE_K>
+            if (rem_m != 0)
+                SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, _TILE_SIZE_K, 
+                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+        
+        }
+        // <M, N, K> = <M, _TILE_SIZE_N, rem_k>
+        if (rem_k != 0)
+        {
+            unsigned int m = 0;
+            // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, rem_k>
+            for (; m < M - rem_m; m += _TILE_SIZE_M)
+            {
+                SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, rem_k,
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            }
+            // <M, N, K> = <rem_m, _TILE_SIZE_N, rem_k>
+            SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, rem_k, 
+                (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+        }
+        for (unsigned int nn = n; nn < n + _TILE_SIZE_N; nn++)
+        {
+            float *out_vec = (float *)C + nn * ldc;
+            if (layer->tensors[BIAS_TENSOR] != NULL)
+            {
+                float *bias = (float*)layer->tensors[BIAS_TENSOR]->data + ninst->out_mat_pos[OUT_H];
+                for (unsigned int m = 0; m < M; m++)
+                {
+                    out_vec[m] += bias[m];
+                }
+            }
+            naive_activate (out_vec, M, layer->activation);
+        }
+    }
+    // <M, N, K> = <M, rem_n, K>
+    if (rem_n != 0)
+    {
+        unsigned int k = 0;
+        // <M, N, K> = <M, rem_n, _TILE_SIZE_K>
+        for (; k < K - rem_k; k += _TILE_SIZE_K)
+        {
+            unsigned int m = 0;
+            // <M, N, K> = <_TILE_SIZE_M, rem_n, _TILE_SIZE_K>
+            for (; m < M - rem_m; m += _TILE_SIZE_M)
+            {
+                SGEMM_KERNEL_TILE_M (_TILE_SIZE_M, rem_n, _TILE_SIZE_K, 
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            }
+            // <M, N, K> = <rem_m, rem_n, _TILE_SIZE_K>
+            if (rem_m != 0)
+                SGEMM_KERNEL (rem_m, rem_n, _TILE_SIZE_K, 
+                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+        }
+        // <M, N, K> = <M, rem_n, rem_k>
+        if (rem_k != 0)
+        {
+            unsigned int m = 0;
+            // <M, N, K> = <_TILE_SIZE_M, rem_n, rem_k>
+            for (; m < M - rem_m; m += _TILE_SIZE_M)
+            {
+                SGEMM_KERNEL_TILE_M (_TILE_SIZE_M, rem_n, rem_k,
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            }
+            // <M, N, K> = <rem_m, rem_n, rem_k>
+            SGEMM_KERNEL (rem_m, rem_n, rem_k, 
+                (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+        }
+        for (unsigned int nn = n; nn < N; nn++)
+        {
+            float *out_vec = (float *)C + nn * ldc;
+            if (layer->tensors[BIAS_TENSOR] != NULL)
+            {
+                float *bias = (float*)layer->tensors[BIAS_TENSOR]->data + ninst->out_mat_pos[OUT_H];
+                for (unsigned int m = 0; m < M; m++)
+                {
+                    out_vec[m] += bias[m];
+                }
+            }
+            naive_activate (out_vec, M, layer->activation);
+        }
+    }
+    #endif
+}
+
 void tiled_maxpool2d (ninst_t *ninst, ase_t *ase)
 {
     #if _SKIP_KERNELS == 0
@@ -341,6 +460,301 @@ void tiled_softmax (ninst_t *ninst, ase_t *ase)
         for (int m = 0; m < M; m++)
         {
             output[m] /= sum;
+        }
+    }
+    #endif
+}
+
+void tiled_layernorm (ninst_t *ninst, ase_t *ase)
+{
+    #if _SKIP_KERNELS == 0
+    nasm_ldata_t *ldata = ninst->ldata;
+    aspen_layer_t *layer = ninst->ldata->layer;
+    nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
+    const unsigned int M = ninst->tile_dims[OUT_H];
+    const unsigned int N = ninst->tile_dims[OUT_W];
+    const unsigned int ldb = p_ldata->out_mat_stride;
+    const unsigned int ldc = ldata->out_mat_stride;
+    const float *weight = (float*)layer->tensors[WEIGHT_TENSOR]->data + ninst->out_mat_pos[OUT_H];
+    const float *bias = NULL;
+    if (layer->tensors[BIAS_TENSOR] != NULL)
+        bias = (float*)layer->tensors[BIAS_TENSOR]->data + ninst->out_mat_pos[OUT_H];
+    const void *B = (char*)p_ldata->out_mat + (ninst->out_mat_pos[OUT_W] * ldb * layer->dnn->element_size);
+    void *C = ninst->out_mat;
+
+    for (int n = 0; n < N; n++)
+    {
+        const float *input_vec = (float*)B + n * ldb;
+        float *out_vec = (float*)C + n * ldc;
+        float mean = 0;
+        float var = 0;
+        for (int m = 0; m < M; m++)
+        {
+            mean += input_vec[m];
+            var += input_vec[m] * input_vec[m];
+        }
+        mean /= M;
+        var /= M;
+        var -= mean * mean;
+        var = 1 / sqrtf (var + 1e-6f);
+        for (int m = 0; m < M; m++)
+        {
+            out_vec[m] = (input_vec[m] - mean) * var * weight[m];
+            if (bias != NULL)
+                out_vec[m] += bias[m];
+        }
+    }
+
+    #endif
+}
+void tiled_k_attention (ninst_t *ninst, ase_t *ase)
+{
+    #if _SKIP_KERNELS == 0
+    nasm_ldata_t *ldata = ninst->ldata;
+    aspen_layer_t *layer = ninst->ldata->layer;
+    nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
+    nasm_ldata_t *pk_ldata = (ldata->parent_ldata_idx_arr[PARENT_1] + ldata->nasm->ldata_arr);
+    const unsigned int num_hidden = layer->params[NUM_HIDDEN];
+    const unsigned int num_heads = layer->params[NUM_HEAD];
+    const unsigned int hidden_per_head = num_hidden / num_heads;
+    const unsigned int num_seq = ldata->nasm->tr_seq_len;
+    const unsigned int batch = ninst->out_mat_pos[OUT_W] / (num_seq * num_heads);
+    const unsigned int head = (ninst->out_mat_pos[OUT_W] % (num_seq * num_heads)) / num_seq;
+    const unsigned int M = ninst->tile_dims[OUT_H];
+    const unsigned int N = ninst->tile_dims[OUT_W];
+    const unsigned int K = layer->params[MAT_K];
+    const unsigned int ldk = pk_ldata->out_mat_stride;
+    const unsigned int lda = K;
+    const unsigned int ldb = p_ldata->out_mat_stride;
+    const unsigned int ldc = ldata->out_mat_stride;
+    void *A = ase->scratchpad;
+    const void *B = (char*)p_ldata->out_mat + (batch * num_hidden * num_seq + head * hidden_per_head +
+        + (ninst->out_mat_pos[OUT_W] % num_seq) * ldb) * layer->dnn->element_size;
+    void *C = ninst->out_mat;
+    const unsigned int rem_n = N % _TILE_SIZE_N;
+    const unsigned int rem_m = M % _TILE_SIZE_M;
+    const unsigned int rem_k = K % _TILE_SIZE_K;
+    unsigned int n = 0;
+
+    // Transpose & Reoder Key data.
+    const float *in_key_ptr = (float*)pk_ldata->out_mat + batch * ldk * num_seq + head * hidden_per_head;
+    for (unsigned int m = 0; m < M; m++)
+    {
+        for (unsigned int k = 0; k < K; k++)
+        {
+            const float* input_ptr = in_key_ptr + (ninst->out_mat_pos[OUT_H] + m) 
+                * ldk + k;
+            float* output_ptr = (float*)A + ((m/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M 
+                + (m % _VEC_SIZE_M);
+            *output_ptr = *input_ptr;
+        }
+    }
+    // <M, N, K> = <M, _TILE_SIZE_N, K>
+    for (; n < N - rem_n; n += _TILE_SIZE_N)
+    {
+        unsigned int k = 0;
+        // <M, N, K> = <M, _TILE_SIZE_N, _TILE_SIZE_K>
+        for (; k < K - rem_k; k += _TILE_SIZE_K)
+        {
+            unsigned int m = 0;
+            // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K>
+            for (; m < M - rem_m; m += _TILE_SIZE_M)
+            {
+                SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K, 
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            }
+            // <M, N, K> = <rem_m, _TILE_SIZE_N, _TILE_SIZE_K>
+            if (rem_m != 0)
+                SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, _TILE_SIZE_K, 
+                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+        
+        }
+        // <M, N, K> = <M, _TILE_SIZE_N, rem_k>
+        if (rem_k != 0)
+        {
+            unsigned int m = 0;
+            // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, rem_k>
+            for (; m < M - rem_m; m += _TILE_SIZE_M)
+            {
+                SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, rem_k,
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            }
+            // <M, N, K> = <rem_m, _TILE_SIZE_N, rem_k>
+            SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, rem_k, 
+                (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+        }
+        for (unsigned int nn = n; nn < n + _TILE_SIZE_N; nn++)
+        {
+            float total = 0;
+            for (unsigned int j = 0; j < M; j++)
+            {
+                float val = *((float*)C + nn*ldc + j);
+                val /= sqrtf (hidden_per_head);
+                *((float*)C + nn*ldc + j) = expf (val);
+                total += *((float*)C + nn*ldc + j);
+            }
+            for (unsigned int j = 0; j < M; j++)
+                *((float*)C + nn*ldc + j) /= total;
+        }
+    }
+    // <M, N, K> = <M, rem_n, K>
+    if (rem_n != 0)
+    {
+        unsigned int k = 0;
+        // <M, N, K> = <M, rem_n, _TILE_SIZE_K>
+        for (; k < K - rem_k; k += _TILE_SIZE_K)
+        {
+            unsigned int m = 0;
+            // <M, N, K> = <_TILE_SIZE_M, rem_n, _TILE_SIZE_K>
+            for (; m < M - rem_m; m += _TILE_SIZE_M)
+            {
+                SGEMM_KERNEL_TILE_M (_TILE_SIZE_M, rem_n, _TILE_SIZE_K, 
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            }
+            // <M, N, K> = <rem_m, rem_n, _TILE_SIZE_K>
+            if (rem_m != 0)
+                SGEMM_KERNEL (rem_m, rem_n, _TILE_SIZE_K, 
+                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+        }
+        // <M, N, K> = <M, rem_n, rem_k>
+        if (rem_k != 0)
+        {
+            unsigned int m = 0;
+            // <M, N, K> = <_TILE_SIZE_M, rem_n, rem_k>
+            for (; m < M - rem_m; m += _TILE_SIZE_M)
+            {
+                SGEMM_KERNEL_TILE_M (_TILE_SIZE_M, rem_n, rem_k,
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            }
+            // <M, N, K> = <rem_m, rem_n, rem_k>
+            SGEMM_KERNEL (rem_m, rem_n, rem_k, 
+                (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+        }
+        for (unsigned int nn = n; nn < N; nn++)
+        {
+            float total = 0;
+            for (unsigned int j = 0; j < M; j++)
+            {
+                float val = *((float*)C + nn*ldc + j);
+                val /= sqrtf (hidden_per_head);
+                *((float*)C + nn*ldc + j) = expf (val);
+                total += *((float*)C + nn*ldc + j);
+            }
+            for (unsigned int j = 0; j < M; j++)
+                *((float*)C + nn*ldc + j) /= total;
+        }
+    }
+    #endif
+}
+
+void tiled_v_attention (ninst_t *ninst, ase_t *ase)
+{
+    #if _SKIP_KERNELS == 0
+    nasm_ldata_t *ldata = ninst->ldata;
+    aspen_layer_t *layer = ninst->ldata->layer;
+    nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
+    nasm_ldata_t *pv_ldata = (ldata->parent_ldata_idx_arr[PARENT_1] + ldata->nasm->ldata_arr);
+    const unsigned int num_hidden = layer->params[NUM_HIDDEN];
+    const unsigned int num_heads = layer->params[NUM_HEAD];
+    const unsigned int hidden_per_head = num_hidden / num_heads;
+    const unsigned int num_seq = ldata->nasm->tr_seq_len;
+    const unsigned int batch = ninst->out_mat_pos[OUT_W] / num_seq;
+    const unsigned int head = ninst->out_mat_pos[OUT_H]  / hidden_per_head;
+    const unsigned int M = ninst->tile_dims[OUT_H];
+    const unsigned int N = ninst->tile_dims[OUT_W];
+    const unsigned int K = num_seq;
+    const unsigned int ldv = pv_ldata->out_mat_stride;
+    const unsigned int lda = K;
+    const unsigned int ldb = p_ldata->out_mat_stride;
+    const unsigned int ldc = ldata->out_mat_stride;
+    void *A = ase->scratchpad;
+    const void *B = (float*)p_ldata->out_mat + (batch * num_heads * num_seq + head * num_seq +
+        + ninst->out_mat_pos[OUT_W]) * ldb;
+    void *C = ninst->out_mat;
+    const unsigned int rem_n = N % _TILE_SIZE_N;
+    const unsigned int rem_m = M % _TILE_SIZE_M;
+    const unsigned int rem_k = K % _TILE_SIZE_K;
+    unsigned int n = 0;
+
+    // Transpose & Reoder Value data.
+    const float *in_val_ptr = (float*)pv_ldata->out_mat + batch * ldv * num_seq;
+    for (unsigned int m = 0; m < M; m++)
+    {
+        for (unsigned int k = 0; k < K; k++)
+        {
+            const float* input_ptr = in_val_ptr + k * ldv + (ninst->out_mat_pos[OUT_H] + m);
+            float* output_ptr = (float*)A + ((m/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M 
+                + (m % _VEC_SIZE_M);
+            *output_ptr = *input_ptr;
+        }
+    }
+    // <M, N, K> = <M, _TILE_SIZE_N, K>
+    for (; n < N - rem_n; n += _TILE_SIZE_N)
+    {
+        unsigned int k = 0;
+        // <M, N, K> = <M, _TILE_SIZE_N, _TILE_SIZE_K>
+        for (; k < K - rem_k; k += _TILE_SIZE_K)
+        {
+            unsigned int m = 0;
+            // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K>
+            for (; m < M - rem_m; m += _TILE_SIZE_M)
+            {
+                SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K, 
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            }
+            // <M, N, K> = <rem_m, _TILE_SIZE_N, _TILE_SIZE_K>
+            if (rem_m != 0)
+                SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, _TILE_SIZE_K, 
+                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+        
+        }
+        // <M, N, K> = <M, _TILE_SIZE_N, rem_k>
+        if (rem_k != 0)
+        {
+            unsigned int m = 0;
+            // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, rem_k>
+            for (; m < M - rem_m; m += _TILE_SIZE_M)
+            {
+                SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, rem_k,
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            }
+            // <M, N, K> = <rem_m, _TILE_SIZE_N, rem_k>
+            SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, rem_k, 
+                (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+        }
+    }
+    // <M, N, K> = <M, rem_n, K>
+    if (rem_n != 0)
+    {
+        unsigned int k = 0;
+        // <M, N, K> = <M, rem_n, _TILE_SIZE_K>
+        for (; k < K - rem_k; k += _TILE_SIZE_K)
+        {
+            unsigned int m = 0;
+            // <M, N, K> = <_TILE_SIZE_M, rem_n, _TILE_SIZE_K>
+            for (; m < M - rem_m; m += _TILE_SIZE_M)
+            {
+                SGEMM_KERNEL_TILE_M (_TILE_SIZE_M, rem_n, _TILE_SIZE_K, 
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            }
+            // <M, N, K> = <rem_m, rem_n, _TILE_SIZE_K>
+            if (rem_m != 0)
+                SGEMM_KERNEL (rem_m, rem_n, _TILE_SIZE_K, 
+                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+        }
+        // <M, N, K> = <M, rem_n, rem_k>
+        if (rem_k != 0)
+        {
+            unsigned int m = 0;
+            // <M, N, K> = <_TILE_SIZE_M, rem_n, rem_k>
+            for (; m < M - rem_m; m += _TILE_SIZE_M)
+            {
+                SGEMM_KERNEL_TILE_M (_TILE_SIZE_M, rem_n, rem_k,
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            }
+            // <M, N, K> = <rem_m, rem_n, rem_k>
+            SGEMM_KERNEL (rem_m, rem_n, rem_k, 
+                (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
         }
     }
     #endif

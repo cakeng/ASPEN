@@ -103,6 +103,18 @@ void *ase_thread_runtime (void* thread_info)
                     case SOFTMAX_LAYER:
                         tiled_softmax (ninst, ase);
                         break;
+                    case MATMUL_LAYER:
+                        tiled_matmul (ninst, ase);
+                        break;
+                    case LAYERNORM_LAYER:
+                        tiled_layernorm (ninst, ase);
+                        break;
+                    case K_ATTENTION_LAYER:
+                        tiled_k_attention (ninst, ase);
+                        break;
+                    case V_ATTENTION_LAYER:
+                        tiled_v_attention (ninst, ase);
+                        break;
                     default:
                         // FPRT (stderr, "ERROR: ase_thread_runtime: layer type %s is not supported\n", layer_type_str[ninst->ldata->layer->type]);
                         break;
@@ -479,6 +491,8 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
         size_t num_cols = 0;
         if (layer->params[OUT_H] != 0 && layer->params[OUT_W] != 0)
             num_cols = nasm->batch_size * layer->params[OUT_H] * layer->params[OUT_W];
+        else if (layer->params[MAT_M] != 0)
+            num_cols = nasm->batch_size * nasm->tr_seq_len;
         for (int i = 0; i < num_cols; i++)
             memcpy 
                 ((char*)nasm->data + i * ldata->out_mat_stride * nasm->dnn->element_size, 

@@ -293,9 +293,11 @@ void* load_arr (char *file_path, unsigned int size)
         size_t num = fread (input, sizeof(char), size, fptr);
         if (num != size)
         {
-            FPRT (stderr, "Error: Failed to read file %s. Exiting.\n", file_path);
+            FPRT (stderr, "Error: Failed to read file %s - Size mismatch. File size: %ld, Req. size: %d. Exiting.\n", 
+                file_path, num, size);
             free (input);
             fclose(fptr);
+            assert(0);
             return NULL;
         }
         fclose(fptr);
@@ -455,7 +457,7 @@ int compare_float_tensor (float *input1, float* input2, int n, int c, int h ,int
 {
     int num = 0;
     printf ("Compare_tensor_f32 running...\n");
-    // // #pragma omp parallel for
+    // #pragma omp parallel for
     for (int ni = 0; ni < n; ni++)
     {
         for (int ci = 0; ci < c; ci++)
@@ -479,6 +481,11 @@ int compare_float_tensor (float *input1, float* input2, int n, int c, int h ,int
                             printf ("\tToo many errors... (More than %d)\n", skip_val);
                         }
                     }
+                    // else
+                    // {
+                    //     printf ("\tCompare passed at index (%d, %d, %d, %d). Value1: %3.3e, Value2: %3.3e, Diff: %1.2e (%2.2e%%)\n"
+                    //         , ni, ci, hi, wi, *(input1 + i), *(input2 + i), delta, delta*100.0/(*(input1 + i)<0? -*(input1 + i):*(input1 + i)));
+                    // }
                 }
             }
         }

@@ -371,7 +371,7 @@ void *get_ldata_output (nasm_ldata_t *ldata, LAYER_PARAMS *order)
     aspen_layer_t *layer = ldata->layer;
     aspen_tensor_t *tensor = NULL;
     if ((layer->type == CONV_LAYER || layer->type == INPUT_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER 
-        || layer->type == RESIDUAL_LAYER) && (layer->params[MAT_M] != 0))
+        || layer->type == RESIDUAL_LAYER) && (layer->params[MAT_M] == 0))
     {
         LAYER_PARAMS org_order[] = {BATCH, OUT_H, OUT_W, OUT_C};
         unsigned int params[NUM_PARAM_ELEMENTS];
@@ -390,7 +390,7 @@ void *get_ldata_output (nasm_ldata_t *ldata, LAYER_PARAMS *order)
     else if (layer->type == MATMUL_LAYER || layer->type == LAYERNORM_LAYER || layer->type == RESIDUAL_LAYER ||
         layer->type == INPUT_LAYER || layer->type == V_ATTENTION_LAYER)
     {
-        LAYER_PARAMS org_order[] = {BATCH, MAT_M, MAT_N};
+        LAYER_PARAMS org_order[] = {BATCH, MAT_N, MAT_M};
         unsigned int params[NUM_PARAM_ELEMENTS];
         memcpy (params, layer->params, NUM_PARAM_ELEMENTS * sizeof (unsigned int));
         params[BATCH] = ldata->nasm->batch_size;
@@ -399,7 +399,7 @@ void *get_ldata_output (nasm_ldata_t *ldata, LAYER_PARAMS *order)
     }
     else if (layer->type == K_ATTENTION_LAYER)
     {
-        LAYER_PARAMS org_order[] = {BATCH, NUM_HEAD, MAT_M, MAT_N};
+        LAYER_PARAMS org_order[] = {BATCH, NUM_HEAD, MAT_N, MAT_M};
         unsigned int params[NUM_PARAM_ELEMENTS];
         memcpy (params, layer->params, NUM_PARAM_ELEMENTS * sizeof (unsigned int));
         params[BATCH] = ldata->nasm->batch_size;
