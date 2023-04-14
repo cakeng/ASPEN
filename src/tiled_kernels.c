@@ -658,7 +658,7 @@ void tiled_v_attention (ninst_t *ninst, ase_t *ase)
     const unsigned int num_heads = layer->params[NUM_HEAD];
     const unsigned int hidden_per_head = num_hidden / num_heads;
     const unsigned int num_seq = ldata->nasm->tr_seq_len;
-    const unsigned int batch = ninst->out_mat_pos[OUT_W] / num_seq;
+    unsigned int batch = ninst->out_mat_pos[OUT_W] / num_seq;
     const unsigned int head = ninst->out_mat_pos[OUT_H]  / hidden_per_head;
     const unsigned int M = ninst->tile_dims[OUT_H];
     const unsigned int N = ninst->tile_dims[OUT_W];
@@ -669,7 +669,7 @@ void tiled_v_attention (ninst_t *ninst, ase_t *ase)
     const unsigned int ldc = ldata->out_mat_stride;
     void *A = ase->scratchpad;
     const void *B = (float*)p_ldata->out_mat + (batch * num_heads * num_seq + head * num_seq +
-        + ninst->out_mat_pos[OUT_W]) * ldb;
+        + (ninst->out_mat_pos[OUT_W] % num_seq)) * ldb;
     void *C = ninst->out_mat;
     const unsigned int rem_n = N % _TILE_SIZE_N;
     const unsigned int rem_m = M % _TILE_SIZE_M;

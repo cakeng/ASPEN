@@ -291,7 +291,7 @@ void* load_arr (char *file_path, unsigned int size)
     if (fptr != NULL)
     {
         size_t num = fread (input, sizeof(char), size, fptr);
-        if (num != size)
+        if (num < size)
         {
             FPRT (stderr, "Error: Failed to read file %s - Size mismatch. File size: %ld, Req. size: %d. Exiting.\n", 
                 file_path, num, size);
@@ -483,7 +483,7 @@ int compare_float_tensor (float *input1, float* input2, int n, int c, int h ,int
                     }
                     // else
                     // {
-                    //     printf ("\tCompare passed at index (%d, %d, %d, %d). Value1: %3.3e, Value2: %3.3e, Diff: %1.2e (%2.2e%%)\n"
+                    //     printf ("\t\tCompare passed at index (%d, %d, %d, %d). Value1: %3.3e, Value2: %3.3e, Diff: %1.2e (%2.2e%%)\n"
                     //         , ni, ci, hi, wi, *(input1 + i), *(input2 + i), delta, delta*100.0/(*(input1 + i)<0? -*(input1 + i):*(input1 + i)));
                     // }
                 }

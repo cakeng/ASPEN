@@ -902,6 +902,15 @@ void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata_ptr, aspen_layer_t *laye
             ldata_ptr->ninst_tile_dims[OUT_H] = layer->params[MAT_M];
         else if (layer->type == K_ATTENTION_LAYER)
             ldata_ptr->ninst_tile_dims[OUT_H] = get_smallest_dividable (nasm->tr_seq_len, _VEC_SIZE_M);
+        else if (layer->type == V_ATTENTION_LAYER)
+        {
+            if (hidden_per_head < ldata_ptr->ninst_tile_dims[OUT_H])
+                ldata_ptr->ninst_tile_dims[OUT_H] = hidden_per_head;
+            while (hidden_per_head % ldata_ptr->ninst_tile_dims[OUT_H] != 0)
+            {
+                ldata_ptr->ninst_tile_dims[OUT_H]++;
+            }
+        }
         ldata_ptr->ninst_tile_dims[OUT_W] = (float)ldata_ptr->ninst_tile_dims[OUT_W] * old_h / ldata_ptr->ninst_tile_dims[OUT_H];
         if (ldata_ptr->ninst_tile_dims[OUT_W] > nasm->tr_seq_len)
             ldata_ptr->ninst_tile_dims[OUT_W] = nasm->tr_seq_len;

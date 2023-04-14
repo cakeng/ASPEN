@@ -26,7 +26,7 @@ int main(void)
     }
     // print_dnn_info (bert_dnn_2, 0);
 
-    nasm_t *bert_nasm = apu_create_transformer_encoder_nasm(bert_dnn, 10e6, 1, 38);
+    nasm_t *bert_nasm = apu_create_transformer_encoder_nasm(bert_dnn, 10e6, 8, 480);
     if (bert_nasm == NULL) 
     {
         printf("Error: Failed to create NASM\n");
@@ -48,7 +48,7 @@ int main(void)
 
     // // rpool_add_nasm_raw_input (rpool, bert_4_nasm, 0.5, dog_data);
     // rpool_add_nasm (rpool, bert_nasm, 1.0, "data/batched_input_64.bin");
-    rpool_add_nasm (rpool, bert_nasm, 1.0, "data/Text_Len_38_Embedded_input.bin");
+    rpool_add_nasm (rpool, bert_nasm, 1.0, "data/Text_Len_480_Embedded_input_Batch_32.bin");
     // // print_rpool_info (rpool);
     // // print_nasm_info(bert_nasm, 0, 0);
     // // print_dnn_info(bert_dnn, 0);
@@ -62,8 +62,8 @@ int main(void)
     // print_rpool_info (rpool);
 
     unsigned int input_params[NUM_PARAM_ELEMENTS] = {0};
-    input_params[BATCH] = 1; input_params[NUM_SEQ] = 38; input_params[NUM_HIDDEN] = 768;
-    void *dog_data = aspen_load_input ("data/Text_Len_38_Embedded_input.bin", input_params, sizeof(float));
+    input_params[BATCH] = 8; input_params[NUM_SEQ] = 480; input_params[NUM_HIDDEN] = 768;
+    void *dog_data = aspen_load_input ("data/Text_Len_480_Embedded_input_Batch_32.bin", input_params, sizeof(float));
     aspen_run_naive (bert_dnn, input_params, dog_data);
     get_elapsed_time ("run_naive");
     
