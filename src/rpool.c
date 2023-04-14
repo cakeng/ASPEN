@@ -207,7 +207,13 @@ void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, float weight, char *input_fil
         input_params[OUT_C] = first_layer->params[OUT_C];
         input_params[OUT_H] = first_layer->params[OUT_H];
         input_params[OUT_W] = first_layer->params[OUT_W];
-        data = aspen_load_input_NHWC ("data/batched_input_64.bin", input_params, sizeof(float));
+        data = aspen_load_input_NHWC (input_filename, input_params, sizeof(float));
+    }
+    else if (first_layer->params[MAT_M] != 0)
+    {
+        input_params[MAT_M] = first_layer->params[MAT_M];
+        input_params[MAT_N] = nasm->tr_seq_len;
+        data = aspen_load_input (input_filename, input_params, sizeof(float));
     }
     else
     {

@@ -92,12 +92,10 @@ extern cudaStream_t aspen_CUDA_streams[MAX_NUM_GPUS][32];
 typedef struct aspen_dnn_t aspen_dnn_t;
 typedef struct aspen_layer_t aspen_layer_t;
 typedef struct aspen_tensor_t aspen_tensor_t;
-typedef struct aspen_gpu_ldata_t aspen_gpu_ldata_t;
 
 typedef struct ninst_t ninst_t; // Neural instruction
 typedef struct nasm_t nasm_t;   // Neural assembly
-typedef struct nasm_ldata_t nasm_ldata_t; // Dynamic per layer data
-typedef struct nasm_gpu_ldata_t nasm_gpu_ldata_t; // Dynamic per layer data for GPU
+typedef struct nasm_ldata_t nasm_ldata_t; // Dynamic layer data
 
 typedef struct rpool_t rpool_t; // Ready pool
 typedef struct rpool_queue_t rpool_queue_t;

@@ -73,10 +73,9 @@ aspen_dnn_t *apu_create_transformer_encoder_dnn (unsigned int num_transformers,
                 layer->params [NUM_HEAD] = num_head;
                 layer->params [MAT_M] = num_hidden;
             }
-            else
             if (layer->type == K_ATTENTION_LAYER)
             {
-                layer->params[MAT_M] = 0;
+                layer->params[MAT_M] = 1;
                 layer->params[MAT_K] = (num_hidden / num_head);
             }
             layer->parent_layers [PARENT_0] = layer + transformer_parents[j][0];
@@ -354,7 +353,7 @@ void *get_aspen_tensor_data (aspen_tensor_t *tensor, LAYER_PARAMS *output_order)
     destroy_aspen_tensor (new_tensor);
     return output;
 }
-
+// Change to add a new layer type
 void *get_ldata_output (nasm_ldata_t *ldata, LAYER_PARAMS *order)
 {
     if (ldata == NULL)
@@ -368,22 +367,17 @@ void *get_ldata_output (nasm_ldata_t *ldata, LAYER_PARAMS *order)
     void *packed_data = aspen_calloc (ldata->out_mat_dims[OUT_H] * ldata->out_mat_dims[OUT_W], elem_size);
     memcpy (packed_data, tmp_data, data_size);
     free (tmp_data);
+    void *output = NULL;
     aspen_layer_t *layer = ldata->layer;
     aspen_tensor_t *tensor = NULL;
-    if (layer->type == CONV_LAYER || layer->type == INPUT_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER 
-        || layer->type == RESIDUAL_LAYER)
+    if ((layer->type == CONV_LAYER || layer->type == INPUT_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER 
+        || layer->type == RESIDUAL_LAYER) && (layer->params[MAT_M] != 0))
     {
         LAYER_PARAMS org_order[] = {BATCH, OUT_H, OUT_W, OUT_C};
         unsigned int params[NUM_PARAM_ELEMENTS];
         memcpy (params, layer->params, NUM_PARAM_ELEMENTS * sizeof (unsigned int));
         params[BATCH] = ldata->nasm->batch_size;
         tensor = init_aspen_tensor (params, org_order, 4, layer->dnn->element_size);
-        tensor->data = packed_data;
-        reorder_aspen_tensor (&tensor, tensor->dims, order, tensor->num_dims);
-        void *output = calloc (ldata->out_mat_dims[OUT_H] * ldata->out_mat_dims[OUT_W], elem_size);
-        memcpy (output, tensor->data, data_size);
-        destroy_aspen_tensor (tensor);
-        return output;
     }
     else if (layer->type == FC_LAYER || layer->type == SOFTMAX_LAYER)
     {
@@ -392,19 +386,38 @@ void *get_ldata_output (nasm_ldata_t *ldata, LAYER_PARAMS *order)
         memcpy (params, layer->params, NUM_PARAM_ELEMENTS * sizeof (unsigned int));
         params[BATCH] = ldata->nasm->batch_size;
         tensor = init_aspen_tensor (params, org_order, 2, layer->dnn->element_size);
-        tensor->data = packed_data;
-        reorder_aspen_tensor (&tensor, tensor->dims, order, tensor->num_dims);
-        void *output = calloc (ldata->out_mat_dims[OUT_H] * ldata->out_mat_dims[OUT_W], elem_size);
-        memcpy (output, tensor->data, data_size);
-        destroy_aspen_tensor (tensor);
-        return output;
+    }
+    else if (layer->type == MATMUL_LAYER || layer->type == LAYERNORM_LAYER || layer->type == RESIDUAL_LAYER ||
+        layer->type == INPUT_LAYER || layer->type == V_ATTENTION_LAYER)
+    {
+        LAYER_PARAMS org_order[] = {BATCH, MAT_M, MAT_N};
+        unsigned int params[NUM_PARAM_ELEMENTS];
+        memcpy (params, layer->params, NUM_PARAM_ELEMENTS * sizeof (unsigned int));
+        params[BATCH] = ldata->nasm->batch_size;
+        params[MAT_N] = ldata->nasm->tr_seq_len;
+        tensor = init_aspen_tensor (params, org_order, 3, layer->dnn->element_size);
+    }
+    else if (layer->type == K_ATTENTION_LAYER)
+    {
+        LAYER_PARAMS org_order[] = {BATCH, NUM_HEAD, MAT_M, MAT_N};
+        unsigned int params[NUM_PARAM_ELEMENTS];
+        memcpy (params, layer->params, NUM_PARAM_ELEMENTS * sizeof (unsigned int));
+        params[BATCH] = ldata->nasm->batch_size;
+        params[MAT_N] = ldata->nasm->tr_seq_len;
+        tensor = init_aspen_tensor (params, org_order, 4, layer->dnn->element_size);
     }
     else 
     {
         FPRT (stderr, "Error in get_ldata_output: unsupported layer type.\n");
+        aspen_free (packed_data);
+        assert (0);
     }
-    aspen_free (packed_data);
-    return NULL;
+    tensor->data = packed_data;
+    reorder_aspen_tensor (&tensor, tensor->dims, order, tensor->num_dims);
+    output = calloc (ldata->out_mat_dims[OUT_H] * ldata->out_mat_dims[OUT_W], elem_size);
+    memcpy (output, tensor->data, data_size);
+    destroy_aspen_tensor (tensor);
+    return output;
 }
 
 void* get_aspen_tensor_element_ptr (aspen_tensor_t *tensor, unsigned int *pos)
