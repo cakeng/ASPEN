@@ -35,7 +35,7 @@ __global__ void cuda_matmul_kernel(const unsigned int M, const unsigned int N, c
     //             C[n * ldc + m] = 0;
     //             for (int k = 0; k < K; k++)
     //             {
-    //                 C[n * ldc + m] += A[m * ldk + k] * B[n * ldb + k];
+    //                 C[n * ldc + m] += A[((m/_THREAD_M_SIZE)*lda + k) * _THREAD_M_SIZE + m%_THREAD_M_SIZE] * B[n * ldb + k];
     //             }
     //         }
     //     }
@@ -247,23 +247,17 @@ __global__ void cuda_k_attention_prob_kernel(const unsigned int num_heads, const
     const int batch = blockIdx.x;
     const int head = blockIdx.y;
     const int n = threadIdx.x;
-    float cout[GPU_MAX_TRANSFORMER_SEQ_LEN];
     float *C_head = C + batch * num_heads  * ldc * N + head * ldc * N + n*ldc;
-    for (int m = 0; m < M; m++)
-    {
-        cout[m] = C_head[m];
-    }
     float total = 0;
     for (unsigned int m = 0; m < M; m++)
     {
-        cout[m] /= sqrtf (K);
-        cout[m] = expf (cout[m]);
-        total += cout[m];
+        C_head[m] /= sqrtf (K);
+        C_head[m] = expf (C_head[m]);
+        total += C_head[m];
     }
     for (unsigned int m = 0; m < M; m++)
     {
-        cout[m] /= total;
-        C_head[m] = cout[m];
+        C_head[m] /= total;
     }
 }
 __global__ void cuda_v_attention_kernel(const unsigned int num_heads, const unsigned int num_hidden, const unsigned int num_seq,
@@ -384,6 +378,26 @@ __global__ void cuda_residual_kernel (const unsigned int num_elements, const flo
         C[id] = A[id] + B[id];
     }
 }
+__global__ void cuda_layernorm_kernel(const float *input, const float *kernel, const float *bias, 
+    float *output, unsigned int N, unsigned int M)
+{
+    const int id = blockIdx.x * _BLOCK_RESIDUAL_SIZE + threadIdx.x;
+    float mean = 0;
+    float var = 0;
+    for (unsigned int m = 0; m < M; m++)
+    {
+        mean += input[id * M + m];
+        var += input[id * M + m] * input[id * M + m];
+    }
+    mean /= M;
+    var /= M;
+    var -= mean * mean;
+    var = 1 / sqrtf (var + 1e-12);
+    for (unsigned int m = 0; m < M; m++)
+    {
+        output[id * M + m] = (input[id * M + m] - mean) * var * kernel[m] + bias[m];
+    }
+}
 // Wrapper function for CUDA kernel.
 extern "C"
 {
@@ -422,11 +436,14 @@ void cuda_k_attention (const float *input_1, const float *input_2, float *output
     const unsigned int ldb = num_hidden;
     const unsigned int ldc = num_seq;
 
-    if (N > GPU_MAX_TRANSFORMER_SEQ_LEN)
+    #ifdef DEBUG
+    if (!(((_BLOCK_K_SIZE*_BLOCK_M_SIZE)%_THREAD_NUM) == 0 && ((_BLOCK_K_SIZE*_BLOCK_N_SIZE)%_THREAD_NUM) == 0))
     {
-        printf ("Error in cuda_k_attention: N = %d is larger than GPU_MAX_TRANSFORMER_SEQ_LEN = %d.\n", N, GPU_MAX_TRANSFORMER_SEQ_LEN);
-        assert (0);
+        printf ("ERROR! - Wrong parameter settings - (_BLOCK_K_SIZE*_BLOCK_M_SIZE)%_THREAD_NUM) = %d, ((_BLOCK_K_SIZE*_BLOCK_N_SIZE)%_THREAD_NUM) = %d\n",
+        (_BLOCK_K_SIZE*_BLOCK_M_SIZE)%_THREAD_NUM), ((_BLOCK_K_SIZE*_BLOCK_N_SIZE)%_THREAD_NUM)); 
+        exit(0);
     }
+    #endif
 
     dim3 gridDim (M/_BLOCK_M_SIZE + ((M%_BLOCK_M_SIZE) > 0), N/_BLOCK_N_SIZE + ((N%_BLOCK_N_SIZE) > 0), num_heads*batch_size);
     dim3 blockDim ((_BLOCK_M_SIZE / _THREAD_M_SIZE), (_BLOCK_N_SIZE / _THREAD_N_SIZE), 1);
@@ -448,6 +465,16 @@ void cuda_v_attention (const float *input_1, const float *input_2, float *output
     const unsigned int ldv = num_hidden;
     const unsigned int ldb = num_seq;
     const unsigned int ldc = num_hidden;
+
+    #ifdef DEBUG
+    if (!(((_BLOCK_K_SIZE*_BLOCK_M_SIZE)%_THREAD_NUM) == 0 && ((_BLOCK_K_SIZE*_BLOCK_N_SIZE)%_THREAD_NUM) == 0))
+    {
+        printf ("ERROR! - Wrong parameter settings - (_BLOCK_K_SIZE*_BLOCK_M_SIZE)%_THREAD_NUM) = %d, ((_BLOCK_K_SIZE*_BLOCK_N_SIZE)%_THREAD_NUM) = %d\n",
+        (_BLOCK_K_SIZE*_BLOCK_M_SIZE)%_THREAD_NUM), ((_BLOCK_K_SIZE*_BLOCK_N_SIZE)%_THREAD_NUM)); 
+        exit(0);
+    }
+    #endif
+
     dim3 gridDim (M/_BLOCK_M_SIZE + ((M%_BLOCK_M_SIZE) > 0), N/_BLOCK_N_SIZE + ((N%_BLOCK_N_SIZE) > 0), num_heads*batch_size);
     dim3 blockDim ((_BLOCK_M_SIZE / _THREAD_M_SIZE), (_BLOCK_N_SIZE / _THREAD_N_SIZE), 1);
     cuda_v_attention_kernel<<<gridDim, blockDim, 0, stream>>> (num_heads, num_hidden, num_seq,
@@ -463,6 +490,8 @@ void cuda_residual (const float *input_1, const float *input_2, float *output, u
 void cuda_layernorm (const float *input, const float *kernel, const float *bias, 
     float *output, unsigned int N, unsigned int M, cudaStream_t stream)
 {
-
+    dim3 prob_gridDim (N/_BLOCK_LAYERNORM_SIZE + ((N%_BLOCK_LAYERNORM_SIZE) > 0), 1, 1);
+    dim3 prob_blockDim (_BLOCK_LAYERNORM_SIZE, 1, 1);
+    cuda_layernorm_kernel<<<prob_gridDim, prob_blockDim, 0, stream>>> (input, kernel, bias, output, N, M);
 }
 }

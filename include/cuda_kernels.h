@@ -2,14 +2,13 @@
 #define _CUDA_KERNELS_H
 
 #include "aspen.h"
-#include "ase.h"
-#include "util.h"
 
 #define _BLOCK_RESIDUAL_SIZE 128
+#define _BLOCK_LAYERNORM_SIZE 128
 #define _BLOCK_K_SIZE 32
 #define _BLOCK_M_SIZE 64
 #define _BLOCK_N_SIZE 64
-#define _THREAD_M_SIZE 8
+#define _THREAD_M_SIZE 8 // MUST be same to _VEC_SIZE_M
 #define _THREAD_N_SIZE 4
 #define _THREAD_NUM ((_BLOCK_M_SIZE / _THREAD_M_SIZE) * (_BLOCK_N_SIZE / _THREAD_N_SIZE)) // 128
 #define _CACHE_A_K_PER_LOAD (_THREAD_NUM / _BLOCK_M_SIZE) // 2

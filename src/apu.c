@@ -85,7 +85,7 @@ aspen_dnn_t *apu_create_transformer_encoder_dnn (unsigned int num_transformers,
             create_layer_tensors (layer);
         }
     }
-    print_dnn_info (new_dnn, 0);
+    // print_dnn_info (new_dnn, 0);
     if (weight_path != NULL)
         apu_load_dnn_data_from_file (new_dnn, weight_path);
     for (int i = 0; i < new_dnn->num_layers; i++)
@@ -932,7 +932,7 @@ void aspen_init_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input
         }
         create_layer_output_tensor (layer, gpu_idx);
     }
-    print_dnn_info (dnn, 0);
+    // print_dnn_info (dnn, 0);
     memcpy (dnn->layers[0].tensors[OUTPUT_TENSOR]->data, input_data, 
         dnn->layers[0].tensors[OUTPUT_TENSOR]->num_elements * dnn->layers[0].tensors[OUTPUT_TENSOR]->element_size);
     if (gpu_idx >= 0)
@@ -1069,7 +1069,7 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
             }
             else if (layer->type == RESIDUAL_LAYER)
             {
-
+                cuda_residual (input, input2, output, layer->tensors[OUTPUT_TENSOR]->num_elements, aspen_CUDA_streams[gpu_idx][GPU_NAIVE_RUN_STREAM]);
             }
             else if (layer->type == MATMUL_LAYER)
             {
@@ -1092,7 +1092,8 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
             }
             else if (layer->type == LAYERNORM_LAYER)
             {
-
+                cuda_layernorm (input, layer->tensors[WEIGHT_TENSOR]->data_gpu[gpu_idx], layer->tensors[BIAS_TENSOR]->data_gpu[gpu_idx], output, 
+                    layer->params[BATCH]*layer->params[MAT_N], layer->params[MAT_M], aspen_CUDA_streams[gpu_idx][GPU_NAIVE_RUN_STREAM]);
             }
             else if (layer->type == INPUT_LAYER)
             {
