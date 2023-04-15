@@ -13,7 +13,6 @@
 #include <time.h>
 #include <sys/time.h>
 #include <assert.h>
-#include <stdatomic.h>
 #include <stdlib.h>
 
 #ifdef AVX2
@@ -33,7 +32,7 @@
 #define GPU_MEM_STREAM_HOST_TO_GPU 31
 #define GPU_MEM_STREAM_GPU_TO_HOST 30
 #define GPU_MEM_STREAM_KERNEL_MAX 29
-// #define GPU 1
+#define GPU 1
 
 #if SUPPRESS_OUTPUT == 0
 #define PRT(...) printf(__VA_ARGS__) 
@@ -48,10 +47,9 @@
 static inline cudaError_t check_CUDA(cudaError_t result)
 {
 #if defined(DEBUG) || defined(_DEBUG)
-  if (result != cudaSuccess) {
-    FPRT(stderr, "CUDA Runtime Error: %s, at line %d in file %s\n"
-        , cudaGetErrorString(result), __LINE__, __FILE__);
-    assert(result == cudaSuccess);
+  if (result != cudaSuccess) 
+  {
+    FPRT(stderr, "CUDA Runtime Error: %s\n", cudaGetErrorString(result));
   }
 #endif
   return result;
@@ -105,7 +103,8 @@ typedef struct ase_group_t ase_group_t;
 
 void *aspen_load_input(char *input_filename, unsigned int *input_dims, unsigned int element_size);
 void *aspen_load_input_NHWC(char *input_filename, unsigned int *input_dims, unsigned int element_size);
-void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data);
+void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data, int gpu_idx);
+void aspen_init_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data, int gpu_idx);
 
 aspen_dnn_t *apu_create_dnn(char *input_path, char *data_path);
 aspen_dnn_t *apu_create_transformer_encoder_dnn (unsigned int num_transformers,

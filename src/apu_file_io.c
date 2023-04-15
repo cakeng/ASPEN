@@ -760,15 +760,6 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
                         apu_destroy_dnn(dnn);
                         return NULL;
                     }
-                    if (aspen_num_gpus > 0)
-                    {
-                        for (unsigned int k = 0; k < aspen_num_gpus; k++)
-                        {
-                            tensor->data_gpu[k] = aspen_gpu_calloc (num_elements, layer->dnn->element_size, k);
-                            // Copy data to GPU
-                            aspen_host_to_gpu_memcpy (tensor->data_gpu[k], tensor->data, num_elements*layer->dnn->element_size, k);
-                        }
-                    }
                 }
                 else
                 {

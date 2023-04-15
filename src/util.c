@@ -97,7 +97,7 @@ void aspen_free (void *ptr)
         free (ptr);
     else
     {
-         #ifdef GPU
+        #ifdef GPU
         if (check_CUDA(cudaFreeHost(ptr)) != cudaSuccess)
         {
             FPRT (stderr, "Error: Failed to free Host memory.\n");
@@ -106,13 +106,13 @@ void aspen_free (void *ptr)
         #endif
     }
 }
-void *aspen_gpu_calloc (size_t num, size_t size, int gpu_num)
+void *aspen_gpu_calloc (size_t num, size_t size, int gpu_idx)
 {
     if (num*size <= 0)
         return NULL;
     void* ptr = NULL;
     #ifdef GPU
-    if (check_CUDA(cudaSetDevice(gpu_num)) != cudaSuccess)
+    if (check_CUDA(cudaSetDevice(gpu_idx)) != cudaSuccess)
     {
         FPRT (stderr, "Error: Failed to set GPU device.\n");
         assert (0);
@@ -130,13 +130,13 @@ void *aspen_gpu_calloc (size_t num, size_t size, int gpu_num)
     #endif
     return ptr;
 }
-void *aspen_gpu_malloc (size_t num, size_t size, int gpu_num)
+void *aspen_gpu_malloc (size_t num, size_t size, int gpu_idx)
 {
     if (num*size <= 0)
         return NULL;
     void* ptr = NULL;
     #ifdef GPU
-    if (check_CUDA(cudaSetDevice(gpu_num)) != cudaSuccess)
+    if (check_CUDA(cudaSetDevice(gpu_idx)) != cudaSuccess)
     {
         FPRT (stderr, "Error: Failed to set GPU device.\n");
         assert (0);
@@ -149,12 +149,12 @@ void *aspen_gpu_malloc (size_t num, size_t size, int gpu_num)
     #endif
     return ptr;
 }
-void aspen_gpu_free (void *ptr, int gpu_num)
+void aspen_gpu_free (void *ptr, int gpu_idx)
 {
     if (ptr == NULL)
         return;
     #ifdef GPU
-    if (check_CUDA(cudaSetDevice(gpu_num)) != cudaSuccess)
+    if (check_CUDA(cudaSetDevice(gpu_idx)) != cudaSuccess)
     {
         FPRT (stderr, "Error: Failed to set GPU device.\n");
         assert (0);
@@ -167,10 +167,10 @@ void aspen_gpu_free (void *ptr, int gpu_num)
     #endif
 }
 
-void aspen_host_to_gpu_memcpy (void *dst, void *src, size_t num, int gpu_num)
+void aspen_host_to_gpu_memcpy (void *dst, void *src, size_t num, int gpu_idx)
 {
     #ifdef GPU
-    if (check_CUDA(cudaSetDevice(gpu_num)) != cudaSuccess)
+    if (check_CUDA(cudaSetDevice(gpu_idx)) != cudaSuccess)
     {
         FPRT (stderr, "Error: Failed to set GPU device.\n");
         assert (0);
@@ -182,10 +182,10 @@ void aspen_host_to_gpu_memcpy (void *dst, void *src, size_t num, int gpu_num)
     }
     #endif
 }
-void aspen_gpu_to_host_memcpy (void *dst, void *src, size_t num, int gpu_num)
+void aspen_gpu_to_host_memcpy (void *dst, void *src, size_t num, int gpu_idx)
 {
     #ifdef GPU
-    if (check_CUDA(cudaSetDevice(gpu_num)) != cudaSuccess)
+    if (check_CUDA(cudaSetDevice(gpu_idx)) != cudaSuccess)
     {
         FPRT (stderr, "Error: Failed to set GPU device.\n");
         assert (0);
@@ -197,42 +197,42 @@ void aspen_gpu_to_host_memcpy (void *dst, void *src, size_t num, int gpu_num)
     }
     #endif
 }
-void aspen_host_to_gpu_async_memcpy (void *dst, void *src, size_t num, int gpu_num)
+void aspen_host_to_gpu_async_memcpy (void *dst, void *src, size_t num, int gpu_idx)
 {
     #ifdef GPU
-    if (check_CUDA(cudaSetDevice(gpu_num)) != cudaSuccess)
+    if (check_CUDA(cudaSetDevice(gpu_idx)) != cudaSuccess)
     {
         FPRT (stderr, "Error: Failed to set GPU device.\n");
         assert (0);
     }
     if (check_CUDA(cudaMemcpyAsync(dst, src, num, cudaMemcpyHostToDevice
-        , aspen_CUDA_streams[gpu_num][GPU_MEM_STREAM_HOST_TO_GPU])) != cudaSuccess)
+        , aspen_CUDA_streams[gpu_idx][GPU_MEM_STREAM_HOST_TO_GPU])) != cudaSuccess)
     {
         FPRT (stderr, "Error: Failed to copy Host to GPU memory.\n");
         assert (0);
     }
-    if (check_CUDA(cudaStreamSynchronize(aspen_CUDA_streams[gpu_num][GPU_MEM_STREAM_HOST_TO_GPU])) != cudaSuccess)
+    if (check_CUDA(cudaStreamSynchronize(aspen_CUDA_streams[gpu_idx][GPU_MEM_STREAM_HOST_TO_GPU])) != cudaSuccess)
     {
         FPRT (stderr, "Error: Failed to synchronize GPU stream.\n");
         assert (0);
     }
     #endif
 }
-void aspen_gpu_to_host_async_memcpy (void *dst, void *src, size_t num, int gpu_num)
+void aspen_gpu_to_host_async_memcpy (void *dst, void *src, size_t num, int gpu_idx)
 {
     #ifdef GPU
-    if (check_CUDA(cudaSetDevice(gpu_num)) != cudaSuccess)
+    if (check_CUDA(cudaSetDevice(gpu_idx)) != cudaSuccess)
     {
         FPRT (stderr, "Error: Failed to set GPU device.\n");
         assert (0);
     }
     if (check_CUDA(cudaMemcpyAsync(dst, src, num, cudaMemcpyDeviceToHost
-        , aspen_CUDA_streams[gpu_num][GPU_MEM_STREAM_GPU_TO_HOST])) != cudaSuccess)
+        , aspen_CUDA_streams[gpu_idx][GPU_MEM_STREAM_GPU_TO_HOST])) != cudaSuccess)
     {
         FPRT (stderr, "Error: Failed to copy GPU to Host memory.\n");
         assert (0);
     }
-    if (check_CUDA(cudaStreamSynchronize(aspen_CUDA_streams[gpu_num][GPU_MEM_STREAM_GPU_TO_HOST])) != cudaSuccess)
+    if (check_CUDA(cudaStreamSynchronize(aspen_CUDA_streams[gpu_idx][GPU_MEM_STREAM_GPU_TO_HOST])) != cudaSuccess)
     {
         FPRT (stderr, "Error: Failed to synchronize GPU stream.\n");
         assert (0);
@@ -240,10 +240,10 @@ void aspen_gpu_to_host_async_memcpy (void *dst, void *src, size_t num, int gpu_n
     #endif
 }
 
-void aspen_sync_gpu (int gpu_num)
+void aspen_sync_gpu (int gpu_idx)
 {
     #ifdef GPU
-    if (check_CUDA(cudaSetDevice(gpu_num)) != cudaSuccess)
+    if (check_CUDA(cudaSetDevice(gpu_idx)) != cudaSuccess)
     {
         FPRT (stderr, "Error: Failed to set GPU device.\n");
         assert (0);
@@ -256,15 +256,15 @@ void aspen_sync_gpu (int gpu_num)
     #endif
 }
 
-void aspen_sync_gpu_stream (int gpu_num, int stream_num)
+void aspen_sync_gpu_stream (int gpu_idx, int stream_num)
 {
     #ifdef GPU
-    if (check_CUDA(cudaSetDevice(gpu_num)) != cudaSuccess)
+    if (check_CUDA(cudaSetDevice(gpu_idx)) != cudaSuccess)
     {
         FPRT (stderr, "Error: Failed to set GPU device.\n");
         assert (0);
     }
-    if (check_CUDA(cudaStreamSynchronize(aspen_CUDA_streams[gpu_num][stream_num])) != cudaSuccess)
+    if (check_CUDA(cudaStreamSynchronize(aspen_CUDA_streams[gpu_idx][stream_num])) != cudaSuccess)
     {
         FPRT (stderr, "Error: Failed to synchronize GPU stream.\n");
         assert (0);
@@ -272,11 +272,11 @@ void aspen_sync_gpu_stream (int gpu_num, int stream_num)
     #endif
 }
 
-int aspen_get_next_stream (int gpu_num)
+int aspen_get_next_stream (int gpu_idx)
 {
     static int stream_num[MAX_NUM_GPUS];
-    stream_num[gpu_num] = (stream_num[gpu_num] + 1) % 32;
-    return stream_num[gpu_num];
+    stream_num[gpu_idx] = (stream_num[gpu_idx] + 1) % 32;
+    return stream_num[gpu_idx];
 }
 
 size_t get_smallest_dividable (size_t num, size_t divider)

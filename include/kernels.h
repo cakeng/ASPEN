@@ -113,5 +113,4 @@ void avx2_sgemm_tile_N(const unsigned int M, const unsigned int N, const unsigne
 void neon_sgemm_vectorized (const unsigned int M, const unsigned int N, const unsigned int K,
     const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc);
 #endif //_NEON
-
 #endif // _KERNELS_H_

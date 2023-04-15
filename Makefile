@@ -4,9 +4,9 @@ OBJECTS=build_info.o apu.o apu_nasm.o apu_file_io.o input_parser.o darknet_parse
 OBJECTS+=rpool.o ase.o naive_kernels.o tiled_kernels.o avx2_kernels.o neon_kernels.o
 AVX2=1
 NEON=0
-GPU=0
+GPU=1
 OPENBLAS=1
-DEBUG=0
+DEBUG=1
 SUPPRESS_OUTPUT=0
 
 CC=gcc
@@ -30,6 +30,7 @@ endif
 CFLAGS= -Wall -fopenmp
 ARFLAGS=rcs
 ifeq ($(GPU), 1)
+OBJECTS+=naive_cuda_kernels.o
 LDFLAGS+=-L/usr/local/cuda/lib64 -lcudart -lcuda -lcublas
 COMMON+=-I/usr/local/cuda/include/
 ARCH= 	-gencode arch=compute_80,code=[sm_80,compute_80] \

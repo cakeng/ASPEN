@@ -4,6 +4,7 @@
 #include "aspen.h"
 #include "nasm.h"
 #include "ase.h"
+#include <stdatomic.h>
 
 #define INIT_QUEUE_SIZE 128
 #define MAX_QUEUE_GROUPS 128

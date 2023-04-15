@@ -1088,11 +1088,21 @@ void *get_packed_ldata_output_colwise (nasm_ldata_t *ldata)
         FPRT (stderr, "Error in get_packed_ldata_output_colwise: calloc failed.\n");
         return NULL;
     }
+    void *out_mat = ldata->out_mat;
+    if (ldata->nasm->gpu_idx >= 0)
+    {
+        out_mat = aspen_calloc (ldata->out_mat_mem_size, 1);
+        aspen_gpu_to_host_memcpy (out_mat, ldata->out_mat, ldata->out_mat_mem_size, ldata->nasm->gpu_idx);
+    }
     for (unsigned int w = 0; w < ldata->out_mat_dims[OUT_W]; w++)
     {
         void *packed_ptr = packed_data + w * ldata->out_mat_dims[OUT_H] * elem_size;
-        void *input_ptr = ldata->out_mat + w * ldata->out_mat_stride * elem_size;
+        void *input_ptr = out_mat + w * ldata->out_mat_stride * elem_size;
         memcpy (packed_ptr, input_ptr, ldata->out_mat_dims[OUT_H] * elem_size);
+    }
+    if (ldata->nasm->gpu_idx >= 0)
+    {
+        aspen_free (out_mat);
     }
     return packed_data;
 }

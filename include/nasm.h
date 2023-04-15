@@ -2,6 +2,7 @@
 #define _NASM_H_
 
 #include "aspen.h"
+#include <stdatomic.h>
 
 struct nasm_t
 {

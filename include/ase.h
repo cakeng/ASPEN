@@ -7,6 +7,7 @@
 #include "rpool.h"
 #include "util.h"
 #include "kernels.h"
+#include "cuda_kernels.h"
 
 #define ASE_NINST_CACHE_BALLANCE 1
 #define ASE_NINST_CACHE_DIFF 0

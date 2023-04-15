@@ -152,7 +152,7 @@ ase_group_t *ase_group_init (unsigned int num_ase, int gpu_idx)
 {
     if (gpu_idx >= 0 && gpu_idx >= aspen_num_gpus)
     {
-        FPRT (stderr, "ERROR: rpool_init: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);
+        FPRT (stderr, "ERROR: ase_group_init: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);
         gpu_idx = -1;
     }
     ase_group_t *ase_group = (ase_group_t *) calloc (1, sizeof (ase_group_t));
@@ -216,7 +216,7 @@ void ase_init (ase_t *ase, int gpu_idx)
     }
     if (gpu_idx >= 0 && gpu_idx >= aspen_num_gpus)
     {
-        FPRT (stderr, "ERROR: rpool_init: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);
+        FPRT (stderr, "ERROR: ase_init: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);
         gpu_idx = -1;
     }
     ase->thread_id = atomic_fetch_add (&ase_thread_id_counter, 1);
