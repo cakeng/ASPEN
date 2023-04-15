@@ -3,15 +3,6 @@ extern "C"
     #include "cuda_kernels.h"
 }
 
-#define _BLOCK_K_SIZE 32
-#define _BLOCK_M_SIZE 64
-#define _BLOCK_N_SIZE 64
-#define _THREAD_M_SIZE 8
-#define _THREAD_N_SIZE 4
-#define _THREAD_NUM ((_BLOCK_M_SIZE / _THREAD_M_SIZE) * (_BLOCK_N_SIZE / _THREAD_N_SIZE)) // 128
-#define _CACHE_A_K_PER_LOAD (_THREAD_NUM / _BLOCK_M_SIZE) // 2
-#define _CACHE_B_K_PER_LOAD (_THREAD_NUM / _BLOCK_N_SIZE) // 2
-
 // Custom CUDA GEMM kernel.
 __global__ void cuda_matmul_kernel(const unsigned int M, const unsigned int N, const unsigned int K,
     const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
@@ -32,6 +23,25 @@ __global__ void cuda_matmul_kernel(const unsigned int M, const unsigned int N, c
             cout[vecN][vecM] = Bias[mGroup + mLocal + vecM];
         }   
     }
+
+    // for (int vecN = 0; vecN < _THREAD_N_SIZE; vecN++)
+    // {
+    //     for (int vecM = 0; vecM < _THREAD_M_SIZE; vecM++)
+    //     {
+    //         const int m = mGroup + mLocal + vecM;
+    //         const int n = nGroup + nLocal + vecN;
+    //         if (m < M &&  n < N)
+    //         {
+    //             C[n * ldc + m] = 0;
+    //             for (int k = 0; k < K; k++)
+    //             {
+    //                 C[n * ldc + m] += A[m * ldk + k] * B[n * ldb + k];
+    //             }
+    //         }
+    //     }
+    // }
+
+
     int kIdx = 0;  
     if (K%_BLOCK_K_SIZE)
     {
@@ -144,23 +154,6 @@ __global__ void cuda_k_attention_kernel(const unsigned int num_heads, const unsi
     const float *key_head = key + batch * ldk * M + head * K;
     const float *B_head = B + batch * ldb * N + head * K;
     float *C_head = C + batch * num_heads  * ldc * N + head * ldc * N;
-
-    // for (int vecN = 0; vecN < _THREAD_N_SIZE; vecN++)
-    // {
-    //     for (int vecM = 0; vecM < _THREAD_M_SIZE; vecM++)
-    //     {
-    //         const int m = mGroup + mLocal + vecM;
-    //         const int n = nGroup + nLocal + vecN;
-    //         if (m < M &&  n < N)
-    //         {
-    //             C_head[n * ldc + m] = 0;
-    //             for (int k = 0; k < K; k++)
-    //             {
-    //                 C_head[n * ldc + m] += key_head[m * ldk + k] * B_head[n * ldb + k];
-    //             }
-    //         }
-    //     }
-    // }
 
     int kIdx = 0;  
     if (K%_BLOCK_K_SIZE)
@@ -299,23 +292,6 @@ __global__ void cuda_v_attention_kernel(const unsigned int num_heads, const unsi
     const float *B_head = B + batch * num_heads * ldb * N + head * ldb * N;
     float *C_head = C + batch * ldc * N + head * M;
 
-    // for (int vecN = 0; vecN < _THREAD_N_SIZE; vecN++)
-    // {
-    //     for (int vecM = 0; vecM < _THREAD_M_SIZE; vecM++)
-    //     {
-    //         const int m = mGroup + mLocal + vecM;
-    //         const int n = nGroup + nLocal + vecN;
-    //         if (m < M &&  n < N)
-    //         {
-    //             C_head[n * ldc + m] = 0;
-    //             for (int k = 0; k < K; k++)
-    //             {
-    //                 C_head[n * ldc + m] += key_head[m * ldk + k] * B_head[n * ldb + k];
-    //             }
-    //         }
-    //     }
-    // }
-
     int kIdx = 0;  
     if (K%_BLOCK_K_SIZE)
     {
@@ -399,7 +375,14 @@ __global__ void cuda_v_attention_kernel(const unsigned int num_heads, const unsi
         }   
     }
     __syncthreads();
-
+}
+__global__ void cuda_residual_kernel (const unsigned int num_elements, const float *A, const float *B, float *C)
+{
+    const int id = blockIdx.x * _BLOCK_RESIDUAL_SIZE + threadIdx.x;
+    if (id < num_elements)
+    {
+        C[id] = A[id] + B[id];
+    }
 }
 // Wrapper function for CUDA kernel.
 extern "C"
@@ -473,7 +456,9 @@ void cuda_v_attention (const float *input_1, const float *input_2, float *output
 void cuda_residual (const float *input_1, const float *input_2, float *output, unsigned int num_elements
     , cudaStream_t stream)
 {
-    
+    dim3 gridDim (num_elements/_BLOCK_RESIDUAL_SIZE + ((num_elements%_BLOCK_RESIDUAL_SIZE) > 0), 1, 1);
+    dim3 blockDim (_BLOCK_RESIDUAL_SIZE, 1, 1);
+    cuda_residual_kernel<<<gridDim, blockDim, 0, stream>>> (num_elements, input_1, input_2, output);
 }
 void cuda_layernorm (const float *input, const float *kernel, const float *bias, 
     float *output, unsigned int N, unsigned int M, cudaStream_t stream)

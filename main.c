@@ -69,7 +69,7 @@ int main(void)
     aspen_run_naive (bert_dnn, input_params, dog_data, gpu);
     get_elapsed_time ("run_naive");
     
-    for (int i = 5; i < 6; i++)
+    for (int i = 7; i < 8; i++)
     {
         printf ("\tLayer %d - Type %s\n", i, layer_type_str[bert_dnn->layers[i].type]);
         aspen_layer_t *layer = &bert_dnn->layers[i];
@@ -87,7 +87,7 @@ int main(void)
         void *ldata_output = get_ldata_output (ldata, output_order);
         void *ldata_raw_output = get_packed_ldata_output_colwise (ldata);
         char filename[256];
-        sprintf (filename, "data/BERT_8_2_Context_layer_output.bin");
+        sprintf (filename, "data/BERT_11_2_SO_residual_output.bin");
         size_t elem_size = ldata->layer->dnn->element_size;
         size_t data_size = ldata->out_mat_dims[OUT_H] * ldata->out_mat_dims[OUT_W] * elem_size;
         // size_t elem_size = layer->dnn->element_size;
