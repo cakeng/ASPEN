@@ -396,14 +396,14 @@ void naive_k_attention (const float *input_1, const float *input_2, float *outpu
     {
         for (unsigned int h = 0; h < num_heads; h++)
         {
-            const float *in_key_ptr = input_2 + b * num_hidden * num_seq + h * hidden_per_head;
+            const float *key_head = input_2 + b * num_hidden * num_seq + h * hidden_per_head;
             float *out_key_ptr = key_temp + b * num_heads * seq_padded * K + h * seq_padded * K;
             
             for (unsigned int m = 0; m < M; m++)
             {
                 for (unsigned int k = 0; k < K; k++)
                 {
-                    const float* input_ptr = in_key_ptr + m * ldk + k;
+                    const float* input_ptr = key_head + m * ldk + k;
                     float* output_ptr = out_key_ptr + ((m/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M 
                         + (m % _VEC_SIZE_M);
                     *output_ptr = *input_ptr;

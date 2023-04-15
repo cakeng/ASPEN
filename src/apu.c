@@ -19,7 +19,7 @@ int use_gpu = 1;
 int aspen_num_gpus = -1;
 
 #ifdef GPU
-cudaStream_t aspen_CUDA_streams[MAX_NUM_GPUS][32];
+cudaStream_t aspen_CUDA_streams[MAX_NUM_GPUS][GPU_MEM_STREAM_HOST_TO_GPU+1];
 #endif
 aspen_dnn_t *apu_create_dnn (char *input_path, char *weight_path)
 {
@@ -147,7 +147,7 @@ aspen_dnn_t *init_aspen_dnn (unsigned int num_layers, char* name)
         #endif
         for (int i = 0; i < aspen_num_gpus; i++)
         {
-            for (int j = 0; j < 32; j++)
+            for (int j = 0; j < GPU_MEM_STREAM_HOST_TO_GPU+1; j++)
             {
                 if (check_CUDA(cudaStreamCreateWithFlags(&aspen_CUDA_streams[i][j], cudaStreamNonBlocking)) != 0)
                 {
@@ -1075,15 +1075,20 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
             {
                 cuda_matmul (layer->params[MAT_M], layer->params[MAT_N]*layer->params[BATCH], layer->params[MAT_K], 
                     layer->tensors[WEIGHT_TENSOR]->data_gpu[gpu_idx], layer->params[MAT_K], input, layer->params[MAT_K], 
-                        output, layer->params[MAT_M], layer->tensors[BIAS_TENSOR]->data_gpu[gpu_idx], layer->activation);
+                    output, layer->params[MAT_M], layer->tensors[BIAS_TENSOR]->data_gpu[gpu_idx], 
+                    layer->activation, aspen_CUDA_streams[gpu_idx][GPU_NAIVE_RUN_STREAM]);
             }
             else if (layer->type == K_ATTENTION_LAYER)
             {
-            
+                cuda_k_attention (input, input2, output
+                    , layer->params[BATCH], layer->params[NUM_HEAD], layer->params[NUM_HIDDEN], layer->params[NUM_SEQ], 
+                    aspen_CUDA_streams[gpu_idx][GPU_NAIVE_RUN_STREAM]);
             }
             else if (layer->type == V_ATTENTION_LAYER)
             {
-
+                cuda_v_attention (input, input2, output
+                    , layer->params[BATCH], layer->params[NUM_HEAD], layer->params[NUM_HIDDEN], layer->params[NUM_SEQ], 
+                    aspen_CUDA_streams[gpu_idx][GPU_NAIVE_RUN_STREAM]);
             }
             else if (layer->type == LAYERNORM_LAYER)
             {
@@ -1101,5 +1106,6 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
             // PRT ("apu_run_naive: Layer %d done.\n", i);
             #endif
         }
+        aspen_sync_gpu_stream (gpu_idx, GPU_NAIVE_RUN_STREAM);
     }
 }

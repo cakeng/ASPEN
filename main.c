@@ -26,7 +26,7 @@ int main(void)
     }
     // print_dnn_info (bert_dnn_2, 0);
 
-    nasm_t *bert_nasm = apu_create_transformer_encoder_nasm(bert_dnn, 100e6, 1, 128);
+    nasm_t *bert_nasm = apu_create_transformer_encoder_nasm(bert_dnn, 100e6, 1, 38);
     if (bert_nasm == NULL) 
     {
         printf("Error: Failed to create NASM\n");
@@ -48,7 +48,7 @@ int main(void)
 
     // // rpool_add_nasm_raw_input (rpool, bert_4_nasm, 0.5, dog_data);
     // rpool_add_nasm (rpool, bert_nasm, 1.0, "data/batched_input_64.bin");
-    rpool_add_nasm (rpool, bert_nasm, 1.0, "data/Text_Len_128_Embedded_input_Batch_32.bin");
+    rpool_add_nasm (rpool, bert_nasm, 1.0, "data/Text_Len_38_Embedded_input_Batch_32.bin");
     // // print_rpool_info (rpool);
     // // print_nasm_info(bert_nasm, 0, 0);
     // // print_dnn_info(bert_dnn, 0);
@@ -62,14 +62,14 @@ int main(void)
     // print_rpool_info (rpool);
 
     unsigned int input_params[NUM_PARAM_ELEMENTS] = {0};
-    input_params[BATCH] = 1; input_params[NUM_SEQ] = 128; input_params[NUM_HIDDEN] = 768;
-    void *dog_data = aspen_load_input ("data/Text_Len_128_Embedded_input_Batch_32.bin", input_params, sizeof(float));
+    input_params[BATCH] = 1; input_params[NUM_SEQ] = 38; input_params[NUM_HIDDEN] = 768;
+    void *dog_data = aspen_load_input ("data/Text_Len_38_Embedded_input_Batch_32.bin", input_params, sizeof(float));
     aspen_init_naive (bert_dnn, input_params, dog_data, gpu);
     get_elapsed_time ("init_naive");
     aspen_run_naive (bert_dnn, input_params, dog_data, gpu);
     get_elapsed_time ("run_naive");
     
-    for (int i = 1; i < 2; i++)
+    for (int i = 5; i < 6; i++)
     {
         printf ("\tLayer %d - Type %s\n", i, layer_type_str[bert_dnn->layers[i].type]);
         aspen_layer_t *layer = &bert_dnn->layers[i];
@@ -87,7 +87,7 @@ int main(void)
         void *ldata_output = get_ldata_output (ldata, output_order);
         void *ldata_raw_output = get_packed_ldata_output_colwise (ldata);
         char filename[256];
-        sprintf (filename, "data/BERT_2_Key_output.bin");
+        sprintf (filename, "data/BERT_8_2_Context_layer_output.bin");
         size_t elem_size = ldata->layer->dnn->element_size;
         size_t data_size = ldata->out_mat_dims[OUT_H] * ldata->out_mat_dims[OUT_W] * elem_size;
         // size_t elem_size = layer->dnn->element_size;

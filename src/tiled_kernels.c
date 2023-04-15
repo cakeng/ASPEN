@@ -537,12 +537,12 @@ void tiled_k_attention (ninst_t *ninst, ase_t *ase)
     unsigned int n = 0;
 
     // Transpose & Reoder Key data.
-    const float *in_key_ptr = (float*)pk_ldata->out_mat + batch * ldk * num_seq + head * hidden_per_head;
+    const float *key_head = (float*)pk_ldata->out_mat + batch * ldk * num_seq + head * hidden_per_head;
     for (unsigned int m = 0; m < M; m++)
     {
         for (unsigned int k = 0; k < K; k++)
         {
-            const float* input_ptr = in_key_ptr + (ninst->out_mat_pos[OUT_H] + m) 
+            const float* input_ptr = key_head + (ninst->out_mat_pos[OUT_H] + m) 
                 * ldk + k;
             float* output_ptr = (float*)A + ((m/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M 
                 + (m % _VEC_SIZE_M);

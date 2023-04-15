@@ -9,6 +9,7 @@
 
 #define MIN_NINST_TILE_PER_LAYER (10)
 #define LAYERS_PER_TRANSFORMER (12)
+
 extern LAYER_TYPE transformer_layer_types[LAYERS_PER_TRANSFORMER];
 extern int transformer_parents [LAYERS_PER_TRANSFORMER][2];
 // 1. Key MM, 2. Query MM, 3. Value MM,

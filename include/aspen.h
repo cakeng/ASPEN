@@ -29,9 +29,11 @@
 #define NINST_H_MIN (64)
 #define NINST_W_MIN (12)
 #define MEM_ALIGN 64
-#define GPU_MEM_STREAM_HOST_TO_GPU 31
-#define GPU_MEM_STREAM_GPU_TO_HOST 30
-#define GPU_MEM_STREAM_KERNEL_MAX 29
+#define GPU_MEM_STREAM_HOST_TO_GPU (34)
+#define GPU_MEM_STREAM_GPU_TO_HOST (33)
+#define GPU_NAIVE_RUN_STREAM (32)
+#define GPU_RUN_STREAM_MAX (31)
+#define GPU_MAX_TRANSFORMER_SEQ_LEN (512)
 #define GPU 1
 
 #if SUPPRESS_OUTPUT == 0
@@ -84,7 +86,7 @@ extern char *rpool_cond_str [NUM_RPOOL_CONDS];
 extern int use_gpu; // Default: 1
 extern int aspen_num_gpus;
 #ifdef GPU
-extern cudaStream_t aspen_CUDA_streams[MAX_NUM_GPUS][32];
+extern cudaStream_t aspen_CUDA_streams[MAX_NUM_GPUS][GPU_MEM_STREAM_HOST_TO_GPU+1];
 #endif
 
 typedef struct aspen_dnn_t aspen_dnn_t;
