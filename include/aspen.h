@@ -129,6 +129,7 @@ void rpool_set_nasm_weight (rpool_t *rpool, nasm_t* nasm, float weight);
 void rpool_add_queue_group (rpool_t *rpool, char *queue_group_info, unsigned int num_queues, float weight, void **blacklist, void **whitelist);
 void rpool_queue_group_set_blacklist (rpool_queue_group_t *rpool_queue_group, void **blacklist);
 void rpool_queue_group_set_whitelist (rpool_queue_group_t *rpool_queue_group, void **whitelist);
+void rpool_reset_nasm (rpool_t *rpool, nasm_t *nasm, float weight);
 
 ase_group_t *ase_group_init (unsigned int num_ase, int gpu_idx);
 void ase_group_set_rpool (ase_group_t *ase_group, rpool_t *rpool);

@@ -100,6 +100,26 @@ rpool_queue_group_t *get_queue_group_from_nasm (rpool_t *rpool, nasm_t *nasm)
     return NULL;
 }
 
+unsigned int *get_queue_group_idx_from_nasm (rpool_t *rpool, nasm_t *nasm)
+{
+    if (rpool == NULL)
+    {
+        FPRT (stderr, "ERROR: get_queue_group_idx_from_nasm: rpool is NULL.\n");
+        return NULL;
+    }
+    if (nasm == NULL)
+    {
+        FPRT (stderr, "ERROR: get_queue_group_idx_from_nasm: nasm is NULL.\n");
+        return NULL;
+    }
+    for (int i = 0; i < rpool->num_groups; i++)
+    {
+        if (rpool->queue_group_arr[i].whitelist_conds[RPOOL_NASM] == nasm)
+            return i;
+    }
+    return NULL;
+}
+
 void set_queue_group_weight (rpool_t *rpool, rpool_queue_group_t *rpool_queue_group, float weight)
 {
     if (rpool == NULL)
@@ -223,6 +243,15 @@ void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, float weight, char *input_fil
     }
     rpool_add_nasm_raw_input (rpool, nasm, weight, data);
     aspen_free (data); 
+}
+
+void rpool_reset_nasm (rpool_t *rpool, nasm_t *nasm, float weight)
+{
+    reset_nasm (nasm);
+    unsigned int queue_group_idx = get_queue_group_idx_from_nasm (rpool, nasm);
+    rpool->queue_group_weight_arr[queue_group_idx] = weight;
+    rpool->queue_group_weight_sum += weight;
+    push_first_layer_to_rpool (rpool, nasm, NULL);
 }
 
 void rpool_add_queue_group 
@@ -529,6 +558,7 @@ rpool_queue_t *get_queue_for_fetching (rpool_t *rpool, void **input_cond)
     for (int i = 0; i < num_queues; i++)
     {
         rpool_queue_t *rpool_queue = &rpool_queue_group->queue_arr[i];
+        // printf ("queue %d: num_stored: %d\n", i, rpool_queue->num_stored);
         if (rpool_queue->num_stored > 0)
         {
             // if (atomic_exchange (&rpool_queue->occupied, 1) == 0)

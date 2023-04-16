@@ -6,7 +6,7 @@
 #include "ase.h"
 #include <stdatomic.h>
 
-#define INIT_QUEUE_SIZE 128
+#define INIT_QUEUE_SIZE 1024
 #define MAX_QUEUE_GROUPS 128
 #define MAX_NUM_QUEUES 1024*4
 #define NUM_QUEUE_PER_ASE ((float)1/8)
@@ -47,15 +47,6 @@ struct rpool_t
     int gpu_idx;
 };
 
-struct cpool_t
-{
-    _Atomic unsigned int num_groups;
-    rpool_queue_group_t queue_arr[MAX_QUEUE_GROUPS];
-    rpool_queue_t default_queue;
-    _Atomic unsigned int ref_ases;
-    int gpu_idx;
-};
-
 void rpool_init_queue (rpool_queue_t *rpool_queue);
 void rpool_destroy_queue (rpool_queue_t *rpool_queue);
 
@@ -63,6 +54,8 @@ void rpool_init_queue_group (rpool_queue_group_t *rpool_queue_group, char *queue
 void rpool_destroy_queue_group (rpool_queue_group_t *rpool_queue_group);
 
 rpool_queue_group_t *get_queue_group_from_nasm (rpool_t *rpool, nasm_t *nasm);
+unsigned int *get_queue_group_idx_from_nasm (rpool_t *rpool, nasm_t *nasm);
+
 void set_queue_group_weight (rpool_t *rpool, rpool_queue_group_t *rpool_queue_group, float weight);
 void queue_group_add_queues (rpool_queue_group_t *rpool_queue_group, unsigned int num_queues);
 void add_ref_ases (rpool_t *rpool, unsigned int num_ases);

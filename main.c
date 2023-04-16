@@ -49,11 +49,20 @@ int main(void)
     // // rpool_add_nasm_raw_input (rpool, bert_4_nasm, 0.5, dog_data);
     // rpool_add_nasm (rpool, bert_nasm, 1.0, "data/batched_input_64.bin");
     rpool_add_nasm (rpool, bert_nasm, 1.0, "data/Text_Len_480_Embedded_input_Batch_32.bin");
-    // // print_rpool_info (rpool);
-    print_nasm_info(bert_nasm, 0, 0);
-    print_dnn_info(bert_dnn, 0);
+    // print_rpool_info (rpool);
+    // print_nasm_info(bert_nasm, 0, 0);
+    // print_dnn_info(bert_dnn, 0);
 
     get_elapsed_time ("init");
+    ase_group_run (ase_group);
+    ase_wait_for_nasm_completion (bert_nasm);
+    // ase_wait_for_nasm_completion (bert_4_nasm);
+    ase_group_stop (ase_group);
+    get_elapsed_time ("run_aspen");
+    rpool_reset_nasm (rpool, bert_nasm, 1.0);
+    // print_nasm_info(bert_nasm, 1, 0);
+    // print_rpool_info (rpool);
+    get_elapsed_time ("init2");
     ase_group_run (ase_group);
     ase_wait_for_nasm_completion (bert_nasm);
     // ase_wait_for_nasm_completion (bert_4_nasm);

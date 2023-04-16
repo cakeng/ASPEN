@@ -121,14 +121,13 @@ void *ase_thread_runtime (void* thread_info)
             unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
             if (num_ninst_completed == ninst->ldata->num_ninst - 1)
             {
-                // #ifdef DEBUG
                 // printf ("\t\tThread %d completed layer %d of nasm %d\n", 
                 //     ase->thread_id, ninst->ldata->layer->layer_idx, ninst->ldata->nasm->nasm_id);
-                // #endif
                 nasm_t *nasm = ninst->ldata->nasm;
                 unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
                 if (num_ldata_completed == nasm->num_ldata - 1)
                 {
+                    // printf ("\t\tSignaling nasm completion...\n");
                     // All layers of the nasm is completed.
                     rpool_queue_group_t *rpool_queue_group 
                         = get_queue_group_from_nasm (ase->rpool, ninst->ldata->nasm);
@@ -320,6 +319,7 @@ void ase_wait_for_nasm_completion (nasm_t *nasm)
         return;
     }
     pthread_cond_wait (&nasm->nasm_cond, &nasm->nasm_mutex);
+    pthread_mutex_unlock (&nasm->nasm_mutex);
 }
 
 void ase_run (ase_t *ase)
@@ -484,38 +484,41 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
         nasm_ldata_t *ldata = &nasm->ldata_arr[i];
         total_mem_req += ldata->out_mat_mem_size;
     }
-    nasm->data = aspen_calloc (total_mem_req, 1);
-    if (input_data != NULL)
-    {
-        nasm_ldata_t *ldata = &nasm->ldata_arr[0];
-        aspen_layer_t *layer = ldata->layer;
-        size_t num_cols = 0;
-        if (layer->params[OUT_H] != 0 && layer->params[OUT_W] != 0)
-            num_cols = nasm->batch_size * layer->params[OUT_H] * layer->params[OUT_W];
-        else if (layer->params[MAT_M] != 0)
-            num_cols = nasm->batch_size * nasm->tr_seq_len;
-        for (int i = 0; i < num_cols; i++)
-            memcpy 
-                ((char*)nasm->data + i * ldata->out_mat_stride * nasm->dnn->element_size, 
-                (char*)input_data + i * ldata->out_mat_dims[OUT_H] * nasm->dnn->element_size, 
-                ldata->out_mat_dims[OUT_H] * nasm->dnn->element_size);
-    }
-    if (rpool->gpu_idx >= 0)
-    {
-        void *temp_gpu_data = aspen_gpu_calloc (total_mem_req, 1, rpool->gpu_idx);
-        aspen_host_to_gpu_async_memcpy (temp_gpu_data, nasm->data, nasm->ldata_arr[0].out_mat_mem_size, rpool->gpu_idx);
-        aspen_free(nasm->data);
-        nasm->data = temp_gpu_data;
-    }
     if (nasm->data == NULL)
     {
-        FPRT (stderr, "Error: nasm->data == NULL in ase_push_first_layer_to_rpool()\n");
-        assert (0);
-    }
-    for (int i = 0; i < nasm->num_ldata; i++)
-    {
-        nasm_ldata_t *ldata = &nasm->ldata_arr[i];
-        set_ldata_out_mat_mem_pos (ldata);
+        nasm->data = aspen_calloc (total_mem_req, 1);
+        if (input_data != NULL)
+        {
+            nasm_ldata_t *ldata = &nasm->ldata_arr[0];
+            aspen_layer_t *layer = ldata->layer;
+            size_t num_cols = 0;
+            if (layer->params[OUT_H] != 0 && layer->params[OUT_W] != 0)
+                num_cols = nasm->batch_size * layer->params[OUT_H] * layer->params[OUT_W];
+            else if (layer->params[MAT_M] != 0)
+                num_cols = nasm->batch_size * nasm->tr_seq_len;
+            for (int i = 0; i < num_cols; i++)
+                memcpy 
+                    ((char*)nasm->data + i * ldata->out_mat_stride * nasm->dnn->element_size, 
+                    (char*)input_data + i * ldata->out_mat_dims[OUT_H] * nasm->dnn->element_size, 
+                    ldata->out_mat_dims[OUT_H] * nasm->dnn->element_size);
+        }
+        if (rpool->gpu_idx >= 0)
+        {
+            void *temp_gpu_data = aspen_gpu_calloc (total_mem_req, 1, rpool->gpu_idx);
+            aspen_host_to_gpu_async_memcpy (temp_gpu_data, nasm->data, nasm->ldata_arr[0].out_mat_mem_size, rpool->gpu_idx);
+            aspen_free(nasm->data);
+            nasm->data = temp_gpu_data;
+        }
+        if (nasm->data == NULL)
+        {
+            FPRT (stderr, "Error: nasm->data == NULL in ase_push_first_layer_to_rpool()\n");
+            assert (0);
+        }
+        for (int i = 0; i < nasm->num_ldata; i++)
+        {
+            nasm_ldata_t *ldata = &nasm->ldata_arr[i];
+            set_ldata_out_mat_mem_pos (ldata);
+        }
     }
     nasm_ldata_t *ldata = &nasm->ldata_arr[0];
     for (int i = 0; i < ldata->num_ninst; i++)
