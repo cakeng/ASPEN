@@ -5,7 +5,6 @@ OBJECTS+=rpool.o ase.o naive_kernels.o tiled_kernels.o avx2_kernels.o neon_kerne
 AVX2=1
 NEON=0
 GPU=1
-OPENBLAS=1
 DEBUG=0
 SUPPRESS_OUTPUT=0
 
@@ -22,7 +21,7 @@ BUILD_INFO_UNAME = $(shell uname -srvpim)
 BUILD_INFO_BRANCH = $(shell git log -1 | grep -Eio "commit [0-9a-zA-Z]+")
 BUILD_INFO_NVCC = 
 OPTS=-O3 -march=native -funroll-loops
-LDFLAGS=-lm -lopenblas -lgomp
+LDFLAGS=-lm -lgomp
 COMMON=-I/usr/local/cuda/include/ -Iinclude/
 ifeq ($(DEBUG), 1) 
 OPTS=-O0 -g -DDEBUG
@@ -30,7 +29,7 @@ endif
 CFLAGS= -Wall -fopenmp
 ARFLAGS=rcs
 ifeq ($(GPU), 1)
-OBJECTS+=naive_cuda_kernels.o
+OBJECTS+=naive_cuda_kernels.o tiled_cuda_kernels.o
 LDFLAGS+=-L/usr/local/cuda/lib64 -lcudart -lcuda -lcublas
 COMMON+=-I/usr/local/cuda/include/
 ARCH= 	-gencode arch=compute_80,code=[sm_80,compute_80] \
@@ -43,10 +42,6 @@ OPTS+=-mavx2 -mfma -DAVX2
 endif
 ifeq ($(NEON), 1)
 OPTS+=-DNEON
-endif
-ifeq ($(OPENBLAS), 1) 
-OPTS+=-DOPENBLAS
-LDFLAGS+=-lopenblas
 endif
 ifeq ($(SUPPRESS_OUTPUT), 1) 
 OPTS+=-D_SUPPRESS_OUTPUT

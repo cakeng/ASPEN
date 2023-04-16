@@ -1093,7 +1093,8 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
             else if (layer->type == LAYERNORM_LAYER)
             {
                 cuda_layernorm (input, layer->tensors[WEIGHT_TENSOR]->data_gpu[gpu_idx], layer->tensors[BIAS_TENSOR]->data_gpu[gpu_idx], output, 
-                    layer->params[BATCH]*layer->params[MAT_N], layer->params[MAT_M], aspen_CUDA_streams[gpu_idx][GPU_NAIVE_RUN_STREAM]);
+                    layer->params[BATCH]*layer->params[MAT_N], layer->params[MAT_M], layer->params[MAT_M], layer->params[MAT_M], 
+                    aspen_CUDA_streams[gpu_idx][GPU_NAIVE_RUN_STREAM]);
             }
             else if (layer->type == INPUT_LAYER)
             {
@@ -1106,7 +1107,7 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
             }
             // PRT ("apu_run_naive: Layer %d done.\n", i);
             #endif
+            aspen_sync_gpu_stream (gpu_idx, GPU_NAIVE_RUN_STREAM);
         }
-        aspen_sync_gpu_stream (gpu_idx, GPU_NAIVE_RUN_STREAM);
     }
 }

@@ -70,69 +70,71 @@ void tiled_conv2d (ninst_t *ninst, ase_t *ase)
     const unsigned int rem_m = M % _TILE_SIZE_M;
     const unsigned int rem_k = K % _TILE_SIZE_K;
     unsigned int n = 0;
-    // <M, N, K> = <M, _TILE_SIZE_N, K>
-    for (; n < N - rem_n; n += _TILE_SIZE_N)
+    if (ase->gpu_idx < 0)
     {
-        for (unsigned int i = input_pos_per_n * n; i < input_pos_per_n * (n + _TILE_SIZE_N); i++)
+        // <M, N, K> = <M, _TILE_SIZE_N, K>
+        for (; n < N - rem_n; n += _TILE_SIZE_N)
         {
-            void *input_ptr = ninst->input_pos_idx_arr[i]*p_ldata->out_mat_stride + (float *) p_ldata->out_mat;
-            if (ninst->input_pos_idx_arr[i] == -1)
+            for (unsigned int i = input_pos_per_n * n; i < input_pos_per_n * (n + _TILE_SIZE_N); i++)
             {
-                memset (input, 0, input_col_size * layer->dnn->element_size);
-            }
-            else
-            {
-                memcpy (input, input_ptr, input_col_size * layer->dnn->element_size);
-            }
-            input += input_col_size * layer->dnn->element_size;
-        }
-        unsigned int k = 0;
-        // <M, N, K> = <M, _TILE_SIZE_N, _TILE_SIZE_K>
-        for (; k < K - rem_k; k += _TILE_SIZE_K)
-        {
-            unsigned int m = 0;
-            // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K>
-            for (; m < M - rem_m; m += _TILE_SIZE_M)
-            {
-                SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K, 
-                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
-            }
-            // <M, N, K> = <rem_m, _TILE_SIZE_N, _TILE_SIZE_K>
-            if (rem_m != 0)
-                SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, _TILE_SIZE_K, 
-                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
-        
-        }
-        // <M, N, K> = <M, _TILE_SIZE_N, rem_k>
-        if (rem_k != 0)
-        {
-            unsigned int m = 0;
-            // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, rem_k>
-            for (; m < M - rem_m; m += _TILE_SIZE_M)
-            {
-                SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, rem_k,
-                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
-            }
-            // <M, N, K> = <rem_m, _TILE_SIZE_N, rem_k>
-            SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, rem_k, 
-                (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
-        }
-        for (unsigned int nn = n; nn < n + _TILE_SIZE_N; nn++)
-        {
-            float *out_vec = (float *)C + nn * ldc;
-            if (layer->tensors[BIAS_TENSOR] != NULL)
-            {
-                float *bias = (float*)layer->tensors[BIAS_TENSOR]->data + ninst->out_mat_pos[OUT_H];
-                for (unsigned int m = 0; m < M; m++)
+                void *input_ptr = ninst->input_pos_idx_arr[i]*p_ldata->out_mat_stride + (float *) p_ldata->out_mat;
+                if (ninst->input_pos_idx_arr[i] == -1)
                 {
-                    out_vec[m] += bias[m];
+                    memset (input, 0, input_col_size * layer->dnn->element_size);
                 }
+                else
+                {
+                    memcpy (input, input_ptr, input_col_size * layer->dnn->element_size);
+                }
+                input += input_col_size * layer->dnn->element_size;
             }
-            naive_activate (out_vec, M, layer->activation);
+            unsigned int k = 0;
+            // <M, N, K> = <M, _TILE_SIZE_N, _TILE_SIZE_K>
+            for (; k < K - rem_k; k += _TILE_SIZE_K)
+            {
+                unsigned int m = 0;
+                // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K>
+                for (; m < M - rem_m; m += _TILE_SIZE_M)
+                {
+                    SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K, 
+                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+                }
+                // <M, N, K> = <rem_m, _TILE_SIZE_N, _TILE_SIZE_K>
+                if (rem_m != 0)
+                    SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, _TILE_SIZE_K, 
+                            (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            
+            }
+            // <M, N, K> = <M, _TILE_SIZE_N, rem_k>
+            if (rem_k != 0)
+            {
+                unsigned int m = 0;
+                // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, rem_k>
+                for (; m < M - rem_m; m += _TILE_SIZE_M)
+                {
+                    SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, rem_k,
+                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+                }
+                // <M, N, K> = <rem_m, _TILE_SIZE_N, rem_k>
+                SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, rem_k, 
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            }
+            for (unsigned int nn = n; nn < n + _TILE_SIZE_N; nn++)
+            {
+                float *out_vec = (float *)C + nn * ldc;
+                if (layer->tensors[BIAS_TENSOR] != NULL)
+                {
+                    float *bias = (float*)layer->tensors[BIAS_TENSOR]->data + ninst->out_mat_pos[OUT_H];
+                    for (unsigned int m = 0; m < M; m++)
+                    {
+                        out_vec[m] += bias[m];
+                    }
+                }
+                naive_activate (out_vec, M, layer->activation);
+            }
         }
-    }
-    // <M, N, K> = <M, rem_n, K>
-    if (rem_n != 0)
+        // <M, N, K> = <M, rem_n, K>
+        if (rem_n != 0)
     {
         for (unsigned int i = input_pos_per_n * n; i < input_pos_per_n * N; i++)
         {
@@ -191,6 +193,13 @@ void tiled_conv2d (ninst_t *ninst, ase_t *ase)
             naive_activate (out_vec, M, layer->activation);
         }
     }
+    }
+    else
+    {
+        #ifdef GPU
+
+        #endif
+    }
     #endif
 }
 
@@ -209,61 +218,62 @@ void tiled_matmul (ninst_t *ninst, ase_t *ase)
     const void *A = (char*)layer->tensors[WEIGHT_TENSOR]->data + (ninst->out_mat_pos[OUT_H] * lda * layer->dnn->element_size);
     const void *B = (char*)p_ldata->out_mat + (ninst->out_mat_pos[OUT_W] * ldb * layer->dnn->element_size);
     void *C = ninst->out_mat;
-    const unsigned int rem_n = N % _TILE_SIZE_N;
-    const unsigned int rem_m = M % _TILE_SIZE_M;
-    const unsigned int rem_k = K % _TILE_SIZE_K;
-    unsigned int n = 0;
-
-    // <M, N, K> = <M, _TILE_SIZE_N, K>
-    for (; n < N - rem_n; n += _TILE_SIZE_N)
+    if (ase->gpu_idx < 0)
     {
-        unsigned int k = 0;
-        // <M, N, K> = <M, _TILE_SIZE_N, _TILE_SIZE_K>
-        for (; k < K - rem_k; k += _TILE_SIZE_K)
+        const unsigned int rem_n = N % _TILE_SIZE_N;
+        const unsigned int rem_m = M % _TILE_SIZE_M;
+        const unsigned int rem_k = K % _TILE_SIZE_K;
+        unsigned int n = 0;
+        // <M, N, K> = <M, _TILE_SIZE_N, K>
+        for (; n < N - rem_n; n += _TILE_SIZE_N)
         {
-            unsigned int m = 0;
-            // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K>
-            for (; m < M - rem_m; m += _TILE_SIZE_M)
+            unsigned int k = 0;
+            // <M, N, K> = <M, _TILE_SIZE_N, _TILE_SIZE_K>
+            for (; k < K - rem_k; k += _TILE_SIZE_K)
             {
-                SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K, 
-                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
-            }
-            // <M, N, K> = <rem_m, _TILE_SIZE_N, _TILE_SIZE_K>
-            if (rem_m != 0)
-                SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, _TILE_SIZE_K, 
-                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
-        
-        }
-        // <M, N, K> = <M, _TILE_SIZE_N, rem_k>
-        if (rem_k != 0)
-        {
-            unsigned int m = 0;
-            // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, rem_k>
-            for (; m < M - rem_m; m += _TILE_SIZE_M)
-            {
-                SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, rem_k,
-                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
-            }
-            // <M, N, K> = <rem_m, _TILE_SIZE_N, rem_k>
-            SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, rem_k, 
-                (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
-        }
-        for (unsigned int nn = n; nn < n + _TILE_SIZE_N; nn++)
-        {
-            float *out_vec = (float *)C + nn * ldc;
-            if (layer->tensors[BIAS_TENSOR] != NULL)
-            {
-                float *bias = (float*)layer->tensors[BIAS_TENSOR]->data + ninst->out_mat_pos[OUT_H];
-                for (unsigned int m = 0; m < M; m++)
+                unsigned int m = 0;
+                // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K>
+                for (; m < M - rem_m; m += _TILE_SIZE_M)
                 {
-                    out_vec[m] += bias[m];
+                    SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K, 
+                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
                 }
+                // <M, N, K> = <rem_m, _TILE_SIZE_N, _TILE_SIZE_K>
+                if (rem_m != 0)
+                    SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, _TILE_SIZE_K, 
+                            (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            
             }
-            naive_activate (out_vec, M, layer->activation);
+            // <M, N, K> = <M, _TILE_SIZE_N, rem_k>
+            if (rem_k != 0)
+            {
+                unsigned int m = 0;
+                // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, rem_k>
+                for (; m < M - rem_m; m += _TILE_SIZE_M)
+                {
+                    SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, rem_k,
+                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+                }
+                // <M, N, K> = <rem_m, _TILE_SIZE_N, rem_k>
+                SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, rem_k, 
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            }
+            for (unsigned int nn = n; nn < n + _TILE_SIZE_N; nn++)
+            {
+                float *out_vec = (float *)C + nn * ldc;
+                if (layer->tensors[BIAS_TENSOR] != NULL)
+                {
+                    float *bias = (float*)layer->tensors[BIAS_TENSOR]->data + ninst->out_mat_pos[OUT_H];
+                    for (unsigned int m = 0; m < M; m++)
+                    {
+                        out_vec[m] += bias[m];
+                    }
+                }
+                naive_activate (out_vec, M, layer->activation);
+            }
         }
-    }
-    // <M, N, K> = <M, rem_n, K>
-    if (rem_n != 0)
+        // <M, N, K> = <M, rem_n, K>
+        if (rem_n != 0)
     {
         unsigned int k = 0;
         // <M, N, K> = <M, rem_n, _TILE_SIZE_K>
@@ -309,6 +319,18 @@ void tiled_matmul (ninst_t *ninst, ase_t *ase)
             naive_activate (out_vec, M, layer->activation);
         }
     }
+    }
+    else
+    {
+        #ifdef GPU
+        float *bias = (float*)layer->tensors[BIAS_TENSOR]->data_gpu[ase->gpu_idx] + ninst->out_mat_pos[OUT_H];
+        A = (char*)layer->tensors[WEIGHT_TENSOR]->data_gpu[ase->gpu_idx] 
+            + (ninst->out_mat_pos[OUT_H] * lda * layer->dnn->element_size);
+        cuda_matmul (M, N, K, A, lda, B, ldb, C, ldc, bias, layer->activation, 
+            aspen_CUDA_streams[ase->gpu_idx][ase->thread_id%GPU_RUN_STREAM_NUM]);
+        aspen_sync_gpu_stream (ase->gpu_idx, ase->thread_id%GPU_RUN_STREAM_NUM);
+        #endif
+    }
     #endif
 }
 
@@ -324,35 +346,44 @@ void tiled_maxpool2d (ninst_t *ninst, ase_t *ase)
     const unsigned int N = ninst->tile_dims[OUT_W];
     const unsigned int ldc = ldata->out_mat_stride;
     void *C = ninst->out_mat;
-    for (int n = 0; n < N; n++)
+    if (ase->gpu_idx < 0)
     {
-        float *out_vec = (float*)C + n * ldc;
-        float *input_vec = (float *)input_ptr_arr[n*input_pos_per_n];
-        if (input_vec == NULL)
+        for (int n = 0; n < N; n++)
         {
-            for (int m = 0; m < M; m++)
+            float *out_vec = (float*)C + n * ldc;
+            float *input_vec = (float *)input_ptr_arr[n*input_pos_per_n];
+            if (input_vec == NULL)
             {
-                out_vec[m] = -INFINITY;
-            }
-        }
-        else
-        {
-            input_vec += ninst->out_mat_pos[OUT_H];
-            memcpy (out_vec, input_vec, M * layer->dnn->element_size);
-        }
-        for (int i = 1; i < input_pos_per_n; i++)
-        {
-            input_vec = (float *)input_ptr_arr[n*input_pos_per_n + i];
-            if (input_vec != NULL)
-            {
-                input_vec += + ninst->out_mat_pos[OUT_H];
                 for (int m = 0; m < M; m++)
                 {
-                    out_vec[m] = out_vec[m] >= input_vec[m] ? out_vec[m] : input_vec[m];
+                    out_vec[m] = -INFINITY;
                 }
             }
+            else
+            {
+                input_vec += ninst->out_mat_pos[OUT_H];
+                memcpy (out_vec, input_vec, M * layer->dnn->element_size);
+            }
+            for (int i = 1; i < input_pos_per_n; i++)
+            {
+                input_vec = (float *)input_ptr_arr[n*input_pos_per_n + i];
+                if (input_vec != NULL)
+                {
+                    input_vec += + ninst->out_mat_pos[OUT_H];
+                    for (int m = 0; m < M; m++)
+                    {
+                        out_vec[m] = out_vec[m] >= input_vec[m] ? out_vec[m] : input_vec[m];
+                    }
+                }
+            }
+            naive_activate (out_vec, M, layer->activation);
         }
-        naive_activate (out_vec, M, layer->activation);
+    }
+    else
+    {
+        #ifdef GPU
+
+        #endif
     }
     #endif
 }
@@ -368,36 +399,45 @@ void tiled_avgpool2d (ninst_t *ninst, ase_t *ase)
     const unsigned int N = ninst->tile_dims[OUT_W];
     const unsigned int ldc = ldata->out_mat_stride;
     void *C = ninst->out_mat;
-    for (int n = 0; n < N; n++)
+    if (ase->gpu_idx < 0)
     {
-        float *out_vec = (float*)C + n * ldc;
-        float *input_vec = (float*)input_ptr_arr[n*input_pos_per_n];
-        if (input_vec == NULL)
+        for (int n = 0; n < N; n++)
         {
-            memset (out_vec, 0, M * layer->dnn->element_size);
-        }
-        else
-        {
-            input_vec += ninst->out_mat_pos[OUT_H];
-            memcpy (out_vec, input_vec, M * layer->dnn->element_size);
-        }
-        for (int i = 1; i < input_pos_per_n; i++)
-        {
-            input_vec = (float*)input_ptr_arr[n*input_pos_per_n + i];
-            if (input_vec != NULL)
+            float *out_vec = (float*)C + n * ldc;
+            float *input_vec = (float*)input_ptr_arr[n*input_pos_per_n];
+            if (input_vec == NULL)
+            {
+                memset (out_vec, 0, M * layer->dnn->element_size);
+            }
+            else
             {
                 input_vec += ninst->out_mat_pos[OUT_H];
-                for (int m = 0; m < M; m++)
+                memcpy (out_vec, input_vec, M * layer->dnn->element_size);
+            }
+            for (int i = 1; i < input_pos_per_n; i++)
+            {
+                input_vec = (float*)input_ptr_arr[n*input_pos_per_n + i];
+                if (input_vec != NULL)
                 {
-                    out_vec[m] += input_vec[m];
+                    input_vec += ninst->out_mat_pos[OUT_H];
+                    for (int m = 0; m < M; m++)
+                    {
+                        out_vec[m] += input_vec[m];
+                    }
                 }
             }
+            for (int m = 0; m < M; m++)
+            {
+                out_vec[m] /= input_pos_per_n;
+            }
+            naive_activate (out_vec, M, layer->activation);
         }
-        for (int m = 0; m < M; m++)
-        {
-            out_vec[m] /= input_pos_per_n;
-        }
-        naive_activate (out_vec, M, layer->activation);
+    }
+    else
+    {
+        #ifdef GPU
+
+        #endif
     }
     #endif
 }
@@ -417,17 +457,30 @@ void tiled_residual (ninst_t *ninst, ase_t *ase)
     const unsigned int N = ninst->tile_dims[OUT_W];
     const unsigned int ldc = ldata->out_mat_stride;
     void *C = ninst->out_mat;
-    for (int n = 0; n < N; n++)
+    if (ase->gpu_idx < 0)
     {
-        unsigned int w_pos = ninst->out_mat_pos[OUT_W] + n;
+        for (int n = 0; n < N; n++)
+        {
+            unsigned int w_pos = ninst->out_mat_pos[OUT_W] + n;
+            float *input_0 = (float*)p0_ldata->out_mat + w_pos * p0_ldata->out_mat_stride + ninst->out_mat_pos[OUT_H];
+            float *input_1 = (float*)p1_ldata->out_mat + w_pos * p1_ldata->out_mat_stride + ninst->out_mat_pos[OUT_H];
+            float *out_vec = (float*)C + n * ldc;
+            for (int m = 0; m < M; m++)
+            {
+                out_vec[m] = input_0[m] + input_1[m];
+            }
+            naive_activate (out_vec, M, layer->activation);
+        }
+    }
+    else
+    {
+        #ifdef GPU
+        unsigned int w_pos = ninst->out_mat_pos[OUT_W];
         float *input_0 = (float*)p0_ldata->out_mat + w_pos * p0_ldata->out_mat_stride + ninst->out_mat_pos[OUT_H];
         float *input_1 = (float*)p1_ldata->out_mat + w_pos * p1_ldata->out_mat_stride + ninst->out_mat_pos[OUT_H];
-        float *out_vec = (float*)C + n * ldc;
-        for (int m = 0; m < M; m++)
-        {
-            out_vec[m] = input_0[m] + input_1[m];
-        }
-        naive_activate (out_vec, M, layer->activation);
+        cuda_tiled_residual (input_0, input_1, C, N, M, ldc, aspen_CUDA_streams[ase->gpu_idx][ase->thread_id%GPU_RUN_STREAM_NUM]);
+        aspen_sync_gpu_stream (ase->gpu_idx, ase->thread_id%GPU_RUN_STREAM_NUM);
+        #endif
     }
     #endif
 }
@@ -441,26 +494,35 @@ void tiled_softmax (ninst_t *ninst, ase_t *ase)
     const unsigned int N = ninst->tile_dims[OUT_W];
     const unsigned int ldc = ldata->out_mat_stride;
     void *C = ninst->out_mat;
-    for (int n = 0; n < N; n++)
+    if (ase->gpu_idx < 0)
     {
-        unsigned int w_pos = ninst->out_mat_pos[OUT_W] + n;
-        float *input = (float*)p0_ldata->out_mat + w_pos * p0_ldata->out_mat_stride + ninst->out_mat_pos[OUT_H];
-        float *output = (float*)C + n * ldc;
-        float max = input[0];
-        for (int m = 1; m < M; m++)
+        for (int n = 0; n < N; n++)
         {
-            max = max >= input[m] ? max : input[m];
+            unsigned int w_pos = ninst->out_mat_pos[OUT_W] + n;
+            float *input = (float*)p0_ldata->out_mat + w_pos * p0_ldata->out_mat_stride + ninst->out_mat_pos[OUT_H];
+            float *output = (float*)C + n * ldc;
+            float max = input[0];
+            for (int m = 1; m < M; m++)
+            {
+                max = max >= input[m] ? max : input[m];
+            }
+            float sum = 0;
+            for (int m = 0; m < M; m++)
+            {
+                output[m] = expf (input[m] - max);
+                sum += output[m];
+            }
+            for (int m = 0; m < M; m++)
+            {
+                output[m] /= sum;
+            }
         }
-        float sum = 0;
-        for (int m = 0; m < M; m++)
-        {
-            output[m] = expf (input[m] - max);
-            sum += output[m];
-        }
-        for (int m = 0; m < M; m++)
-        {
-            output[m] /= sum;
-        }
+    }
+    else
+    {
+        #ifdef GPU
+        
+        #endif
     }
     #endif
 }
@@ -481,30 +543,40 @@ void tiled_layernorm (ninst_t *ninst, ase_t *ase)
         bias = (float*)layer->tensors[BIAS_TENSOR]->data + ninst->out_mat_pos[OUT_H];
     const void *B = (char*)p_ldata->out_mat + (ninst->out_mat_pos[OUT_W] * ldb * layer->dnn->element_size);
     void *C = ninst->out_mat;
-
-    for (int n = 0; n < N; n++)
+    if (ase->gpu_idx < 0)
     {
-        const float *input_vec = (float*)B + n * ldb;
-        float *out_vec = (float*)C + n * ldc;
-        float mean = 0;
-        float var = 0;
-        for (int m = 0; m < M; m++)
+        for (int n = 0; n < N; n++)
         {
-            mean += input_vec[m];
-            var += input_vec[m] * input_vec[m];
-        }
-        mean /= M;
-        var /= M;
-        var -= mean * mean;
-        var = 1 / sqrtf (var + 1e-6f);
-        for (int m = 0; m < M; m++)
-        {
-            out_vec[m] = (input_vec[m] - mean) * var * weight[m];
-            if (bias != NULL)
-                out_vec[m] += bias[m];
+            const float *input_vec = (float*)B + n * ldb;
+            float *out_vec = (float*)C + n * ldc;
+            float mean = 0;
+            float var = 0;
+            for (int m = 0; m < M; m++)
+            {
+                mean += input_vec[m];
+                var += input_vec[m] * input_vec[m];
+            }
+            mean /= M;
+            var /= M;
+            var -= mean * mean;
+            var = 1 / sqrtf (var + 1e-6f);
+            for (int m = 0; m < M; m++)
+            {
+                out_vec[m] = (input_vec[m] - mean) * var * weight[m];
+                if (bias != NULL)
+                    out_vec[m] += bias[m];
+            }
         }
     }
-
+    else
+    {
+        #ifdef GPU
+        weight = (float*)layer->tensors[WEIGHT_TENSOR]->data_gpu[ase->gpu_idx] + ninst->out_mat_pos[OUT_H];
+        bias = (float*)layer->tensors[BIAS_TENSOR]->data_gpu[ase->gpu_idx] + ninst->out_mat_pos[OUT_H];
+        cuda_layernorm (B, weight, bias, C, N, M, ldb, ldc, aspen_CUDA_streams[ase->gpu_idx][ase->thread_id%GPU_RUN_STREAM_NUM]);
+        aspen_sync_gpu_stream (ase->gpu_idx, ase->thread_id%GPU_RUN_STREAM_NUM);
+        #endif
+    }
     #endif
 }
 void tiled_k_attention (ninst_t *ninst, ase_t *ase)
@@ -528,121 +600,131 @@ void tiled_k_attention (ninst_t *ninst, ase_t *ase)
     const unsigned int ldb = p_ldata->out_mat_stride;
     const unsigned int ldc = ldata->out_mat_stride;
     void *A = ase->scratchpad;
-    const void *B = (char*)p_ldata->out_mat + (batch * num_hidden * num_seq + head * hidden_per_head +
-        + (ninst->out_mat_pos[OUT_W] % num_seq) * ldb) * layer->dnn->element_size;
-    void *C = ninst->out_mat;
-    const unsigned int rem_n = N % _TILE_SIZE_N;
-    const unsigned int rem_m = M % _TILE_SIZE_M;
-    const unsigned int rem_k = K % _TILE_SIZE_K;
+    const void *key_head = (float*)pk_ldata->out_mat + 
+        (batch * ldk * M + head * K + ninst->out_mat_pos[OUT_H]);
+    const void *B_head = (float*)p_ldata->out_mat + (batch * ldb * num_seq + head * hidden_per_head +
+        + (ninst->out_mat_pos[OUT_W] % num_seq) * ldb);
+    void *C_head = ninst->out_mat;
+    
     unsigned int n = 0;
-
-    // Transpose & Reoder Key data.
-    const float *key_head = (float*)pk_ldata->out_mat + batch * ldk * num_seq + head * hidden_per_head;
-    for (unsigned int m = 0; m < M; m++)
+    if (ase->gpu_idx < 0)
     {
-        for (unsigned int k = 0; k < K; k++)
+        const unsigned int rem_n = N % _TILE_SIZE_N;
+        const unsigned int rem_m = M % _TILE_SIZE_M;
+        const unsigned int rem_k = K % _TILE_SIZE_K;
+        // Transpose & Reoder Key data. 
+        for (unsigned int m = 0; m < M; m++)
         {
-            const float* input_ptr = key_head + (ninst->out_mat_pos[OUT_H] + m) 
-                * ldk + k;
-            float* output_ptr = (float*)A + ((m/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M 
-                + (m % _VEC_SIZE_M);
-            *output_ptr = *input_ptr;
+            for (unsigned int k = 0; k < K; k++)
+            {
+                const float* input_ptr = (float*)key_head + m * ldk + k;
+                float* output_ptr = (float*)A + ((m/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M 
+                    + (m % _VEC_SIZE_M);
+                *output_ptr = *input_ptr;
+            }
+        }
+        // <M, N, K> = <M, _TILE_SIZE_N, K>
+        for (; n < N - rem_n; n += _TILE_SIZE_N)
+        {
+            unsigned int k = 0;
+            // <M, N, K> = <M, _TILE_SIZE_N, _TILE_SIZE_K>
+            for (; k < K - rem_k; k += _TILE_SIZE_K)
+            {
+                unsigned int m = 0;
+                // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K>
+                for (; m < M - rem_m; m += _TILE_SIZE_M)
+                {
+                    SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K, 
+                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B_head + (n * ldb + k), ldb, (float*)C_head + (ldc * n + m), ldc);
+                }
+                // <M, N, K> = <rem_m, _TILE_SIZE_N, _TILE_SIZE_K>
+                if (rem_m != 0)
+                    SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, _TILE_SIZE_K, 
+                            (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B_head + (n * ldb + k), ldb, (float*)C_head + (ldc * n + m), ldc);
+            
+            }
+            // <M, N, K> = <M, _TILE_SIZE_N, rem_k>
+            if (rem_k != 0)
+            {
+                unsigned int m = 0;
+                // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, rem_k>
+                for (; m < M - rem_m; m += _TILE_SIZE_M)
+                {
+                    SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, rem_k,
+                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B_head + (n * ldb + k), ldb, (float*)C_head + (ldc * n + m), ldc);
+                }
+                // <M, N, K> = <rem_m, _TILE_SIZE_N, rem_k>
+                SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, rem_k, 
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B_head + (n * ldb + k), ldb, (float*)C_head + (ldc * n + m), ldc);
+            }
+            for (unsigned int nn = n; nn < n + _TILE_SIZE_N; nn++)
+            {
+                float total = 0;
+                for (unsigned int j = 0; j < M; j++)
+                {
+                    float val = *((float*)C_head + nn*ldc + j);
+                    val /= sqrtf (hidden_per_head);
+                    *((float*)C_head + nn*ldc + j) = expf (val);
+                    total += *((float*)C_head + nn*ldc + j);
+                }
+                for (unsigned int j = 0; j < M; j++)
+                    *((float*)C_head + nn*ldc + j) /= total;
+            }
+        }
+        // <M, N, K> = <M, rem_n, K>
+        if (rem_n != 0)
+        {
+            unsigned int k = 0;
+            // <M, N, K> = <M, rem_n, _TILE_SIZE_K>
+            for (; k < K - rem_k; k += _TILE_SIZE_K)
+            {
+                unsigned int m = 0;
+                // <M, N, K> = <_TILE_SIZE_M, rem_n, _TILE_SIZE_K>
+                for (; m < M - rem_m; m += _TILE_SIZE_M)
+                {
+                    SGEMM_KERNEL_TILE_M (_TILE_SIZE_M, rem_n, _TILE_SIZE_K, 
+                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B_head + (n * ldb + k), ldb, (float*)C_head + (ldc * n + m), ldc);
+                }
+                // <M, N, K> = <rem_m, rem_n, _TILE_SIZE_K>
+                if (rem_m != 0)
+                    SGEMM_KERNEL (rem_m, rem_n, _TILE_SIZE_K, 
+                            (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B_head + (n * ldb + k), ldb, (float*)C_head + (ldc * n + m), ldc);
+            }
+            // <M, N, K> = <M, rem_n, rem_k>
+            if (rem_k != 0)
+            {
+                unsigned int m = 0;
+                // <M, N, K> = <_TILE_SIZE_M, rem_n, rem_k>
+                for (; m < M - rem_m; m += _TILE_SIZE_M)
+                {
+                    SGEMM_KERNEL_TILE_M (_TILE_SIZE_M, rem_n, rem_k,
+                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B_head + (n * ldb + k), ldb, (float*)C_head + (ldc * n + m), ldc);
+                }
+                // <M, N, K> = <rem_m, rem_n, rem_k>
+                SGEMM_KERNEL (rem_m, rem_n, rem_k, 
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B_head + (n * ldb + k), ldb, (float*)C_head + (ldc * n + m), ldc);
+            }
+            for (unsigned int nn = n; nn < N; nn++)
+            {
+                float total = 0;
+                for (unsigned int j = 0; j < M; j++)
+                {
+                    float val = *((float*)C_head + nn*ldc + j);
+                    val /= sqrtf (hidden_per_head);
+                    *((float*)C_head + nn*ldc + j) = expf (val);
+                    total += *((float*)C_head + nn*ldc + j);
+                }
+                for (unsigned int j = 0; j < M; j++)
+                    *((float*)C_head + nn*ldc + j) /= total;
+            }
         }
     }
-    // <M, N, K> = <M, _TILE_SIZE_N, K>
-    for (; n < N - rem_n; n += _TILE_SIZE_N)
+    else
     {
-        unsigned int k = 0;
-        // <M, N, K> = <M, _TILE_SIZE_N, _TILE_SIZE_K>
-        for (; k < K - rem_k; k += _TILE_SIZE_K)
-        {
-            unsigned int m = 0;
-            // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K>
-            for (; m < M - rem_m; m += _TILE_SIZE_M)
-            {
-                SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K, 
-                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
-            }
-            // <M, N, K> = <rem_m, _TILE_SIZE_N, _TILE_SIZE_K>
-            if (rem_m != 0)
-                SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, _TILE_SIZE_K, 
-                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
-        
-        }
-        // <M, N, K> = <M, _TILE_SIZE_N, rem_k>
-        if (rem_k != 0)
-        {
-            unsigned int m = 0;
-            // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, rem_k>
-            for (; m < M - rem_m; m += _TILE_SIZE_M)
-            {
-                SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, rem_k,
-                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
-            }
-            // <M, N, K> = <rem_m, _TILE_SIZE_N, rem_k>
-            SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, rem_k, 
-                (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
-        }
-        for (unsigned int nn = n; nn < n + _TILE_SIZE_N; nn++)
-        {
-            float total = 0;
-            for (unsigned int j = 0; j < M; j++)
-            {
-                float val = *((float*)C + nn*ldc + j);
-                val /= sqrtf (hidden_per_head);
-                *((float*)C + nn*ldc + j) = expf (val);
-                total += *((float*)C + nn*ldc + j);
-            }
-            for (unsigned int j = 0; j < M; j++)
-                *((float*)C + nn*ldc + j) /= total;
-        }
-    }
-    // <M, N, K> = <M, rem_n, K>
-    if (rem_n != 0)
-    {
-        unsigned int k = 0;
-        // <M, N, K> = <M, rem_n, _TILE_SIZE_K>
-        for (; k < K - rem_k; k += _TILE_SIZE_K)
-        {
-            unsigned int m = 0;
-            // <M, N, K> = <_TILE_SIZE_M, rem_n, _TILE_SIZE_K>
-            for (; m < M - rem_m; m += _TILE_SIZE_M)
-            {
-                SGEMM_KERNEL_TILE_M (_TILE_SIZE_M, rem_n, _TILE_SIZE_K, 
-                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
-            }
-            // <M, N, K> = <rem_m, rem_n, _TILE_SIZE_K>
-            if (rem_m != 0)
-                SGEMM_KERNEL (rem_m, rem_n, _TILE_SIZE_K, 
-                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
-        }
-        // <M, N, K> = <M, rem_n, rem_k>
-        if (rem_k != 0)
-        {
-            unsigned int m = 0;
-            // <M, N, K> = <_TILE_SIZE_M, rem_n, rem_k>
-            for (; m < M - rem_m; m += _TILE_SIZE_M)
-            {
-                SGEMM_KERNEL_TILE_M (_TILE_SIZE_M, rem_n, rem_k,
-                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
-            }
-            // <M, N, K> = <rem_m, rem_n, rem_k>
-            SGEMM_KERNEL (rem_m, rem_n, rem_k, 
-                (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
-        }
-        for (unsigned int nn = n; nn < N; nn++)
-        {
-            float total = 0;
-            for (unsigned int j = 0; j < M; j++)
-            {
-                float val = *((float*)C + nn*ldc + j);
-                val /= sqrtf (hidden_per_head);
-                *((float*)C + nn*ldc + j) = expf (val);
-                total += *((float*)C + nn*ldc + j);
-            }
-            for (unsigned int j = 0; j < M; j++)
-                *((float*)C + nn*ldc + j) /= total;
-        }
+        #ifdef GPU
+        cuda_tiled_k_attention (M, N, K, key_head, ldk, B_head, ldb, C_head, ldc, aspen_CUDA_streams[ase->gpu_idx][ase->thread_id%GPU_RUN_STREAM_NUM]);
+        aspen_sync_gpu_stream (ase->gpu_idx, ase->thread_id%GPU_RUN_STREAM_NUM);
+        #endif
     }
     #endif
 }
@@ -668,63 +750,64 @@ void tiled_v_attention (ninst_t *ninst, ase_t *ase)
     const unsigned int ldb = p_ldata->out_mat_stride;
     const unsigned int ldc = ldata->out_mat_stride;
     void *A = ase->scratchpad;
-    const void *B = (float*)p_ldata->out_mat + (batch * num_heads * num_seq + head * num_seq +
+    const float *val_head = (float*)pv_ldata->out_mat + batch * ldv * num_seq + ninst->out_mat_pos[OUT_H];
+    const void *B_head = (float*)p_ldata->out_mat + (batch * num_heads * num_seq + head * num_seq +
         + (ninst->out_mat_pos[OUT_W] % num_seq)) * ldb;
-    void *C = ninst->out_mat;
-    const unsigned int rem_n = N % _TILE_SIZE_N;
-    const unsigned int rem_m = M % _TILE_SIZE_M;
-    const unsigned int rem_k = K % _TILE_SIZE_K;
-    unsigned int n = 0;
-
-    // Transpose & Reoder Value data.
-    const float *in_val_ptr = (float*)pv_ldata->out_mat + batch * ldv * num_seq;
-    for (unsigned int m = 0; m < M; m++)
+    void *C_head = ninst->out_mat; 
+    if (ase->gpu_idx < 0)
     {
-        for (unsigned int k = 0; k < K; k++)
+        const unsigned int rem_n = N % _TILE_SIZE_N;
+        const unsigned int rem_m = M % _TILE_SIZE_M;
+        const unsigned int rem_k = K % _TILE_SIZE_K;
+        unsigned int n = 0;
+        // Transpose & Reoder Value data.
+        for (unsigned int m = 0; m < M; m++)
         {
-            const float* input_ptr = in_val_ptr + k * ldv + (ninst->out_mat_pos[OUT_H] + m);
-            float* output_ptr = (float*)A + ((m/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M 
-                + (m % _VEC_SIZE_M);
-            *output_ptr = *input_ptr;
-        }
-    }
-    // <M, N, K> = <M, _TILE_SIZE_N, K>
-    for (; n < N - rem_n; n += _TILE_SIZE_N)
-    {
-        unsigned int k = 0;
-        // <M, N, K> = <M, _TILE_SIZE_N, _TILE_SIZE_K>
-        for (; k < K - rem_k; k += _TILE_SIZE_K)
-        {
-            unsigned int m = 0;
-            // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K>
-            for (; m < M - rem_m; m += _TILE_SIZE_M)
+            for (unsigned int k = 0; k < K; k++)
             {
-                SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K, 
-                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+                const float* input_ptr = val_head + k * ldv + m;
+                float* output_ptr = (float*)A + ((m/_VEC_SIZE_M) * lda + k) * _VEC_SIZE_M 
+                    + (m % _VEC_SIZE_M);
+                *output_ptr = *input_ptr;
             }
-            // <M, N, K> = <rem_m, _TILE_SIZE_N, _TILE_SIZE_K>
-            if (rem_m != 0)
-                SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, _TILE_SIZE_K, 
-                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
-        
         }
-        // <M, N, K> = <M, _TILE_SIZE_N, rem_k>
-        if (rem_k != 0)
+        // <M, N, K> = <M, _TILE_SIZE_N, K>
+        for (; n < N - rem_n; n += _TILE_SIZE_N)
         {
-            unsigned int m = 0;
-            // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, rem_k>
-            for (; m < M - rem_m; m += _TILE_SIZE_M)
+            unsigned int k = 0;
+            // <M, N, K> = <M, _TILE_SIZE_N, _TILE_SIZE_K>
+            for (; k < K - rem_k; k += _TILE_SIZE_K)
             {
-                SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, rem_k,
-                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+                unsigned int m = 0;
+                // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K>
+                for (; m < M - rem_m; m += _TILE_SIZE_M)
+                {
+                    SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K, 
+                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B_head + (n * ldb + k), ldb, (float*)C_head + (ldc * n + m), ldc);
+                }
+                // <M, N, K> = <rem_m, _TILE_SIZE_N, _TILE_SIZE_K>
+                if (rem_m != 0)
+                    SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, _TILE_SIZE_K, 
+                            (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B_head + (n * ldb + k), ldb, (float*)C_head + (ldc * n + m), ldc);
+            
             }
-            // <M, N, K> = <rem_m, _TILE_SIZE_N, rem_k>
-            SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, rem_k, 
-                (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            // <M, N, K> = <M, _TILE_SIZE_N, rem_k>
+            if (rem_k != 0)
+            {
+                unsigned int m = 0;
+                // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, rem_k>
+                for (; m < M - rem_m; m += _TILE_SIZE_M)
+                {
+                    SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, rem_k,
+                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B_head + (n * ldb + k), ldb, (float*)C_head + (ldc * n + m), ldc);
+                }
+                // <M, N, K> = <rem_m, _TILE_SIZE_N, rem_k>
+                SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, rem_k, 
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B_head + (n * ldb + k), ldb, (float*)C_head + (ldc * n + m), ldc);
+            }
         }
-    }
-    // <M, N, K> = <M, rem_n, K>
-    if (rem_n != 0)
+        // <M, N, K> = <M, rem_n, K>
+        if (rem_n != 0)
     {
         unsigned int k = 0;
         // <M, N, K> = <M, rem_n, _TILE_SIZE_K>
@@ -735,12 +818,12 @@ void tiled_v_attention (ninst_t *ninst, ase_t *ase)
             for (; m < M - rem_m; m += _TILE_SIZE_M)
             {
                 SGEMM_KERNEL_TILE_M (_TILE_SIZE_M, rem_n, _TILE_SIZE_K, 
-                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B_head + (n * ldb + k), ldb, (float*)C_head + (ldc * n + m), ldc);
             }
             // <M, N, K> = <rem_m, rem_n, _TILE_SIZE_K>
             if (rem_m != 0)
                 SGEMM_KERNEL (rem_m, rem_n, _TILE_SIZE_K, 
-                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B_head + (n * ldb + k), ldb, (float*)C_head + (ldc * n + m), ldc);
         }
         // <M, N, K> = <M, rem_n, rem_k>
         if (rem_k != 0)
@@ -750,12 +833,20 @@ void tiled_v_attention (ninst_t *ninst, ase_t *ase)
             for (; m < M - rem_m; m += _TILE_SIZE_M)
             {
                 SGEMM_KERNEL_TILE_M (_TILE_SIZE_M, rem_n, rem_k,
-                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B_head + (n * ldb + k), ldb, (float*)C_head + (ldc * n + m), ldc);
             }
             // <M, N, K> = <rem_m, rem_n, rem_k>
             SGEMM_KERNEL (rem_m, rem_n, rem_k, 
-                (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+                (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B_head + (n * ldb + k), ldb, (float*)C_head + (ldc * n + m), ldc);
         }
+    }
+    }
+    else
+    {
+        #ifdef GPU
+        cuda_tiled_v_attention (M, N, K, val_head, ldv, B_head, ldb, C_head, ldc, aspen_CUDA_streams[ase->gpu_idx][ase->thread_id%GPU_RUN_STREAM_NUM]);
+        aspen_sync_gpu_stream (ase->gpu_idx, ase->thread_id%GPU_RUN_STREAM_NUM);
+        #endif
     }
     #endif
 }

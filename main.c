@@ -10,48 +10,48 @@ int main(void)
     print_aspen_build_info();
     // aspen_dnn_t *resnet50_dnn = apu_create_dnn("data/cfg/resnet50_test.cfg", NULL);
     // aspen_dnn_t *bert_dnn = apu_create_dnn("data/cfg/resnet50_test.cfg", "data/resnet50_data.bin");
-    aspen_dnn_t *bert_dnn = apu_create_transformer_encoder_dnn (12, 768, 12, 4, "bert_base", "data/bert_base_data.bin");
-    if (bert_dnn == NULL) 
-    {
-        printf("Error: Failed to create DNN\n");
-        return -1;
-    }
+    // aspen_dnn_t *bert_dnn = apu_create_transformer_encoder_dnn (12, 768, 12, 4, "bert_base", "data/bert_base_data.bin");
+    // if (bert_dnn == NULL) 
+    // {
+    //     printf("Error: Failed to create DNN\n");
+    //     return -1;
+    // }
     
-    apu_save_dnn_to_file (bert_dnn, "data/bert_base.aspen");
-    aspen_dnn_t *bert_dnn_2 = apu_load_dnn_from_file ("data/bert_base.aspen");
-    if (bert_dnn_2 == NULL) 
-    {
-        printf("Error: Failed to read DNN\n");
-        return -1;
-    }
+    // apu_save_dnn_to_file (bert_dnn, "data/bert_base.aspen");
+    // aspen_dnn_t *bert_dnn_2 = apu_load_dnn_from_file ("data/bert_base.aspen");
+    // if (bert_dnn_2 == NULL) 
+    // {
+    //     printf("Error: Failed to read DNN\n");
+    //     return -1;
+    // }
     // print_dnn_info (bert_dnn_2, 0);
-
-    nasm_t *bert_nasm = apu_create_transformer_encoder_nasm(bert_dnn, 100e6, 8, 480);
-    if (bert_nasm == NULL) 
-    {
-        printf("Error: Failed to create NASM\n");
-        return -1;
-    }
-    // print_nasm_info(bert_nasm, 1, 0);
-    char nasm_file_name [1024] = {0};
-    sprintf (nasm_file_name, "data/bert_S%d_B%d_%2.1e.nasm", bert_nasm->tr_seq_len, bert_nasm->batch_size,
-        (double)bert_nasm->flop_per_ninst);
-    apu_save_nasm_to_file (bert_nasm, nasm_file_name);
-
-    // aspen_dnn_t *bert_dnn = NULL;
-    // nasm_t *bert_nasm = apu_load_nasm_from_file ("data/bert_B1_1.0e+07.nasm", &bert_dnn);
-    // // nasm_t *bert_4_nasm = apu_load_nasm_from_file ("data/bert_4.nasm", &bert_dnn);
+    // 
+    // nasm_t *bert_nasm = apu_create_transformer_encoder_nasm(bert_dnn, 100e6, 8, 480);
+    // if (bert_nasm == NULL) 
+    // {
+    //     printf("Error: Failed to create NASM\n");
+    //     return -1;
+    // }
+    // // print_nasm_info(bert_nasm, 1, 0);
+    // char nasm_file_name [1024] = {0};
+    // sprintf (nasm_file_name, "data/bert_S%d_B%d_%2.1e.nasm", bert_nasm->tr_seq_len, bert_nasm->batch_size,
+    //     (double)bert_nasm->flop_per_ninst);
+    // apu_save_nasm_to_file (bert_nasm, nasm_file_name);
     int gpu = 0;
-    rpool_t *rpool = rpool_init (-1);
-    ase_group_t *ase_group = ase_group_init (64, -1);
+    aspen_dnn_t *bert_dnn = NULL;
+    nasm_t *bert_nasm = apu_load_nasm_from_file ("data/bert_S480_B8_1.0e+08.nasm", &bert_dnn);
+    // // // nasm_t *bert_4_nasm = apu_load_nasm_from_file ("data/bert_4.nasm", &bert_dnn);
+    // 
+    rpool_t *rpool = rpool_init (gpu);
+    ase_group_t *ase_group = ase_group_init (64, gpu);
     ase_group_set_rpool (ase_group, rpool);
 
     // // rpool_add_nasm_raw_input (rpool, bert_4_nasm, 0.5, dog_data);
     // rpool_add_nasm (rpool, bert_nasm, 1.0, "data/batched_input_64.bin");
     rpool_add_nasm (rpool, bert_nasm, 1.0, "data/Text_Len_480_Embedded_input_Batch_32.bin");
     // // print_rpool_info (rpool);
-    // // print_nasm_info(bert_nasm, 0, 0);
-    // // print_dnn_info(bert_dnn, 0);
+    print_nasm_info(bert_nasm, 0, 0);
+    print_dnn_info(bert_dnn, 0);
 
     get_elapsed_time ("init");
     ase_group_run (ase_group);
@@ -116,7 +116,7 @@ int main(void)
         // }
         compare_float_tensor (expected_output, ldata_output, 
             bert_nasm->batch_size, 1, layer->params[MAT_N], layer->params[MAT_M],
-            1e-2, 1e-4, 20);
+            1e-2, 1e-4, 30000);
         // compare_float_tensor (expected_output, ldata_output, 
         //     bert_nasm->batch_size, layer->params[OUT_C], layer->params[OUT_H], layer->params[OUT_W],
         //     1e-2, 1e-4, 100);

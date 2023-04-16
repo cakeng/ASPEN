@@ -3,7 +3,9 @@
 
 #include "aspen.h"
 
+#define _BLOCK_ATT_K_PROB_SIZE 128
 #define _BLOCK_RESIDUAL_SIZE 128
+#define _BLOCK_TILED_RESIDUAL_SIZE 16
 #define _BLOCK_LAYERNORM_SIZE 128
 #define _BLOCK_K_SIZE 32
 #define _BLOCK_M_SIZE 64
@@ -15,12 +17,26 @@
 #define _CACHE_B_K_PER_LOAD (_THREAD_NUM / _BLOCK_N_SIZE) // 2
 
 #ifdef GPU
+void cuda_tiled_k_attention (
+    const unsigned int M, const unsigned int N, const unsigned int K,
+    const float *key_head, const unsigned int ldk, const float *B_head, const unsigned int ldb, float *C_head, const unsigned int ldc,
+    cudaStream_t stream);
+
+void cuda_tiled_v_attention (
+    const unsigned int M, const unsigned int N, const unsigned int K,
+    const float *val_head, const unsigned int ldv, const float *B_head, const unsigned int ldb, float *C_head, const unsigned int ldc
+    , cudaStream_t stream);
+
+void cuda_tiled_residual (const float *input_1, const float *input_2, float *output, unsigned int N, unsigned int M, const unsigned int ldc
+    , cudaStream_t stream);
+
+
 void cuda_matmul (const unsigned int M, const unsigned int N, const unsigned int K,
 		 const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
          const float *Bias, LAYER_ACT activation_type, cudaStream_t stream);
 
-void cuda_layernorm (const float *input, const float *kernel, const float *bias, 
-    float *output, unsigned int N, unsigned int M, cudaStream_t stream);
+void cuda_layernorm (const float *input, const float *weight, const float *bias, 
+    float *output, unsigned int N, unsigned int M, unsigned int ldb, unsigned int ldc, cudaStream_t stream);
 
 void cuda_k_attention (const float *input_1, const float *input_2, float *output, unsigned int batch_size
     , unsigned int num_heads, unsigned int num_hidden, unsigned int num_seq, cudaStream_t stream);

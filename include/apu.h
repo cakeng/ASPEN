@@ -7,7 +7,7 @@
 #include "kernels.h"
 #include "cuda_kernels.h"
 
-#define MIN_NINST_TILE_PER_LAYER (100)
+#define MIN_NINST_TILE_PER_LAYER (10)
 #define LAYERS_PER_TRANSFORMER (12)
 
 extern LAYER_TYPE transformer_layer_types[LAYERS_PER_TRANSFORMER];

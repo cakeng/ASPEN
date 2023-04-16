@@ -760,6 +760,14 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
                         apu_destroy_dnn(dnn);
                         return NULL;
                     }
+                    if (aspen_num_gpus > 0)
+                    {
+                        calloc_aspen_gpu_tensors (tensor);
+                        for (unsigned int k = 0; k < aspen_num_gpus; k++)
+                        {
+                            copy_aspen_tensor_to_gpu (tensor, k);
+                        }
+                    }
                 }
                 else
                 {
@@ -786,6 +794,8 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
         apu_destroy_dnn(dnn);
         return NULL;
     }
+
+
     return dnn;
 }
 

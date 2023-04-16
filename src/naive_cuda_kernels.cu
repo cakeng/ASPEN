@@ -3,7 +3,7 @@ extern "C"
     #include "cuda_kernels.h"
 }
 
-// Custom CUDA GEMM kernel.
+// Custom CUDA GEMM weight.
 __global__ void cuda_matmul_kernel(const unsigned int M, const unsigned int N, const unsigned int K,
     const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
     const float *Bias, LAYER_ACT activation_type)
@@ -40,8 +40,6 @@ __global__ void cuda_matmul_kernel(const unsigned int M, const unsigned int N, c
     //         }
     //     }
     // }
-
-
     int kIdx = 0;  
     if (K%_BLOCK_K_SIZE)
     {
@@ -378,16 +376,18 @@ __global__ void cuda_residual_kernel (const unsigned int num_elements, const flo
         C[id] = A[id] + B[id];
     }
 }
-__global__ void cuda_layernorm_kernel(const float *input, const float *kernel, const float *bias, 
-    float *output, unsigned int N, unsigned int M)
+__global__ void cuda_layernorm_kernel(const float *input, const float *weight, const float *bias, 
+    float *output, unsigned int N, unsigned int M, unsigned int ldb, unsigned int ldc)
 {
-    const int id = blockIdx.x * _BLOCK_RESIDUAL_SIZE + threadIdx.x;
+    const int n = blockIdx.x * _BLOCK_RESIDUAL_SIZE + threadIdx.x;
+    if (n >= N)
+        return;
     float mean = 0;
     float var = 0;
     for (unsigned int m = 0; m < M; m++)
     {
-        mean += input[id * M + m];
-        var += input[id * M + m] * input[id * M + m];
+        mean += input[n * ldb + m];
+        var += input[n * ldb + m] * input[n * ldb + m];
     }
     mean /= M;
     var /= M;
@@ -395,10 +395,10 @@ __global__ void cuda_layernorm_kernel(const float *input, const float *kernel, c
     var = 1 / sqrtf (var + 1e-12);
     for (unsigned int m = 0; m < M; m++)
     {
-        output[id * M + m] = (input[id * M + m] - mean) * var * kernel[m] + bias[m];
+        output[n * ldc + m] = (input[n * ldb + m] - mean) * var * weight[m] + bias[m];
     }
 }
-// Wrapper function for CUDA kernel.
+// Wrapper function for CUDA weight.
 extern "C"
 {
 void cuda_matmul (const unsigned int M, const unsigned int N, const unsigned int K,
@@ -487,11 +487,11 @@ void cuda_residual (const float *input_1, const float *input_2, float *output, u
     dim3 blockDim (_BLOCK_RESIDUAL_SIZE, 1, 1);
     cuda_residual_kernel<<<gridDim, blockDim, 0, stream>>> (num_elements, input_1, input_2, output);
 }
-void cuda_layernorm (const float *input, const float *kernel, const float *bias, 
-    float *output, unsigned int N, unsigned int M, cudaStream_t stream)
+void cuda_layernorm (const float *input, const float *weight, const float *bias, 
+    float *output, unsigned int N, unsigned int M, unsigned int ldb, unsigned int ldc, cudaStream_t stream)
 {
     dim3 prob_gridDim (N/_BLOCK_LAYERNORM_SIZE + ((N%_BLOCK_LAYERNORM_SIZE) > 0), 1, 1);
     dim3 prob_blockDim (_BLOCK_LAYERNORM_SIZE, 1, 1);
-    cuda_layernorm_kernel<<<prob_gridDim, prob_blockDim, 0, stream>>> (input, kernel, bias, output, N, M);
+    cuda_layernorm_kernel<<<prob_gridDim, prob_blockDim, 0, stream>>> (input, weight, bias, output, N, M, ldb, ldc);
 }
 }

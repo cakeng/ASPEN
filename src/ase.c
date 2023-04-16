@@ -81,44 +81,41 @@ void *ase_thread_runtime (void* thread_info)
                 assert (0);
             }
             #endif
-            if (ase->gpu_idx < 0)
+            switch (ninst->ldata->layer->type)
             {
-                switch (ninst->ldata->layer->type)
-                {
-                    case CONV_LAYER:
-                        tiled_conv2d (ninst, ase);
-                        break;
-                    case MAXPOOL_LAYER:
-                        tiled_maxpool2d (ninst, ase);
-                        break;
-                    case AVGPOOL_LAYER:
-                        tiled_avgpool2d (ninst, ase);
-                        break;
-                    case FC_LAYER:
-                        tiled_fully_connected (ninst, ase);
-                        break;
-                    case RESIDUAL_LAYER:
-                        tiled_residual (ninst, ase);
-                        break;
-                    case SOFTMAX_LAYER:
-                        tiled_softmax (ninst, ase);
-                        break;
-                    case MATMUL_LAYER:
-                        tiled_matmul (ninst, ase);
-                        break;
-                    case LAYERNORM_LAYER:
-                        tiled_layernorm (ninst, ase);
-                        break;
-                    case K_ATTENTION_LAYER:
-                        tiled_k_attention (ninst, ase);
-                        break;
-                    case V_ATTENTION_LAYER:
-                        tiled_v_attention (ninst, ase);
-                        break;
-                    default:
-                        // FPRT (stderr, "ERROR: ase_thread_runtime: layer type %s is not supported\n", layer_type_str[ninst->ldata->layer->type]);
-                        break;
-                }
+                case CONV_LAYER:
+                    tiled_conv2d (ninst, ase);
+                    break;
+                case MAXPOOL_LAYER:
+                    tiled_maxpool2d (ninst, ase);
+                    break;
+                case AVGPOOL_LAYER:
+                    tiled_avgpool2d (ninst, ase);
+                    break;
+                case FC_LAYER:
+                    tiled_fully_connected (ninst, ase);
+                    break;
+                case RESIDUAL_LAYER:
+                    tiled_residual (ninst, ase);
+                    break;
+                case SOFTMAX_LAYER:
+                    tiled_softmax (ninst, ase);
+                    break;
+                case MATMUL_LAYER:
+                    tiled_matmul (ninst, ase);
+                    break;
+                case LAYERNORM_LAYER:
+                    tiled_layernorm (ninst, ase);
+                    break;
+                case K_ATTENTION_LAYER:
+                    tiled_k_attention (ninst, ase);
+                    break;
+                case V_ATTENTION_LAYER:
+                    tiled_v_attention (ninst, ase);
+                    break;
+                default:
+                    // FPRT (stderr, "ERROR: ase_thread_runtime: layer type %s is not supported\n", layer_type_str[ninst->ldata->layer->type]);
+                    break;
             }
             ninst->state = NINST_COMPLETED;
             unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
@@ -154,6 +151,10 @@ ase_group_t *ase_group_init (unsigned int num_ase, int gpu_idx)
     {
         FPRT (stderr, "ERROR: ase_group_init: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);
         gpu_idx = -1;
+    }
+    else if (gpu_idx >= 0 && gpu_idx < aspen_num_gpus)
+    {
+        num_ase = num_ase > GPU_RUN_STREAM_NUM ? GPU_RUN_STREAM_NUM : num_ase;
     }
     ase_group_t *ase_group = (ase_group_t *) calloc (1, sizeof (ase_group_t));
     ase_group->num_ases = num_ase;
