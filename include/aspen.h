@@ -35,7 +35,7 @@
 #define GPU_NAIVE_RUN_STREAM (32)
 #define GPU_RUN_STREAM_NUM (32)
 #define CUDAGRAPH_MAX_ARG_NUM (16)
-#define GPU
+// #define GPU
 
 #if SUPPRESS_OUTPUT == 0
 #define PRT(...) printf(__VA_ARGS__) 

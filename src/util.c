@@ -53,7 +53,7 @@ void *aspen_calloc (size_t num, size_t size)
     if (num*size <= 0)
         return NULL;
     void* ptr = NULL;
-    if (aspen_num_gpus < 0)
+    if (aspen_num_gpus <= 0)
         ptr = aligned_alloc (MEM_ALIGN, get_smallest_dividable(num * size, MEM_ALIGN));   
     else
     {
@@ -74,7 +74,7 @@ void *aspen_malloc (size_t num, size_t size)
     if (num*size <= 0)
         return NULL;
     void* ptr = NULL;
-    if (aspen_num_gpus < 0)
+    if (aspen_num_gpus <= 0)
         ptr = aligned_alloc (MEM_ALIGN, get_smallest_dividable(num * size, MEM_ALIGN));   
     else
     {
@@ -93,7 +93,7 @@ void aspen_free (void *ptr)
 {
     if (ptr == NULL)
         return;
-    if (aspen_num_gpus < 0)
+    if (aspen_num_gpus <= 0)
         free (ptr);
     else
     {

@@ -16,7 +16,7 @@ int transformer_parents [LAYERS_PER_TRANSFORMER][2]
 // 9. Feedforward MM 1, 10. Feedforward MM 2, 11. Residual, 12. LayerNorm
 
 int use_gpu = 1;
-int aspen_num_gpus = -1;
+int aspen_num_gpus = 0;
 
 #ifdef GPU
 cudaStream_t aspen_CUDA_streams[MAX_NUM_GPUS][GPU_MEM_STREAM_HOST_TO_GPU+1];
@@ -136,7 +136,7 @@ aspen_dnn_t *init_aspen_dnn (unsigned int num_layers, char* name)
     _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
     #endif
     #ifdef GPU
-    if (use_gpu == 1 && aspen_num_gpus == -1)
+    if (use_gpu == 1 && aspen_num_gpus == 0)
     {
         if (check_CUDA(cudaGetDeviceCount(&aspen_num_gpus)) != 0)
         {
