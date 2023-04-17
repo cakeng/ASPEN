@@ -515,7 +515,7 @@ void destroy_ninst (ninst_t *ninst)
         free (ninst->input_pos_idx_arr);
 }
 
-nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size, unsigned int transformer_seq_len)
+nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size,  unsigned int min_ninst_per_ldata, unsigned int transformer_seq_len)
 {
     nasm_t *new_nasm = (nasm_t *) calloc(1, sizeof(nasm_t));
     new_nasm->dnn = dnn;
@@ -523,6 +523,7 @@ nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigne
     new_nasm->flop_per_ninst = flop_per_ninst > 0? flop_per_ninst : 1;
     new_nasm->batch_size = batch_size > 0? batch_size : 1;
     new_nasm->nasm_id = nasm_num;
+    new_nasm->min_ninst_per_ldata = min_ninst_per_ldata;
     new_nasm->gpu_idx = -1;
     nasm_num++;
     for (int i = 0; i < dnn->num_layers; i++)
@@ -597,9 +598,9 @@ void set_child_list (ninst_t *ninst)
         , child_idx, ninst->ninst_idx, ninst->num_child_ninsts);
 }
 
-nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size)
+nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int min_ninst_per_ldata, unsigned int batch_size)
 {
-    nasm_t *new_nasm = apu_create_nasm_without_finding_ninst_parents(dnn, flop_per_ninst, batch_size, 0);
+    nasm_t *new_nasm = apu_create_nasm_without_finding_ninst_parents(dnn, flop_per_ninst, batch_size, min_ninst_per_ldata, 0);
     PRT ("APU: Graphing ninsts...\n");
     for (int i = 0; i < new_nasm->num_ldata; i++)
     {
@@ -634,9 +635,10 @@ nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned 
 }
 
 nasm_t *apu_create_transformer_encoder_nasm
-    (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size, unsigned int seq_num)
+    (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int min_ninst_per_ldata,
+    unsigned int batch_size, unsigned int seq_num)
 {
-    nasm_t *new_nasm = apu_create_nasm_without_finding_ninst_parents(dnn, flop_per_ninst, batch_size, seq_num);
+    nasm_t *new_nasm = apu_create_nasm_without_finding_ninst_parents(dnn, flop_per_ninst, batch_size, min_ninst_per_ldata, seq_num);
     PRT ("APU: Graphing ninsts...\n");
     for (int i = 0; i < new_nasm->num_ldata; i++)
     {
@@ -901,7 +903,7 @@ void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata_ptr, aspen_layer_t *laye
     out_h = get_smallest_dividable (ldata_ptr->out_mat_dims[OUT_H], ldata_ptr->ninst_tile_dims[OUT_H]);
     if (layer->type != FC_LAYER && layer->type != SOFTMAX_LAYER)
     {
-        while ((out_w/ldata_ptr->ninst_tile_dims[OUT_W])*(out_h/ldata_ptr->ninst_tile_dims[OUT_H]) < MIN_NINST_TILE_PER_LAYER)
+        while ((out_w/ldata_ptr->ninst_tile_dims[OUT_W])*(out_h/ldata_ptr->ninst_tile_dims[OUT_H]) < nasm->min_ninst_per_ldata)
         {
             if (ldata_ptr->ninst_tile_dims[OUT_W] > unit_w)
             {

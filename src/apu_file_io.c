@@ -433,7 +433,7 @@ void apu_save_dnn_to_file(aspen_dnn_t *dnn, char *filename)
     FILE *fp = fopen(filename, "wb");
     if (fp == NULL)
     {
-        printf("Error: Failed to open file %s for writing\n", filename);
+        FPRT(stderr, "Error: apu_save_dnn_to_file Failed to open file %s for writing\n", filename);
         return;
     }
     fprintf(fp, "ASPEN_DNN\n");
@@ -825,16 +825,16 @@ void apu_save_nasm_to_file(nasm_t *nasm, char *filename)
         FPRT(stderr,"ASPEN NASM file name not specified.\n");
         return;
     }
-    apu_save_dnn_to_file (nasm->dnn, filename);
-    FILE *fp = fopen (filename, "ab");
+    FILE *fp = fopen (filename, "wb");
     if (fp == NULL)
     {
-        FPRT(stderr,"ASPEN NASM file %s not found.\n", filename);
-        fclose (fp);
+        FPRT(stderr, "Error: apu_save_dnn_to_file Failed to open file %s for writing\n", filename);
         return;
     }
     fprintf (fp, "ASPEN_NASM\n");
+    fprintf (fp, "DNN_NAME:%s\n", nasm->dnn->name);
     fprintf (fp, "NUM_BATCH:%d\n", nasm->batch_size);
+    fprintf (fp, "MIN_NINST_PER_LDATA:%d\n", nasm->min_ninst_per_ldata);
     fprintf (fp, "TOTAL_FLOPS:%ld\n", nasm->total_flops);
     fprintf (fp, "FLOP_PER_NINST:%d\n", nasm->flop_per_ninst);
     fprintf (fp, "SEQ_LEN:%d\n", nasm->tr_seq_len);
@@ -871,68 +871,60 @@ void apu_save_nasm_to_file(nasm_t *nasm, char *filename)
     fclose (fp);
 }
 
-nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
+nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn)
 {
-    if (output_dnn == NULL)
+    if (dnn == NULL)
     {
-        FPRT(stderr,"ASPEN DNN NASM load error: output_dnn is null.\n");
+        FPRT(stderr,"ASPEN DNN NASM load error: dnn is null.\n");
         return NULL;
     }
     FILE *fp = fopen(filename, "rb");
     if (fp == NULL)
     {
         FPRT(stderr,"ASPEN DNN NASM load error: file %s not found.\n", filename);
-        *output_dnn = NULL;
         return NULL;
     }
     char line[MAX_STRING_LEN] = {0};
     char* ptr;
     unsigned int line_num = 0;
-    unsigned int flop_per_ninst = 0, batch_size = 0;
-    if (*output_dnn != NULL)
-    {
-        aspen_dnn_t *temp = apu_parse_dnn_from_file (filename, &fp, &line_num, 1);
-        if (temp == NULL)
-        {
-            FPRT(stderr,"ASPEN DNN file %s temp parse error: Failed to parse DNN.\n", filename);
-            fclose (fp);
-            return NULL;
-        }
-        if (strcmp (temp->name, (*output_dnn)->name) != 0)
-        {
-            FPRT(stderr,"ASPEN DNN file %s temp parse error: DNN name mismatch.\n", filename);
-            fclose (fp);
-            return NULL;
-        }
-        apu_destroy_dnn (temp);
-    }
-    else
-        *output_dnn = apu_parse_dnn_from_file (filename, &fp, &line_num, 0);
+    unsigned int flop_per_ninst = 0, batch_size = 0, min_ninst_per_ldata = 0, tr_seq_len = 0;
+
     nasm_t *nasm = NULL;
-    if (*output_dnn == NULL)
-    {
-        FPRT(stderr,"ASPEN DNN file %s parse error: Failed to parse DNN.\n", filename);
-        return NULL;
-    }  
     if ((ptr = read_check_and_return (fp, line, "ASPEN_NASM", &line_num)) == NULL)
     {
         FPRT(stderr,"ASPEN DNN file %s parse error: Not an ASPEN NASM file.\n", filename);
-        *output_dnn = NULL;
+        fclose (fp);
+        return NULL;
+    }
+    if ((ptr = read_check_and_return (fp, line, "DNN_NAME:", &line_num)) == NULL)
+    {
+        FPRT(stderr,"ASPEN DNN file %s parse error: Missing DNN_NAME.\n", filename);
+        fclose (fp);
+        return NULL;
+    }
+    if (strcmp(ptr, dnn->name) != 0)
+    {
+        FPRT(stderr,"ASPEN DNN file %s parse error: DNN_NAME %s does not match dnn name %s.\n", filename, ptr, dnn->name);
         fclose (fp);
         return NULL;
     }
     if ((ptr = read_check_and_return (fp, line, "NUM_BATCH:", &line_num)) == NULL)
     {
         FPRT(stderr,"ASPEN DNN file %s parse error: Missing NUM_BATCH.\n", filename);
-        *output_dnn = NULL;
         fclose (fp);
         return NULL;
     }
     batch_size = atoi(ptr);
+    if ((ptr = read_check_and_return (fp, line, "MIN_NINST_PER_LDATA:", &line_num)) == NULL)
+    {
+        FPRT(stderr,"ASPEN DNN file %s parse error: Missing MIN_NINST_PER_LDATA.\n", filename);
+        fclose (fp);
+        return NULL;
+    }
+    min_ninst_per_ldata = atoi(ptr);
     if ((ptr = read_check_and_return (fp, line, "TOTAL_FLOPS:", &line_num)) == NULL)
     {
         FPRT(stderr,"ASPEN DNN file %s parse error: Missing TOTAL_FLOPS.\n", filename);
-        *output_dnn = NULL;
         fclose (fp);
         return NULL;
     }
@@ -940,7 +932,6 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
     if ((ptr = read_check_and_return (fp, line, "FLOP_PER_NINST:", &line_num)) == NULL)
     {
         FPRT(stderr,"ASPEN DNN file %s parse error: Missing FLOP_PER_NINST.\n", filename);
-        *output_dnn = NULL;
         fclose (fp);
         return NULL;
     }
@@ -948,16 +939,15 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
     if ((ptr = read_check_and_return (fp, line, "SEQ_LEN:", &line_num)) == NULL)
     {
         FPRT(stderr,"ASPEN DNN file %s parse error: Missing SEQ_LEN.\n", filename);
-        *output_dnn = NULL;
         fclose (fp);
         return NULL;
     }
-    unsigned int seq_len = atoi(ptr);
-    nasm = apu_create_nasm_without_finding_ninst_parents (*output_dnn, flop_per_ninst, batch_size, seq_len);
+    tr_seq_len = atoi(ptr);
+    nasm = apu_create_nasm_without_finding_ninst_parents 
+        (dnn, flop_per_ninst, batch_size, min_ninst_per_ldata, tr_seq_len);
     if (nasm == NULL)
     {
         FPRT(stderr,"ASPEN DNN file %s parse error: Failed to create NASM.\n", filename);
-        *output_dnn = NULL;
         fclose (fp);
         return NULL;
     }
@@ -966,7 +956,6 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
     {
         FPRT(stderr,"ASPEN DNN file %s parse error: Missing NASM_NINSTS.\n", filename);
         apu_destroy_nasm (nasm);
-        *output_dnn = NULL;
         fclose (fp);
         return NULL;
     }
@@ -979,7 +968,6 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
             {
                 FPRT(stderr,"ASPEN DNN file %s parse error: Missing NINST_IDX.\n", filename);
                 apu_destroy_nasm (nasm);
-                *output_dnn = NULL;
                 fclose (fp);
                 return NULL;
             }
@@ -988,7 +976,6 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
             {
                 FPRT(stderr,"ASPEN DNN file %s parse error: NINST_IDX mismatch.\n", filename);
                 apu_destroy_nasm (nasm);
-                *output_dnn = NULL;
                 fclose (fp);
                 return NULL;
             }
@@ -996,7 +983,6 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
             {
                 FPRT(stderr,"ASPEN DNN file %s parse error: Missing NUM_CHILD_NINSTS.\n", filename);
                 apu_destroy_nasm (nasm);
-                *output_dnn = NULL;
                 fclose (fp);
                 return NULL;
             }
@@ -1005,7 +991,6 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
             {
                 FPRT(stderr,"ASPEN DNN file %s parse error: Missing NUM_PARENT_NINSTS.\n", filename);
                 apu_destroy_nasm (nasm);
-                *output_dnn = NULL;
                 fclose (fp);
                 return NULL;
             }
@@ -1015,7 +1000,6 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
             {
                 FPRT(stderr,"ASPEN DNN file %s parse error: Missing PARENT_NINSTS.\n", filename);
                 apu_destroy_nasm (nasm);
-                *output_dnn = NULL;
                 fclose (fp);
                 return NULL;
             }
@@ -1027,7 +1011,6 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
                     FPRT(stderr,"ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
                         filename, __LINE__, __FILE__);
                     apu_destroy_nasm (nasm);
-                    *output_dnn = NULL;
                     fclose (fp);
                     return NULL;
                 }
@@ -1044,7 +1027,6 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
             {
                 FPRT(stderr,"ASPEN DNN file %s parse error: Missing PARENT_NINSTS_END.\n", filename);
                 apu_destroy_nasm (nasm);
-                *output_dnn = NULL;
                 fclose (fp);
                 return NULL;
             }
@@ -1052,7 +1034,6 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
             {
                 FPRT(stderr,"ASPEN DNN file %s parse error: Missing NUM_CHILD_NINSTS.\n", filename);
                 apu_destroy_nasm (nasm);
-                *output_dnn = NULL;
                 fclose (fp);
                 return NULL;
             }
@@ -1061,7 +1042,6 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
             {
                 FPRT(stderr,"ASPEN DNN file %s parse error: Missing CHILD_NINST_IDXES.\n", filename);
                 apu_destroy_nasm (nasm);
-                *output_dnn = NULL;
                 fclose (fp);
                 return NULL;
             }
@@ -1074,7 +1054,6 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
                     FPRT(stderr,"ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
                         filename, __LINE__, __FILE__);
                     apu_destroy_nasm (nasm);
-                    *output_dnn = NULL;
                     fclose (fp);
                     return NULL;
                 }
@@ -1091,7 +1070,6 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
             {
                 FPRT(stderr,"ASPEN DNN file %s parse error: Missing CHILD_NINST_IDXES_END.\n", filename);
                 apu_destroy_nasm (nasm);
-                *output_dnn = NULL;
                 fclose (fp);
                 return NULL;
             }
@@ -1099,7 +1077,6 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
             {
                 FPRT(stderr,"ASPEN DNN file %s parse error: Missing NUM_INPUT_POS.\n", filename);
                 apu_destroy_nasm (nasm);
-                *output_dnn = NULL;
                 fclose (fp);
                 return NULL;
             }
@@ -1109,7 +1086,6 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
             {
                 FPRT(stderr,"ASPEN DNN file %s parse error: Missing INPUT_POS.\n", filename);
                 apu_destroy_nasm (nasm);
-                *output_dnn = NULL;
                 fclose (fp);
                 return NULL;
             }
@@ -1119,7 +1095,6 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
                 FPRT(stderr,"ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
                     filename, __LINE__, __FILE__);
                 apu_destroy_nasm (nasm);
-                *output_dnn = NULL;
                 fclose (fp);
                 return NULL;
             }
@@ -1127,7 +1102,6 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
             {
                 FPRT(stderr,"ASPEN DNN file %s parse error: Missing INPUT_POS_END.\n", filename);
                 apu_destroy_nasm (nasm);
-                *output_dnn = NULL;
                 fclose (fp);
                 return NULL;
             }
@@ -1137,7 +1111,6 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
     {
         FPRT(stderr,"ASPEN DNN file %s parse error: Missing NASM_NINSTS_END.\n", filename);
         apu_destroy_nasm (nasm);
-        *output_dnn = NULL;
         fclose (fp);
         return NULL;
     }
@@ -1145,7 +1118,6 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t **output_dnn)
     {
         FPRT(stderr,"ASPEN DNN file %s parse error: Missing ASPEN_NASM_END.\n", filename);
         apu_destroy_nasm (nasm);
-        *output_dnn = NULL;
         fclose (fp);
         return NULL;
     }

@@ -7,7 +7,6 @@
 #include "kernels.h"
 #include "cuda_kernels.h"
 
-#define MIN_NINST_TILE_PER_LAYER (10)
 #define LAYERS_PER_TRANSFORMER (12)
 
 extern LAYER_TYPE transformer_layer_types[LAYERS_PER_TRANSFORMER];
@@ -42,7 +41,7 @@ void sync_output_data_to_host_dnn (aspen_dnn_t *dnn, int gpu_idx);
 void sync_output_data_to_gpu_layer (aspen_layer_t *layer, int gpu_idx);
 void sync_output_data_to_gpu_dnn (aspen_dnn_t *dnn, int gpu_idx);
 
-nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size, unsigned int transformer_seq_len);
+nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size,  unsigned int min_ninst_per_ldata, unsigned int transformer_seq_len);
 
 void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata, aspen_layer_t *layer);
 void destroy_nasm_ldata_arr (nasm_ldata_t *ldata_arr, int num_ldata);

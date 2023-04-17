@@ -15,6 +15,7 @@ struct nasm_t
     unsigned int num_ldata;
     _Atomic unsigned int num_ldata_completed;
     unsigned int num_ninst;
+    unsigned int min_ninst_per_ldata;
     unsigned int flop_per_ninst;
     size_t total_flops;
     
@@ -24,7 +25,7 @@ struct nasm_t
     pthread_mutex_t nasm_mutex;
     pthread_cond_t nasm_cond;
 
-    #if GPU
+    #ifdef GPU
     cudaGraph_t cuda_graph;
     cudaGraphExec_t cuda_graph_exec; 
     int cudagraph_instantiated;
@@ -72,7 +73,7 @@ struct ninst_t
     void *out_mat;
     rpool_t *affinity_pool;
 
-    #if GPU
+    #ifdef GPU
     cudaGraphNode_t cudagraph_node;
     #endif
 };

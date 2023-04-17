@@ -329,6 +329,11 @@ void ase_cudagraph_run (rpool_t *rpool, nasm_t *nasm)
         FPRT (stderr, "ERROR: ase_cudagraph_run: nasm is NULL\n");
         assert (0);
     }
+    if (nasm->gpu_idx < 0)
+    {
+        FPRT (stderr, "ERROR: ase_cudagraph_run: gpu not initialized.\n");
+        assert (0);
+    }
     rpool_pop_all_nasm (rpool, nasm);
     run_cudagraph (nasm);
 }

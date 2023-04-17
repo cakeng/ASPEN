@@ -2,7 +2,7 @@
 
 void generate_cudagraph (nasm_t *nasm)
 {
-    #if GPU
+    #ifdef GPU
     if (nasm->cudagraph_instantiated != 0)
     {   
         FPRT (stderr, "Cudagraph already instantiated.\n");
@@ -68,7 +68,7 @@ void generate_cudagraph (nasm_t *nasm)
 }
 void run_cudagraph (nasm_t *nasm)
 {
-    #if GPU
+    #ifdef GPU
     if (nasm->cudagraph_instantiated == 0)
     {
         FPRT (stderr, "Cudagraph not instantiated.\n");
@@ -83,10 +83,9 @@ void run_cudagraph (nasm_t *nasm)
     aspen_sync_gpu_stream (nasm->gpu_idx, GPU_GRAPH_RUN_STREAM);
     #endif
 }
-
+#ifdef GPU
 void add_cudagraph_node_conv2d (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx)
 {
-    #ifdef GPU
     nasm_ldata_t *ldata = ninst->ldata;
     aspen_layer_t *layer = ninst->ldata->layer;
     nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
@@ -110,12 +109,10 @@ void add_cudagraph_node_conv2d (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_
     unsigned int n = 0;
     
 
-    #endif
 }
 
 void add_cudagraph_node_matmul (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx)
 {
-    #ifdef GPU
     nasm_ldata_t *ldata = ninst->ldata;
     aspen_layer_t *layer = ninst->ldata->layer;
     nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
@@ -168,12 +165,10 @@ void add_cudagraph_node_matmul (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_
             layer->layer_idx, layer_type_str[layer->type], ninst->ninst_idx);
     if (parent_node_arr != NULL)
         free (parent_node_arr);
-    #endif
 }
 
 void add_cudagraph_node_maxpool2d (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx)
 {
-    #ifdef GPU
     nasm_ldata_t *ldata = ninst->ldata;
     aspen_layer_t *layer = ninst->ldata->layer;
     // prepare_input (ninst, ase->scratchpad);
@@ -186,11 +181,9 @@ void add_cudagraph_node_maxpool2d (cudaGraph_t cuda_graph, ninst_t *ninst, int g
 
     
 
-    #endif
 }
 void add_cudagraph_node_avgpool2d (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx)
 {
-    #ifdef GPU
     nasm_ldata_t *ldata = ninst->ldata;
     aspen_layer_t *layer = ninst->ldata->layer;
     // prepare_input (ninst, ase->scratchpad);
@@ -203,7 +196,6 @@ void add_cudagraph_node_avgpool2d (cudaGraph_t cuda_graph, ninst_t *ninst, int g
 
     
 
-    #endif
 }
 void add_cudagraph_node_fully_connected (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx)
 {
@@ -212,7 +204,6 @@ void add_cudagraph_node_fully_connected (cudaGraph_t cuda_graph, ninst_t *ninst,
 }
 void add_cudagraph_node_residual (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx)
 {
-    #ifdef GPU
     nasm_ldata_t *ldata = ninst->ldata;
     aspen_layer_t *layer = ninst->ldata->layer;
     nasm_ldata_t *p0_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
@@ -261,12 +252,10 @@ void add_cudagraph_node_residual (cudaGraph_t cuda_graph, ninst_t *ninst, int gp
             layer->layer_idx, layer_type_str[layer->type], ninst->ninst_idx);
     if (parent_node_arr != NULL)
         free (parent_node_arr);
-    #endif
 }
 
 void add_cudagraph_node_softmax (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx)
 {
-    #ifdef GPU
     nasm_ldata_t *ldata = ninst->ldata;
     nasm_ldata_t *p0_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
     const unsigned int M = ninst->tile_dims[OUT_H];
@@ -276,12 +265,10 @@ void add_cudagraph_node_softmax (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu
 
     
     
-    #endif
 }
 
 void add_cudagraph_node_layernorm (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx)
 {
-    #ifdef GPU
     nasm_ldata_t *ldata = ninst->ldata;
     aspen_layer_t *layer = ninst->ldata->layer;
     nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
@@ -330,11 +317,9 @@ void add_cudagraph_node_layernorm (cudaGraph_t cuda_graph, ninst_t *ninst, int g
             layer->layer_idx, layer_type_str[layer->type], ninst->ninst_idx);
     if (parent_node_arr != NULL)
         free (parent_node_arr);
-    #endif
 }
 void add_cudagraph_node_k_attention (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx)
 {
-    #ifdef GPU
     nasm_ldata_t *ldata = ninst->ldata;
     aspen_layer_t *layer = ninst->ldata->layer;
     nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
@@ -423,12 +408,10 @@ void add_cudagraph_node_k_attention (cudaGraph_t cuda_graph, ninst_t *ninst, int
 
     if (parent_node_arr != NULL)
         free (parent_node_arr);
-    #endif
 }
 
 void add_cudagraph_node_v_attention (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx)
 {
-    #ifdef GPU
     nasm_ldata_t *ldata = ninst->ldata;
     aspen_layer_t *layer = ninst->ldata->layer;
     nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
@@ -489,12 +472,11 @@ void add_cudagraph_node_v_attention (cudaGraph_t cuda_graph, ninst_t *ninst, int
             layer->layer_idx, layer_type_str[layer->type], ninst->ninst_idx);
     if (parent_node_arr != NULL)
         free (parent_node_arr);
-    #endif
 }
 
 void print_nasm_cudagraph_info (nasm_t *nasm, char* output_dot_filename)
 {
-    #ifdef GPU
     cudaGraphDebugDotPrint (nasm->cuda_graph, output_dot_filename, cudaGraphDebugDotFlagsVerbose);
-    #endif
+
 }
+#endif
