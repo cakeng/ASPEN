@@ -687,6 +687,23 @@ void reset_nasm (nasm_t *nasm)
     }
 }
 
+void set_nasm_to_finished (nasm_t *nasm)
+{
+    atomic_store (&nasm->num_ldata_completed, 1);
+    for (int i = 0; i < nasm->num_ldata; i++)
+    {
+        nasm_ldata_t *ldata = &nasm->ldata_arr[i];
+        atomic_store (&ldata->num_ninst_completed, ldata->num_ninst);
+        atomic_store (&ldata->num_child_ldata_completed, ldata->num_child_ldata);
+        for (int j = 0; j < ldata->num_ninst; j++)
+        {
+            ninst_t *ninst = &ldata->ninst_arr_start[j];
+            ninst->state = NINST_COMPLETED;
+            atomic_store (&ninst->num_parent_ninsts_completed, ninst->num_parent_ninsts);
+        }
+    }
+}
+
 void destroy_nasm_ldata (nasm_ldata_t *ldata)
 {
     if (ldata == NULL)

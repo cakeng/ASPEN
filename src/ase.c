@@ -322,6 +322,17 @@ void ase_wait_for_nasm_completion (nasm_t *nasm)
     pthread_mutex_unlock (&nasm->nasm_mutex);
 }
 
+void ase_cudagraph_run (rpool_t *rpool, nasm_t *nasm)
+{
+    if (nasm == NULL)
+    {
+        FPRT (stderr, "ERROR: ase_cudagraph_run: nasm is NULL\n");
+        assert (0);
+    }
+    rpool_pop_all_nasm (rpool, nasm);
+    run_cudagraph (nasm);
+}
+
 void ase_run (ase_t *ase)
 {
     if (ase == NULL)
@@ -520,6 +531,7 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
             set_ldata_out_mat_mem_pos (ldata);
         }
     }
+    generate_cudagraph (nasm);
     nasm_ldata_t *ldata = &nasm->ldata_arr[0];
     for (int i = 0; i < ldata->num_ninst; i++)
     {

@@ -29,10 +29,12 @@
 #define NINST_H_MIN (64)
 #define NINST_W_MIN (12)
 #define MEM_ALIGN 64
-#define GPU_MEM_STREAM_HOST_TO_GPU (34)
-#define GPU_MEM_STREAM_GPU_TO_HOST (33)
+#define GPU_MEM_STREAM_HOST_TO_GPU (35)
+#define GPU_MEM_STREAM_GPU_TO_HOST (34)
+#define GPU_GRAPH_RUN_STREAM (33)
 #define GPU_NAIVE_RUN_STREAM (32)
 #define GPU_RUN_STREAM_NUM (32)
+#define CUDAGRAPH_MAX_ARG_NUM (16)
 #define GPU 1
 
 #if SUPPRESS_OUTPUT == 0
@@ -99,6 +101,7 @@ typedef struct nasm_ldata_t nasm_ldata_t; // Dynamic layer data
 typedef struct rpool_t rpool_t; // Ready pool
 typedef struct rpool_queue_t rpool_queue_t;
 typedef struct rpool_queue_group_t rpool_queue_group_t;
+
 typedef struct ase_t ase_t;     // Asynchronous scheduling engine
 typedef struct ase_group_t ase_group_t;
 
@@ -134,6 +137,7 @@ void rpool_reset_nasm (rpool_t *rpool, nasm_t *nasm, float weight);
 ase_group_t *ase_group_init (unsigned int num_ase, int gpu_idx);
 void ase_group_set_rpool (ase_group_t *ase_group, rpool_t *rpool);
 void ase_group_destroy (ase_group_t *ase_group);
+void ase_cudagraph_run (rpool_t *rpool, nasm_t *nasm);
 void ase_group_run (ase_group_t *ase_group);
 void ase_group_stop (ase_group_t *ase_group);
 void ase_group_run_until_nasm_completion (ase_group_t *ase_group, nasm_t *nasm);
@@ -152,5 +156,6 @@ void print_ninst_info (ninst_t *ninst, int print_data);
 void print_rpool_queue_info (rpool_queue_t *rpool_queue);
 void print_rpool_queue_group_info (rpool_queue_group_t *rpool_queue_group);
 void print_rpool_info (rpool_t *rpool);
+void print_nasm_cudagraph_info (nasm_t *nasm, char* output_dot_filename);
 
 #endif /* _ASPEN_H_ */

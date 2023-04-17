@@ -53,6 +53,8 @@ void rpool_destroy_queue (rpool_queue_t *rpool_queue);
 void rpool_init_queue_group (rpool_queue_group_t *rpool_queue_group, char *queue_group_info, unsigned int num_queues);
 void rpool_destroy_queue_group (rpool_queue_group_t *rpool_queue_group);
 
+void rpool_pop_all_nasm (rpool_t *rpool, nasm_t *nasm);
+
 rpool_queue_group_t *get_queue_group_from_nasm (rpool_t *rpool, nasm_t *nasm);
 unsigned int *get_queue_group_idx_from_nasm (rpool_t *rpool, nasm_t *nasm);
 

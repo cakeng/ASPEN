@@ -23,6 +23,12 @@ struct nasm_t
 
     pthread_mutex_t nasm_mutex;
     pthread_cond_t nasm_cond;
+
+    #if GPU
+    cudaGraph_t cuda_graph;
+    cudaGraphExec_t cuda_graph_exec; 
+    int cudagraph_instantiated;
+    #endif
 };
 
 struct nasm_ldata_t
@@ -65,6 +71,10 @@ struct ninst_t
     unsigned int num_input_pos;
     void *out_mat;
     rpool_t *affinity_pool;
+
+    #if GPU
+    cudaGraphNode_t cudagraph_node;
+    #endif
 };
 
 struct aspen_dnn_t

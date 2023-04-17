@@ -254,6 +254,22 @@ void rpool_reset_nasm (rpool_t *rpool, nasm_t *nasm, float weight)
     push_first_layer_to_rpool (rpool, nasm, NULL);
 }
 
+void rpool_pop_all_nasm (rpool_t *rpool, nasm_t *nasm)
+{
+    set_nasm_to_finished (nasm);
+    unsigned int queue_group_idx = get_queue_group_idx_from_nasm (rpool, nasm);
+    rpool_queue_group_t *queue_group = &rpool->queue_group_arr[queue_group_idx];
+    unsigned int num_queues = queue_group->num_queues;
+    for (int i = 0; i < num_queues; i++)
+    {
+        pthread_mutex_lock (&queue_group->queue_arr[i].occupied_mutex);
+        queue_group->queue_arr[i].idx_start = 0;
+        queue_group->queue_arr[i].idx_end = 0;
+        queue_group->queue_arr[i].num_stored = 0;
+        pthread_mutex_unlock (&queue_group->queue_arr[i].occupied_mutex);
+    }
+}
+
 void rpool_add_queue_group 
     (rpool_t *rpool, char *queue_group_info, unsigned int num_queues, float weight, void **blacklist, void **whitelist)
 {

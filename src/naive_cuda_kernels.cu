@@ -3,7 +3,7 @@ extern "C"
     #include "cuda_kernels.h"
 }
 
-// Custom CUDA GEMM weight.
+// Custom CUDA GEMM kernel.
 __global__ void cuda_matmul_kernel(const unsigned int M, const unsigned int N, const unsigned int K,
     const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
     const float *Bias, LAYER_ACT activation_type)

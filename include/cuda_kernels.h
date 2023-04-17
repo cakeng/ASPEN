@@ -17,6 +17,33 @@
 #define _CACHE_B_K_PER_LOAD (_THREAD_NUM / _BLOCK_N_SIZE) // 2
 
 #ifdef GPU
+__global__ void cuda_matmul_kernel(const unsigned int M, const unsigned int N, const unsigned int K,
+    const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
+    const float *Bias, LAYER_ACT activation_type);
+__global__ void cuda_k_attention_kernel(const unsigned int num_heads, const unsigned int num_hidden, const unsigned int num_seq,
+    const unsigned int M, const unsigned int N, const unsigned int K,
+    const float *key, const unsigned int ldk, const float *B, const unsigned int ldb, float *C, const unsigned int ldc);
+__global__ void cuda_k_attention_prob_kernel(const unsigned int num_heads, const unsigned int num_hidden, const unsigned int num_seq,
+    const unsigned int M, const unsigned int N, const unsigned int K,
+    const float *key, const unsigned int ldk, const float *B, const unsigned int ldb, float *C, const unsigned int ldc);
+__global__ void cuda_v_attention_kernel(const unsigned int num_heads, const unsigned int num_hidden, const unsigned int num_seq,
+    const unsigned int M, const unsigned int N, const unsigned int K,
+    const float *value, const unsigned int ldv, const float *B, const unsigned int ldb, float *C, const unsigned int ldc);
+__global__ void cuda_residual_kernel (const unsigned int num_elements, const float *A, const float *B, float *C);
+__global__ void cuda_layernorm_kernel(const float *input, const float *weight, const float *bias, 
+    float *output, unsigned int N, unsigned int M, unsigned int ldb, unsigned int ldc);
+__global__ void cuda_tiled_k_matmul_kernel(
+    const unsigned int M, const unsigned int N, const unsigned int K,
+    const float *key_head, const unsigned int ldk, const float *B_head, const unsigned int ldb, float *C_head, const unsigned int ldc);
+__global__ void cuda_tiled_k_prob_kernel(
+    const unsigned int M, const unsigned int N, const unsigned int K,
+    const float *key_head, const unsigned int ldk, const float *B_head, const unsigned int ldb, float *C_head, const unsigned int ldc);
+__global__ void cuda_tiled_v_attention_kernel(const unsigned int M, const unsigned int N, const unsigned int K,
+    const float *val_head, const unsigned int ldv, const float *B_head, const unsigned int ldb, float *C_head, const unsigned int ldc);
+__global__ void cuda_tiled_residual_kernel (const float *input_1, const float *input_2, float *output, unsigned int N, unsigned int M, const unsigned int ldc);
+__global__ void cuda_tiled_layernorm_kernel(const float *input, const float *kernel, const float *bias, 
+    float *output, unsigned int N, unsigned int M);
+
 void cuda_tiled_k_attention (
     const unsigned int M, const unsigned int N, const unsigned int K,
     const float *key_head, const unsigned int ldk, const float *B_head, const unsigned int ldb, float *C_head, const unsigned int ldc,
