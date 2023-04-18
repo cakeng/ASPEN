@@ -81,7 +81,7 @@ int main(void)
     // print_dnn_info(resnet50_dnn, 0);
 
     
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 3; i++)
     {
         printf ("\tLayer %d - Type %s\n", i, layer_type_str[resnet50_dnn->layers[i].type]);
         aspen_layer_t *layer = &resnet50_dnn->layers[i];
