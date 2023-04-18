@@ -39,7 +39,7 @@ struct nasm_ldata_t
     unsigned int parent_ldata_idx_arr [NUM_PARENT_ELEMENTS];
     unsigned int *child_ldata_idx_arr; // Allows duplicate entries.
     unsigned int num_child_ldata;
-    unsigned int num_child_ldata_completed;
+    _Atomic unsigned int num_child_ldata_completed;
 
     unsigned int flop_per_output;
     unsigned int out_mat_dims [2];
@@ -50,7 +50,7 @@ struct nasm_ldata_t
     ninst_t *ninst_arr_start;
     
     unsigned int num_ninst;
-    unsigned int num_ninst_completed;
+    _Atomic unsigned int num_ninst_completed;
 };
 
 struct ninst_t 
@@ -66,7 +66,7 @@ struct ninst_t
     _Atomic unsigned int num_parent_ninsts_completed;
 
     ninst_t **child_ninst_arr;
-    unsigned int num_child_ninsts;
+    _Atomic unsigned int num_child_ninsts;
     
     int *input_pos_idx_arr;
     unsigned int num_input_pos;

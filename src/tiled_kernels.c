@@ -204,20 +204,20 @@ void tiled_conv2d (ninst_t *ninst, ase_t *ase)
         // <M, N, K> = <M, rem_n, K>
         if (rem_n != 0)
         {
-            ldb = K;
-            for (unsigned int i = input_pos_per_n * n; i < input_pos_per_n * N; i++)
-            {
-                void *input_ptr = ninst->input_pos_idx_arr[i]*p_ldata->out_mat_stride + (float *) p_ldata->out_mat;
-                    if (ninst->input_pos_idx_arr[i] == -1)
-                {
-                    memset (input, 0, input_col_size * layer->dnn->element_size);
-                }
-                else
-                {
-                    memcpy (input, input_ptr, input_col_size * layer->dnn->element_size);
-                }
-                input += input_col_size * layer->dnn->element_size;
-            }
+            // ldb = K;
+            // for (unsigned int i = input_pos_per_n * n; i < input_pos_per_n * N; i++)
+            // {
+            //     void *input_ptr = ninst->input_pos_idx_arr[i]*p_ldata->out_mat_stride + (float *) p_ldata->out_mat;
+            //         if (ninst->input_pos_idx_arr[i] == -1)
+            //     {
+            //         memset (input, 0, input_col_size * layer->dnn->element_size);
+            //     }
+            //     else
+            //     {
+            //         memcpy (input, input_ptr, input_col_size * layer->dnn->element_size);
+            //     }
+            //     input += input_col_size * layer->dnn->element_size;
+            // }
             unsigned int k = 0;
             // <M, N, K> = <M, rem_n, _TILE_SIZE_K>
             for (; k < K - rem_k; k += _TILE_SIZE_K)

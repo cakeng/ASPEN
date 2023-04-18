@@ -1,6 +1,6 @@
 #include "ase.h"
 
-static unsigned int ase_thread_id_counter = 0;
+static _Atomic unsigned int ase_thread_id_counter = 0;
 
 void *ase_thread_runtime (void* thread_info)
 {

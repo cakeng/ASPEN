@@ -22,8 +22,8 @@ struct ase_group_t
 
 struct ase_t
 {
-    int run;
-    int kill;
+    _Atomic int run;
+    _Atomic int kill;
     unsigned int thread_id;
     void *scratchpad;
     void *gpu_scratchpad;

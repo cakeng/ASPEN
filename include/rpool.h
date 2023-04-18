@@ -38,7 +38,7 @@ struct rpool_queue_group_t
 
 struct rpool_t
 {
-    unsigned int num_groups;
+    _Atomic unsigned int num_groups;
     rpool_queue_group_t queue_group_arr[MAX_QUEUE_GROUPS];
     float queue_group_weight_arr[MAX_QUEUE_GROUPS];
     float queue_group_weight_sum;
