@@ -230,13 +230,18 @@ __global__ void cuda_tiled_v_attention_kernel(const unsigned int M, const unsign
     }
     __syncthreads();
 }
-__global__ void cuda_tiled_residual_kernel (const float *input_1, const float *input_2, float *output, unsigned int N, unsigned int M, const unsigned int ldc)
+__global__ void cuda_tiled_residual_kernel (const float *input_1, const float *input_2, float *output, unsigned int N, unsigned int M, const unsigned int ldc, LAYER_ACT activation_type)
 {
     const int n = blockIdx.x * _BLOCK_TILED_RESIDUAL_SIZE + threadIdx.x;
     const int m = blockIdx.y * _BLOCK_TILED_RESIDUAL_SIZE + threadIdx.y;
     if (n < N && m < M)
     {
-        output[n * ldc + m] = input_1[n * ldc + m] + input_2[n * ldc + m];
+        float val = input_1[n * ldc + m] + input_2[n * ldc + m];
+        if (activation_type == RELU)
+            val = val > 0 ? val : 0;
+        else if (activation_type == GELU)
+            val = val * 0.5 * (1 + erff (val*0.7071067811865475f));
+        output[n * ldc + m] = val;
     }
 }
 __global__ void cuda_tiled_layernorm_kernel(const float *input, const float *kernel, const float *bias, 
@@ -314,11 +319,11 @@ void cuda_tiled_v_attention (
         M, N, K, val_head, ldv, B_head, ldb, C_head, ldc);
 }
 void cuda_tiled_residual (const float *input_1, const float *input_2, float *output, unsigned int N, unsigned int M, const unsigned int ldc
-    , cudaStream_t stream)
+    , LAYER_ACT activation_type, cudaStream_t stream)
 {
     dim3 gridDim (N/_BLOCK_TILED_RESIDUAL_SIZE + ((N%_BLOCK_TILED_RESIDUAL_SIZE) > 0), M/_BLOCK_TILED_RESIDUAL_SIZE + ((M%_BLOCK_TILED_RESIDUAL_SIZE) > 0), 1);
     dim3 blockDim (_BLOCK_TILED_RESIDUAL_SIZE, _BLOCK_TILED_RESIDUAL_SIZE, 1);
-    cuda_tiled_residual_kernel<<<gridDim, blockDim, 0, stream>>> (input_1, input_2, output, N, M, ldc);
+    cuda_tiled_residual_kernel<<<gridDim, blockDim, 0, stream>>> (input_1, input_2, output, N, M, ldc, activation_type);
 }
 void cuda_tiled_layernorm (const float *input, const float *kernel, const float *bias, 
     float *output, unsigned int N, unsigned int M, cudaStream_t stream)

@@ -272,6 +272,120 @@ __global__ void cuda_conv2d_kernel(
         }   
     }
 }
+__global__ void cuda_maxpool_kernel(
+    const unsigned int M, const unsigned int N, 
+    const unsigned int *col_idx_arr, const unsigned int col_per_n,
+    const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
+    LAYER_ACT activation_type)
+{
+    const int mLocal = threadIdx.x*_THREAD_M_SIZE;
+    const int nLocal = threadIdx.y*_THREAD_N_SIZE; 
+    const int mGroup = blockIdx.x*_BLOCK_M_SIZE;
+    const int nGroup = blockIdx.y*_BLOCK_N_SIZE;
+    const int id = threadIdx.x*(_BLOCK_N_SIZE / _THREAD_N_SIZE) + threadIdx.y;
+    float cout[_THREAD_N_SIZE][_THREAD_M_SIZE];
+    for (int vecN = 0; vecN < _THREAD_N_SIZE; vecN++)
+    {
+        for (int vecM = 0; vecM < _THREAD_M_SIZE; vecM++)
+        {
+            cout[vecN][vecM] = -INFINITY;
+        }   
+    }
+
+    for (int col = 0; col < col_per_n; col++)
+    {
+        for (int vecN = 0; vecN < _THREAD_N_SIZE; vecN++)
+        {
+            const int n = nGroup + nLocal + vecN;
+            const float *B_col = B + col_idx_arr[n*col_per_n + col] * ldb;
+            if (col_idx_arr[n*col_per_n + col] == -1)
+                continue;
+            for (int vecM = 0; vecM < _THREAD_M_SIZE; vecM++)
+            {
+                const int m = mGroup + mLocal + vecM;
+                if (m < M &&  n < N)
+                {
+                    cout[vecN][vecM] = cout[vecN][vecM] > B_col[m] ? cout[vecN][vecM] : B_col[m];
+                }
+            }
+        }
+    }
+    
+    // Save results
+    for (int vecN = 0; vecN < _THREAD_N_SIZE; vecN++)
+    {
+        for (int vecM = 0; vecM < _THREAD_M_SIZE; vecM++)
+        {
+            const int m = mGroup + mLocal + vecM;
+            const int n = nGroup + nLocal + vecN;
+            if (m < M &&  n < N)
+            {
+                if (activation_type == RELU)
+                    cout[vecN][vecM] = cout[vecN][vecM] > 0 ? cout[vecN][vecM] : 0;
+                else if (activation_type == GELU)
+                    cout[vecN][vecM] = cout[vecN][vecM] * 0.5 * (1 + erff ((cout[vecN][vecM])*0.7071067811865475f));
+                C[ldc*n + m] = cout[vecN][vecM];
+            }
+        }   
+    }
+}
+__global__ void cuda_avgpool_kernel(
+    const unsigned int M, const unsigned int N, 
+    const unsigned int *col_idx_arr, const unsigned int col_per_n,
+    const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
+    LAYER_ACT activation_type)
+{
+    const int mLocal = threadIdx.x*_THREAD_M_SIZE;
+    const int nLocal = threadIdx.y*_THREAD_N_SIZE; 
+    const int mGroup = blockIdx.x*_BLOCK_M_SIZE;
+    const int nGroup = blockIdx.y*_BLOCK_N_SIZE;
+    const int id = threadIdx.x*(_BLOCK_N_SIZE / _THREAD_N_SIZE) + threadIdx.y;
+    float cout[_THREAD_N_SIZE][_THREAD_M_SIZE];
+    for (int vecN = 0; vecN < _THREAD_N_SIZE; vecN++)
+    {
+        for (int vecM = 0; vecM < _THREAD_M_SIZE; vecM++)
+        {
+            cout[vecN][vecM] = 0;
+        }   
+    }
+
+    for (int col = 0; col < col_per_n; col++)
+    {
+        for (int vecN = 0; vecN < _THREAD_N_SIZE; vecN++)
+        {
+            const int n = nGroup + nLocal + vecN;
+            const float *B_col = B + col_idx_arr[n*col_per_n + col] * ldb;
+            if (col_idx_arr[n*col_per_n + col] == -1)
+                continue;
+            for (int vecM = 0; vecM < _THREAD_M_SIZE; vecM++)
+            {
+                const int m = mGroup + mLocal + vecM;
+                if (m < M &&  n < N)
+                {
+                    cout[vecN][vecM] += B_col[m];
+                }
+            }
+        }
+    }
+    
+    // Save results
+    for (int vecN = 0; vecN < _THREAD_N_SIZE; vecN++)
+    {
+        for (int vecM = 0; vecM < _THREAD_M_SIZE; vecM++)
+        {
+            const int m = mGroup + mLocal + vecM;
+            const int n = nGroup + nLocal + vecN;
+            if (m < M &&  n < N)
+            {
+                if (activation_type == RELU)
+                    cout[vecN][vecM] = cout[vecN][vecM] > 0 ? cout[vecN][vecM] : 0;
+                else if (activation_type == GELU)
+                    cout[vecN][vecM] = cout[vecN][vecM] * 0.5 * (1 + erff ((cout[vecN][vecM])*0.7071067811865475f));
+                C[ldc*n + m] = cout[vecN][vecM] / col_per_n;
+            }
+        }   
+    }
+}
 __global__ void cuda_k_attention_kernel(const unsigned int num_heads, const unsigned int num_hidden, const unsigned int num_seq,
     const unsigned int M, const unsigned int N, const unsigned int K,
     const float *key, const unsigned int ldk, const float *B, const unsigned int ldb, float *C, const unsigned int ldc)
@@ -513,12 +627,17 @@ __global__ void cuda_v_attention_kernel(const unsigned int num_heads, const unsi
     }
     __syncthreads();
 }
-__global__ void cuda_residual_kernel (const unsigned int num_elements, const float *A, const float *B, float *C)
+__global__ void cuda_residual_kernel (const unsigned int num_elements, const float *A, const float *B, float *C, LAYER_ACT activation_type)
 {
     const int id = blockIdx.x * _BLOCK_RESIDUAL_SIZE + threadIdx.x;
     if (id < num_elements)
     {
-        C[id] = A[id] + B[id];
+        float val = A[id] + B[id];
+        if (activation_type == RELU)
+            val = val > 0 ? val : 0;
+        else if (activation_type == GELU)
+            val = val * 0.5 * (1 + erff (val*0.7071067811865475f));
+        C[id] = val;
     }
 }
 __global__ void cuda_layernorm_kernel(const float *input, const float *weight, const float *bias, 
@@ -563,6 +682,44 @@ void cuda_conv2d (const unsigned int M, const unsigned int N,
         dim3 blockDim ((_BLOCK_M_SIZE / _THREAD_M_SIZE), (_BLOCK_N_SIZE / _THREAD_N_SIZE), 1);
         cuda_conv2d_kernel<<<gridDim, blockDim, 0, stream>>>(M, N, col_idx_arr, col_per_n, K_col,
             A, lda, B, ldb, C, ldc, Bias, activation_type);
+}
+void cuda_maxpool(
+    const unsigned int M, const unsigned int N, 
+    const unsigned int *col_idx_arr, const unsigned int col_per_n,
+    const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
+    LAYER_ACT activation_type, cudaStream_t stream)
+{
+    #ifdef DEBUG
+    if (!(((_BLOCK_K_SIZE*_BLOCK_M_SIZE)%_THREAD_NUM) == 0 && ((_BLOCK_K_SIZE*_BLOCK_N_SIZE)%_THREAD_NUM) == 0))
+    {
+        printf ("ERROR! - Wrong parameter settings - (_BLOCK_K_SIZE*_BLOCK_M_SIZE)%_THREAD_NUM) = %d, ((_BLOCK_K_SIZE*_BLOCK_N_SIZE)%_THREAD_NUM) = %d\n",
+        (_BLOCK_K_SIZE*_BLOCK_M_SIZE)%_THREAD_NUM), ((_BLOCK_K_SIZE*_BLOCK_N_SIZE)%_THREAD_NUM)); 
+        exit(0);
+    }
+    #endif
+        dim3 gridDim (M/_BLOCK_M_SIZE + ((M%_BLOCK_M_SIZE) > 0), N/_BLOCK_N_SIZE + ((N%_BLOCK_N_SIZE) > 0), 1);
+        dim3 blockDim ((_BLOCK_M_SIZE / _THREAD_M_SIZE), (_BLOCK_N_SIZE / _THREAD_N_SIZE), 1);
+        cuda_maxpool_kernel<<<gridDim, blockDim, 0, stream>>>(M, N, 
+        col_idx_arr, col_per_n, B, ldb, C, ldc, activation_type);
+}
+void cuda_avgpool(
+    const unsigned int M, const unsigned int N, 
+    const unsigned int *col_idx_arr, const unsigned int col_per_n,
+    const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
+    LAYER_ACT activation_type, cudaStream_t stream)
+{
+    #ifdef DEBUG
+    if (!(((_BLOCK_K_SIZE*_BLOCK_M_SIZE)%_THREAD_NUM) == 0 && ((_BLOCK_K_SIZE*_BLOCK_N_SIZE)%_THREAD_NUM) == 0))
+    {
+        printf ("ERROR! - Wrong parameter settings - (_BLOCK_K_SIZE*_BLOCK_M_SIZE)%_THREAD_NUM) = %d, ((_BLOCK_K_SIZE*_BLOCK_N_SIZE)%_THREAD_NUM) = %d\n",
+        (_BLOCK_K_SIZE*_BLOCK_M_SIZE)%_THREAD_NUM), ((_BLOCK_K_SIZE*_BLOCK_N_SIZE)%_THREAD_NUM)); 
+        exit(0);
+    }
+    #endif
+        dim3 gridDim (M/_BLOCK_M_SIZE + ((M%_BLOCK_M_SIZE) > 0), N/_BLOCK_N_SIZE + ((N%_BLOCK_N_SIZE) > 0), 1);
+        dim3 blockDim ((_BLOCK_M_SIZE / _THREAD_M_SIZE), (_BLOCK_N_SIZE / _THREAD_N_SIZE), 1);
+        cuda_avgpool_kernel<<<gridDim, blockDim, 0, stream>>>(M, N, 
+        col_idx_arr, col_per_n, B, ldb, C, ldc, activation_type);
 }
 void cuda_matmul (const unsigned int M, const unsigned int N, const unsigned int K,
 		 const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
@@ -644,11 +801,11 @@ void cuda_v_attention (const float *input_1, const float *input_2, float *output
         M, N, K, input_2, ldv, input_1, ldb, output, ldc);
 }
 void cuda_residual (const float *input_1, const float *input_2, float *output, unsigned int num_elements
-    , cudaStream_t stream)
+    , LAYER_ACT activation_type, cudaStream_t stream)
 {
     dim3 gridDim (num_elements/_BLOCK_RESIDUAL_SIZE + ((num_elements%_BLOCK_RESIDUAL_SIZE) > 0), 1, 1);
     dim3 blockDim (_BLOCK_RESIDUAL_SIZE, 1, 1);
-    cuda_residual_kernel<<<gridDim, blockDim, 0, stream>>> (num_elements, input_1, input_2, output);
+    cuda_residual_kernel<<<gridDim, blockDim, 0, stream>>> (num_elements, input_1, input_2, output, activation_type);
 }
 void cuda_layernorm (const float *input, const float *weight, const float *bias, 
     float *output, unsigned int N, unsigned int M, unsigned int ldb, unsigned int ldc, cudaStream_t stream)

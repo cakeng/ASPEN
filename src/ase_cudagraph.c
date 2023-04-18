@@ -93,19 +93,19 @@ void add_cudagraph_node_conv2d (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_
     unsigned int input_col_size = p_ldata->out_mat_dims[OUT_H];
     // void **input_ptr_arr = ase->scratchpad;   
     // char *input = ase->scratchpad; // (char *) scratchpad;
-    const unsigned int input_pos_per_n = ninst->num_input_pos/ninst->tile_dims[OUT_W];
-    const unsigned int M = ninst->tile_dims[OUT_H];
-    const unsigned int N = ninst->tile_dims[OUT_W];
-    const unsigned int K = layer->params[WEIGHT_H] * layer->params[WEIGHT_W] * layer->params[IN_C];
-    const unsigned int lda = K;
-    const unsigned int ldb = K;
-    const unsigned int ldc = ldata->out_mat_stride;
-    const void *A = (char*)layer->tensors[WEIGHT_TENSOR]->data + ninst->out_mat_pos[OUT_H] * lda * layer->dnn->element_size;
-    // const void *B = ase->scratchpad;
+    unsigned int input_pos_per_n = ninst->num_input_pos/ninst->tile_dims[OUT_W];
+    unsigned int M = ninst->tile_dims[OUT_H];
+    unsigned int N = ninst->tile_dims[OUT_W];
+    unsigned int K = layer->params[WEIGHT_H] * layer->params[WEIGHT_W] * layer->params[IN_C];
+    unsigned int lda = K;
+    unsigned int ldb = K;
+    unsigned int ldc = ldata->out_mat_stride;
+    void *A = (char*)layer->tensors[WEIGHT_TENSOR]->data + ninst->out_mat_pos[OUT_H] * lda * layer->dnn->element_size;
+    // void *B = ase->scratchpad;
     void *C = ninst->out_mat;
-    const unsigned int rem_n = N % _TILE_SIZE_N;
-    const unsigned int rem_m = M % _TILE_SIZE_M;
-    const unsigned int rem_k = K % _TILE_SIZE_K;
+    unsigned int rem_n = N % _TILE_SIZE_N;
+    unsigned int rem_m = M % _TILE_SIZE_M;
+    unsigned int rem_k = K % _TILE_SIZE_K;
     unsigned int n = 0;
     
 
@@ -116,15 +116,15 @@ void add_cudagraph_node_matmul (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_
     nasm_ldata_t *ldata = ninst->ldata;
     aspen_layer_t *layer = ninst->ldata->layer;
     nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
-    const unsigned int M = ninst->tile_dims[OUT_H];
-    const unsigned int N = ninst->tile_dims[OUT_W];
-    const unsigned int K = layer->params[MAT_K];
-    const unsigned int lda = K;
-    const unsigned int ldb = p_ldata->out_mat_stride;
-    const unsigned int ldc = ldata->out_mat_stride;
-    const void *A = (char*)layer->tensors[WEIGHT_TENSOR]->data_gpu[gpu_idx] 
+    unsigned int M = ninst->tile_dims[OUT_H];
+    unsigned int N = ninst->tile_dims[OUT_W];
+    unsigned int K = layer->params[MAT_K];
+    unsigned int lda = K;
+    unsigned int ldb = p_ldata->out_mat_stride;
+    unsigned int ldc = ldata->out_mat_stride;
+    void *A = (char*)layer->tensors[WEIGHT_TENSOR]->data_gpu[gpu_idx] 
         + (ninst->out_mat_pos[OUT_H] * lda * layer->dnn->element_size);
-    const void *B = (char*)p_ldata->out_mat + (ninst->out_mat_pos[OUT_W] * ldb * layer->dnn->element_size);
+    void *B = (char*)p_ldata->out_mat + (ninst->out_mat_pos[OUT_W] * ldb * layer->dnn->element_size);
     void *C = ninst->out_mat;
 
     float *bias = (float*)layer->tensors[BIAS_TENSOR]->data_gpu[gpu_idx] + ninst->out_mat_pos[OUT_H];
@@ -173,10 +173,10 @@ void add_cudagraph_node_maxpool2d (cudaGraph_t cuda_graph, ninst_t *ninst, int g
     aspen_layer_t *layer = ninst->ldata->layer;
     // prepare_input (ninst, ase->scratchpad);
     // void **input_ptr_arr = ase->scratchpad;   
-    const unsigned int input_pos_per_n = ninst->num_input_pos/ninst->tile_dims[OUT_W];
-    const unsigned int M = ninst->tile_dims[OUT_H];
-    const unsigned int N = ninst->tile_dims[OUT_W];
-    const unsigned int ldc = ldata->out_mat_stride;
+    unsigned int input_pos_per_n = ninst->num_input_pos/ninst->tile_dims[OUT_W];
+    unsigned int M = ninst->tile_dims[OUT_H];
+    unsigned int N = ninst->tile_dims[OUT_W];
+    unsigned int ldc = ldata->out_mat_stride;
     void *C = ninst->out_mat;
 
     
@@ -188,10 +188,10 @@ void add_cudagraph_node_avgpool2d (cudaGraph_t cuda_graph, ninst_t *ninst, int g
     aspen_layer_t *layer = ninst->ldata->layer;
     // prepare_input (ninst, ase->scratchpad);
     // void **input_ptr_arr = ase->scratchpad;   
-    const unsigned int input_pos_per_n = ninst->num_input_pos/ninst->tile_dims[OUT_W];
-    const unsigned int M = ninst->tile_dims[OUT_H];
-    const unsigned int N = ninst->tile_dims[OUT_W];
-    const unsigned int ldc = ldata->out_mat_stride;
+    unsigned int input_pos_per_n = ninst->num_input_pos/ninst->tile_dims[OUT_W];
+    unsigned int M = ninst->tile_dims[OUT_H];
+    unsigned int N = ninst->tile_dims[OUT_W];
+    unsigned int ldc = ldata->out_mat_stride;
     void *C = ninst->out_mat;
 
     
@@ -208,9 +208,9 @@ void add_cudagraph_node_residual (cudaGraph_t cuda_graph, ninst_t *ninst, int gp
     aspen_layer_t *layer = ninst->ldata->layer;
     nasm_ldata_t *p0_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
     nasm_ldata_t *p1_ldata = (ldata->parent_ldata_idx_arr[PARENT_1] + ldata->nasm->ldata_arr);
-    const unsigned int M = ninst->tile_dims[OUT_H];
-    const unsigned int N = ninst->tile_dims[OUT_W];
-    const unsigned int ldc = ldata->out_mat_stride;
+    unsigned int M = ninst->tile_dims[OUT_H];
+    unsigned int N = ninst->tile_dims[OUT_W];
+    unsigned int ldc = ldata->out_mat_stride;
     void *C = ninst->out_mat;
     unsigned int w_pos = ninst->out_mat_pos[OUT_W];
     float *input_0 = (float*)p0_ldata->out_mat + w_pos * p0_ldata->out_mat_stride + ninst->out_mat_pos[OUT_H];
@@ -220,7 +220,7 @@ void add_cudagraph_node_residual (cudaGraph_t cuda_graph, ninst_t *ninst, int gp
     // dim3 blockDim (_BLOCK_TILED_RESIDUAL_SIZE, _BLOCK_TILED_RESIDUAL_SIZE, 1);
     // cuda_tiled_residual_kernel<<<gridDim, blockDim, 0, stream>>> (input_0, input_1, C, N, M, ldc);
     
-    void *cudagraph_kernel_args [6] = {&input_0, &input_1, &C, &N, &M, &ldc};
+    void *cudagraph_kernel_args [7] = {&input_0, &input_1, &C, &N, &M, &ldc, &layer->activation};
     struct cudaKernelNodeParams params = {0};
     params.func = (void*)cuda_tiled_residual_kernel;
     params.gridDim.x = N/_BLOCK_TILED_RESIDUAL_SIZE + ((N%_BLOCK_TILED_RESIDUAL_SIZE) > 0);
@@ -258,9 +258,9 @@ void add_cudagraph_node_softmax (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu
 {
     nasm_ldata_t *ldata = ninst->ldata;
     nasm_ldata_t *p0_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
-    const unsigned int M = ninst->tile_dims[OUT_H];
-    const unsigned int N = ninst->tile_dims[OUT_W];
-    const unsigned int ldc = ldata->out_mat_stride;
+    unsigned int M = ninst->tile_dims[OUT_H];
+    unsigned int N = ninst->tile_dims[OUT_W];
+    unsigned int ldc = ldata->out_mat_stride;
     void *C = ninst->out_mat;
 
     
@@ -272,13 +272,13 @@ void add_cudagraph_node_layernorm (cudaGraph_t cuda_graph, ninst_t *ninst, int g
     nasm_ldata_t *ldata = ninst->ldata;
     aspen_layer_t *layer = ninst->ldata->layer;
     nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
-    const unsigned int M = ninst->tile_dims[OUT_H];
-    const unsigned int N = ninst->tile_dims[OUT_W];
-    const unsigned int ldb = p_ldata->out_mat_stride;
-    const unsigned int ldc = ldata->out_mat_stride;
-    const float *weight = (float*)layer->tensors[WEIGHT_TENSOR]->data_gpu[gpu_idx] + ninst->out_mat_pos[OUT_H];
-    const float *bias =(float*)layer->tensors[BIAS_TENSOR]->data_gpu[gpu_idx] + ninst->out_mat_pos[OUT_H];
-    const void *B = (char*)p_ldata->out_mat + (ninst->out_mat_pos[OUT_W] * ldb * layer->dnn->element_size);
+    unsigned int M = ninst->tile_dims[OUT_H];
+    unsigned int N = ninst->tile_dims[OUT_W];
+    unsigned int ldb = p_ldata->out_mat_stride;
+    unsigned int ldc = ldata->out_mat_stride;
+    float *weight = (float*)layer->tensors[WEIGHT_TENSOR]->data_gpu[gpu_idx] + ninst->out_mat_pos[OUT_H];
+    float *bias =(float*)layer->tensors[BIAS_TENSOR]->data_gpu[gpu_idx] + ninst->out_mat_pos[OUT_H];
+    void *B = (char*)p_ldata->out_mat + (ninst->out_mat_pos[OUT_W] * ldb * layer->dnn->element_size);
     void *C = ninst->out_mat;
 
     // dim3 prob_gridDim (N/_BLOCK_LAYERNORM_SIZE + ((N%_BLOCK_LAYERNORM_SIZE) > 0), 1, 1);
@@ -324,23 +324,23 @@ void add_cudagraph_node_k_attention (cudaGraph_t cuda_graph, ninst_t *ninst, int
     aspen_layer_t *layer = ninst->ldata->layer;
     nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
     nasm_ldata_t *pk_ldata = (ldata->parent_ldata_idx_arr[PARENT_1] + ldata->nasm->ldata_arr);
-    const unsigned int num_hidden = layer->params[NUM_HIDDEN];
-    const unsigned int num_heads = layer->params[NUM_HEAD];
-    const unsigned int hidden_per_head = num_hidden / num_heads;
-    const unsigned int num_seq = ldata->nasm->tr_seq_len;
-    const unsigned int batch = ninst->out_mat_pos[OUT_W] / (num_seq * num_heads);
-    const unsigned int head = (ninst->out_mat_pos[OUT_W] % (num_seq * num_heads)) / num_seq;
-    const unsigned int M = ninst->tile_dims[OUT_H];
-    const unsigned int N = ninst->tile_dims[OUT_W];
-    const unsigned int K = layer->params[MAT_K];
-    const unsigned int ldk = pk_ldata->out_mat_stride;
-    const unsigned int lda = K;
-    const unsigned int ldb = p_ldata->out_mat_stride;
-    const unsigned int ldc = ldata->out_mat_stride;
+    unsigned int num_hidden = layer->params[NUM_HIDDEN];
+    unsigned int num_heads = layer->params[NUM_HEAD];
+    unsigned int hidden_per_head = num_hidden / num_heads;
+    unsigned int num_seq = ldata->nasm->tr_seq_len;
+    unsigned int batch = ninst->out_mat_pos[OUT_W] / (num_seq * num_heads);
+    unsigned int head = (ninst->out_mat_pos[OUT_W] % (num_seq * num_heads)) / num_seq;
+    unsigned int M = ninst->tile_dims[OUT_H];
+    unsigned int N = ninst->tile_dims[OUT_W];
+    unsigned int K = layer->params[MAT_K];
+    unsigned int ldk = pk_ldata->out_mat_stride;
+    unsigned int lda = K;
+    unsigned int ldb = p_ldata->out_mat_stride;
+    unsigned int ldc = ldata->out_mat_stride;
     // void *A = ase->scratchpad;
-    const void *key_head = (float*)pk_ldata->out_mat + 
+    void *key_head = (float*)pk_ldata->out_mat + 
         (batch * ldk * M + head * K + ninst->out_mat_pos[OUT_H]);
-    const void *B_head = (float*)p_ldata->out_mat + (batch * ldb * num_seq + head * hidden_per_head +
+    void *B_head = (float*)p_ldata->out_mat + (batch * ldb * num_seq + head * hidden_per_head +
         + (ninst->out_mat_pos[OUT_W] % num_seq) * ldb);
     void *C_head = ninst->out_mat;
     
@@ -416,22 +416,22 @@ void add_cudagraph_node_v_attention (cudaGraph_t cuda_graph, ninst_t *ninst, int
     aspen_layer_t *layer = ninst->ldata->layer;
     nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
     nasm_ldata_t *pv_ldata = (ldata->parent_ldata_idx_arr[PARENT_1] + ldata->nasm->ldata_arr);
-    const unsigned int num_hidden = layer->params[NUM_HIDDEN];
-    const unsigned int num_heads = layer->params[NUM_HEAD];
-    const unsigned int hidden_per_head = num_hidden / num_heads;
-    const unsigned int num_seq = ldata->nasm->tr_seq_len;
+    unsigned int num_hidden = layer->params[NUM_HIDDEN];
+    unsigned int num_heads = layer->params[NUM_HEAD];
+    unsigned int hidden_per_head = num_hidden / num_heads;
+    unsigned int num_seq = ldata->nasm->tr_seq_len;
     unsigned int batch = ninst->out_mat_pos[OUT_W] / num_seq;
-    const unsigned int head = ninst->out_mat_pos[OUT_H]  / hidden_per_head;
-    const unsigned int M = ninst->tile_dims[OUT_H];
-    const unsigned int N = ninst->tile_dims[OUT_W];
-    const unsigned int K = num_seq;
-    const unsigned int ldv = pv_ldata->out_mat_stride;
-    const unsigned int lda = K;
-    const unsigned int ldb = p_ldata->out_mat_stride;
-    const unsigned int ldc = ldata->out_mat_stride;
+    unsigned int head = ninst->out_mat_pos[OUT_H]  / hidden_per_head;
+    unsigned int M = ninst->tile_dims[OUT_H];
+    unsigned int N = ninst->tile_dims[OUT_W];
+    unsigned int K = num_seq;
+    unsigned int ldv = pv_ldata->out_mat_stride;
+    unsigned int lda = K;
+    unsigned int ldb = p_ldata->out_mat_stride;
+    unsigned int ldc = ldata->out_mat_stride;
     // void *A = ase->scratchpad;
-    const float *val_head = (float*)pv_ldata->out_mat + batch * ldv * num_seq + ninst->out_mat_pos[OUT_H];
-    const void *B_head = (float*)p_ldata->out_mat + (batch * num_heads * num_seq + head * num_seq +
+    float *val_head = (float*)pv_ldata->out_mat + batch * ldv * num_seq + ninst->out_mat_pos[OUT_H];
+    void *B_head = (float*)p_ldata->out_mat + (batch * num_heads * num_seq + head * num_seq +
         + (ninst->out_mat_pos[OUT_W] % num_seq)) * ldb;
     void *C_head = ninst->out_mat; 
 

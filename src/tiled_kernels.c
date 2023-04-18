@@ -557,7 +557,8 @@ void tiled_residual (ninst_t *ninst, ase_t *ase)
         unsigned int w_pos = ninst->out_mat_pos[OUT_W];
         float *input_0 = (float*)p0_ldata->out_mat + w_pos * p0_ldata->out_mat_stride + ninst->out_mat_pos[OUT_H];
         float *input_1 = (float*)p1_ldata->out_mat + w_pos * p1_ldata->out_mat_stride + ninst->out_mat_pos[OUT_H];
-        cuda_tiled_residual (input_0, input_1, C, N, M, ldc, aspen_CUDA_streams[ase->gpu_idx][ase->thread_id%GPU_RUN_STREAM_NUM]);
+        cuda_tiled_residual (input_0, input_1, C, N, M, ldc, layer->activation,
+            aspen_CUDA_streams[ase->gpu_idx][ase->thread_id%GPU_RUN_STREAM_NUM]);
         aspen_sync_gpu_stream (ase->gpu_idx, ase->thread_id%GPU_RUN_STREAM_NUM);
         #endif
     }

@@ -1126,11 +1126,31 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
             }
             else if (layer->type == MAXPOOL_LAYER)
             {
-
+                cuda_maxpool (
+                    layer->params[OUT_C], 
+                    layer->params[BATCH]*layer->params[OUT_H]*layer->params[OUT_W], 
+                    layer->tensors[COL_IDX_TENSOR]->data_gpu[gpu_idx], 
+                    layer->params[WEIGHT_H]*layer->params[WEIGHT_H], 
+                    input,  
+                    layer->params[IN_C], 
+                    output, 
+                    layer->params[OUT_C], 
+                    layer->activation,
+                    aspen_CUDA_streams[gpu_idx][GPU_NAIVE_RUN_STREAM]);
             }
             else if (layer->type == AVGPOOL_LAYER)
             {
-
+                cuda_avgpool (
+                    layer->params[OUT_C], 
+                    layer->params[BATCH]*layer->params[OUT_H]*layer->params[OUT_W], 
+                    layer->tensors[COL_IDX_TENSOR]->data_gpu[gpu_idx], 
+                    layer->params[WEIGHT_H]*layer->params[WEIGHT_H], 
+                    input,  
+                    layer->params[IN_C], 
+                    output, 
+                    layer->params[OUT_C], 
+                    layer->activation,
+                    aspen_CUDA_streams[gpu_idx][GPU_NAIVE_RUN_STREAM]);
             }
             else if (layer->type == SOFTMAX_LAYER)
             {
@@ -1141,7 +1161,8 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
             }
             else if (layer->type == RESIDUAL_LAYER)
             {
-                cuda_residual (input, input2, output, layer->tensors[OUTPUT_TENSOR]->num_elements, aspen_CUDA_streams[gpu_idx][GPU_NAIVE_RUN_STREAM]);
+                cuda_residual (input, input2, output, layer->tensors[OUTPUT_TENSOR]->num_elements, 
+                layer->activation, aspen_CUDA_streams[gpu_idx][GPU_NAIVE_RUN_STREAM]);
             }
             else if (layer->type == MATMUL_LAYER)
             {
@@ -1179,7 +1200,7 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
             }
             // PRT ("apu_run_naive: Layer %d done.\n", i);
             #endif
-            aspen_sync_gpu_stream (gpu_idx, GPU_NAIVE_RUN_STREAM);
         }
+        aspen_sync_gpu_stream (gpu_idx, GPU_NAIVE_RUN_STREAM);
     }
 }

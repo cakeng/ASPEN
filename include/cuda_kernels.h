@@ -22,7 +22,11 @@ __global__ void cuda_conv2d_kernel(
     const unsigned int *col_idx_arr, const unsigned int col_per_n, const unsigned int K_col, const unsigned int ldcol,
     const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
     const float *Bias, LAYER_ACT activation_type);
-
+__global__ void cuda_maxpool_kernel(
+    const unsigned int M, const unsigned int N, 
+    const unsigned int *col_idx_arr, const unsigned int col_per_n,
+    const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
+    LAYER_ACT activation_type);
 __global__ void cuda_matmul_kernel(const unsigned int M, const unsigned int N, const unsigned int K,
     const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
     const float *Bias, LAYER_ACT activation_type);
@@ -39,7 +43,7 @@ __global__ void cuda_v_attention_kernel(const unsigned int num_heads, const unsi
     const unsigned int M, const unsigned int N, const unsigned int K,
     const float *value, const unsigned int ldv, const float *B, const unsigned int ldb, float *C, const unsigned int ldc);
 
-__global__ void cuda_residual_kernel (const unsigned int num_elements, const float *A, const float *B, float *C);
+__global__ void cuda_residual_kernel (const unsigned int num_elements, const float *A, const float *B, float *C, LAYER_ACT activation_type);
 
 __global__ void cuda_layernorm_kernel(const float *input, const float *weight, const float *bias, 
     float *output, unsigned int N, unsigned int M, unsigned int ldb, unsigned int ldc);
@@ -55,7 +59,7 @@ __global__ void cuda_tiled_k_prob_kernel(
 __global__ void cuda_tiled_v_attention_kernel(const unsigned int M, const unsigned int N, const unsigned int K,
     const float *val_head, const unsigned int ldv, const float *B_head, const unsigned int ldb, float *C_head, const unsigned int ldc);
 
-__global__ void cuda_tiled_residual_kernel (const float *input_1, const float *input_2, float *output, unsigned int N, unsigned int M, const unsigned int ldc);
+__global__ void cuda_tiled_residual_kernel (const float *input_1, const float *input_2, float *output, unsigned int N, unsigned int M, const unsigned int ldc, LAYER_ACT activation_type);
 
 __global__ void cuda_tiled_layernorm_kernel(const float *input, const float *kernel, const float *bias, 
     float *output, unsigned int N, unsigned int M);
@@ -64,7 +68,11 @@ void cuda_conv2d (const unsigned int M, const unsigned int N,
     const unsigned int *col_idx_arr, const unsigned int col_per_n, const unsigned int K_col,
     const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
     const float *Bias, LAYER_ACT activation_type, cudaStream_t stream);
-
+void cuda_maxpool(
+    const unsigned int M, const unsigned int N, 
+    const unsigned int *col_idx_arr, const unsigned int col_per_n,
+    const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
+    LAYER_ACT activation_type, cudaStream_t stream);
 void cuda_tiled_k_attention (
     const unsigned int M, const unsigned int N, const unsigned int K,
     const float *key_head, const unsigned int ldk, const float *B_head, const unsigned int ldb, float *C_head, const unsigned int ldc,
@@ -76,7 +84,7 @@ void cuda_tiled_v_attention (
     , cudaStream_t stream);
 
 void cuda_tiled_residual (const float *input_1, const float *input_2, float *output, unsigned int N, unsigned int M, const unsigned int ldc
-    , cudaStream_t stream);
+    , LAYER_ACT activation_type, cudaStream_t stream);
 
 void cuda_matmul (const unsigned int M, const unsigned int N, const unsigned int K,
 		 const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
@@ -92,7 +100,7 @@ void cuda_v_attention (const float *input_1, const float *input_2, float *output
     , unsigned int num_heads, unsigned int num_hidden, unsigned int num_seq, cudaStream_t stream);
 
 void cuda_residual (const float *input_1, const float *input_2, float *output, unsigned int num_elements
-    , cudaStream_t stream);
+    , LAYER_ACT activation_type, cudaStream_t stream);
 
 #endif
 
