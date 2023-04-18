@@ -12,6 +12,8 @@ __global__ void cuda_tiled_k_matmul_kernel(
     const int nLocal = threadIdx.y*_THREAD_N_SIZE; 
     const int mGroup = blockIdx.x*_BLOCK_M_SIZE;
     const int nGroup = blockIdx.y*_BLOCK_N_SIZE;
+    if (mLocal + mGroup >= M || nLocal + nGroup >= N)
+        return;
     const int id = threadIdx.x*(_BLOCK_N_SIZE / _THREAD_N_SIZE) + threadIdx.y;
     __shared__ float ACache [_BLOCK_K_SIZE*_BLOCK_M_SIZE];
     __shared__ float BCache [_BLOCK_K_SIZE*_BLOCK_N_SIZE];
@@ -135,6 +137,8 @@ __global__ void cuda_tiled_v_attention_kernel(const unsigned int M, const unsign
     const int nLocal = threadIdx.y*_THREAD_N_SIZE; 
     const int mGroup = blockIdx.x*_BLOCK_M_SIZE;
     const int nGroup = blockIdx.y*_BLOCK_N_SIZE;
+    if (mLocal + mGroup >= M || nLocal + nGroup >= N)
+        return;
     const int id = threadIdx.x*(_BLOCK_N_SIZE / _THREAD_N_SIZE) + threadIdx.y;
     __shared__ float ACache [_BLOCK_K_SIZE*_BLOCK_M_SIZE];
     __shared__ float BCache [_BLOCK_K_SIZE*_BLOCK_N_SIZE];

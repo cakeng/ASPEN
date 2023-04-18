@@ -541,7 +541,8 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
             if (ninst->input_pos_idx_arr != NULL && rpool->gpu_idx >= 0)
             {
                 ninst->input_pos_idx_arr_gpu = 
-                    aspen_gpu_calloc (ninst->num_input_pos, sizeof (int), rpool->gpu_idx);
+                    aspen_gpu_calloc (ninst->num_input_pos 
+                        + ninst->num_input_pos/ninst->tile_dims[OUT_W]*_TILE_SIZE_M, sizeof (int), rpool->gpu_idx);
                 aspen_host_to_gpu_memcpy 
                     (ninst->input_pos_idx_arr_gpu, ninst->input_pos_idx_arr, 
                         ninst->num_input_pos * sizeof (int), rpool->gpu_idx);

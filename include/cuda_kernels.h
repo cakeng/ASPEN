@@ -7,10 +7,10 @@
 #define _BLOCK_RESIDUAL_SIZE 128
 #define _BLOCK_TILED_RESIDUAL_SIZE 16
 #define _BLOCK_LAYERNORM_SIZE 128
-#define _BLOCK_K_SIZE 32
+#define _BLOCK_K_SIZE 4
 #define _BLOCK_M_SIZE 64
-#define _BLOCK_N_SIZE 64
-#define _THREAD_M_SIZE 8 // MUST be same to _VEC_SIZE_M
+#define _BLOCK_N_SIZE 32
+#define _THREAD_M_SIZE 4 // MUST be same to _VEC_SIZE_M
 #define _THREAD_N_SIZE 4
 #define _THREAD_NUM ((_BLOCK_M_SIZE / _THREAD_M_SIZE) * (_BLOCK_N_SIZE / _THREAD_N_SIZE)) // 128
 #define _CACHE_A_K_PER_LOAD (_THREAD_NUM / _BLOCK_M_SIZE) // 2
@@ -19,14 +19,22 @@
 #ifdef GPU
 __global__ void cuda_conv2d_kernel(
     const unsigned int M, const unsigned int N, 
-    const unsigned int *col_idx_arr, const unsigned int col_per_n, const unsigned int K_col, const unsigned int ldcol,
+    const int *col_idx_arr, const unsigned int col_per_n, const unsigned int K_col, const unsigned int ldcol,
     const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
     const float *Bias, LAYER_ACT activation_type);
+
 __global__ void cuda_maxpool_kernel(
     const unsigned int M, const unsigned int N, 
-    const unsigned int *col_idx_arr, const unsigned int col_per_n,
+    const int *col_idx_arr, const unsigned int col_per_n,
     const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
     LAYER_ACT activation_type);
+
+__global__ void cuda_avgpool_kernel(
+    const unsigned int M, const unsigned int N, 
+    const int *col_idx_arr, const unsigned int col_per_n,
+    const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
+    LAYER_ACT activation_type);
+
 __global__ void cuda_matmul_kernel(const unsigned int M, const unsigned int N, const unsigned int K,
     const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
     const float *Bias, LAYER_ACT activation_type);
@@ -65,14 +73,22 @@ __global__ void cuda_tiled_layernorm_kernel(const float *input, const float *ker
     float *output, unsigned int N, unsigned int M);
 
 void cuda_conv2d (const unsigned int M, const unsigned int N, 
-    const unsigned int *col_idx_arr, const unsigned int col_per_n, const unsigned int K_col,
+    const int *col_idx_arr, const unsigned int col_per_n, const unsigned int K_col,
     const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
     const float *Bias, LAYER_ACT activation_type, cudaStream_t stream);
+
 void cuda_maxpool(
     const unsigned int M, const unsigned int N, 
-    const unsigned int *col_idx_arr, const unsigned int col_per_n,
+    const int *col_idx_arr, const unsigned int col_per_n,
     const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
     LAYER_ACT activation_type, cudaStream_t stream);
+
+void cuda_avgpool(
+    const unsigned int M, const unsigned int N, 
+    const int *col_idx_arr, const unsigned int col_per_n,
+    const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
+    LAYER_ACT activation_type, cudaStream_t stream);
+
 void cuda_tiled_k_attention (
     const unsigned int M, const unsigned int N, const unsigned int K,
     const float *key_head, const unsigned int ldk, const float *B_head, const unsigned int ldb, float *C_head, const unsigned int ldc,

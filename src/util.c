@@ -130,6 +130,30 @@ void *aspen_gpu_calloc (size_t num, size_t size, int gpu_idx)
     #endif
     return ptr;
 }
+void *aspen_gpu_malloc_minus_one (size_t num, size_t size, int gpu_idx)
+{
+    if (num*size <= 0)
+        return NULL;
+    void* ptr = NULL;
+    #ifdef GPU
+    if (check_CUDA(cudaSetDevice(gpu_idx)) != cudaSuccess)
+    {
+        FPRT (stderr, "Error: Failed to set GPU device.\n");
+        assert (0);
+    }
+    if (check_CUDA(cudaMalloc(&ptr, get_smallest_dividable (num * size, MEM_ALIGN) )) != cudaSuccess)
+    {
+        FPRT (stderr, "Error: Failed to allocate GPU memory.\n");
+        assert (0);
+    }
+    if (check_CUDA(cudaMemset(ptr, 0xff, get_smallest_dividable (num * size, MEM_ALIGN) )) != cudaSuccess)
+    {
+        FPRT (stderr, "Error: Failed to set GPU memory to zero.\n");
+        assert (0);
+    }
+    #endif
+    return ptr;
+}
 void *aspen_gpu_malloc (size_t num, size_t size, int gpu_idx)
 {
     if (num*size <= 0)
@@ -177,7 +201,7 @@ void aspen_host_to_gpu_memcpy (void *dst, void *src, size_t num, int gpu_idx)
     }
     if (check_CUDA(cudaMemcpy(dst, src, num, cudaMemcpyHostToDevice)) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to copy Host to GPU memory.\n");
+        FPRT (stderr, "Error: Failed to copy Host memory to GPU.\n");
         assert (0);
     }
     #endif
@@ -192,7 +216,7 @@ void aspen_gpu_to_host_memcpy (void *dst, void *src, size_t num, int gpu_idx)
     }
     if (check_CUDA(cudaMemcpy(dst, src, num, cudaMemcpyDeviceToHost)) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to copy GPU to Host memory.\n");
+        FPRT (stderr, "Error: Failed to copy GPU memory to Host.\n");
         assert (0);
     }
     #endif

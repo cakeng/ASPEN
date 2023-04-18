@@ -10,6 +10,7 @@ void *aspen_malloc (size_t num, size_t size);
 void aspen_free (void *ptr);
 void *aspen_gpu_calloc (size_t num, size_t size, int gpu_idx);
 void *aspen_gpu_malloc (size_t num, size_t size, int gpu_idx);
+void *aspen_gpu_malloc_minus_one (size_t num, size_t size, int gpu_idx);
 
 void aspen_host_to_gpu_memcpy (void *dst, void *src, size_t num, int gpu_idx);
 void aspen_gpu_to_host_memcpy (void *dst, void *src, size_t num, int gpu_idx);

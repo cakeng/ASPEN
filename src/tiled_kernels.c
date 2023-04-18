@@ -120,7 +120,7 @@ void tiled_conv2d (ninst_t *ninst, ase_t *ase)
     const unsigned int lda = K;
     unsigned int ldb = K;
     const unsigned int ldc = ldata->out_mat_stride;
-    const void *A = (char*)layer->tensors[WEIGHT_TENSOR]->data + ninst->out_mat_pos[OUT_H] * lda * layer->dnn->element_size;
+    const void *A = (float*)layer->tensors[WEIGHT_TENSOR]->data + ninst->out_mat_pos[OUT_H] * lda;
     void *B = ase->scratchpad;
     void *C = ninst->out_mat;
     const unsigned int rem_n = N % _TILE_SIZE_N;
@@ -276,7 +276,12 @@ void tiled_conv2d (ninst_t *ninst, ase_t *ase)
     else
     {
         #ifdef GPU
-
+        A = (float*)layer->tensors[WEIGHT_TENSOR]->data_gpu[ase->gpu_idx] + ninst->out_mat_pos[OUT_H] * lda;
+        cuda_conv2d (M, N, ninst->input_pos_idx_arr_gpu, input_pos_per_n, layer->params[IN_C],
+            A, lda, p_ldata->out_mat, p_ldata->out_mat_stride, C, ldc, 
+            layer->tensors[BIAS_TENSOR]->data_gpu[ase->gpu_idx], layer->activation,
+            aspen_CUDA_streams[ase->gpu_idx][ase->thread_id%GPU_RUN_STREAM_NUM]);
+        aspen_sync_gpu_stream (ase->gpu_idx, ase->thread_id%GPU_RUN_STREAM_NUM);
         #endif
     }
     #endif
