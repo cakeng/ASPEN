@@ -112,7 +112,7 @@ void tiled_conv2d (ninst_t *ninst, ase_t *ase)
     // void *scratchpad = prepare_input (ninst, ase->scratchpad);
     unsigned int input_col_size = p_ldata->out_mat_dims[OUT_H];
     // void **input_ptr_arr = ase->scratchpad;   
-    char *input = ase->scratchpad; // (char *) scratchpad;
+    // char *input = ase->scratchpad; // (char *) scratchpad;
     const unsigned int input_pos_per_n = ninst->num_input_pos/ninst->tile_dims[OUT_W];
     const unsigned int M = ninst->tile_dims[OUT_H];
     const unsigned int N = ninst->tile_dims[OUT_W];

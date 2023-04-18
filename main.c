@@ -38,13 +38,13 @@ int main(void)
     //     , resnet50_nasm->batch_size, resnet50_nasm->min_ninst_per_ldata,
     //     (double)resnet50_nasm->flop_per_ninst);
     // apu_save_nasm_to_file (resnet50_nasm, nasm_file_name);
-    int gpu = -1;
+    int gpu = 0;
     aspen_dnn_t *resnet50_dnn = apu_load_dnn_from_file ("data/resnet50_base.aspen");
     nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_B1_M100_1.0e+07.nasm", resnet50_dnn);
     // // // nasm_t *resnet50_4_nasm = apu_load_nasm_from_file ("data/resnet50_4.nasm", &resnet50_dnn);
     // 
-    rpool_t *rpool = rpool_init (gpu);
-    ase_group_t *ase_group = ase_group_init (64, gpu);
+    rpool_t *rpool = rpool_init (-1);
+    ase_group_t *ase_group = ase_group_init (64, -1);
     ase_group_set_rpool (ase_group, rpool);
 
     // // rpool_add_nasm_raw_input (rpool, resnet50_4_nasm, 0.5, dog_data);
@@ -78,10 +78,10 @@ int main(void)
     get_elapsed_time ("init_naive");
     aspen_run_naive (resnet50_dnn, input_params, dog_data, gpu);
     get_elapsed_time ("run_naive");
-    print_dnn_info(resnet50_dnn, 0);
+    // print_dnn_info(resnet50_dnn, 0);
 
     
-    for (int i = 0; i < 73; i++)
+    for (int i = 0; i < 2; i++)
     {
         printf ("\tLayer %d - Type %s\n", i, layer_type_str[resnet50_dnn->layers[i].type]);
         aspen_layer_t *layer = &resnet50_dnn->layers[i];

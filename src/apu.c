@@ -624,6 +624,63 @@ void create_layer_output_tensor (aspen_layer_t *layer, int gpu_idx)
     #endif
 }
 
+void layer_find_input_pos_idx (aspen_layer_t *layer)
+{
+    aspen_layer_t *p_layer = layer->parent_layers[PARENT_0];
+    if (layer->type == CONV_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER)
+    {
+        int *input_idx_arr = layer->tensors [COL_IDX_TENSOR]->data;
+        unsigned int num_idx = 0;
+
+        for (int out_b = 0; out_b < layer->params[BATCH]; out_b++)
+        {
+            unsigned int in_b = out_b;
+            for (int out_h = 0; out_h < layer->params[OUT_H]; out_h++)
+            {
+                for (int out_w = 0; out_w < layer->params[OUT_W]; out_w++)
+                {
+                    for (int kh = 0; kh < layer->params[WEIGHT_H]; kh++)
+                    {
+                        for (int kw = 0; kw < layer->params[WEIGHT_W]; kw++)
+                        {
+                            int in_h = out_h * layer->params[STRIDE] + kh  - layer->params[PADDING];
+                            int in_w = out_w * layer->params[STRIDE] + kw  - layer->params[PADDING];
+                            if (in_h < 0 || in_h >= p_layer->params[OUT_H] || in_w < 0 || in_w >= p_layer->params[OUT_W])
+                            {
+                                input_idx_arr[num_idx++] = -1;
+                                continue;
+                            }
+                            int in_idx = in_b * p_layer->params[OUT_H] * p_layer->params[OUT_W] 
+                                + in_h * p_layer->params[OUT_W] + in_w;
+                            input_idx_arr[num_idx++] = in_idx;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Change to add a new layer type
+void create_layer_col_idx_tensor (aspen_layer_t *layer, int gpu_idx)
+{
+    if (layer->type == CONV_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER)
+    {
+        LAYER_PARAMS dim_order[] = {BATCH, OUT_H, OUT_W, WEIGHT_H, WEIGHT_W};
+        layer->tensors [COL_IDX_TENSOR] = init_aspen_tensor (layer->params, dim_order, 5, sizeof(int));
+        calloc_aspen_tensor (layer->tensors [COL_IDX_TENSOR]);
+        if (gpu_idx >= 0)
+            calloc_aspen_gpu_tensors (layer->tensors [COL_IDX_TENSOR]);
+        layer_find_input_pos_idx (layer);
+        copy_aspen_tensor_to_gpu (layer->tensors [COL_IDX_TENSOR], gpu_idx);
+    }
+    #ifdef DEBUG
+    // fill_tensor_with_nums (layer->tensors[OUTPUT_TENSOR]);
+    fill_tensor_with_fixed_nums (layer->tensors[OUTPUT_TENSOR], 0);
+    #endif
+}
+
+
 void sync_dnn_data_to_gpu_layer (aspen_layer_t *layer)
 {
     if (layer == NULL)
@@ -931,6 +988,7 @@ void aspen_init_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input
             layer->params[MAT_K] = (input_params[NUM_HIDDEN] / layer->params[NUM_HEAD]);
         }
         create_layer_output_tensor (layer, gpu_idx);
+        create_layer_col_idx_tensor (layer, gpu_idx);
     }
     // print_dnn_info (dnn, 0);
     memcpy (dnn->layers[0].tensors[OUTPUT_TENSOR]->data, input_data, 
@@ -1049,8 +1107,22 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
             }
             float *output = (float*)layer->tensors[OUTPUT_TENSOR]->data_gpu[gpu_idx];
             if (layer->type == CONV_LAYER)
-            {
-
+            {   
+                cuda_conv2d (
+                    layer->params[OUT_C],
+                    layer->params[BATCH]*layer->params[OUT_H]*layer->params[OUT_W], 
+                    layer->tensors[COL_IDX_TENSOR]->data_gpu[gpu_idx], 
+                    layer->params[WEIGHT_H]*layer->params[WEIGHT_H], 
+                    layer->params[IN_C],
+                    layer->tensors[WEIGHT_TENSOR]->data_gpu[gpu_idx], 
+                    layer->params[IN_C]*layer->params[WEIGHT_H]*layer->params[WEIGHT_W],
+                    input,  
+                    layer->params[IN_C], 
+                    output, 
+                    layer->params[OUT_C], 
+                    layer->tensors[BIAS_TENSOR]->data_gpu[gpu_idx], 
+                    layer->activation, 
+                    aspen_CUDA_streams[gpu_idx][GPU_NAIVE_RUN_STREAM]);
             }
             else if (layer->type == MAXPOOL_LAYER)
             {

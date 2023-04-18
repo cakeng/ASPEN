@@ -535,6 +535,18 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
             nasm_ldata_t *ldata = &nasm->ldata_arr[i];
             set_ldata_out_mat_mem_pos (ldata);
         }
+        for (int i = 0; i < nasm->num_ninst; i++)
+        {
+            ninst_t *ninst = &nasm->ninst_arr[i];
+            if (ninst->input_pos_idx_arr != NULL && rpool->gpu_idx >= 0)
+            {
+                ninst->input_pos_idx_arr_gpu = 
+                    aspen_gpu_calloc (ninst->num_input_pos, sizeof (int), rpool->gpu_idx);
+                aspen_host_to_gpu_memcpy 
+                    (ninst->input_pos_idx_arr_gpu, ninst->input_pos_idx_arr, 
+                        ninst->num_input_pos * sizeof (int), rpool->gpu_idx);
+            }
+        }
     }
     generate_cudagraph (nasm);
     nasm_ldata_t *ldata = &nasm->ldata_arr[0];

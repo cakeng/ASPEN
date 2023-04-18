@@ -20,6 +20,7 @@ aspen_dnn_t *init_aspen_dnn (unsigned int num_layers, char* name);
 void init_aspen_layer (aspen_layer_t *layer, unsigned int layer_num, aspen_dnn_t *dnn);
 void create_layer_tensors (aspen_layer_t *layer);
 void create_layer_output_tensor (aspen_layer_t *layer, int gpu_idx);
+void create_layer_col_idx_tensor (aspen_layer_t *layer, int gpu_idx);
 void destroy_aspen_layers (aspen_layer_t* layers, unsigned int num_layers);
 
 aspen_tensor_t *init_aspen_tensor (unsigned int *params_arr, LAYER_PARAMS *order, int num_dims, unsigned int element_size);
