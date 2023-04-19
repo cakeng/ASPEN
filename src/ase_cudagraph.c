@@ -246,10 +246,10 @@ void add_cudagraph_node_residual (cudaGraph_t cuda_graph, ninst_t *ninst, int gp
             num_parent_node++;
         }
     }
-    // if (check_CUDA(cudaGraphAddKernelNode(&ninst->cudagraph_node, cuda_graph, 
-    //     parent_node_arr, num_parent_node, &params)) != 0)
-    //     FPRT (stderr, "Error in adding kernel node for matmul. Layer %d (%s), Ninst idx: %d.\n", 
-    //         layer->layer_idx, layer_type_str[layer->type], ninst->ninst_idx);
+    if (check_CUDA(cudaGraphAddKernelNode(&ninst->cudagraph_node, cuda_graph, 
+        parent_node_arr, num_parent_node, &params)) != 0)
+        FPRT (stderr, "Error in adding kernel node for matmul. Layer %d (%s), Ninst idx: %d.\n", 
+            layer->layer_idx, layer_type_str[layer->type], ninst->ninst_idx);
     if (parent_node_arr != NULL)
         free (parent_node_arr);
 }

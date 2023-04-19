@@ -1023,7 +1023,7 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
             float *output = (float*)layer->tensors[OUTPUT_TENSOR]->data;
             if (layer->type == CONV_LAYER)
             {
-                naive_conv2d_im2col_mm (input, layer->tensors[WEIGHT_TENSOR]->data, layer->tensors[BIAS_TENSOR]->data, output,
+                naive_conv2d (input, layer->tensors[WEIGHT_TENSOR]->data, layer->tensors[BIAS_TENSOR]->data, output,
                     layer->params[BATCH], layer->params[IN_C], layer->params[IN_H], layer->params[IN_W],
                     layer->params[OUT_C], layer->params[WEIGHT_H], layer->params[WEIGHT_W],
                     layer->params[STRIDE], layer->params[PADDING]);
