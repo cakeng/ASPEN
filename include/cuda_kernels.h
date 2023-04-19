@@ -8,9 +8,9 @@
 #define _BLOCK_TILED_RESIDUAL_SIZE 16
 #define _BLOCK_LAYERNORM_SIZE 128
 #define _A_MIN_DIM 8
-#define _BLOCK_K_SIZE 8
+#define _BLOCK_K_SIZE 4
 #define _BLOCK_M_SIZE 64
-#define _BLOCK_N_SIZE 64
+#define _BLOCK_N_SIZE 32
 #define _THREAD_M_SIZE 4 // MUST be same to _VEC_SIZE_M
 #define _THREAD_N_SIZE 4
 #define _THREAD_NUM ((_BLOCK_M_SIZE / _THREAD_M_SIZE) * (_BLOCK_N_SIZE / _THREAD_N_SIZE)) // 128
