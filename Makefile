@@ -29,7 +29,7 @@ endif
 CFLAGS= -Wall -fopenmp
 ARFLAGS=rcs
 ifeq ($(GPU), 1)
-OBJECTS+=naive_cuda_kernels.o tiled_cuda_kernels.o graph_cuda_kernels.o
+OBJECTS+=naive_cuda_kernels.o tiled_cuda_kernels.o
 LDFLAGS+=-L/usr/local/cuda/lib64 -lcudart -lcuda -lcublas
 COMMON+=-I/usr/local/cuda/include/
 ARCH= 	-gencode arch=compute_80,code=[sm_80,compute_80] \

@@ -707,14 +707,14 @@ void cuda_conv2d (const unsigned int M, const unsigned int N,
     const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
     const float *Bias, LAYER_ACT activation_type, cudaStream_t stream)
 {
-    int p1 = (_BLOCK_K_SIZE*_BLOCK_M_SIZE)%_THREAD_NUM;
-    int p2 = (_BLOCK_K_SIZE*_BLOCK_N_SIZE)%_THREAD_NUM;
-    if (!(p1 == 0 && p2 == 0))
-    {
-        printf ("ERROR! - Wrong parameter settings - (_BLOCK_K_SIZE*_BLOCK_M_SIZE)%_THREAD_NUM) = %d, ((_BLOCK_K_SIZE*_BLOCK_N_SIZE)%_THREAD_NUM) = %d\n",
-        p1, p2); 
-        exit(0);
-    }
+    // int p1 = (_BLOCK_K_SIZE*_BLOCK_M_SIZE)%_THREAD_NUM;
+    // int p2 = (_BLOCK_K_SIZE*_BLOCK_N_SIZE)%_THREAD_NUM;
+    // if (!(p1 == 0 && p2 == 0))
+    // {
+    //     printf ("ERROR! - Wrong parameter settings - (_BLOCK_K_SIZE*_BLOCK_M_SIZE)%_THREAD_NUM) = %d, ((_BLOCK_K_SIZE*_BLOCK_N_SIZE)%_THREAD_NUM) = %d\n",
+    //     p1, p2); 
+    //     exit(0);
+    // }
 
         dim3 gridDim (M/_BLOCK_M_SIZE + ((M%_BLOCK_M_SIZE) > 0), N/_BLOCK_N_SIZE + ((N%_BLOCK_N_SIZE) > 0), 1);
         dim3 blockDim ((_BLOCK_M_SIZE / _THREAD_M_SIZE), (_BLOCK_N_SIZE / _THREAD_N_SIZE), 1);
