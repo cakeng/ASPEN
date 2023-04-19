@@ -32,20 +32,20 @@ void *ase_thread_runtime (void* thread_info)
             // #endif
         }
         // else if (ase->ninst_cache->num_stored > ASE_NINST_CACHE_BALLANCE + ASE_NINST_CACHE_DIFF)
-        if (ase->ninst_cache->num_stored > 0)
-        {
-            // unsigned int push_num = 
-            //     pop_ninsts_from_queue_back (ase->ninst_cache, ase->scratchpad, ase->ninst_cache->num_stored - ASE_NINST_CACHE_BALLANCE);
-            rpool_push_ninsts (ase->rpool, ase->ninst_cache->ninst_ptr_arr, ase->ninst_cache->num_stored);
-            ase->ninst_cache->num_stored = 0;
-            ase->ninst_cache->idx_end = 0;
-            // PRT ("Thread %d pushed %d ninsts to rpool\n", ase->thread_id, push_num);
-            // #ifdef DEBUG
-            // PRT ("Thread %d pushed %d ninsts to rpool\n", ase->thread_id, push_num);
-            // print_rpool_info (ase->rpool);
-            // print_rpool_queue_info (ase->ninst_cache);
-            // #endif
-        }
+        // if (ase->ninst_cache->num_stored > 0)
+        // {
+        //     // unsigned int push_num = 
+        //     //     pop_ninsts_from_queue_back (ase->ninst_cache, ase->scratchpad, ase->ninst_cache->num_stored - ASE_NINST_CACHE_BALLANCE);
+        //     rpool_push_ninsts (ase->rpool, ase->ninst_cache->ninst_ptr_arr, ase->ninst_cache->num_stored);
+        //     ase->ninst_cache->num_stored = 0;
+        //     ase->ninst_cache->idx_end = 0;
+        //     // PRT ("Thread %d pushed %d ninsts to rpool\n", ase->thread_id, push_num);
+        //     // #ifdef DEBUG
+        //     // PRT ("Thread %d pushed %d ninsts to rpool\n", ase->thread_id, push_num);
+        //     // print_rpool_info (ase->rpool);
+        //     // print_rpool_queue_info (ase->ninst_cache);
+        //     // #endif
+        // }
 
         // unsigned int num_ninsts = ase->ninst_cache->num_stored;
         // for (int i = 0; i < num_ninsts; i++)
@@ -138,7 +138,7 @@ void *ase_thread_runtime (void* thread_info)
                 }
             }
             // update_children_to_cache (ase->ninst_cache, ninst);
-            update_children_to_cache_but_prioritize_ase_target (ase->ninst_cache, ninst, &ase->target);
+            update_children_but_prioritize_ase_target (ase->rpool, ninst, ase);
         // }
     }
     return NULL;
@@ -441,6 +441,49 @@ void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst)
             push_ninsts_to_queue (cache, &child_ninst, 1);
         }
     }
+}
+
+void update_children_but_prioritize_ase_target (rpool_t *rpool, ninst_t *ninst, ase_t *ase)
+{
+    #ifdef DEBUG
+    if (cache == NULL || ninst == NULL)
+    {
+        FPRT (stderr, "Error: Invalid arguments to ase_update_children_to_cache()\n");
+        assert (0);
+    }
+    if (ninst->state != NINST_COMPLETED)
+    {
+        FPRT (stderr, "Error: ninst->state != NINST_STATE_COMPLETED in ase_update_children_to_cache()\n");
+        assert (0);
+    }
+    #endif
+    if (ninst->state != NINST_COMPLETED)
+        return;
+    ninst_t **cache = ase->scratchpad;
+    unsigned int num_cache = 0;
+    for (int i = 0; i < ninst->num_child_ninsts; i++)
+    {
+        ninst_t *child_ninst = ninst->child_ninst_arr[i];
+        unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
+        if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
+        {
+            #ifdef DEBUG 
+            if (child_ninst->state != NINST_NOT_READY)
+            {
+                FPRT (stderr, "Error: child_ninst->state != NINST_NOT_READY in ase_update_children_to_cache()\n");
+                assert (0);
+            }
+            #endif
+            child_ninst->state = NINST_READY;
+            if (ase->target != NULL)
+            {
+                cache[num_cache++] = child_ninst;
+            }
+            else
+                ase->target = child_ninst;
+        }
+    }
+    rpool_push_ninsts (rpool, cache, num_cache);
 }
 
 void update_children_to_cache_but_prioritize_ase_target (rpool_queue_t *cache, ninst_t *ninst, ninst_t **ase_target)

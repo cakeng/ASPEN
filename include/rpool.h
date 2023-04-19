@@ -9,6 +9,7 @@
 #define INIT_QUEUE_SIZE 1024
 #define MAX_QUEUE_GROUPS 128
 #define MAX_NUM_QUEUES 1024*4
+#define NINST_PUSH_BATCH_SIZE 16
 #define NUM_QUEUE_PER_ASE ((float)1/4)
 #define NUM_QUEUE_PER_LAYER ((float)1/8)
 

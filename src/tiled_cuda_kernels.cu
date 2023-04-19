@@ -2,7 +2,160 @@ extern "C"
 {
     #include "cuda_kernels.h"
 }
+__global__ void cuda_tiled_conv2d_kernel_128x128(
+    const unsigned int M, const unsigned int N, 
+    const float **col_ptr_arr, const unsigned int col_per_n, const unsigned int K_col,
+    const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
+    const float *Bias, LAYER_ACT activation_type)
+{
+    const int mLocal = threadIdx.x*_THREAD_M_SIZE;
+    const int nLocal = threadIdx.y*_THREAD_N_SIZE; 
+    const int mGroup = blockIdx.x*(128);
+    const int nGroup = blockIdx.y*(128);
+    const int id = threadIdx.x*((128) / _THREAD_N_SIZE) + threadIdx.y;
+    __shared__ float ACache [_BLOCK_K_SIZE*(128)];
+    __shared__ float BCache [_BLOCK_K_SIZE*(128)];
+    float cout[_THREAD_N_SIZE][_THREAD_M_SIZE];
+    // float* A_ptr [(_BLOCK_K_SIZE*(128))/_THREAD_NUM];
+    // float* B_ptr [(_BLOCK_K_SIZE*(128))/_THREAD_NUM];
+    for (int vecN = 0; vecN < _THREAD_N_SIZE; vecN++)
+    {
+        for (int vecM = 0; vecM < _THREAD_M_SIZE; vecM++)
+        {
+            cout[vecN][vecM] = Bias[mGroup + mLocal + vecM];
+        }   
+    }
 
+    // for (int col = 0; col < col_per_n; col++)
+    // {
+    //     for (int vecN = 0; vecN < _THREAD_N_SIZE; vecN++)
+    //     {
+    //         for (int vecM = 0; vecM < _THREAD_M_SIZE; vecM++)
+    //         {
+    //             const int m = mGroup + mLocal + vecM;
+    //             const int n = nGroup + nLocal + vecN;
+    //             if (m < M &&  n < N)
+    //             {
+    //                 const float *B_col = col_ptr_arr[n*col_per_n + col];
+    //                 for (int k = 0; k < K_col; k++)
+    //                 {
+    //                     int A_k = col*K_col + k;
+    //                     cout[vecN][vecM] += A[((m/_A_MIN_DIM)*lda + A_k) * _A_MIN_DIM + m%_A_MIN_DIM] * B_col[k];
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+
+    for (int col = 0; col < col_per_n; col++)
+    {
+        int kIdx = 0;  
+        if (K_col%_BLOCK_K_SIZE)
+        {
+            // Load caches.
+            for (int aIdx = 0; aIdx < (_BLOCK_K_SIZE/(((128 / _THREAD_M_SIZE) * (128 / _THREAD_N_SIZE))/128)); aIdx++)
+            {
+                const int cache_idx = id*(_BLOCK_K_SIZE/(((128 / _THREAD_M_SIZE) * (128 / _THREAD_N_SIZE))/128)) + aIdx;
+                const int m = mGroup + cache_idx%(128);
+                const int k = kIdx + cache_idx/(128);
+                ACache[cache_idx] = A[((m/_A_MIN_DIM)*lda + col*K_col + k) * _A_MIN_DIM + m%_A_MIN_DIM];
+
+            }
+            for (int bIdx = 0; bIdx < (_BLOCK_K_SIZE/(((128 / _THREAD_M_SIZE) * (128 / _THREAD_N_SIZE))/128)); bIdx++)
+            {
+                const int cache_idx = id*(_BLOCK_K_SIZE/(((128 / _THREAD_M_SIZE) * (128 / _THREAD_N_SIZE))/128)) + bIdx;
+                const int n = nGroup + cache_idx%(128);
+                const int k = kIdx + cache_idx/(128);
+                const float *B_col = col_ptr_arr[n*col_per_n + col];
+                BCache[cache_idx] = B_col[k];
+                // if (col_ptr_arr[n*col_per_n + col] != -1)
+                // {
+                //     const float *B_col = B + col_ptr_arr[n*col_per_n + col] * ldb;
+                //     BCache[cache_idx] = B_col[k];
+                // }   
+                // else 
+                //     BCache[cache_idx] = 0;
+            }
+            __syncthreads();
+            // printf ("Thread %d: %3.3f\n", id, cout[0][0]);
+            for (; kIdx < K_col%_BLOCK_K_SIZE; kIdx++)
+            {
+                // Calculate.
+                for (int vecN = 0; vecN < _THREAD_N_SIZE; vecN++)
+                {
+                    for (int vecM = 0; vecM < _THREAD_M_SIZE; vecM++)
+                    {
+                        // printf ("B%dT%d: (%d, %d) %3.3f, %3.3f\n", blockIdx.x + blockIdx.y
+                        //     ,id, vecN, vecM, ACache[kk*(128) + mLocal + vecM], BCache[kk*(128) + nLocal + vecN]);
+                        cout[vecN][vecM] += ACache[kIdx*(128) + mLocal + vecM] * BCache[kIdx*(128) + nLocal + vecN];
+                    }   
+                }
+            }
+            // Sync threads.
+            __syncthreads();
+            // printf ("Thread %d: %3.3f\n", id, cout[0][0]);
+        }
+        for (; kIdx < K_col; kIdx += _BLOCK_K_SIZE)
+        {
+            // Load caches.
+            for (int aIdx = 0; aIdx < (_BLOCK_K_SIZE/(((128 / _THREAD_M_SIZE) * (128 / _THREAD_N_SIZE))/128)); aIdx++)
+            {
+                const int cache_idx = id*(_BLOCK_K_SIZE/(((128 / _THREAD_M_SIZE) * (128 / _THREAD_N_SIZE))/128)) + aIdx;
+                const int m = mGroup + cache_idx%(128);
+                const int k = kIdx + cache_idx/(128);
+                ACache[cache_idx] = A[((m/_A_MIN_DIM)*lda + col*K_col + k) * _A_MIN_DIM + m%_A_MIN_DIM];
+  
+            }
+            for (int bIdx = 0; bIdx < (_BLOCK_K_SIZE/(((128 / _THREAD_M_SIZE) * (128 / _THREAD_N_SIZE))/128)); bIdx++)
+            {
+                const int cache_idx = id*(_BLOCK_K_SIZE/(((128 / _THREAD_M_SIZE) * (128 / _THREAD_N_SIZE))/128)) + bIdx;
+                const int n = nGroup + cache_idx%(128);
+                const int k = kIdx + cache_idx/(128);
+                const float *B_col = col_ptr_arr[n*col_per_n + col];
+                BCache[cache_idx] = B_col[k];
+                // if (col_ptr_arr[n*col_per_n + col] != -1)
+                // {
+                //     const float *B_col = B + col_ptr_arr[n*col_per_n + col] * ldb;
+                //     BCache[cache_idx] = B_col[k];
+                // }   
+                // else 
+                //     BCache[cache_idx] = 0;
+            }
+            __syncthreads();
+            for (int kk = 0; kk < _BLOCK_K_SIZE; kk++)
+            {
+                // Calculate.
+                for (int vecN = 0; vecN < _THREAD_N_SIZE; vecN++)
+                {
+                    for (int vecM = 0; vecM < _THREAD_M_SIZE; vecM++)
+                    {
+                        cout[vecN][vecM] += ACache[kk*(128) + mLocal + vecM] * BCache[kk*(128) + nLocal + vecN];
+                    }   
+                }
+            }
+            // Sync threads.
+            __syncthreads();
+        }
+    }
+
+    // Save results
+    for (int vecN = 0; vecN < _THREAD_N_SIZE; vecN++)
+    {
+        for (int vecM = 0; vecM < _THREAD_M_SIZE; vecM++)
+        {
+            const int m = mGroup + mLocal + vecM;
+            const int n = nGroup + nLocal + vecN;
+            if (m < M &&  n < N)
+            {
+                if (activation_type == RELU)
+                    cout[vecN][vecM] = cout[vecN][vecM] > 0 ? cout[vecN][vecM] : 0;
+                else if (activation_type == GELU)
+                    cout[vecN][vecM] = cout[vecN][vecM] * 0.5 * (1 + erff ((cout[vecN][vecM])*0.7071067811865475f));
+                C[ldc*n + m] = cout[vecN][vecM];
+            }
+        }   
+    }
+}
 __global__ void cuda_tiled_conv2d_kernel(
     const unsigned int M, const unsigned int N, 
     const float **col_ptr_arr, const unsigned int col_per_n, const unsigned int K_col,
@@ -167,8 +320,6 @@ __global__ void cuda_tiled_maxpool_kernel(
     const int nLocal = threadIdx.y*_THREAD_N_SIZE; 
     const int mGroup = blockIdx.x*_BLOCK_M_SIZE;
     const int nGroup = blockIdx.y*_BLOCK_N_SIZE;
-    if (mLocal + mGroup >= M || nLocal + nGroup >= N)
-        return;
     float cout[_THREAD_N_SIZE][_THREAD_M_SIZE];
     
     for (int vecN = 0; vecN < _THREAD_N_SIZE; vecN++)
@@ -224,8 +375,6 @@ __global__ void cuda_tiled_avgpool_kernel(
     const int nLocal = threadIdx.y*_THREAD_N_SIZE; 
     const int mGroup = blockIdx.x*_BLOCK_M_SIZE;
     const int nGroup = blockIdx.y*_BLOCK_N_SIZE;
-    if (mLocal + mGroup >= M || nLocal + nGroup >= N)
-        return;
     float cout[_THREAD_N_SIZE][_THREAD_M_SIZE];
     
     for (int vecN = 0; vecN < _THREAD_N_SIZE; vecN++)
@@ -279,8 +428,6 @@ __global__ void cuda_tiled_k_matmul_kernel(
     const int nLocal = threadIdx.y*_THREAD_N_SIZE; 
     const int mGroup = blockIdx.x*_BLOCK_M_SIZE;
     const int nGroup = blockIdx.y*_BLOCK_N_SIZE;
-    if (mLocal + mGroup >= M || nLocal + nGroup >= N)
-        return;
     const int id = threadIdx.x*(_BLOCK_N_SIZE / _THREAD_N_SIZE) + threadIdx.y;
     __shared__ float ACache [_BLOCK_K_SIZE*_BLOCK_M_SIZE];
     __shared__ float BCache [_BLOCK_K_SIZE*_BLOCK_N_SIZE];
@@ -404,8 +551,6 @@ __global__ void cuda_tiled_v_attention_kernel(const unsigned int M, const unsign
     const int nLocal = threadIdx.y*_THREAD_N_SIZE; 
     const int mGroup = blockIdx.x*_BLOCK_M_SIZE;
     const int nGroup = blockIdx.y*_BLOCK_N_SIZE;
-    if (mLocal + mGroup >= M || nLocal + nGroup >= N)
-        return;
     const int id = threadIdx.x*(_BLOCK_N_SIZE / _THREAD_N_SIZE) + threadIdx.y;
     __shared__ float ACache [_BLOCK_K_SIZE*_BLOCK_M_SIZE];
     __shared__ float BCache [_BLOCK_K_SIZE*_BLOCK_N_SIZE];
@@ -551,11 +696,20 @@ void cuda_tiled_conv2d (const unsigned int M, const unsigned int N,
         p1, p2); 
         exit(0);
     }
-
+    if (M >= 128 && N >= 128)
+    {
+        dim3 gridDim (M/(128) + ((M%(128)) > 0), N/(128) + ((N%(128)) > 0), 1);
+        dim3 blockDim (((128) / _THREAD_M_SIZE), ((128) / _THREAD_N_SIZE), 1);
+        cuda_tiled_conv2d_kernel_128x128<<<gridDim, blockDim, 0, stream>>>(M, N, col_ptr_arr, col_per_n, K_col,
+            A, lda, B, ldb, C, ldc, Bias, activation_type);
+    }
+    else
+    {
         dim3 gridDim (M/_BLOCK_M_SIZE + ((M%_BLOCK_M_SIZE) > 0), N/_BLOCK_N_SIZE + ((N%_BLOCK_N_SIZE) > 0), 1);
         dim3 blockDim ((_BLOCK_M_SIZE / _THREAD_M_SIZE), (_BLOCK_N_SIZE / _THREAD_N_SIZE), 1);
         cuda_tiled_conv2d_kernel<<<gridDim, blockDim, 0, stream>>>(M, N, col_ptr_arr, col_per_n, K_col,
             A, lda, B, ldb, C, ldc, Bias, activation_type);
+    }
 }
 void cuda_tiled_maxpool(
     const unsigned int M, const unsigned int N, 

@@ -467,6 +467,28 @@ void check_and_update_queue_size (rpool_queue_t *rpool_queue, unsigned int num_t
         rpool_queue->max_stored *= 2;
     }
 }
+void update_queue_size (rpool_queue_t *rpool_queue, unsigned int num_to_add)
+{
+    ninst_t **new_ninst_ptr_arr = (ninst_t **) calloc 
+        (rpool_queue->max_stored*2, sizeof (ninst_t *));
+    if (rpool_queue->idx_start < rpool_queue->idx_end)
+    {
+        memcpy (new_ninst_ptr_arr, rpool_queue->ninst_ptr_arr + rpool_queue->idx_start, 
+                (rpool_queue->idx_end - rpool_queue->idx_start)*sizeof (ninst_t *));
+    }
+    else
+    {
+        memcpy (new_ninst_ptr_arr, rpool_queue->ninst_ptr_arr + rpool_queue->idx_start, 
+                (rpool_queue->max_stored - rpool_queue->idx_start)*sizeof (ninst_t *));
+        memcpy (new_ninst_ptr_arr + rpool_queue->max_stored - rpool_queue->idx_start, 
+                rpool_queue->ninst_ptr_arr, rpool_queue->idx_end*sizeof (ninst_t *));
+    }
+    free (rpool_queue->ninst_ptr_arr);
+    rpool_queue->ninst_ptr_arr = new_ninst_ptr_arr;
+    rpool_queue->idx_start = 0;
+    rpool_queue->idx_end = rpool_queue->num_stored;
+    rpool_queue->max_stored *= 2;
+}
 void push_ninsts_to_queue (rpool_queue_t *rpool_queue, ninst_t **ninst_ptr_list, unsigned int num_ninsts)
 {
     #ifdef DEBUG
@@ -481,7 +503,8 @@ void push_ninsts_to_queue (rpool_queue_t *rpool_queue, ninst_t **ninst_ptr_list,
         return;
     }
     #endif
-    check_and_update_queue_size (rpool_queue, num_ninsts);
+    if (rpool_queue->num_stored + num_ninsts > rpool_queue->max_stored)
+        update_queue_size (rpool_queue, num_ninsts);
     unsigned i = rpool_queue->idx_end;
     for (int j = 0; j < num_ninsts; j++)
     {
@@ -688,7 +711,8 @@ void rpool_push_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int n
     if (num_ninsts == 0)
         return;
     rpool_queue_t *rpool_queue = NULL;
-    for (int i = 0; i < num_ninsts; i++)
+    unsigned int i = 0;
+    if (num_ninsts%NINST_PUSH_BATCH_SIZE != 0)
     {
         ninst_t *ninst = ninst_ptr_list[i];
         aspen_layer_t *layer = ninst->ldata->layer;
@@ -702,7 +726,26 @@ void rpool_push_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int n
             [RPOOL_LAYER_TYPE] = (void*)layer->type, [RPOOL_LAYER_IDX] = (void*)(NULL + layer->layer_idx),
                 [RPOOL_NASM] = (void*)ninst->ldata->nasm, [RPOOL_ASE] = NULL};
         rpool_queue = get_queue_for_storing (rpool, queue_val, input_conds);
-        push_ninsts_to_queue (rpool_queue, &ninst, 1);
+        push_ninsts_to_queue (rpool_queue, &ninst_ptr_list[i], num_ninsts%NINST_PUSH_BATCH_SIZE);
+        // atomic_store (&rpool_queue->occupied, 0);
+        pthread_mutex_unlock (&rpool_queue->occupied_mutex);
+        i += num_ninsts%NINST_PUSH_BATCH_SIZE;
+    }
+    for (; i < num_ninsts; i += NINST_PUSH_BATCH_SIZE)
+    {
+        ninst_t *ninst = ninst_ptr_list[i];
+        aspen_layer_t *layer = ninst->ldata->layer;
+        unsigned int ninst_idx = ninst - ninst->ldata->ninst_arr_start; 
+        float queue_per_layer = rpool->ref_ases * NUM_QUEUE_PER_ASE * NUM_QUEUE_PER_LAYER;
+        unsigned int queue_val = (layer->layer_idx - 1)*queue_per_layer
+        + (ninst_idx / (ninst->ldata->num_ninst/queue_per_layer/1));
+        if (queue_val < 0)
+            queue_val = 0;
+        void* input_conds[NUM_RPOOL_CONDS] = {[RPOOL_DNN] = (void*)layer->dnn,
+            [RPOOL_LAYER_TYPE] = (void*)layer->type, [RPOOL_LAYER_IDX] = (void*)(NULL + layer->layer_idx),
+                [RPOOL_NASM] = (void*)ninst->ldata->nasm, [RPOOL_ASE] = NULL};
+        rpool_queue = get_queue_for_storing (rpool, queue_val, input_conds);
+        push_ninsts_to_queue (rpool_queue, &ninst_ptr_list[i], NINST_PUSH_BATCH_SIZE);
         // atomic_store (&rpool_queue->occupied, 0);
         pthread_mutex_unlock (&rpool_queue->occupied_mutex);
     }

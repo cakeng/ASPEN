@@ -12,8 +12,6 @@ __global__ void cuda_matmul_kernel(const unsigned int M, const unsigned int N, c
     const int nLocal = threadIdx.y*_THREAD_N_SIZE; 
     const int mGroup = blockIdx.x*_BLOCK_M_SIZE;
     const int nGroup = blockIdx.y*_BLOCK_N_SIZE;
-    if (mLocal + mGroup >= M || nLocal + nGroup >= N)
-        return;
     const int id = threadIdx.x*(_BLOCK_N_SIZE / _THREAD_N_SIZE) + threadIdx.y;
     __shared__ float ACache [_BLOCK_K_SIZE*_BLOCK_M_SIZE];
     __shared__ float BCache [_BLOCK_K_SIZE*_BLOCK_N_SIZE];
@@ -311,8 +309,6 @@ __global__ void cuda_maxpool_kernel(
     const int nLocal = threadIdx.y*_THREAD_N_SIZE; 
     const int mGroup = blockIdx.x*_BLOCK_M_SIZE;
     const int nGroup = blockIdx.y*_BLOCK_N_SIZE;
-    if (mLocal + mGroup >= M || nLocal + nGroup >= N)
-        return;
     float cout[_THREAD_N_SIZE][_THREAD_M_SIZE];
     
     for (int vecN = 0; vecN < _THREAD_N_SIZE; vecN++)
@@ -370,8 +366,6 @@ __global__ void cuda_avgpool_kernel(
     const int nLocal = threadIdx.y*_THREAD_N_SIZE; 
     const int mGroup = blockIdx.x*_BLOCK_M_SIZE;
     const int nGroup = blockIdx.y*_BLOCK_N_SIZE;
-    if (mLocal + mGroup >= M || nLocal + nGroup >= N)
-        return;
     float cout[_THREAD_N_SIZE][_THREAD_M_SIZE];
     
     for (int vecN = 0; vecN < _THREAD_N_SIZE; vecN++)
@@ -429,8 +423,6 @@ __global__ void cuda_k_attention_kernel(const unsigned int num_heads, const unsi
     const int nLocal = threadIdx.y*_THREAD_N_SIZE; 
     const int mGroup = blockIdx.x*_BLOCK_M_SIZE;
     const int nGroup = blockIdx.y*_BLOCK_N_SIZE;
-    if (mLocal + mGroup >= M || nLocal + nGroup >= N)
-        return;
     const int id = threadIdx.x*(_BLOCK_N_SIZE / _THREAD_N_SIZE) + threadIdx.y;
     __shared__ float ACache [_BLOCK_K_SIZE*_BLOCK_M_SIZE];
     __shared__ float BCache [_BLOCK_K_SIZE*_BLOCK_N_SIZE];
@@ -562,8 +554,6 @@ __global__ void cuda_v_attention_kernel(const unsigned int num_heads, const unsi
     const int nLocal = threadIdx.y*_THREAD_N_SIZE; 
     const int mGroup = blockIdx.x*_BLOCK_M_SIZE;
     const int nGroup = blockIdx.y*_BLOCK_N_SIZE;
-    if (mLocal + mGroup >= M || nLocal + nGroup >= N)
-        return;
     const int id = threadIdx.x*(_BLOCK_N_SIZE / _THREAD_N_SIZE) + threadIdx.y;
     __shared__ float ACache [_BLOCK_K_SIZE*_BLOCK_M_SIZE];
     __shared__ float BCache [_BLOCK_K_SIZE*_BLOCK_N_SIZE];

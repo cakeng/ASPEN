@@ -38,9 +38,9 @@ int main(void)
     //     , resnet50_nasm->batch_size, resnet50_nasm->min_ninst_per_ldata,
     //     (double)resnet50_nasm->flop_per_ninst);
     // apu_save_nasm_to_file (resnet50_nasm, nasm_file_name);
-    int gpu = 0;
+    int gpu = -1;
     aspen_dnn_t *resnet50_dnn = apu_load_dnn_from_file ("data/resnet50_base.aspen");
-    nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_B128_M20_5.0e+08.nasm", resnet50_dnn);
+    nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_B1_M100_1.0e+06.nasm", resnet50_dnn);
     // nasm_t *resnet50_4_nasm = apu_load_nasm_from_file ("data/resnet50_4.nasm", &resnet50_dnn);
     // 
     rpool_t *rpool = rpool_init (gpu);
@@ -71,12 +71,12 @@ int main(void)
 
     unsigned int input_params[NUM_PARAM_ELEMENTS] = {0};
     // input_params[BATCH] = 1; input_params[NUM_SEQ] = 480; input_params[NUM_HIDDEN] = 768;
-    input_params[BATCH] = 128; input_params[OUT_C] = 3; input_params[OUT_H] = 224; input_params[OUT_W] = 224;
+    input_params[BATCH] = 1; input_params[OUT_C] = 3; input_params[OUT_H] = 224; input_params[OUT_W] = 224;
     // void *dog_data = aspen_load_input ("data/Text_Len_480_Embedded_input_Batch_32.bin", input_params, sizeof(float));
     void *dog_data = aspen_load_input_NHWC ("data/batched_input_128.bin", input_params, sizeof(float));
-    aspen_init_naive (resnet50_dnn, input_params, dog_data, 0);
+    aspen_init_naive (resnet50_dnn, input_params, dog_data, gpu);
     get_elapsed_time ("init_naive");
-    aspen_run_naive (resnet50_dnn, input_params, dog_data, 0);
+    aspen_run_naive (resnet50_dnn, input_params, dog_data, gpu);
     get_elapsed_time ("run_naive");
     // print_dnn_info(resnet50_dnn, 0);
 
@@ -97,7 +97,7 @@ int main(void)
         //     output_order [3] = MAT_M;
         // }
         void *layer_output = get_aspen_tensor_data 
-            (layer->tensors[OUTPUT_TENSOR], output_order_nchw, 0);
+            (layer->tensors[OUTPUT_TENSOR], output_order_nchw, gpu);
         void *ldata_output = get_ldata_output (ldata, output_order_nchw);
         void *ldata_raw_output = get_packed_ldata_output_colwise (ldata);
         char filename[256];
@@ -143,17 +143,17 @@ int main(void)
         // free (layer_output);
     }
 
-    // LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
-    // float *layer_output = ase_get_nasm_result (resnet50_nasm, output_order);
-    // // float *layer_output = get_aspen_tensor_data ((resnet50_dnn->layers + resnet50_dnn->num_layers - 1)->tensors[OUTPUT_TENSOR], output_order, gpu);
-    // float *softmax_output = ase_get_nasm_result (resnet50_nasm, output_order);
-    // naive_softmax (layer_output, softmax_output, input_params[BATCH], 1000);
-    // // print_float_array (layer_output, 1000*input_params[BATCH], 1000);
-    // for (int i = 0; i < resnet50_nasm->batch_size; i++)
-    // {
-    //     get_probability_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
-    // }
-    // free (layer_output);
+    LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
+    float *layer_output = ase_get_nasm_result (resnet50_nasm, output_order);
+    // float *layer_output = get_aspen_tensor_data ((resnet50_dnn->layers + resnet50_dnn->num_layers - 1)->tensors[OUTPUT_TENSOR], output_order, gpu);
+    float *softmax_output = ase_get_nasm_result (resnet50_nasm, output_order);
+    naive_softmax (layer_output, softmax_output, input_params[BATCH], 1000);
+    // print_float_array (layer_output, 1000*input_params[BATCH], 1000);
+    for (int i = 0; i < resnet50_nasm->batch_size; i++)
+    {
+        get_probability_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
+    }
+    free (layer_output);
 
     // ase_group_destroy (ase_group);
     // rpool_destroy (rpool);
