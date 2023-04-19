@@ -21,10 +21,12 @@ struct nasm_t
     
     int gpu_idx;
     void *data;
+    
 
     pthread_mutex_t nasm_mutex;
     pthread_cond_t nasm_cond;
 
+    void *gpu_null_data;
     #ifdef GPU
     cudaGraph_t cuda_graph;
     cudaGraphExec_t cuda_graph_exec; 
@@ -69,7 +71,7 @@ struct ninst_t
     _Atomic unsigned int num_child_ninsts;
     
     int *input_pos_idx_arr;
-    int *input_pos_idx_arr_gpu;
+    void **input_pos_ptr_arr_gpu;
     unsigned int num_input_pos;
     void *out_mat;
     rpool_t *affinity_pool;

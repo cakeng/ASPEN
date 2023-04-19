@@ -521,6 +521,7 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
         if (rpool->gpu_idx >= 0)
         {
             void *temp_gpu_data = aspen_gpu_calloc (total_mem_req, 1, rpool->gpu_idx);
+            nasm->gpu_null_data = aspen_gpu_calloc (ASE_SCRATCHPAD_SIZE, 1, rpool->gpu_idx);
             aspen_host_to_gpu_async_memcpy (temp_gpu_data, nasm->data, nasm->ldata_arr[0].out_mat_mem_size, rpool->gpu_idx);
             aspen_free(nasm->data);
             nasm->data = temp_gpu_data;
@@ -540,12 +541,25 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
             ninst_t *ninst = &nasm->ninst_arr[i];
             if (ninst->input_pos_idx_arr != NULL && rpool->gpu_idx >= 0)
             {
-                ninst->input_pos_idx_arr_gpu = 
-                    aspen_gpu_calloc (ninst->num_input_pos 
-                        + ninst->num_input_pos/ninst->tile_dims[OUT_W]*_TILE_SIZE_M, sizeof (int), rpool->gpu_idx);
+                nasm_ldata_t *ldata = ninst->ldata;
+                aspen_layer_t *layer = ninst->ldata->layer;
+                nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
+                const unsigned int input_pos_per_n = ninst->num_input_pos/ninst->tile_dims[OUT_W];
+                size_t pos_arr_range = ninst->num_input_pos + input_pos_per_n*_TILE_SIZE_M;
+                ninst->input_pos_ptr_arr_gpu = 
+                    aspen_gpu_calloc (pos_arr_range, sizeof (void*), rpool->gpu_idx);
+                void *idx_arr_temp = 
+                    aspen_gpu_calloc (pos_arr_range, sizeof (int), rpool->gpu_idx);
                 aspen_host_to_gpu_memcpy 
-                    (ninst->input_pos_idx_arr_gpu, ninst->input_pos_idx_arr, 
+                    (idx_arr_temp, ninst->input_pos_idx_arr, 
                         ninst->num_input_pos * sizeof (int), rpool->gpu_idx);
+                aspen_sync_gpu (rpool->gpu_idx);
+                cuda_preset_conv2d_ptrs (ninst->tile_dims[OUT_W], pos_arr_range/input_pos_per_n, nasm->gpu_null_data, 
+                    idx_arr_temp, (float**)ninst->input_pos_ptr_arr_gpu, input_pos_per_n, layer->params[IN_C],
+                    p_ldata->out_mat, p_ldata->out_mat_stride,
+                    aspen_CUDA_streams[rpool->gpu_idx][GPU_NAIVE_RUN_STREAM]);
+                aspen_sync_gpu_stream (rpool->gpu_idx, GPU_NAIVE_RUN_STREAM);
+                aspen_gpu_free (idx_arr_temp, rpool->gpu_idx);
             }
         }
     }

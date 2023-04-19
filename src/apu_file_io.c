@@ -1081,7 +1081,8 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn)
                 return NULL;
             }
             ninst->num_input_pos = atoi(ptr);
-            ninst->input_pos_idx_arr = calloc (ninst->num_input_pos, sizeof(int));
+            if (ninst->num_input_pos > 0)
+                ninst->input_pos_idx_arr = calloc (ninst->num_input_pos, sizeof(int));
             if ((ptr = read_check_and_return (fp, line, "INPUT_POS:", &line_num)) == NULL)
             {
                 FPRT(stderr,"ASPEN DNN file %s parse error: Missing INPUT_POS.\n", filename);
