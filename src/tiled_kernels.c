@@ -277,7 +277,7 @@ void tiled_conv2d (ninst_t *ninst, ase_t *ase)
     {
         #ifdef GPU
         A = (float*)layer->tensors[WEIGHT_TENSOR]->data_gpu[ase->gpu_idx] + ninst->out_mat_pos[OUT_H] * lda;
-        cuda_conv2d (M, N, ninst->input_pos_ptr_arr_gpu, input_pos_per_n, layer->params[IN_C],
+        cuda_tiled_conv2d (M, N, ninst->input_pos_ptr_arr_gpu, input_pos_per_n, layer->params[IN_C],
             A, lda, p_ldata->out_mat, p_ldata->out_mat_stride, C, ldc, 
             layer->tensors[BIAS_TENSOR]->data_gpu[ase->gpu_idx], layer->activation,
             aspen_CUDA_streams[ase->gpu_idx][ase->thread_id%GPU_RUN_STREAM_NUM]);

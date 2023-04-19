@@ -1200,7 +1200,7 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
             }
             // PRT ("apu_run_naive: Layer %d done.\n", i);
             #endif
+            aspen_sync_gpu_stream (gpu_idx, GPU_NAIVE_RUN_STREAM);
         }
-        aspen_sync_gpu_stream (gpu_idx, GPU_NAIVE_RUN_STREAM);
     }
 }

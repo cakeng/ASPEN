@@ -150,7 +150,7 @@ __global__ void cuda_preset_conv2d_ptrs_kernel(
 }
 __global__ void cuda_conv2d_kernel(
     const unsigned int M, const unsigned int N, 
-    const float **col_ptr_arr, const unsigned int col_per_n, const unsigned int K_col,
+    const int *col_idx_arr, const unsigned int col_per_n, const unsigned int K_col,
     const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
     const float *Bias, LAYER_ACT activation_type)
 {
@@ -162,8 +162,7 @@ __global__ void cuda_conv2d_kernel(
     __shared__ float ACache [_BLOCK_K_SIZE*_BLOCK_M_SIZE];
     __shared__ float BCache [_BLOCK_K_SIZE*_BLOCK_N_SIZE];
     float cout[_THREAD_N_SIZE][_THREAD_M_SIZE];
-    // float* A_ptr [(_BLOCK_K_SIZE*_BLOCK_M_SIZE)/_THREAD_NUM];
-    // float* B_ptr [(_BLOCK_K_SIZE*_BLOCK_N_SIZE)/_THREAD_NUM];
+    
     for (int vecN = 0; vecN < _THREAD_N_SIZE; vecN++)
     {
         for (int vecM = 0; vecM < _THREAD_M_SIZE; vecM++)
@@ -182,11 +181,13 @@ __global__ void cuda_conv2d_kernel(
     //             const int n = nGroup + nLocal + vecN;
     //             if (m < M &&  n < N)
     //             {
-    //                 const float *B_col = col_ptr_arr[n*col_per_n + col];
+    //                 const float *B_col = B + col_idx_arr[n*col_per_n + col] * ldb;
+    //                 if (col_idx_arr[n*col_per_n + col] == -1)
+    //                     continue;
     //                 for (int k = 0; k < K_col; k++)
     //                 {
     //                     int A_k = col*K_col + k;
-    //                     cout[vecN][vecM] += A[((m/_A_MIN_DIM)*lda + A_k) * _A_MIN_DIM + m%_A_MIN_DIM] * B_col[k];
+    //                     cout[vecN][vecM] += A[((m/_THREAD_M_SIZE)*lda + A_k) * _THREAD_M_SIZE + m%_THREAD_M_SIZE] * B_col[k];
     //                 }
     //             }
     //         }
@@ -204,7 +205,8 @@ __global__ void cuda_conv2d_kernel(
                 const int cache_idx = id*(_BLOCK_K_SIZE/_CACHE_A_K_PER_LOAD) + aIdx;
                 const int m = mGroup + cache_idx%_BLOCK_M_SIZE;
                 const int k = kIdx + cache_idx/_BLOCK_M_SIZE;
-                ACache[cache_idx] = A[((m/_A_MIN_DIM)*lda + col*K_col + k) * _A_MIN_DIM + m%_A_MIN_DIM];
+                if (m < M)
+                    ACache[cache_idx] = A[((m/_THREAD_M_SIZE)*lda + col*K_col + k) * _THREAD_M_SIZE + m%_THREAD_M_SIZE];
 
             }
             for (int bIdx = 0; bIdx < (_BLOCK_K_SIZE/_CACHE_B_K_PER_LOAD); bIdx++)
@@ -212,15 +214,13 @@ __global__ void cuda_conv2d_kernel(
                 const int cache_idx = id*(_BLOCK_K_SIZE/_CACHE_B_K_PER_LOAD) + bIdx;
                 const int n = nGroup + cache_idx%_BLOCK_N_SIZE;
                 const int k = kIdx + cache_idx/_BLOCK_N_SIZE;
-                const float *B_col = col_ptr_arr[n*col_per_n + col];
-                BCache[cache_idx] = B_col[k];
-                // if (col_ptr_arr[n*col_per_n + col] != -1)
-                // {
-                //     const float *B_col = B + col_ptr_arr[n*col_per_n + col] * ldb;
-                //     BCache[cache_idx] = B_col[k];
-                // }   
-                // else 
-                //     BCache[cache_idx] = 0;
+                if (col_idx_arr[n*col_per_n + col] != -1)
+                {
+                    const float *B_col = B + col_idx_arr[n*col_per_n + col] * ldb;
+                    BCache[cache_idx] = B_col[k];
+                }   
+                else 
+                    BCache[cache_idx] = 0;
             }
             __syncthreads();
             // printf ("Thread %d: %3.3f\n", id, cout[0][0]);
@@ -249,7 +249,8 @@ __global__ void cuda_conv2d_kernel(
                 const int cache_idx = id*(_BLOCK_K_SIZE/_CACHE_A_K_PER_LOAD) + aIdx;
                 const int m = mGroup + cache_idx%_BLOCK_M_SIZE;
                 const int k = kIdx + cache_idx/_BLOCK_M_SIZE;
-                ACache[cache_idx] = A[((m/_A_MIN_DIM)*lda + col*K_col + k) * _A_MIN_DIM + m%_A_MIN_DIM];
+                if (m < M)
+                    ACache[cache_idx] = A[((m/_THREAD_M_SIZE)*lda + col*K_col + k) * _THREAD_M_SIZE + m%_THREAD_M_SIZE];
   
             }
             for (int bIdx = 0; bIdx < (_BLOCK_K_SIZE/_CACHE_B_K_PER_LOAD); bIdx++)
@@ -257,15 +258,13 @@ __global__ void cuda_conv2d_kernel(
                 const int cache_idx = id*(_BLOCK_K_SIZE/_CACHE_B_K_PER_LOAD) + bIdx;
                 const int n = nGroup + cache_idx%_BLOCK_N_SIZE;
                 const int k = kIdx + cache_idx/_BLOCK_N_SIZE;
-                const float *B_col = col_ptr_arr[n*col_per_n + col];
-                BCache[cache_idx] = B_col[k];
-                // if (col_ptr_arr[n*col_per_n + col] != -1)
-                // {
-                //     const float *B_col = B + col_ptr_arr[n*col_per_n + col] * ldb;
-                //     BCache[cache_idx] = B_col[k];
-                // }   
-                // else 
-                //     BCache[cache_idx] = 0;
+                if (col_idx_arr[n*col_per_n + col] != -1)
+                {
+                    const float *B_col = B + col_idx_arr[n*col_per_n + col] * ldb;
+                    BCache[cache_idx] = B_col[k];
+                }   
+                else 
+                    BCache[cache_idx] = 0;
             }
             __syncthreads();
             for (int kk = 0; kk < _BLOCK_K_SIZE; kk++)
@@ -304,7 +303,7 @@ __global__ void cuda_conv2d_kernel(
 }
 __global__ void cuda_maxpool_kernel(
     const unsigned int M, const unsigned int N, 
-    const float **col_ptr_arr, const unsigned int col_per_n,
+    const int *col_idx_arr, const unsigned int col_per_n,
     const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
     LAYER_ACT activation_type)
 {
@@ -329,7 +328,9 @@ __global__ void cuda_maxpool_kernel(
         for (int vecN = 0; vecN < _THREAD_N_SIZE; vecN++)
         {
             const int n = nGroup + nLocal + vecN;
-            const float *B_col = col_ptr_arr[n*col_per_n + col];
+            const float *B_col = B + col_idx_arr[n*col_per_n + col] * ldb;
+            if (col_idx_arr[n*col_per_n + col] == -1)
+                continue;
             for (int vecM = 0; vecM < _THREAD_M_SIZE; vecM++)
             {
                 const int m = mGroup + mLocal + vecM;
@@ -361,7 +362,7 @@ __global__ void cuda_maxpool_kernel(
 }
 __global__ void cuda_avgpool_kernel(
     const unsigned int M, const unsigned int N, 
-    const float **col_ptr_arr, const unsigned int col_per_n,
+    const int *col_idx_arr, const unsigned int col_per_n,
     const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
     LAYER_ACT activation_type)
 {
@@ -386,7 +387,9 @@ __global__ void cuda_avgpool_kernel(
         for (int vecN = 0; vecN < _THREAD_N_SIZE; vecN++)
         {
             const int n = nGroup + nLocal + vecN;
-            const float *B_col = col_ptr_arr[n*col_per_n + col];
+            const float *B_col = B + col_idx_arr[n*col_per_n + col] * ldb;
+            if (col_idx_arr[n*col_per_n + col] == -1)
+                continue;
             for (int vecM = 0; vecM < _THREAD_M_SIZE; vecM++)
             {
                 const int m = mGroup + mLocal + vecM;
@@ -710,7 +713,7 @@ void cuda_preset_conv2d_ptrs(
     col_idx_arr, col_ptr_arr, col_per_n, K_col, B, ldb);
 }
 void cuda_conv2d (const unsigned int M, const unsigned int N, 
-    const float **col_ptr_arr, const unsigned int col_per_n, const unsigned int K_col,
+    const int *col_idx_arr, const unsigned int col_per_n, const unsigned int K_col,
     const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
     const float *Bias, LAYER_ACT activation_type, cudaStream_t stream)
 {
@@ -725,12 +728,12 @@ void cuda_conv2d (const unsigned int M, const unsigned int N,
 
         dim3 gridDim (M/_BLOCK_M_SIZE + ((M%_BLOCK_M_SIZE) > 0), N/_BLOCK_N_SIZE + ((N%_BLOCK_N_SIZE) > 0), 1);
         dim3 blockDim ((_BLOCK_M_SIZE / _THREAD_M_SIZE), (_BLOCK_N_SIZE / _THREAD_N_SIZE), 1);
-        cuda_conv2d_kernel<<<gridDim, blockDim, 0, stream>>>(M, N, col_ptr_arr, col_per_n, K_col,
+        cuda_conv2d_kernel<<<gridDim, blockDim, 0, stream>>>(M, N, col_idx_arr, col_per_n, K_col,
             A, lda, B, ldb, C, ldc, Bias, activation_type);
 }
 void cuda_maxpool(
     const unsigned int M, const unsigned int N, 
-    const float **col_ptr_arr, const unsigned int col_per_n,
+    const int *col_idx_arr, const unsigned int col_per_n,
     const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
     LAYER_ACT activation_type, cudaStream_t stream)
 {
@@ -745,11 +748,11 @@ void cuda_maxpool(
         dim3 gridDim (M/_BLOCK_M_SIZE + ((M%_BLOCK_M_SIZE) > 0), N/_BLOCK_N_SIZE + ((N%_BLOCK_N_SIZE) > 0), 1);
         dim3 blockDim ((_BLOCK_M_SIZE / _THREAD_M_SIZE), (_BLOCK_N_SIZE / _THREAD_N_SIZE), 1);
         cuda_maxpool_kernel<<<gridDim, blockDim, 0, stream>>>(M, N, 
-        col_ptr_arr, col_per_n, B, ldb, C, ldc, activation_type);
+        col_idx_arr, col_per_n, B, ldb, C, ldc, activation_type);
 }
 void cuda_avgpool(
     const unsigned int M, const unsigned int N, 
-    const float **col_ptr_arr, const unsigned int col_per_n,
+    const int *col_idx_arr, const unsigned int col_per_n,
     const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
     LAYER_ACT activation_type, cudaStream_t stream)
 {
@@ -764,7 +767,7 @@ void cuda_avgpool(
         dim3 gridDim (M/_BLOCK_M_SIZE + ((M%_BLOCK_M_SIZE) > 0), N/_BLOCK_N_SIZE + ((N%_BLOCK_N_SIZE) > 0), 1);
         dim3 blockDim ((_BLOCK_M_SIZE / _THREAD_M_SIZE), (_BLOCK_N_SIZE / _THREAD_N_SIZE), 1);
         cuda_avgpool_kernel<<<gridDim, blockDim, 0, stream>>>(M, N, 
-        col_ptr_arr, col_per_n, B, ldb, C, ldc, activation_type);
+        col_idx_arr, col_per_n, B, ldb, C, ldc, activation_type);
 }
 void cuda_matmul (const unsigned int M, const unsigned int N, const unsigned int K,
 		 const float *A, const unsigned int lda, const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
