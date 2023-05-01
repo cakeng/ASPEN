@@ -606,7 +606,8 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
             }
         }
     }
-    generate_cudagraph (nasm);
+    if (rpool->gpu_idx >= 0)
+        generate_cudagraph (nasm);
     nasm_ldata_t *ldata = &nasm->ldata_arr[0];
     for (int i = 0; i < ldata->num_ninst; i++)
     {
