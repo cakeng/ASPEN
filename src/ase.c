@@ -582,6 +582,7 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
         for (int i = 0; i < nasm->num_ninst; i++)
         {
             ninst_t *ninst = &nasm->ninst_arr[i];
+            #ifdef GPU
             if (ninst->input_pos_idx_arr != NULL && rpool->gpu_idx >= 0)
             {
                 nasm_ldata_t *ldata = ninst->ldata;
@@ -604,6 +605,7 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
                 aspen_sync_gpu_stream (rpool->gpu_idx, GPU_NAIVE_RUN_STREAM);
                 aspen_gpu_free (idx_arr_temp, rpool->gpu_idx);
             }
+            #endif
         }
     }
     if (rpool->gpu_idx >= 0)

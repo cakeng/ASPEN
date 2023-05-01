@@ -45,8 +45,8 @@ int main(void)
     int gpu = -1;
     // aspen_dnn_t *bert_dnn = apu_load_dnn_from_file ("data/bert_base.aspen");
     // nasm_t *bert_nasm = apu_load_nasm_from_file ("data/bert_S128_B8.nasm", bert_dnn);
-    aspen_dnn_t *resnet50_dnn = apu_load_dnn_from_file ("data/resnet50_base.aspen");
-    nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_B128_M100_1.0e+08.nasm", resnet50_dnn);
+    aspen_dnn_t *resnet50_dnn = apu_load_dnn_from_file ("resnet50_base.aspen");
+    nasm_t *resnet50_nasm = apu_load_nasm_from_file ("resnet50_B32.nasm", resnet50_dnn);
     // // // nasm_t *bert_4_nasm = apu_load_nasm_from_file ("data/bert_4.nasm", &bert_dnn);
     // 
     rpool_t *rpool = rpool_init (gpu);
