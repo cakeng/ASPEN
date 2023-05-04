@@ -446,11 +446,6 @@ void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst)
 void update_children_but_prioritize_ase_target (rpool_t *rpool, ninst_t *ninst, ase_t *ase)
 {
     #ifdef DEBUG
-    if (cache == NULL || ninst == NULL)
-    {
-        FPRT (stderr, "Error: Invalid arguments to ase_update_children_to_cache()\n");
-        assert (0);
-    }
     if (ninst->state != NINST_COMPLETED)
     {
         FPRT (stderr, "Error: ninst->state != NINST_STATE_COMPLETED in ase_update_children_to_cache()\n");
@@ -581,8 +576,8 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
         }
         for (int i = 0; i < nasm->num_ninst; i++)
         {
-            ninst_t *ninst = &nasm->ninst_arr[i];
             #ifdef GPU
+            ninst_t *ninst = &nasm->ninst_arr[i];
             if (ninst->input_pos_idx_arr != NULL && rpool->gpu_idx >= 0)
             {
                 nasm_ldata_t *ldata = ninst->ldata;

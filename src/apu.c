@@ -376,7 +376,7 @@ void *get_ldata_output (nasm_ldata_t *ldata, LAYER_PARAMS *order)
     aspen_layer_t *layer = ldata->layer;
     aspen_tensor_t *tensor = NULL;
     if ((layer->type == CONV_LAYER || layer->type == INPUT_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER 
-        || layer->type == RESIDUAL_LAYER) && (layer->params[MAT_M] == 0))
+        || layer->type == RESIDUAL_LAYER || layer->type == APPEND_LAYER || layer->type == YOLO_LAYER) && (layer->params[MAT_M] == 0))
     {
         LAYER_PARAMS org_order[] = {BATCH, OUT_H, OUT_W, OUT_C};
         unsigned int params[NUM_PARAM_ELEMENTS];
@@ -544,7 +544,7 @@ void create_layer_tensors (aspen_layer_t *layer)
         calloc_aspen_tensor (layer->tensors [BIAS_TENSOR]);
         calloc_aspen_gpu_tensors (layer->tensors [BIAS_TENSOR]);
     }
-    else if (layer->type == INPUT_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER || layer->type == SOFTMAX_LAYER
+    else if (layer->type == INPUT_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER || layer->type == SOFTMAX_LAYER || layer->type == YOLO_LAYER || layer->type == APPEND_LAYER
         || layer->type == RESIDUAL_LAYER || layer->type == LAYERNORM_LAYER || layer->type == K_ATTENTION_LAYER || layer->type == V_ATTENTION_LAYER)
     {
     }
@@ -568,7 +568,7 @@ void create_layer_tensors (aspen_layer_t *layer)
 void create_layer_output_tensor (aspen_layer_t *layer, int gpu_idx)
 {
     if (layer->type == CONV_LAYER || layer->type == INPUT_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER 
-        || layer->type == RESIDUAL_LAYER)
+        || layer->type == RESIDUAL_LAYER || layer->type == YOLO_LAYER || layer->type == APPEND_LAYER)
     {
         if (MAT_M != 0)
         {

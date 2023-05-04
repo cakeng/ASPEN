@@ -775,7 +775,7 @@ void get_out_mat_info (nasm_ldata_t *ldata)
         ldata->out_mat_dims[OUT_H] = layer->params[OUT_C];
         ldata->out_mat_dims[OUT_W] = layer->params[OUT_H]*layer->params[OUT_W]*ldata->nasm->batch_size;
     }
-    else if (layer->type == INPUT_LAYER || layer->type == RESIDUAL_LAYER)
+    else if (layer->type == INPUT_LAYER || layer->type == RESIDUAL_LAYER || layer->type == YOLO_LAYER || layer->type == APPEND_LAYER)
     {
         ldata->flop_per_output = 1;
         ldata->out_mat_dims[OUT_H] = layer->params[OUT_C];
@@ -1011,7 +1011,7 @@ void get_out_mat_pos_from_tensor_pos (nasm_ldata_t *ldata, unsigned int *tensor_
 {
     aspen_layer_t *layer = ldata->layer;
     if (layer->type == CONV_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER || layer->type == INPUT_LAYER
-        || layer->type == RESIDUAL_LAYER)
+        || layer->type == RESIDUAL_LAYER || layer->type == YOLO_LAYER || layer->type == APPEND_LAYER)
     {
         if (layer->params[MAT_M] == 0)
         {
@@ -1055,7 +1055,7 @@ void get_tensor_pos_from_out_mat_pos (nasm_ldata_t *ldata, unsigned int *out_mat
 {
     aspen_layer_t *layer = ldata->layer;
     if (layer->type == CONV_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER || layer->type == INPUT_LAYER
-        || layer->type == RESIDUAL_LAYER)
+        || layer->type == RESIDUAL_LAYER || layer->type == YOLO_LAYER || layer->type == APPEND_LAYER)
     {
         if (layer->params[MAT_M] == 0)
         {

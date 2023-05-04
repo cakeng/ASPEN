@@ -94,6 +94,17 @@ void set_layer_inout_sizes (aspen_layer_t *layer)
         }
         return;
     }
+    else if (layer->type == YOLO_LAYER)
+    {
+        layer->params[OUT_H] = 1;
+        layer->params[OUT_W] = layer->params[IN_H] * layer->params[IN_W] * (layer->params[IN_C] / layer->params[OUT_C]);
+    }
+    else if (layer->type == APPEND_LAYER)
+    {
+        layer->params[OUT_C] = layer->params[IN_C] + layer->parent_layers[PARENT_1]->params[OUT_C];
+        layer->params[OUT_H] = layer->params[IN_H] * layer->params[STRIDE];
+        layer->params[OUT_W] = layer->params[IN_W] * layer->params[STRIDE];
+    }
     else if (layer->type == MATMUL_LAYER)
     {
         layer->params[MAT_K] = layer->parent_layers[PARENT_0]->params[MAT_M];

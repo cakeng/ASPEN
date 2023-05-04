@@ -433,33 +433,8 @@ LAYER_TYPE string_to_layer_type(char * type)
             || strcmp(type, "[connected]")==0) return FC_LAYER;
     if (strcmp(type, "[soft]")==0
             || strcmp(type, "[softmax]")==0) return SOFTMAX_LAYER;
-    // if (strcmp(type, "[dropout]")==0) return DROPOUT_LAYER;
-    // if (strcmp(type, "[crop]")==0) return CROP;
-    // if (strcmp(type, "[cost]")==0) return COST;
-    // if (strcmp(type, "[detection]")==0) return DETECTION;
-    // if (strcmp(type, "[region]")==0) return REGION;
-    
-    // if (strcmp(type, "[iseg]")==0) return ISEG;
-    // if (strcmp(type, "[local]")==0) return LOCAL;
-
-    // if (strcmp(type, "[deconv]")==0
-    //         || strcmp(type, "[deconvolutional]")==0) return DECONVOLUTIONAL;
-    // if (strcmp(type, "[logistic]")==0) return LOGXENT;
-    // if (strcmp(type, "[l2norm]")==0) return L2NORM;
-    // if (strcmp(type, "[net]")==0
-    //         || strcmp(type, "[network]")==0) return NETWORK;
-    // if (strcmp(type, "[crnn]")==0) return CRNN;
-    // if (strcmp(type, "[gru]")==0) return GRU;
-    // if (strcmp(type, "[lstm]") == 0) return LSTM;
-    // if (strcmp(type, "[rnn]")==0) return RNN;
-    
-    // if (strcmp(type, "[reorg]")==0) return REORG;
-    
-    // if (strcmp(type, "[lrn]")==0
-    //         || strcmp(type, "[normalization]")==0) return NORMALIZATION;
-    // 
-    
-    // if (strcmp(type, "[upsample]")==0) return UPSAMPLE;
+    if (strcmp(type, "[yolo]")==0) return YOLO_LAYER;
+    if (strcmp(type, "[append]")==0) return APPEND_LAYER;
     return NO_LAYER_TYPE;
 }
 
@@ -503,6 +478,71 @@ void parse_section (section *s, aspen_layer_t *layer)
     if (option_find_int_quiet (options, "from", 0))
     {
         layer->parent_layers [PARENT_1] = layer + option_find_int_quiet (options, "from", 0);
+    }
+    if (layer->type == YOLO_LAYER)
+    {
+        layer->params [OUT_C] = option_find_int_quiet (options, "classes", 0) + 5;
+        int *masks = NULL;
+        float *anchors = NULL;
+        char *a = option_find_str(options, "mask", 0);
+        if(a)
+        {
+            int len = strlen(a);
+            int n = 1;
+            int i;
+            for(i = 0; i < len; ++i)
+            {
+                if (a[i] == ',') 
+                    n++;
+            }
+            masks = calloc(n, sizeof(int));
+            for(i = 0; i < n; ++i)
+            {
+                masks[i] = atoi(a);
+                a = strchr(a, ',') + 1;
+            }
+        }
+        else
+        {
+            FPRT (stderr, "YOLO layer has no mask.\n");
+        }
+        a = option_find_str(options, "anchors", 0);
+        if(a)
+        {
+            int len = strlen(a);
+            int n = 1;
+            int i;
+            for(i = 0; i < len; ++i)
+            {
+                if (a[i] == ',') 
+                    n++;
+            }
+            anchors = calloc(n, sizeof(float));
+            for(i = 0; i < n; ++i)
+            {
+                anchors[i] = atof(a);
+                a = strchr(a, ',') + 1;
+            }
+        }
+        else
+        {
+            FPRT (stderr, "YOLO layer has no anchors.\n");
+        }
+        LAYER_PARAMS dim_order[] = {OUT_C};
+        int params[NUM_PARAM_ELEMENTS];
+        for (int i = 0; i < NUM_PARAM_ELEMENTS; i++)
+            params[i] = 6;
+        layer->tensors [ANCHOR_TENSOR] = init_aspen_tensor (params, dim_order, 1, layer->dnn->element_size);
+        calloc_aspen_tensor (layer->tensors [ANCHOR_TENSOR]);
+        for (int i = 0; i < 3; i++)
+        {
+            ((float*)layer->tensors[ANCHOR_TENSOR]->data)[i*2] = anchors[masks[i]*2];
+            ((float*)layer->tensors[ANCHOR_TENSOR]->data)[i*2 + 1] = anchors[masks[i]*2 + 1];
+        }
+        if (masks)
+            free (masks);
+        if (anchors)
+            free (anchors);
     }
 }
 
