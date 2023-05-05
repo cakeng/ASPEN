@@ -529,7 +529,7 @@ void parse_section (section *s, aspen_layer_t *layer)
             FPRT (stderr, "YOLO layer has no anchors.\n");
         }
         LAYER_PARAMS dim_order[] = {OUT_C};
-        int params[NUM_PARAM_ELEMENTS];
+        unsigned int params[NUM_PARAM_ELEMENTS];
         for (int i = 0; i < NUM_PARAM_ELEMENTS; i++)
             params[i] = 6;
         layer->tensors [ANCHOR_TENSOR] = init_aspen_tensor (params, dim_order, 1, layer->dnn->element_size);

@@ -612,6 +612,86 @@ void tiled_softmax (ninst_t *ninst, ase_t *ase)
     #endif
 }
 
+void tiled_yolo (ninst_t *ninst, ase_t *ase)
+{
+    #if _SKIP_KERNELS == 0
+    nasm_ldata_t *ldata = ninst->ldata;
+    aspen_layer_t *layer = ninst->ldata->layer;
+    nasm_ldata_t *p0_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
+    const unsigned int N = ninst->tile_dims[OUT_W];
+    const unsigned int ldc = ldata->out_mat_stride;
+    const float *anchors = (float*)layer->tensors[ANCHOR_TENSOR]->data;
+    void *C = ninst->out_mat;
+    if (ase->gpu_idx < 0)
+    {
+        for (int n = 0; n < N; n++)
+        {
+            unsigned int w_pos = ninst->out_mat_pos[OUT_W] + n;
+            int aidx = w_pos / (layer->params[IN_H] * layer->params[IN_W]);
+            int wh = w_pos % (layer->params[IN_H] * layer->params[IN_W]);
+            int hidx  = wh / layer->params[IN_W];
+            int widx  = wh % layer->params[IN_W];
+            int cidx = ninst->out_mat_pos[OUT_H] + aidx * layer->params[OUT_C];
+            float *in = (float*)p0_ldata->out_mat + (hidx*layer->params[IN_W] + widx) * p0_ldata->out_mat_stride 
+                + cidx;
+            float *out = (float*)C + n * ldc;
+            out[0] = (1.0f / (1.0f + expf (-in[0])) + widx) * layer->params[STRIDE];
+            out[1] = (1.0f / (1.0f + expf (-in[1])) + hidx) * layer->params[STRIDE];
+            out[2] = expf (in[2]) * anchors[2 * aidx];
+            out[3] = expf (in[3]) * anchors[2 * aidx + 1];
+            for (unsigned int j = 4; j < layer->params[OUT_C]; j++)
+                out[j] = 1.0f / (1.0f + expf (-in[j]));
+        }
+    }
+    else
+    {
+        #ifdef GPU
+        
+        #endif
+    }
+    #endif
+}
+
+void tiled_append (ninst_t *ninst, ase_t *ase)
+{
+    #if _SKIP_KERNELS == 0
+    nasm_ldata_t *ldata = ninst->ldata;
+    aspen_layer_t *layer = ninst->ldata->layer;
+    nasm_ldata_t *p0_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
+    nasm_ldata_t *p1_ldata = (ldata->parent_ldata_idx_arr[PARENT_1] + ldata->nasm->ldata_arr);
+    const unsigned int N = ninst->tile_dims[OUT_W];
+    const unsigned int ldc = ldata->out_mat_stride;
+    void *C = ninst->out_mat;
+    assert (layer->params[IN_W] == (layer->params[OUT_W] / layer->params[STRIDE]));
+    if (ase->gpu_idx < 0)
+    {
+        for (int n = 0; n < N; n++)
+        {
+            const int c1 = layer->params[IN_C];
+            const int c2 = layer->params[OUT_C] - layer->params[IN_C];
+            const int w2 = layer->params[OUT_W];
+            const int w1 = layer->params[IN_W];
+            const int w_pos = ninst->out_mat_pos[OUT_W] + n;
+            const int widx_2 = w_pos % w2;
+            const int hidx_2 = w_pos / w2;
+            const int widx_1 = widx_2 / layer->params[STRIDE];
+            const int hidx_1 = hidx_2 / layer->params[STRIDE];
+            const float *in1 = ((float*)p0_ldata->out_mat) + (hidx_1*w1 + widx_1)*p0_ldata->out_mat_stride;
+            const float *in2 = ((float*)p1_ldata->out_mat) + (hidx_2*w2 + widx_2)*p1_ldata->out_mat_stride;
+            float *out = (float*)C + n * ldc;
+            memcpy (out, in1, c1*sizeof(float));
+            memcpy (out+c1, in2, c2*sizeof(float));
+        }
+    }
+    else
+    {
+        #ifdef GPU
+        
+        #endif
+    }
+    #endif
+}
+
 void tiled_layernorm (ninst_t *ninst, ase_t *ase)
 {
     #if _SKIP_KERNELS == 0

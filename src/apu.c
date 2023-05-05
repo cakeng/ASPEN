@@ -554,7 +554,10 @@ void create_layer_tensors (aspen_layer_t *layer)
         assert (0);
     }
 
-    // fill_tensor_with_fixed_nums (layer->tensors[WEIGHT_TENSOR], 1);
+    if (layer->tensors[WEIGHT_TENSOR])
+        fill_tensor_with_rand_nums (layer->tensors[WEIGHT_TENSOR], 0.3);
+    if (layer->tensors[BIAS_TENSOR])
+        fill_tensor_with_rand_nums (layer->tensors[BIAS_TENSOR], 0.3);
 }
 
 // Change to add a new layer type

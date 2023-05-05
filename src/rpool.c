@@ -100,24 +100,24 @@ rpool_queue_group_t *get_queue_group_from_nasm (rpool_t *rpool, nasm_t *nasm)
     return NULL;
 }
 
-unsigned int *get_queue_group_idx_from_nasm (rpool_t *rpool, nasm_t *nasm)
+int get_queue_group_idx_from_nasm (rpool_t *rpool, nasm_t *nasm)
 {
     if (rpool == NULL)
     {
         FPRT (stderr, "ERROR: get_queue_group_idx_from_nasm: rpool is NULL.\n");
-        return NULL;
+        return -1;
     }
     if (nasm == NULL)
     {
         FPRT (stderr, "ERROR: get_queue_group_idx_from_nasm: nasm is NULL.\n");
-        return NULL;
+        return -1;
     }
     for (int i = 0; i < rpool->num_groups; i++)
     {
         if (rpool->queue_group_arr[i].whitelist_conds[RPOOL_NASM] == nasm)
             return i;
     }
-    return NULL;
+    return -1;
 }
 
 void set_queue_group_weight (rpool_t *rpool, rpool_queue_group_t *rpool_queue_group, float weight)
@@ -248,7 +248,9 @@ void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, float weight, char *input_fil
 void rpool_reset_nasm (rpool_t *rpool, nasm_t *nasm, float weight)
 {
     reset_nasm (nasm);
-    unsigned int queue_group_idx = get_queue_group_idx_from_nasm (rpool, nasm);
+    int queue_group_idx = get_queue_group_idx_from_nasm (rpool, nasm);
+    if (queue_group_idx == -1)
+        FPRT (stderr, "ERROR: rpool_reset_nasm: nasm \"%s_nasm_%d\" is not in rpool.\n", nasm->dnn->name, nasm->nasm_id);
     rpool->queue_group_weight_arr[queue_group_idx] = weight;
     rpool->queue_group_weight_sum += weight;
     push_first_layer_to_rpool (rpool, nasm, NULL);
@@ -257,7 +259,9 @@ void rpool_reset_nasm (rpool_t *rpool, nasm_t *nasm, float weight)
 void rpool_pop_all_nasm (rpool_t *rpool, nasm_t *nasm)
 {
     set_nasm_to_finished (nasm);
-    unsigned int queue_group_idx = get_queue_group_idx_from_nasm (rpool, nasm);
+    int queue_group_idx = get_queue_group_idx_from_nasm (rpool, nasm);
+    if (queue_group_idx == -1)
+        FPRT (stderr, "ERROR: rpool_pop_all_nasm: nasm \"%s_nasm_%d\" is not in rpool.\n", nasm->dnn->name, nasm->nasm_id);
     rpool_queue_group_t *queue_group = &rpool->queue_group_arr[queue_group_idx];
     unsigned int num_queues = queue_group->num_queues;
     for (int i = 0; i < num_queues; i++)

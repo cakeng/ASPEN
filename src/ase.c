@@ -101,6 +101,12 @@ void *ase_thread_runtime (void* thread_info)
                 case SOFTMAX_LAYER:
                     tiled_softmax (ninst, ase);
                     break;
+                case YOLO_LAYER:
+                    tiled_yolo (ninst, ase);
+                    break;
+                case APPEND_LAYER:
+                    tiled_append (ninst, ase);
+                    break;
                 case MATMUL_LAYER:
                     tiled_matmul (ninst, ase);
                     break;
@@ -674,6 +680,37 @@ void set_ninst_out_mat_mem_pos (ninst_t *ninst)
 void *ase_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS *order)
 {
     nasm_ldata_t *ldata = &nasm->ldata_arr[ldata_idx];
+    if (ldata->layer->type == YOLO_LAYER)
+    {
+        void *output = NULL;
+        size_t output_size = 0;
+        for (int i = 0; i < nasm->num_ldata; i++)
+        {
+            nasm_ldata_t *targ_ldata = &nasm->ldata_arr[i];
+            if (targ_ldata->layer->type == YOLO_LAYER)
+            {
+                size_t elem_size = targ_ldata->layer->dnn->element_size;
+                size_t data_size = targ_ldata->out_mat_dims[OUT_H] * targ_ldata->out_mat_dims[OUT_W] * elem_size;
+                output_size += data_size;
+            }
+        }
+        output = calloc (output_size, 1);
+        size_t offset = 0;
+        for (int i = 0; i < nasm->num_ldata; i++)
+        {
+            nasm_ldata_t *targ_ldata = &nasm->ldata_arr[i];
+            if (targ_ldata->layer->type == YOLO_LAYER)
+            {
+                void *data = get_ldata_output (targ_ldata, order);
+                size_t elem_size = targ_ldata->layer->dnn->element_size;
+                size_t data_size = targ_ldata->out_mat_dims[OUT_H] * targ_ldata->out_mat_dims[OUT_W] * elem_size;
+                memcpy ((char*)output + offset, data, data_size);
+                offset += data_size;
+                free (data);
+            }
+        }
+        return output;
+    }
     return get_ldata_output (ldata, order);
 }
 

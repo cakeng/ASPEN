@@ -288,6 +288,70 @@ void ninst_find_parent (ninst_t *ninst)
                     }
                 }
             }
+            else if (layer->type == YOLO_LAYER)
+            {
+                int aidx = out_tensor_pos[OUT_W] / (layer->params[IN_H] * layer->params[IN_W]);
+                int wh = out_tensor_pos[OUT_W] % (layer->params[IN_H] * layer->params[IN_W]);
+                in_tensor_pos[OUT_H] = wh / layer->params[IN_W];
+                in_tensor_pos[OUT_W] = wh % layer->params[IN_W];
+                in_tensor_pos[OUT_C] = out_tensor_pos[OUT_C] + aidx * layer->params[OUT_C];
+                if (in_tensor_pos[BATCH] >= 0 && in_tensor_pos[BATCH] < ldata->nasm->batch_size && in_tensor_pos[OUT_C] >= 0 && in_tensor_pos[OUT_C] < layer->params[IN_C] &&
+                    in_tensor_pos[OUT_H] >= 0 && in_tensor_pos[OUT_H] < layer->params[IN_H] && in_tensor_pos[OUT_W] >= 0 && in_tensor_pos[OUT_W] < layer->params[IN_W])
+                {
+                    ninst_t *input_nist = get_ninst_from_tensor_pos(parent_ldata, in_tensor_pos);
+                    int duplicate = 0;
+                    for (int l = 0; l < ninst->num_parent_ninsts; l++)
+                    {
+                        if (parent_arr[l] == input_nist->ninst_idx)
+                        {
+                            duplicate = 1;
+                            break;
+                        }
+                    }
+                    if (!duplicate)
+                    {
+                        parent_arr[ninst->num_parent_ninsts] = input_nist->ninst_idx;
+                        ninst->num_parent_ninsts++;
+                    }
+                }
+            }
+            else if (layer->type == APPEND_LAYER)
+            {
+                nasm_ldata_t *target_ldata = NULL;
+                if (out_tensor_pos[OUT_C] < layer->params[IN_C])
+                {
+                    target_ldata = ldata->nasm->ldata_arr + ldata->parent_ldata_idx_arr[PARENT_0];
+                    in_tensor_pos[OUT_C] = out_tensor_pos[OUT_C];
+                    in_tensor_pos[OUT_W] = out_tensor_pos[OUT_W] / layer->params[STRIDE];
+                    in_tensor_pos[OUT_H] = out_tensor_pos[OUT_H] / layer->params[STRIDE];
+                }
+                else
+                {
+                    target_ldata = ldata->nasm->ldata_arr + ldata->parent_ldata_idx_arr[PARENT_1];
+                    in_tensor_pos[OUT_C] = out_tensor_pos[OUT_C] - layer->params[IN_C];
+                    in_tensor_pos[OUT_W] = out_tensor_pos[OUT_W];
+                    in_tensor_pos[OUT_H] = out_tensor_pos[OUT_H];
+                }
+                if (in_tensor_pos[BATCH] >= 0 && in_tensor_pos[BATCH] < ldata->nasm->batch_size && in_tensor_pos[OUT_C] >= 0 && in_tensor_pos[OUT_C] < layer->params[IN_C] &&
+                    in_tensor_pos[OUT_H] >= 0 && in_tensor_pos[OUT_H] < layer->params[IN_H] && in_tensor_pos[OUT_W] >= 0 && in_tensor_pos[OUT_W] < layer->params[IN_W])
+                {
+                    ninst_t *input_nist = get_ninst_from_tensor_pos(target_ldata, in_tensor_pos);
+                    int duplicate = 0;
+                    for (int l = 0; l < ninst->num_parent_ninsts; l++)
+                    {
+                        if (parent_arr[l] == input_nist->ninst_idx)
+                        {
+                            duplicate = 1;
+                            break;
+                        }
+                    }
+                    if (!duplicate)
+                    {
+                        parent_arr[ninst->num_parent_ninsts] = input_nist->ninst_idx;
+                        ninst->num_parent_ninsts++;
+                    }
+                }
+            }
             else if (layer->type == LAYERNORM_LAYER)
             {
                 aspen_layer_t *p_layer = parent_ldata->layer;
@@ -888,9 +952,16 @@ void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata_ptr, aspen_layer_t *laye
     unsigned int unit_h = NINST_H_MIN;
     unsigned int unit_w = NINST_W_MIN;
     unsigned int hidden_per_head = 0;
-    if (layer->type == SOFTMAX_LAYER)
+    if (layer->type == SOFTMAX_LAYER || layer->type == APPEND_LAYER || layer->type == YOLO_LAYER)
     {
         ldata_ptr->ninst_tile_dims[OUT_H] = ldata_ptr->out_mat_dims[OUT_H];
+        while (ldata_ptr->ninst_tile_dims[OUT_H]%NINST_H_MIN != 0)
+        {
+            ldata_ptr->ninst_tile_dims[OUT_H]++;
+        }
+    }
+    if (layer->type == SOFTMAX_LAYER)
+    {
         ldata_ptr->ninst_tile_dims[OUT_W] = 1;
     }
     if (layer->params[NUM_HEAD] > 0)
@@ -915,15 +986,19 @@ void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata_ptr, aspen_layer_t *laye
             }
             else if (ldata_ptr->ninst_tile_dims[OUT_H] > unit_h)
             {
-                ldata_ptr->ninst_tile_dims[OUT_H] /= 2;
-                while (ldata_ptr->ninst_tile_dims[OUT_H]%unit_h != 0)
+                if (layer->type != APPEND_LAYER && layer->type != YOLO_LAYER)
                 {
-                    ldata_ptr->ninst_tile_dims[OUT_H]++;
+                    ldata_ptr->ninst_tile_dims[OUT_H] /= 2;
+                    while (ldata_ptr->ninst_tile_dims[OUT_H]%unit_h != 0)
+                    {
+                        ldata_ptr->ninst_tile_dims[OUT_H]++;
+                    }
                 }
             }
             out_w = get_smallest_dividable (ldata_ptr->out_mat_dims[OUT_W], ldata_ptr->ninst_tile_dims[OUT_W]);
             out_h = get_smallest_dividable (ldata_ptr->out_mat_dims[OUT_H], ldata_ptr->ninst_tile_dims[OUT_H]);
-            if (ldata_ptr->ninst_tile_dims[OUT_W] == unit_w && ldata_ptr->ninst_tile_dims[OUT_H] == unit_h)
+            if (ldata_ptr->ninst_tile_dims[OUT_W] == unit_w 
+                && (ldata_ptr->ninst_tile_dims[OUT_H] == unit_h || layer->type == APPEND_LAYER || layer->type == YOLO_LAYER))
             {
                 break;
             }
@@ -1288,7 +1363,7 @@ void print_ninst_info (ninst_t *ninst, int print_data)
                 , ninst->out_mat_pos[OUT_W] + ninst->tile_dims[OUT_W] - 1);
     LAYER_TYPE layer_type = ninst->ldata->layer->type;
     if ((layer_type == CONV_LAYER || layer_type == MAXPOOL_LAYER || layer_type == AVGPOOL_LAYER || layer_type == INPUT_LAYER 
-        || layer_type == RESIDUAL_LAYER) && ninst->ldata->layer->params[MAT_M] == 0)
+        || layer_type == RESIDUAL_LAYER || layer_type == YOLO_LAYER || layer_type == APPEND_LAYER) && ninst->ldata->layer->params[MAT_M] == 0)
     {
         unsigned int out_tensor_pos[NUM_PARAM_ELEMENTS]; 
         get_tensor_pos_from_nist (ninst->ldata, ninst, out_tensor_pos);

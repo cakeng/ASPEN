@@ -396,7 +396,7 @@ void naive_yolo (const float *input, const float *anchors,
         int widx = (i/(c/yolo_c)) % w;
         int hidx = (i/(c/yolo_c)) / w;
         int aidx = i % (c/yolo_c);
-        float *in = input + i*yolo_c;
+        const float *in = input + i*yolo_c;
         float *out = output + (aidx*h*w + hidx*w + widx)*yolo_c;
         out[0] = (1.0f / (1.0f + expf (-in[0])) + widx) * stride;
         out[1] = (1.0f / (1.0f + expf (-in[1])) + hidx) * stride;
@@ -418,17 +418,16 @@ void naive_append (const float *input_1, const float *input_2, float *output,
     if (output == NULL)
         FPRT (stderr, "Error in naive_convolution: output is NULL.\n");
     #endif
-    // #pragma omp parallel for
+    #pragma omp parallel for
     for (unsigned int i = 0; i < h2*w2; i++)
     {
         const int widx_2 = i % w2;
         const int hidx_2 = i / w2;
         const int w1 = w2 / stride;
-        const int h1 = h2 / stride;
         const int widx_1 = widx_2 / stride;
         const int hidx_1 = hidx_2 / stride;
-        float *in1 = input_1 + (hidx_1*w1 + widx_1)*c1;
-        float *in2 = input_2 + (hidx_2*w2 + widx_2)*c2;
+        const float *in1 = input_1 + (hidx_1*w1 + widx_1)*c1;
+        const float *in2 = input_2 + (hidx_2*w2 + widx_2)*c2;
         float *out = output + (hidx_2*w2 + widx_2)*(c1+c2);
         memcpy (out, in1, c1*sizeof(float));
         memcpy (out+c1, in2, c2*sizeof(float));

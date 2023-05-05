@@ -38,6 +38,8 @@ void tiled_avgpool2d (ninst_t *ninst, ase_t *ase);
 void tiled_fully_connected (ninst_t *ninst, ase_t *ase);
 void tiled_residual (ninst_t *ninst, ase_t *ase);
 void tiled_softmax (ninst_t *ninst, ase_t *ase);
+void tiled_yolo (ninst_t *ninst, ase_t *ase);
+void tiled_append (ninst_t *ninst, ase_t *ase);
 void tiled_matmul (ninst_t *ninst, ase_t *ase);
 void tiled_layernorm (ninst_t *ninst, ase_t *ase);
 void tiled_k_attention (ninst_t *ninst, ase_t *ase);
