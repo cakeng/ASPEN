@@ -1,5 +1,13 @@
 #include "kernels.h"
 
+void naive_sigmoid (float *input, float *output, int size)
+{
+    for (int kidx = 0; kidx < size; kidx++)
+    {
+        *(output + kidx) = 1.0f/(1.0f + exp(-(*(input + kidx))));
+    }
+}
+
 void naive_activate (float *input, unsigned int num_elements, LAYER_ACT activation_type)
 {
     if (activation_type == NO_ACTIVATION || activation_type == LINEAR)
@@ -366,6 +374,64 @@ void naive_layernorm (const float *input, const float *kernel, const float *bias
             if (bias != NULL)
                 output[i * M + j] = output[i * M + j] + bias[j];
         }
+    }
+}
+
+void naive_yolo (const float *input, const float *anchors, 
+    float *output, unsigned int yolo_c, unsigned int h, unsigned int w, unsigned int c, unsigned int stride)
+{
+    #ifdef DEBUG
+    if (input == NULL)
+        FPRT (stderr, "Error in naive_convolution: input is NULL.\n");
+    if (anchors == NULL)
+        FPRT (stderr, "Error in naive_convolution: anchor is NULL.\n");
+    if (output == NULL)
+        FPRT (stderr, "Error in naive_convolution: output is NULL.\n");
+    if (c % yolo_c != 0)
+        FPRT (stderr, "Error in naive_convolution: c is not divisible by yolo_c.\n");
+    #endif
+    #pragma omp parallel for
+    for (unsigned int i = 0; i < h*w*(c/yolo_c); i++)
+    {
+        int widx = (i/(c/yolo_c)) % w;
+        int hidx = (i/(c/yolo_c)) / w;
+        int aidx = i % (c/yolo_c);
+        float *in = input + i*yolo_c;
+        float *out = output + (aidx*h*w + hidx*w + widx)*yolo_c;
+        out[0] = (1.0f / (1.0f + expf (-in[0])) + widx) * stride;
+        out[1] = (1.0f / (1.0f + expf (-in[1])) + hidx) * stride;
+        out[2] = expf (in[2]) * anchors[2 * aidx];
+        out[3] = expf (in[3]) * anchors[2 * aidx + 1];
+        for (unsigned int j = 4; j < yolo_c; j++)
+            out[j] = 1.0f / (1.0f + expf (-in[j]));
+    }
+}
+
+void naive_append (const float *input_1, const float *input_2, float *output,
+    const int stride, const int c1, const int c2, const int h2, const int w2)
+{
+    #ifdef DEBUG
+    if (input_1 == NULL)
+        FPRT (stderr, "Error in naive_convolution: input_1 is NULL.\n");
+    if (input_2 == NULL)
+        FPRT (stderr, "Error in naive_convolution: input_2 is NULL.\n");
+    if (output == NULL)
+        FPRT (stderr, "Error in naive_convolution: output is NULL.\n");
+    #endif
+    // #pragma omp parallel for
+    for (unsigned int i = 0; i < h2*w2; i++)
+    {
+        const int widx_2 = i % w2;
+        const int hidx_2 = i / w2;
+        const int w1 = w2 / stride;
+        const int h1 = h2 / stride;
+        const int widx_1 = widx_2 / stride;
+        const int hidx_1 = hidx_2 / stride;
+        float *in1 = input_1 + (hidx_1*w1 + widx_1)*c1;
+        float *in2 = input_2 + (hidx_2*w2 + widx_2)*c2;
+        float *out = output + (hidx_2*w2 + widx_2)*(c1+c2);
+        memcpy (out, in1, c1*sizeof(float));
+        memcpy (out+c1, in2, c2*sizeof(float));
     }
 }
 

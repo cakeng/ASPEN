@@ -554,13 +554,6 @@ void create_layer_tensors (aspen_layer_t *layer)
         assert (0);
     }
 
-    for (int i = 0; i < NUM_TENSORS; i++)
-    {
-        if (layer->tensors[i] != NULL)
-        {
-            fill_tensor_with_nums (layer->tensors[i]);
-        }
-    }
     // fill_tensor_with_fixed_nums (layer->tensors[WEIGHT_TENSOR], 1);
 }
 
@@ -1079,6 +1072,16 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
             {
                 naive_layernorm (input, layer->tensors[WEIGHT_TENSOR]->data, layer->tensors[BIAS_TENSOR]->data, output, 
                     layer->params[BATCH]*layer->params[MAT_N], layer->params[MAT_M]);
+            }
+            else if (layer->type == YOLO_LAYER)
+            {
+                naive_yolo (input, layer->tensors[ANCHOR_TENSOR]->data,
+                    output, layer->params[OUT_C], layer->params[IN_H], layer->params[IN_W], layer->params[IN_C], layer->params[STRIDE]);
+            }
+            else if (layer->type == APPEND_LAYER)
+            {
+                naive_append (input, input2, output,
+                    layer->params[STRIDE], layer->params[IN_C], layer->params[OUT_C] - layer->params[IN_C], layer->params[OUT_H], layer->params[OUT_W]);
             }
             else if (layer->type == INPUT_LAYER)
             {

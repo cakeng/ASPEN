@@ -29,21 +29,21 @@ int main(void)
     
     // // nasm_t *bert_nasm = apu_create_transformer_encoder_nasm(bert_dnn, 5e6, 50, 1, 128);
     // nasm_t *resnet50_nasm = apu_create_nasm(resnet50_dnn, 100e6, 100, 32);
-    nasm_t *yolov3_nasm = apu_create_nasm(yolov3_dnn, 100e6, 100, 1);
+    // nasm_t *yolov3_nasm = apu_create_nasm(yolov3_dnn, 100e6, 100, 1);
     // // if (bert_nasm == NULL) 
     // // {
     // //     printf("Error: Failed to create NASM\n");
     // //     return -1;
     // // }
-    print_nasm_info(yolov3_nasm, 1, 0);
-    char nasm_file_name [1024] = {0};
+    // print_nasm_info(yolov3_nasm, 1, 0);
+    // char nasm_file_name [1024] = {0};
     // sprintf (nasm_file_name, "data/bert_S%d_B%d_M%d_%2.1e.nasm"
     //     , bert_nasm->tr_seq_len, bert_nasm->batch_size, bert_nasm->min_ninst_per_ldata,
     //     (double)bert_nasm->flop_per_ninst);
-    sprintf (nasm_file_name, "data/yolov3_B%d_M%d_%2.1e.nasm",
-        yolov3_nasm->batch_size, yolov3_nasm->min_ninst_per_ldata,
-        (double)yolov3_nasm->flop_per_ninst);
-    apu_save_nasm_to_file (yolov3_nasm, nasm_file_name);
+    // sprintf (nasm_file_name, "data/yolov3_B%d_M%d_%2.1e.nasm",
+        // yolov3_nasm->batch_size, yolov3_nasm->min_ninst_per_ldata,
+        // (double)yolov3_nasm->flop_per_ninst);
+    // apu_save_nasm_to_file (yolov3_nasm, nasm_file_name);
     int gpu = -1;
     // // aspen_dnn_t *bert_dnn = apu_load_dnn_from_file ("data/bert_base.aspen");
     // // nasm_t *bert_nasm = apu_load_nasm_from_file ("data/bert_S128_B8.nasm", bert_dnn);
@@ -57,7 +57,7 @@ int main(void)
 
     // // // rpool_add_nasm_raw_input (rpool, bert_4_nasm, 0.5, dog_data);
     // rpool_add_nasm (rpool, resnet50_nasm, 1.0, "data/batched_input_128.bin");
-    rpool_add_nasm (rpool, yolov3_nasm, 1.0, "data/yolov3_cat_input_1.bin");
+    // rpool_add_nasm (rpool, yolov3_nasm, 1.0, "data/yolov3_cat_input_1.bin");
     // // rpool_add_nasm (rpool, bert_nasm, 1.0, "data/Text_Len_128_Embedded_input_Batch_32.bin");
     // // print_rpool_info (rpool);
     // // print_nasm_info(bert_nasm, 0, 0);
@@ -68,12 +68,12 @@ int main(void)
 
     // // ase_cudagraph_run (rpool, bert_nasm);
     
-    ase_group_run (ase_group);
+    // ase_group_run (ase_group);
     // ase_wait_for_nasm_completion (bert_nasm);
     // ase_wait_for_nasm_completion (resnet50_nasm);
-    ase_wait_for_nasm_completion (yolov3_nasm);
+    // ase_wait_for_nasm_completion (yolov3_nasm);
     // ase_wait_for_nasm_completion (bert_4_nasm);
-    ase_group_stop (ase_group);
+    // ase_group_stop (ase_group);
 
 
     // get_elapsed_time ("run_aspen");
@@ -91,12 +91,12 @@ int main(void)
     aspen_run_naive (yolov3_dnn, input_params, dog_data, gpu);
     get_elapsed_time ("run_naive");
     
-    for (int i = 82; i < 83; i++)
+    for (int i = 103; i < 104; i++)
     {
         printf ("\tLayer %d - Type %s\n", i, layer_type_str[yolov3_dnn->layers[i].type]);
         aspen_layer_t *layer = &yolov3_dnn->layers[i];
-        nasm_ldata_t *ldata = &yolov3_nasm->ldata_arr[i];
-        assert (ldata->layer == layer);
+        // nasm_ldata_t *ldata = &yolov3_nasm->ldata_arr[i];
+        // assert (ldata->layer == layer);
         LAYER_PARAMS output_order[] = {BATCH, MAT_N, MAT_M, 0};
         LAYER_PARAMS output_order_nhwc[] = {BATCH, OUT_H, OUT_W, OUT_C};
         LAYER_PARAMS output_order_nchw[] = {BATCH, OUT_C, OUT_H, OUT_W};
@@ -107,11 +107,11 @@ int main(void)
             output_order [3] = MAT_M;
         }
         void *layer_output = get_aspen_tensor_data 
-            (layer->tensors[OUTPUT_TENSOR], output_order_nchw, gpu);
-        void *ldata_output = get_ldata_output (ldata, output_order_nchw);
+            (layer->tensors[OUTPUT_TENSOR], output_order_nhwc, gpu);
+        // void *ldata_output = get_ldata_output (ldata, output_order_nchw);
         // void *ldata_raw_output = get_packed_ldata_output_colwise (ldata);
         char filename[256];
-        sprintf (filename, "data/yolov3/yolov3_cat_layer_81_out.bin");
+        sprintf (filename, "data/yolov3/yolov3_cat_layer_107_out.bin");
         // size_t elem_size = ldata->layer->dnn->element_size;
         // size_t data_size = ldata->out_mat_dims[OUT_H] * ldata->out_mat_dims[OUT_W] * elem_size;
         size_t elem_size = layer->dnn->element_size;
@@ -137,15 +137,15 @@ int main(void)
         //         print_float_tensor (layer->tensors[WEIGHT_TENSOR]->data, layer->tensors[WEIGHT_TENSOR]->dims[OUT_C], layer->tensors[WEIGHT_TENSOR]->dims[WEIGHT_H],
         //             layer->tensors[WEIGHT_TENSOR]->dims[WEIGHT_W], layer->tensors[WEIGHT_TENSOR]->dims[IN_C]);
         // }
-        compare_float_tensor (expected_output, ldata_output, 
-            input_params[BATCH], layer->params[OUT_C], layer->params[OUT_H], layer->params[OUT_W],
-            1e-2, 1e-4, 20);
+        // compare_float_tensor (expected_output, ldata_output, 
+        //     input_params[BATCH], layer->params[OUT_C], layer->params[OUT_H], layer->params[OUT_W],
+        //     1e-2, 1e-4, 20);
         // compare_float_tensor (expected_output, ldata_output, 
         //     bert_nasm->batch_size, layer->params[OUT_C], layer->params[OUT_H], layer->params[OUT_W],
         //     1e-2, 1e-4, 100);
         compare_float_tensor (expected_output, layer_output, 
-            input_params[BATCH], layer->params[OUT_C], layer->params[OUT_H], layer->params[OUT_W],
-            1e-2, 1e-4, 20);
+            input_params[BATCH],  layer->params[OUT_H], layer->params[OUT_W],
+            layer->params[OUT_C], 1e-2, 1e-4, 20);
         
         // free (expected_output);
         // free (ldata_output);

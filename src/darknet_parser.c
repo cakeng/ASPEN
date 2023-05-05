@@ -539,6 +539,7 @@ void parse_section (section *s, aspen_layer_t *layer)
             ((float*)layer->tensors[ANCHOR_TENSOR]->data)[i*2] = anchors[masks[i]*2];
             ((float*)layer->tensors[ANCHOR_TENSOR]->data)[i*2 + 1] = anchors[masks[i]*2 + 1];
         }
+        // print_tensor_info (layer->tensors [ANCHOR_TENSOR], 1);
         if (masks)
             free (masks);
         if (anchors)

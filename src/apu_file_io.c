@@ -95,7 +95,7 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
                 if (weighted_layer == file_layer_num)
                 {
                     layer_num = i;
-                    PRT ("File Layer %d loading into DNN layer %d: ", file_layer_num, layer_num);
+                    // PRT ("File Layer %d loading into DNN layer %d: ", file_layer_num, layer_num);
                     break;
                 }
             }
@@ -406,8 +406,8 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
             bn_mean = NULL;
             bn_weight = NULL;
         }
-        printf ("Layer %d data loaded from file info string LAYER: %d, TENSOR_TYPE: %s, DATA_SIZE: %ld\n",
-             layer_num, file_layer_num, tensor_type_str[tensor_type], data_size);
+        // printf ("Layer %d data loaded from file info string LAYER: %d, TENSOR_TYPE: %s, DATA_SIZE: %ld\n",
+        //      layer_num, file_layer_num, tensor_type_str[tensor_type], data_size);
         if ((ptr = read_check_and_return (fp, line, "LAYER_END", &line_num)) == NULL)
         {
             FPRT(stderr,"ASPEN DNN file %s parse error: Missing LAYER_END.\n", input_path);

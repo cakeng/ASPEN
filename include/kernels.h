@@ -43,6 +43,7 @@ void tiled_layernorm (ninst_t *ninst, ase_t *ase);
 void tiled_k_attention (ninst_t *ninst, ase_t *ase);
 void tiled_v_attention (ninst_t *ninst, ase_t *ase);
 
+void naive_sigmoid (float *input, float *output, int size);
 void naive_activate (float *input, unsigned int num_elements, LAYER_ACT activation_type);
 
 void naive_conv2d
@@ -73,6 +74,12 @@ void naive_fully_connected
 
 void naive_layernorm (const float *input, const float *kernel, const float *bias, 
     float *output, unsigned int N, unsigned int M);
+
+void naive_yolo (const float *input, const float *anchors, 
+    float *output, unsigned int yolo_c, unsigned int h, unsigned int w, unsigned int c, unsigned int stride);
+
+void naive_append (const float *input_1, const float *input_2, float *output,
+    const int stride, const int c1, const int c2, const int h2, const int w2);
 
 void naive_k_attention (const float *input_1, const float *input_2, float *output, unsigned int batch_size
     , unsigned int num_heads, unsigned int num_hidden, unsigned int num_seq);
