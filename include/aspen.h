@@ -111,14 +111,12 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
 void aspen_init_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data, int gpu_idx);
 
 aspen_dnn_t *apu_create_dnn(char *input_path, char *data_path);
-aspen_dnn_t *apu_create_transformer_encoder_dnn (unsigned int num_transformers,
-    unsigned int num_hidden, unsigned int num_head, unsigned int ff_scale, char* name, char *weight_path);
 void apu_destroy_dnn(aspen_dnn_t *dnn);
 void apu_save_dnn_to_file(aspen_dnn_t *dnn, char *filename);
 void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path);
 aspen_dnn_t *apu_load_dnn_from_file(char *filename);
 nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int min_ninst_per_ldata, unsigned int batch_size);
-nasm_t *apu_create_transformer_encoder_nasm
+nasm_t *apu_create_transformer_nasm
   (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int min_ninst_per_ldata, 
   unsigned int batch_size, unsigned int seq_num);
 void apu_destroy_nasm(nasm_t *nasm);

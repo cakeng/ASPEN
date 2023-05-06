@@ -15,6 +15,9 @@ aspen_dnn_t *parse_input (char *filename)
     for (int i = 0; i < dnn->num_layers; i++)
     {
         set_layer_inout_sizes(&dnn->layers[i]);
+    }
+    for (int i = 0; i < dnn->num_layers; i++)
+    {
         create_layer_tensors (&dnn->layers[i]);
     }
     return dnn;

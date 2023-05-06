@@ -39,59 +39,7 @@ aspen_dnn_t *apu_create_dnn (char *input_path, char *weight_path)
             params[OUT_C] = (layer->params[OUT_C] + params[SUB_C] - 1) / params[SUB_C];
             reorder_aspen_tensor (&layer->tensors[WEIGHT_TENSOR], params, weight_dim_order, 5);
         }
-    }
-    return new_dnn;
-}
-
-aspen_dnn_t *apu_create_transformer_encoder_dnn (unsigned int num_transformers,
-    unsigned int num_hidden, unsigned int num_head, unsigned int ff_scale, char* name, char *weight_path)
-{
-    if (num_hidden % num_head != 0)
-    {
-        printf ("ERROR: num_hidden must be a multiple of num_head\n");
-        exit (1);
-    }
-    aspen_dnn_t *new_dnn = init_aspen_dnn (num_transformers * LAYERS_PER_TRANSFORMER + 1, name);
-    new_dnn->layers[0].type = INPUT_LAYER;
-    new_dnn->layers[0].params [MAT_M] = num_hidden;
-    set_layer_inout_sizes(&new_dnn->layers[0]);
-    for (int i = 0; i < num_transformers; i++)
-    {
-        for (int j = 0; j < LAYERS_PER_TRANSFORMER; j++)
-        {
-            aspen_layer_t *layer = new_dnn->layers + i * LAYERS_PER_TRANSFORMER + j + 1;
-            layer->type = transformer_layer_types[j];
-            layer->params [MAT_M] = num_hidden;
-            if (j == 8) // Feed-forward MM 1
-            {
-                layer->params [MAT_M] = ff_scale * num_hidden;
-                layer->activation = GELU;
-            }
-            else if (j <= 4) // Attention layers 
-            {
-                layer->params [NUM_HIDDEN] = num_hidden;
-                layer->params [NUM_HEAD] = num_head;
-                layer->params [MAT_M] = num_hidden;
-            }
-            if (layer->type == K_ATTENTION_LAYER)
-            {
-                layer->params[MAT_M] = 1;
-                layer->params[MAT_K] = (num_hidden / num_head);
-            }
-            layer->parent_layers [PARENT_0] = layer + transformer_parents[j][0];
-            if (transformer_parents[j][1] != 1)
-                layer->parent_layers [PARENT_1] = layer + transformer_parents[j][1];
-            set_layer_inout_sizes(layer);
-            create_layer_tensors (layer);
-        }
-    }
-    // print_dnn_info (new_dnn, 0);
-    if (weight_path != NULL)
-        apu_load_dnn_data_from_file (new_dnn, weight_path);
-    for (int i = 0; i < new_dnn->num_layers; i++)
-    {
-        aspen_layer_t *layer = new_dnn->layers + i;
-        if (layer->type == MATMUL_LAYER)
+        else if (layer->type == MATMUL_LAYER)
         {
             // printf ("Reordering weight tensor for layer %d\n", i);
             LAYER_PARAMS weight_dim_order[] = {MAT_M, MAT_K, SUB_M};

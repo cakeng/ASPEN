@@ -410,6 +410,7 @@ LAYER_ACT get_activation(char *s)
     if (strcmp(s, "elu")==0) return ELU;
     if (strcmp(s, "selu")==0) return SELU;
     if (strcmp(s, "tanh")==0) return TANH;
+    if (strcmp(s, "gelu")==0) return GELU;
     fprintf(stderr, "Couldn't find activation function %s, going with ReLU\n", s);
     return RELU;
 }
@@ -435,6 +436,10 @@ LAYER_TYPE string_to_layer_type(char * type)
             || strcmp(type, "[softmax]")==0) return SOFTMAX_LAYER;
     if (strcmp(type, "[yolo]")==0) return YOLO_LAYER;
     if (strcmp(type, "[append]")==0) return APPEND_LAYER;
+    if (strcmp(type, "[matmul]")==0) return MATMUL_LAYER;
+    if (strcmp(type, "[attention_k]")==0) return K_ATTENTION_LAYER;
+    if (strcmp(type, "[attention_v]")==0) return V_ATTENTION_LAYER;
+    if (strcmp(type, "[layernorm]")==0) return LAYERNORM_LAYER;
     return NO_LAYER_TYPE;
 }
 
@@ -470,11 +475,18 @@ void parse_section (section *s, aspen_layer_t *layer)
     layer->params [STRIDE] = option_find_int_quiet (options, "stride", 0);
     layer->params [PADDING] = option_find_int_quiet (options, "pad", 0);
     layer->params [DILATION] = option_find_int_quiet (options, "dilation", 0);
+    layer->params [MAT_M] = option_find_int_quiet (options, "M", 0);
+    layer->params [MAT_N] = option_find_int_quiet (options, "N", 0);
+    layer->params [MAT_K] = option_find_int_quiet (options, "K", 0);
+    layer->params [NUM_HIDDEN] = option_find_int_quiet (options, "n_embd", 0);
+    layer->params [NUM_HEAD] = option_find_int_quiet (options, "n_head", 0);
     char *activation_s = option_find_str(options, "activation", NULL);
     layer->activation = get_activation(activation_s);
     layer->parent_layers [PARENT_0] = layer + option_find_int_quiet (options, "parent", 0);
     if (layer->type != INPUT_LAYER && layer->parent_layers [PARENT_0] == layer)
         layer->parent_layers [PARENT_0] = layer - 1;
+    else if (layer->type == INPUT_LAYER)
+        layer->parent_layers [PARENT_0] = NULL;
     if (option_find_int_quiet (options, "from", 0))
     {
         layer->parent_layers [PARENT_1] = layer + option_find_int_quiet (options, "from", 0);

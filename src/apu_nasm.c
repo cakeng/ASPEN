@@ -698,7 +698,7 @@ nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned 
     return new_nasm;
 }
 
-nasm_t *apu_create_transformer_encoder_nasm
+nasm_t *apu_create_transformer_nasm
     (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int min_ninst_per_ldata,
     unsigned int batch_size, unsigned int seq_num)
 {
