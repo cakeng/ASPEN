@@ -252,7 +252,6 @@ void reorder_aspen_tensor (aspen_tensor_t **tensor_ptr, unsigned int *params_arr
     calloc_aspen_tensor (new_tensor);
     calloc_aspen_gpu_tensors (new_tensor);
     unsigned int pos[NUM_PARAM_ELEMENTS] = {0};
-    
     for (int idx = 0; idx < tensor->num_elements; idx++)
     {
         get_tensor_pos_from_idx (tensor, idx, pos);

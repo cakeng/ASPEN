@@ -1052,11 +1052,14 @@ unsigned int get_tensor_idx_from_pos (aspen_tensor_t *tensor, unsigned int *pos)
 }
 void get_tensor_pos_from_idx (aspen_tensor_t *tensor, unsigned int idx, unsigned int *pos)
 {
+    // printf ("idx = %d, tensor num dims %d, dim order %s, %s, %s\n", idx, tensor->num_dims,
+        // param_type_str[tensor->data_dim_order[0]], param_type_str[tensor->data_dim_order[1]], param_type_str[tensor->data_dim_order[2]]);
     for (int i = tensor->num_dims - 1; i >= 0; i--)
     {
         LAYER_PARAMS dim = tensor->data_dim_order[i];
         pos[dim] = idx%tensor->dims[dim];
         idx /= tensor->dims[dim];
+        // printf ("\tidx = %d, dim %s , pos %d\n", idx, param_type_str[dim], pos[dim]);
     }
 }
 ninst_t *get_ninst_from_tensor_pos (nasm_ldata_t *ldata, unsigned int *tensor_pos)

@@ -222,7 +222,7 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
         if (tensor_type == WEIGHT_TENSOR)
         {
             if (layer->tensors[WEIGHT_TENSOR] != NULL)
-            {
+            {   
                 if (layer->type == MATMUL_LAYER)
                 {
                     LAYER_PARAMS weight_dim_order[] = {MAT_M, MAT_K};
@@ -290,9 +290,9 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
                 if (layer->type == MATMUL_LAYER || layer->type == LAYERNORM_LAYER)
                 {
                     LAYER_PARAMS weight_dim_order[] = {MAT_M};
-                    for (int i = 0; i < layer->tensors[WEIGHT_TENSOR]->num_dims; i++)
+                    for (int i = 0; i < layer->tensors[BIAS_TENSOR]->num_dims; i++)
                     {
-                        layer->tensors[WEIGHT_TENSOR]->data_dim_order[i] = weight_dim_order[i];
+                        layer->tensors[BIAS_TENSOR]->data_dim_order[i] = weight_dim_order[i];
                     }
                 }
                 else
