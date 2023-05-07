@@ -38,7 +38,7 @@ int main(void)
     // // }
     // print_nasm_info(gpt2_nasm, 1, 0);
     char nasm_file_name [1024] = {0};
-    sprintf (nasm_file_name, "data/gpt2_S%d_B%d_M%d_%2.1e.nasm"
+    sprintf (nasm_file_name, "data/gpt2_124M_S%d_B%d_M%d_%2.1e.nasm"
         , gpt2_nasm->tr_seq_len, gpt2_nasm->batch_size, gpt2_nasm->min_ninst_per_ldata,
         (double)gpt2_nasm->flop_per_ninst);
     // // sprintf (nasm_file_name, "data/yolov3_B%d_M%d_%2.1e.nasm",
