@@ -480,6 +480,7 @@ void parse_section (section *s, aspen_layer_t *layer)
     layer->params [MAT_K] = option_find_int_quiet (options, "K", 0);
     layer->params [NUM_HIDDEN] = option_find_int_quiet (options, "n_embd", 0);
     layer->params [NUM_HEAD] = option_find_int_quiet (options, "n_head", 0);
+    layer->params [MASKED] = option_find_int_quiet (options, "masked", 0);
     char *activation_s = option_find_str(options, "activation", NULL);
     layer->activation = get_activation(activation_s);
     layer->parent_layers [PARENT_0] = layer + option_find_int_quiet (options, "parent", 0);

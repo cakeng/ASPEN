@@ -84,7 +84,7 @@ void naive_append (const float *input_1, const float *input_2, float *output,
     const int stride, const int c1, const int c2, const int h2, const int w2);
 
 void naive_k_attention (const float *input_1, const float *input_2, float *output, unsigned int batch_size
-    , unsigned int num_heads, unsigned int num_hidden, unsigned int num_seq);
+    , unsigned int num_heads, unsigned int num_hidden, unsigned int num_seq, unsigned int masked);
 
 void naive_v_attention (const float *input_1, const float *input_2, float *output, unsigned int batch_size
     , unsigned int num_heads, unsigned int num_hidden, unsigned int num_seq);

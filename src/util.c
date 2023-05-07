@@ -16,7 +16,7 @@ char *layer_type_str [NUM_LAYER_ELEMENTS] =
 char *param_type_str[NUM_PARAM_ELEMENTS] = 
 {
     [OUT_W] = "OUT_W", [OUT_H] = "OUT_H", [IN_W] = "IN_W", [IN_H] = "IN_H", [IN_C] = "IN_C", [BATCH] = "BATCH", [OUT_C] = "OUT_C", [SUB_C] = "SUB_C", [WEIGHT_W] = "WEIGHT_W", [WEIGHT_H] = "WEIGHT_H", [STRIDE] = "STRIDE", [PADDING] = "PADDING", [DILATION] = "DILATION", [GROUPS] = "GROUPS",
-    [NUM_HIDDEN] = "NUM_HIDDEN", [NUM_HEAD] = "NUM_HEAD", [NUM_SEQ] = "NUM_SEQ", [MAT_M] = "MAT_M", [MAT_N] = "MAT_N", [MAT_K] = "MAT_K", [SUB_M] = "SUB_M",
+    [NUM_HIDDEN] = "NUM_HIDDEN", [NUM_HEAD] = "NUM_HEAD", [NUM_SEQ] = "NUM_SEQ", [MAT_M] = "MAT_M", [MAT_N] = "MAT_N", [MAT_K] = "MAT_K", [SUB_M] = "SUB_M", [MASKED] = "MASKED",
     [FORM_BYTES] = "FORM_BYTES"
 };
 
@@ -39,14 +39,6 @@ char *rpool_cond_str [NUM_RPOOL_CONDS] =
 {
     [RPOOL_DNN] = "RPOOL_DNN", [RPOOL_LAYER_TYPE] = "RPOOL_LAYER_TYPE", [RPOOL_LAYER_IDX] = "RPOOL_LAYER_IDX", [RPOOL_NASM] = "RPOOL_NASM", [RPOOL_ASE] = "RPOOL_ASE"
 };
-
-char *transformer_layer_type_str[LAYERS_PER_TRANSFORMER] = 
-{
-    "MATMUL_LAYER", "MATMUL_LAYER", "MATMUL_LAYER",
-    "K_ATTENTION_LAYER", "V_ATTENTION_LAYER", "MATMUL_LAYER", "RESIDUAL_LAYER", "LAYERNORM_LAYER",
-    "MATMUL_LAYER", "MATMUL_LAYER", "RESIDUAL_LAYER", "LAYERNORM_LAYER"
-};
-
 
 void *aspen_calloc (size_t num, size_t size)
 {

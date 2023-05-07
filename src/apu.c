@@ -3,18 +3,6 @@
 #include "nasm.h"
 #include "input_parser.h"
 
-LAYER_TYPE transformer_layer_types[LAYERS_PER_TRANSFORMER] 
-= {MATMUL_LAYER, MATMUL_LAYER, MATMUL_LAYER,
-    K_ATTENTION_LAYER, V_ATTENTION_LAYER, MATMUL_LAYER, RESIDUAL_LAYER, LAYERNORM_LAYER,
-    MATMUL_LAYER, MATMUL_LAYER, RESIDUAL_LAYER, LAYERNORM_LAYER};
-int transformer_parents [LAYERS_PER_TRANSFORMER][2]
-= { {-1, 1}, {-2, 1}, {-3, 1}, 
-    {-2, -3}, {-1, -2}, {-1, 1}, {-1, -7}, {-1, 1},
-    {-1, 1}, {-1, 1}, {-1, -3}, {-1, 1}};
-// 1. Key MM, 2. Query MM, 3. Value MM, 
-// 4. K Attention, 5. V Attention, 6. Attention MM, 7. Residual, 8. LayerNorm, 
-// 9. Feedforward MM 1, 10. Feedforward MM 2, 11. Residual, 12. LayerNorm
-
 int use_gpu = 1;
 int aspen_num_gpus = 0;
 
@@ -1012,7 +1000,7 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
             else if (layer->type == K_ATTENTION_LAYER)
             {
                 naive_k_attention (input, input2, output
-                    , layer->params[BATCH], layer->params[NUM_HEAD], layer->params[NUM_HIDDEN], layer->params[NUM_SEQ]);
+                    , layer->params[BATCH], layer->params[NUM_HEAD], layer->params[NUM_HIDDEN], layer->params[NUM_SEQ], layer->params[MASKED]);
             }
             else if (layer->type == V_ATTENTION_LAYER)
             {

@@ -757,6 +757,7 @@ void tiled_k_attention (ninst_t *ninst, ase_t *ase)
     const unsigned int num_seq = ldata->nasm->tr_seq_len;
     const unsigned int batch = ninst->out_mat_pos[OUT_W] / (num_seq * num_heads);
     const unsigned int head = (ninst->out_mat_pos[OUT_W] % (num_seq * num_heads)) / num_seq;
+    const unsigned int n_global = ninst->out_mat_pos[OUT_W] % num_seq;
     const unsigned int M = ninst->tile_dims[OUT_H];
     const unsigned int N = ninst->tile_dims[OUT_W];
     const unsigned int K = layer->params[MAT_K];
@@ -768,7 +769,7 @@ void tiled_k_attention (ninst_t *ninst, ase_t *ase)
     const void *key_head = (float*)pk_ldata->out_mat + 
         (batch * ldk * M + head * K + ninst->out_mat_pos[OUT_H]);
     const void *B_head = (float*)p_ldata->out_mat + (batch * ldb * num_seq + head * hidden_per_head +
-        + (ninst->out_mat_pos[OUT_W] % num_seq) * ldb);
+        + n_global * ldb);
     void *C_head = ninst->out_mat;
     
     unsigned int n = 0;
@@ -824,6 +825,14 @@ void tiled_k_attention (ninst_t *ninst, ase_t *ase)
             }
             for (unsigned int nn = n; nn < n + _TILE_SIZE_N; nn++)
             {
+                if (layer->params[MASKED] == 1)
+                {
+                    for (unsigned int m = 0; m < M; m++)
+                    {
+                        if (m > nn + n_global)
+                            *((float*)C_head + nn*ldc + m) = -1e10;
+                    }
+                }
                 float total = 0;
                 for (unsigned int j = 0; j < M; j++)
                 {
@@ -871,6 +880,14 @@ void tiled_k_attention (ninst_t *ninst, ase_t *ase)
             }
             for (unsigned int nn = n; nn < N; nn++)
             {
+                if (layer->params[MASKED] == 1)
+                {
+                    for (unsigned int m = 0; m < M; m++)
+                    {
+                        if (m > nn + n_global)
+                            *((float*)C_head + nn*ldc + m) = -1e10;
+                    }
+                }
                 float total = 0;
                 for (unsigned int j = 0; j < M; j++)
                 {

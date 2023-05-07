@@ -435,7 +435,7 @@ void naive_append (const float *input_1, const float *input_2, float *output,
 }
 
 void naive_k_attention (const float *input_1, const float *input_2, float *output, unsigned int batch_size
-    , unsigned int num_heads, unsigned int num_hidden, unsigned int num_seq)
+    , unsigned int num_heads, unsigned int num_hidden, unsigned int num_seq, unsigned int masked)
 {
     #ifdef DEBUG
     if (input_1 == NULL)
@@ -478,6 +478,17 @@ void naive_k_attention (const float *input_1, const float *input_2, float *outpu
             const float *A = key_temp + b * num_heads * seq_padded * K + h * seq_padded * K;
             float *C = output + b * num_heads * ldc * N + h * ldc * N;
             SGEMM_KERNEL_OMP (M, N, K, A, lda, B, ldb, C, ldc);
+            if (masked)
+            {
+                for (unsigned int n = 0; n < N; n++)
+                {
+                    for (unsigned int m = 0; m < M; m++)
+                    {
+                        if (m > n)
+                            C[n*ldc + m] = -1e10;
+                    }
+                }
+            }
             for (unsigned int i = 0; i < N; i++)
             {
                 float total = 0;
