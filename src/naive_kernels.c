@@ -47,6 +47,11 @@ void naive_activate (float *input, unsigned int num_elements, LAYER_ACT activati
         for (unsigned int i = 0; i < num_elements; i++)
             input[i] = 0.5 * input[i] * (1 + erff ((input[i])*0.7071067811865475f));
     }
+    else if (activation_type == GELU_ACCURATE)
+    {
+        for (unsigned int i = 0; i < num_elements; i++)
+            input[i] = 0.5 * input[i] * (1 + tanhf (0.7978845608028654f * (input[i] + 0.044715 * input[i] * input[i] * input[i])));
+    }
     else
         FPRT (stderr, "Error in naive_activate: unknown activation type.\n");
 }
