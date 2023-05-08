@@ -696,17 +696,21 @@ void *ase_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS *
         }
         output = calloc (output_size, 1);
         size_t offset = 0;
-        for (int i = 0; i < nasm->num_ldata; i++)
+        size_t batch_num = nasm->batch_size;
+        for (int b = 0; b < batch_num; b++)
         {
-            nasm_ldata_t *targ_ldata = &nasm->ldata_arr[i];
-            if (targ_ldata->layer->type == YOLO_LAYER)
+            for (int i = 0; i < nasm->num_ldata; i++)
             {
-                void *data = get_ldata_output (targ_ldata, order);
-                size_t elem_size = targ_ldata->layer->dnn->element_size;
-                size_t data_size = targ_ldata->out_mat_dims[OUT_H] * targ_ldata->out_mat_dims[OUT_W] * elem_size;
-                memcpy ((char*)output + offset, data, data_size);
-                offset += data_size;
-                free (data);
+                nasm_ldata_t *targ_ldata = &nasm->ldata_arr[i];
+                if (targ_ldata->layer->type == YOLO_LAYER)
+                {
+                    void *data = get_ldata_output (targ_ldata, order);
+                    size_t elem_size = targ_ldata->layer->dnn->element_size;
+                    size_t data_size = targ_ldata->out_mat_dims[OUT_H] * targ_ldata->out_mat_dims[OUT_W] * elem_size / batch_num;
+                    memcpy ((char*)output + offset, (char*)data + data_size*b, data_size);
+                    offset += data_size;
+                    free (data);
+                }
             }
         }
         return output;
