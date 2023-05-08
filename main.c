@@ -79,7 +79,7 @@ int main(void)
     ase_group_stop (ase_group);
 
 
-    get_elapsed_time ("run_aspen");
+    get_elapsed_time ("run_aspen2");
     // // rpool_reset_nasm (rpool, bert_nasm, 1.0);
     // print_nasm_info(bert_nasm, 1, 0);
     // // print_rpool_info (rpool);
