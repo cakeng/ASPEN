@@ -30,10 +30,12 @@ aspen_dnn_t *apu_create_dnn (char *input_path, char *weight_path)
         else if (layer->type == FC_LAYER)
         {
             // printf ("Reordering weight tensor for layer %d\n", i);
-            LAYER_PARAMS weight_dim_order[] = {OUT_C, IN_H, IN_W, IN_C};
+            LAYER_PARAMS weight_dim_order[] = {OUT_C, IN_H, IN_W, IN_C, SUB_C};
             unsigned int params[NUM_PARAM_ELEMENTS] = {0};
             memcpy (params, layer->params, sizeof(unsigned int) * NUM_PARAM_ELEMENTS);
-            reorder_aspen_tensor (&layer->tensors[WEIGHT_TENSOR], params, weight_dim_order, 4);
+            params[SUB_C] = _VEC_SIZE_M;
+            params[OUT_C] = (layer->params[OUT_C] + params[SUB_C] - 1) / params[SUB_C];
+            reorder_aspen_tensor (&layer->tensors[WEIGHT_TENSOR], params, weight_dim_order, 5);
         }
         else if (layer->type == MATMUL_LAYER)
         {
@@ -507,7 +509,7 @@ void create_layer_tensors (aspen_layer_t *layer)
 void create_layer_output_tensor (aspen_layer_t *layer, int gpu_idx)
 {
     if (layer->type == CONV_LAYER || layer->type == INPUT_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER 
-        || layer->type == RESIDUAL_LAYER || layer->type == YOLO_LAYER || layer->type == APPEND_LAYER)
+        || layer->type == FC_LAYER || layer->type == RESIDUAL_LAYER || layer->type == YOLO_LAYER || layer->type == APPEND_LAYER)
     {
         if (MAT_M != 0)
         {
