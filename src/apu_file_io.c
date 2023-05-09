@@ -239,6 +239,14 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
                         layer->tensors[WEIGHT_TENSOR]->data_dim_order[i] = weight_dim_order[i];
                     }
                 }
+                else if (layer->type == FC_LAYER)
+                {
+                    LAYER_PARAMS weight_dim_order[] = {OUT_C, IN_C, IN_H, IN_W};
+                    for (int i = 0; i < layer->tensors[WEIGHT_TENSOR]->num_dims; i++)
+                    {
+                        layer->tensors[WEIGHT_TENSOR]->data_dim_order[i] = weight_dim_order[i];
+                    }
+                }
                 else
                 {
                     LAYER_PARAMS weight_dim_order[] = {OUT_C, IN_C, WEIGHT_H, WEIGHT_W};
