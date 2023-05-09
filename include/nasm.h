@@ -88,6 +88,14 @@ struct aspen_dnn_t
     aspen_layer_t *layers;
     unsigned int num_layers;
     _Atomic unsigned int ref_nasms;
+
+    // For offloading
+    struct sockaddr_in rx_addr;
+    struct sockaddr_in tx_addr;
+    int sock_id;
+    int rx_sock, tx_sock;
+    int isUDP;
+    SOCK_TYPE sock_type;
 };
 
 struct aspen_tensor_t
