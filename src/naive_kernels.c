@@ -297,7 +297,8 @@ void naive_fully_connected
             for (unsigned int ic = 0; ic < input_size; ic++)
             {
                 unsigned int input_index = b * input_size + ic;
-                unsigned int kernel_index = oc * input_size + ic;
+                unsigned int kernel_index = 
+                    ((oc/_VEC_SIZE_M) * input_size + ic)*_VEC_SIZE_M + (oc%_VEC_SIZE_M);
                 output[output_index] += input[input_index] * kernel[kernel_index];
             }
             if (bias != NULL)

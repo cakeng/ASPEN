@@ -78,7 +78,6 @@ void set_layer_inout_sizes (aspen_layer_t *layer)
     {
         layer->params[OUT_H] = 1;
         layer->params[OUT_W] = 1;
-        layer->params[OUT_C] = layer->params[IN_C];
         return;
     }
     else if (layer->type == RESIDUAL_LAYER)

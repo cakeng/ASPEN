@@ -527,8 +527,133 @@ void tiled_avgpool2d (ninst_t *ninst, ase_t *ase)
 }
 void tiled_fully_connected (ninst_t *ninst, ase_t *ase)
 {
-    
-
+    #if _SKIP_KERNELS == 0
+    nasm_ldata_t *ldata = ninst->ldata;
+    aspen_layer_t *layer = ninst->ldata->layer;
+    nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
+    const unsigned int M = ninst->tile_dims[OUT_H];
+    const unsigned int N = ninst->tile_dims[OUT_W];
+    const unsigned int K = layer->params[IN_C] * layer->params[IN_H] * layer->params[IN_W];
+    const unsigned int lda = K;
+    const unsigned int ldb = K;
+    const unsigned int ldc = ldata->out_mat_stride;
+    const void *A = (char*)layer->tensors[WEIGHT_TENSOR]->data + (ninst->out_mat_pos[OUT_H] * lda * layer->dnn->element_size);
+    const void *B = (char*)p_ldata->out_mat + (ninst->out_mat_pos[OUT_W] * ldb * layer->dnn->element_size);
+    void *C = ninst->out_mat;
+    if (ase->gpu_idx < 0)
+    {
+        const unsigned int rem_n = N % _TILE_SIZE_N;
+        const unsigned int rem_m = M % _TILE_SIZE_M;
+        const unsigned int rem_k = K % _TILE_SIZE_K;
+        unsigned int n = 0;
+        // <M, N, K> = <M, _TILE_SIZE_N, K>
+        for (; n < N - rem_n; n += _TILE_SIZE_N)
+        {
+            unsigned int k = 0;
+            // <M, N, K> = <M, _TILE_SIZE_N, _TILE_SIZE_K>
+            for (; k < K - rem_k; k += _TILE_SIZE_K)
+            {
+                unsigned int m = 0;
+                // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K>
+                for (; m < M - rem_m; m += _TILE_SIZE_M)
+                {
+                    SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K, 
+                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+                }
+                // <M, N, K> = <rem_m, _TILE_SIZE_N, _TILE_SIZE_K>
+                if (rem_m != 0)
+                    SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, _TILE_SIZE_K, 
+                            (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            
+            }
+            // <M, N, K> = <M, _TILE_SIZE_N, rem_k>
+            if (rem_k != 0)
+            {
+                unsigned int m = 0;
+                // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, rem_k>
+                for (; m < M - rem_m; m += _TILE_SIZE_M)
+                {
+                    SGEMM_KERNEL_FULL_TILE (_TILE_SIZE_M, _TILE_SIZE_N, rem_k,
+                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+                }
+                // <M, N, K> = <rem_m, _TILE_SIZE_N, rem_k>
+                SGEMM_KERNEL_TILE_N (rem_m, _TILE_SIZE_N, rem_k, 
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            }
+            for (unsigned int nn = n; nn < n + _TILE_SIZE_N; nn++)
+            {
+                float *out_vec = (float *)C + nn * ldc;
+                if (layer->tensors[BIAS_TENSOR] != NULL)
+                {
+                    float *bias = (float*)layer->tensors[BIAS_TENSOR]->data + ninst->out_mat_pos[OUT_H];
+                    for (unsigned int m = 0; m < M; m++)
+                    {
+                        out_vec[m] += bias[m];
+                    }
+                }
+                naive_activate (out_vec, M, layer->activation);
+            }
+        }
+        // <M, N, K> = <M, rem_n, K>
+        if (rem_n != 0)
+        {
+            unsigned int k = 0;
+            // <M, N, K> = <M, rem_n, _TILE_SIZE_K>
+            for (; k < K - rem_k; k += _TILE_SIZE_K)
+            {
+                unsigned int m = 0;
+                // <M, N, K> = <_TILE_SIZE_M, rem_n, _TILE_SIZE_K>
+                for (; m < M - rem_m; m += _TILE_SIZE_M)
+                {
+                    SGEMM_KERNEL_TILE_M (_TILE_SIZE_M, rem_n, _TILE_SIZE_K, 
+                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+                }
+                // <M, N, K> = <rem_m, rem_n, _TILE_SIZE_K>
+                if (rem_m != 0)
+                    SGEMM_KERNEL (rem_m, rem_n, _TILE_SIZE_K, 
+                            (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            }
+            // <M, N, K> = <M, rem_n, rem_k>
+            if (rem_k != 0)
+            {
+                unsigned int m = 0;
+                // <M, N, K> = <_TILE_SIZE_M, rem_n, rem_k>
+                for (; m < M - rem_m; m += _TILE_SIZE_M)
+                {
+                    SGEMM_KERNEL_TILE_M (_TILE_SIZE_M, rem_n, rem_k,
+                        (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+                }
+                // <M, N, K> = <rem_m, rem_n, rem_k>
+                SGEMM_KERNEL (rem_m, rem_n, rem_k, 
+                    (float*)A + (m * lda + k*_VEC_SIZE_M), lda, (float*)B + (n * ldb + k), ldb, (float*)C + (ldc * n + m), ldc);
+            }
+            for (unsigned int nn = n; nn < N; nn++)
+            {
+                float *out_vec = (float *)C + nn * ldc;
+                if (layer->tensors[BIAS_TENSOR] != NULL)
+                {
+                    float *bias = (float*)layer->tensors[BIAS_TENSOR]->data + ninst->out_mat_pos[OUT_H];
+                    for (unsigned int m = 0; m < M; m++)
+                    {
+                        out_vec[m] += bias[m];
+                    }
+                }
+                naive_activate (out_vec, M, layer->activation);
+            }
+        }
+    }
+    else
+    {
+        #ifdef GPU
+        float *bias = (float*)layer->tensors[BIAS_TENSOR]->data_gpu[ase->gpu_idx] + ninst->out_mat_pos[OUT_H];
+        A = (char*)layer->tensors[WEIGHT_TENSOR]->data_gpu[ase->gpu_idx] 
+            + (ninst->out_mat_pos[OUT_H] * lda * layer->dnn->element_size);
+        cuda_matmul (M, N, K, A, lda, B, ldb, C, ldc, bias, layer->activation, 
+            aspen_CUDA_streams[ase->gpu_idx][ase->thread_id%GPU_RUN_STREAM_NUM]);
+        aspen_sync_gpu_stream (ase->gpu_idx, ase->thread_id%GPU_RUN_STREAM_NUM);
+        #endif
+    }
+    #endif
 }
 void tiled_residual (ninst_t *ninst, ase_t *ase)
 {
