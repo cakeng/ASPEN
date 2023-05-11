@@ -3,6 +3,7 @@
 #include "util.h"
 #include "nasm.h"
 #include "apu.h"
+#include "networking.h"
 
 
 int main(void)
@@ -66,6 +67,8 @@ int main(void)
     // // print_nasm_info(bert_nasm, 0, 0);
     // print_dnn_info(bert_dnn, 0);
     // print_dnn_info(yolov3_dnn, 0);
+
+    init_rx(resnet50_nasm, 8080, 0);
 
     get_elapsed_time ("init");
 
