@@ -1,6 +1,6 @@
 TARGET=main
 ALIB=libasapen.a
-OBJECTS=build_info.o apu.o apu_nasm.o apu_file_io.o input_parser.o darknet_parser.o util.o 
+OBJECTS=build_info.o apu.o apu_nasm.o apu_file_io.o input_parser.o darknet_parser.o util.o networking.o
 OBJECTS+=rpool.o ase.o naive_kernels.o tiled_kernels.o avx2_kernels.o neon_kernels.o ase_cudagraph.o
 AVX2=1
 NEON=0

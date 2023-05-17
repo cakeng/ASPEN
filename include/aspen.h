@@ -107,6 +107,9 @@ typedef struct rpool_queue_group_t rpool_queue_group_t;
 typedef struct ase_t ase_t;     // Asynchronous scheduling engine
 typedef struct ase_group_t ase_group_t;
 
+typedef struct networking_engine networking_engine; // Offloading
+typedef struct networking_queue_t networking_queue_t; 
+
 void *aspen_load_input(char *input_filename, unsigned int *input_dims, unsigned int element_size);
 void *aspen_load_input_NHWC(char *input_filename, unsigned int *input_dims, unsigned int element_size);
 void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data, int gpu_idx);

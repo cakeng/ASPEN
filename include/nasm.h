@@ -3,6 +3,7 @@
 
 #include "aspen.h"
 #include <stdatomic.h>
+#include <netinet/in.h>
 
 struct nasm_t
 {
@@ -62,6 +63,7 @@ struct ninst_t
     unsigned int ninst_idx;
     unsigned int out_mat_pos [2];
     unsigned int tile_dims [2];
+    unsigned int offloaded;
 
     unsigned int *parent_ninst_idx_arr;
     unsigned int num_parent_ninsts;
@@ -88,14 +90,7 @@ struct aspen_dnn_t
     aspen_layer_t *layers;
     unsigned int num_layers;
     _Atomic unsigned int ref_nasms;
-
-    // For offloading
-    struct sockaddr_in rx_addr;
-    struct sockaddr_in tx_addr;
-    int sock_id;
-    int rx_sock, tx_sock;
-    int isUDP;
-    SOCK_TYPE sock_type;
+    
 };
 
 struct aspen_tensor_t

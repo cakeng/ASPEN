@@ -30,7 +30,7 @@ int main(void)
     
     // nasm_t *bert_nasm = apu_create_transformer_nasm(bert_dnn, 1e6, 100, 1, 480);
     // nasm_t *gpt2_nasm = apu_create_transformer_nasm(gpt2_dnn, 10e6, 100, 1, 128);
-    nasm_t *resnet50_nasm = apu_create_nasm(resnet50_dnn, 100e6, 100, 32);
+    // nasm_t *resnet50_nasm = apu_create_nasm(resnet50_dnn, 100e6, 100, 32);
     // nasm_t *yolov3_nasm = apu_create_nasm(yolov3_dnn, 100e6, 100, 1);
     // // if (bert_nasm == NULL) 
     // // {
@@ -38,19 +38,19 @@ int main(void)
     // //     return -1;
     // // }
     // print_nasm_info(gpt2_nasm, 1, 0);
-    // char nasm_file_name [1024] = {0};
+    // char nasm_file_name [1024] = "data/resnet50.nasm";
     // sprintf (nasm_file_name, "data/gpt2_124M_S%d_B%d_M%d_%2.1e.nasm"
     //     , gpt2_nasm->tr_seq_len, gpt2_nasm->batch_size, gpt2_nasm->min_ninst_per_ldata,
     //     (double)gpt2_nasm->flop_per_ninst);
     // // sprintf (nasm_file_name, "data/yolov3_B%d_M%d_%2.1e.nasm",
     // //     yolov3_nasm->batch_size, yolov3_nasm->min_ninst_per_ldata,
     // //     (double)yolov3_nasm->flop_per_ninst);
-    // apu_save_nasm_to_file (gpt2_nasm, nasm_file_name);
+    // apu_save_nasm_to_file (resnet50_nasm, nasm_file_name);
     int gpu = -1;
     // aspen_dnn_t *bert_dnn = apu_load_dnn_from_file ("data/bert_base.aspen");
     // nasm_t *bert_nasm = apu_load_nasm_from_file ("data/bert_S128_B8.nasm", bert_dnn);
     // aspen_dnn_t *resnet50_dnn = apu_load_dnn_from_file ("data/resnet50_base.aspen");
-    // nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_B32.nasm", resnet50_dnn);
+    nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50.nasm", resnet50_dnn);
     // aspen_dnn_t *yolov3_dnn = apu_load_dnn_from_file ("data/yolov3_base.aspen");
     // nasm_t *yolov3_nasm = apu_load_nasm_from_file ("data/yolov3_B1_M100_1.0e+08.nasm", yolov3_dnn);
     // // // // nasm_t *bert_4_nasm = apu_load_nasm_from_file ("data/bert_4.nasm", &bert_dnn);
@@ -59,8 +59,15 @@ int main(void)
     ase_group_t *ase_group = ase_group_init (64, gpu);
     ase_group_set_rpool (ase_group, rpool);
 
+    networking_engine* net_engine = init_networking(SOCK_RX, "127.0.0.1", 8080, 0);
+
     // // // rpool_add_nasm_raw_input (rpool, bert_4_nasm, 0.5, dog_data);
-    rpool_add_nasm (rpool, resnet50_nasm, 1.0, "data/resnet50/batched_input_64.bin");
+    
+    /*
+        여기서 offloading decision 찾는 알고리즘 동작
+    */
+        
+    // rpool_add_nasm (rpool, resnet50_nasm, 1.0, "data/resnet50/batched_input_64.bin"); // Offloading 할 때는 input 을 mobile 로부터 받도록 설계
     // rpool_add_nasm (rpool, yolov3_nasm, 1.0, "data/yolov3_cat_input_128.bin");
     // rpool_add_nasm (rpool, gpt2_nasm, 1.0, "data/gpt2/gpt2_124M_128_layer0_input.bin");
     // // print_rpool_info (rpool);
@@ -68,7 +75,7 @@ int main(void)
     // print_dnn_info(bert_dnn, 0);
     // print_dnn_info(yolov3_dnn, 0);
 
-    init_rx(resnet50_nasm, 8080, 0);
+    // init_rx(resnet50_nasm, 8080, 0);
 
     get_elapsed_time ("init");
 
