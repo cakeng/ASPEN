@@ -59,14 +59,15 @@ int main(void)
     ase_group_t *ase_group = ase_group_init (64, gpu);
     ase_group_set_rpool (ase_group, rpool);
 
-    networking_engine* net_engine = init_networking(SOCK_RX, "127.0.0.1", 8080, 0);
+    networking_engine* net_engine = init_networking(resnet50_nasm, SOCK_RX, "127.0.0.1", 8080, 0);
 
     // // // rpool_add_nasm_raw_input (rpool, bert_4_nasm, 0.5, dog_data);
     
     /*
         여기서 offloading decision 찾는 알고리즘 동작
     */
-        
+    
+    add_ninst_net_queue(net_engine, resnet50_nasm, 1.0, "data/resnet50/batched_input_64.bin");
     // rpool_add_nasm (rpool, resnet50_nasm, 1.0, "data/resnet50/batched_input_64.bin"); // Offloading 할 때는 input 을 mobile 로부터 받도록 설계
     // rpool_add_nasm (rpool, yolov3_nasm, 1.0, "data/yolov3_cat_input_128.bin");
     // rpool_add_nasm (rpool, gpt2_nasm, 1.0, "data/gpt2/gpt2_124M_128_layer0_input.bin");
