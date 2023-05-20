@@ -18,7 +18,7 @@ void *ase_thread_runtime (void* thread_info)
         //     ase->ninst_cache->num_stored == 0)
         if (ase->target == NULL)
         {
-            rpool_fetch_ninsts (ase->rpool, &ase->target, 1);
+            rpool_fetch_ninsts (ase->rpool, &ase->target, 1, 0);
             if (ase->target == NULL)
                 continue;
             // unsigned int fetch_num = 
@@ -381,7 +381,7 @@ void ase_stop (ase_t *ase)
     }
 }
 
-void update_children (rpool_t *rpool, ninst_t *ninst)
+void update_children (rpool_t *rpool, ninst_t *ninst, unsigned int ase_idx)
 {
     #ifdef DEBUG
     if (rpool == NULL || ninst == NULL)
@@ -409,7 +409,7 @@ void update_children (rpool_t *rpool, ninst_t *ninst)
             }
             #endif
             child_ninst->state = NINST_READY;
-            rpool_push_ninsts (rpool, &child_ninst, 1);
+            rpool_push_ninsts (rpool, &child_ninst, 1, 0);
         }
     }
 }
@@ -484,7 +484,7 @@ void update_children_but_prioritize_ase_target (rpool_t *rpool, ninst_t *ninst, 
                 ase->target = child_ninst;
         }
     }
-    rpool_push_ninsts (rpool, cache, num_cache);
+    rpool_push_ninsts (rpool, cache, num_cache, 0);
 }
 
 void update_children_to_cache_but_prioritize_ase_target (rpool_queue_t *cache, ninst_t *ninst, ninst_t **ase_target)
@@ -622,7 +622,8 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
         }
         ninst->state = NINST_COMPLETED;
         atomic_fetch_add (&ninst->ldata->num_ninst_completed , 1);
-        update_children (rpool, ninst);
+        int num_ase = rpool->ref_ases > 0 ? rpool->ref_ases : 1;
+        update_children (rpool, ninst, i/(ldata->num_ninst/num_ase));
     }
     atomic_fetch_add (&nasm->num_ldata_completed, 1);
 }

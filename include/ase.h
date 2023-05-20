@@ -46,7 +46,7 @@ void ase_stop (ase_t *ase);
 void update_children_to_cache_but_prioritize_ase_target (rpool_queue_t *cache, ninst_t *ninst, ninst_t **ase_target);
 void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst);
 void update_children_but_prioritize_ase_target (rpool_t *rpool, ninst_t *ninst, ase_t *ase);
-void update_children (rpool_t *rpool, ninst_t *ninst);
+void update_children (rpool_t *rpool, ninst_t *ninst, unsigned int ase_idx);
 void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data);
 
 void set_ldata_out_mat_mem_pos (nasm_ldata_t *ldata);
