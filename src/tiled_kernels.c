@@ -1127,7 +1127,6 @@ void tiled_v_attention (ninst_t *ninst, dse_t *dse)
     const void *B_head = (float*)p_ldata->out_mat + (batch * num_heads * num_seq + head * num_seq +
         + (ninst->out_mat_pos[OUT_W] % num_seq)) * ldb;
     void *C_head = ninst->out_mat; 
-    memset (C_head, 0, M * N * sizeof(float));
     if (dse->gpu_idx < 0)
     {
         const unsigned int rem_n = N % _TILE_SIZE_N;
