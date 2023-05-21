@@ -122,6 +122,23 @@ void *aspen_gpu_calloc (size_t num, size_t size, int gpu_idx)
     #endif
     return ptr;
 }
+void aspen_gpu_memset (void *ptr, int val, size_t size, int gpu_idx)
+{
+    if (size <= 0)
+        return;
+    #ifdef GPU
+    if (check_CUDA(cudaSetDevice(gpu_idx)) != cudaSuccess)
+    {
+        FPRT (stderr, "Error: Failed to set GPU device.\n");
+        assert (0);
+    }
+    if (check_CUDA(cudaMemset(ptr, val, get_smallest_dividable (size, MEM_ALIGN) )) != cudaSuccess)
+    {
+        FPRT (stderr, "Error: Failed to set GPU memory.\n");
+        assert (0);
+    }
+    #endif
+}
 void *aspen_gpu_malloc_minus_one (size_t num, size_t size, int gpu_idx)
 {
     if (num*size <= 0)

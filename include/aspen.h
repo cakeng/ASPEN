@@ -96,15 +96,15 @@ typedef struct aspen_dnn_t aspen_dnn_t;
 typedef struct aspen_layer_t aspen_layer_t;
 typedef struct aspen_tensor_t aspen_tensor_t;
 
-typedef struct ninst_t ninst_t; // Neural instruction
-typedef struct nasm_t nasm_t;   // Neural assembly
+typedef struct ninst_t ninst_t; // Ninst - Neural instruction
+typedef struct nasm_t nasm_t;   // Nasm - Neural assembly
 typedef struct nasm_ldata_t nasm_ldata_t; // Dynamic layer data
 
 typedef struct rpool_t rpool_t; // Ready pool
 typedef struct rpool_queue_t rpool_queue_t;
 typedef struct rpool_queue_group_t rpool_queue_group_t;
 
-typedef struct dse_t dse_t;     // Asynchronous scheduling engine
+typedef struct dse_t dse_t;     // Distributed scheduling engine
 typedef struct dse_group_t dse_group_t;
 
 void *aspen_load_input(char *input_filename, unsigned int *input_dims, unsigned int element_size);

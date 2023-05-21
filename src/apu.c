@@ -868,7 +868,11 @@ void *aspen_load_input_NHWC(char *input_filename, unsigned int *input_dims, unsi
         if (input_dims[i] != 0)
             num_elements *= input_dims[i];
     }
-    void *file_data = load_arr (input_filename, num_elements * element_size);
+    void *file_data = NULL;
+    if (input_filename != NULL)
+        file_data = load_arr (input_filename, num_elements * element_size);
+    else
+        file_data = calloc (num_elements, element_size);
     void *output = aspen_calloc (num_elements, element_size);
     if (input_dims [OUT_C] != 0 && input_dims [OUT_H] != 0 && input_dims [OUT_W] != 0)
     {
@@ -892,7 +896,11 @@ void *aspen_load_input(char *input_filename, unsigned int *input_dims, unsigned 
         if (input_dims[i] != 0)
             num_elements *= input_dims[i];
     }
-    void *file_data = load_arr (input_filename, num_elements * element_size);
+    void *file_data = NULL;
+    if (input_filename != NULL)
+        file_data = load_arr (input_filename, num_elements * element_size);
+    else
+        file_data = calloc (num_elements, element_size);
     void *output = aspen_calloc (num_elements, element_size);
     memcpy (output, file_data, num_elements * element_size);
     free (file_data);

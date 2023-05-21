@@ -39,7 +39,7 @@ void ninst_find_input_pos_idx (ninst_t *ninst)
     nasm_ldata_t *ldata = ninst->ldata;
     aspen_layer_t *layer = ldata->layer;
     nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
-    aspen_layer_t *p_layer = p_ldata->layer;
+    // aspen_layer_t *p_layer = p_ldata->layer;
     if (layer->type == CONV_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER)
     {
         unsigned int num_input_pos = ninst->tile_dims[OUT_W]*layer->params[WEIGHT_H]*layer->params[WEIGHT_W];
@@ -637,8 +637,16 @@ double test_nasm_time_sec (nasm_t *nasm, unsigned int num_iter)
     rpool_t *rpool = rpool_init (-1);
     dse_group_t *dse_group = dse_group_init (64, -1);
     dse_group_set_rpool (dse_group, rpool);
+    rpool_add_nasm (rpool, nasm, 1.0, NULL);
 
+    for (int i = 0; i < num_iter; i++)
+    {
+        dse_group_run_until_nasm_completion (dse_group, nasm);
+        rpool_reset_nasm (rpool, nasm, 1.0);
+    }
 
+    dse_group_destroy (dse_group);
+    rpool_destroy (rpool);
     return total_time;
 }
 

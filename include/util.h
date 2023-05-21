@@ -9,6 +9,7 @@ void *aspen_calloc (size_t num, size_t size);
 void *aspen_malloc (size_t num, size_t size);
 void aspen_free (void *ptr);
 void *aspen_gpu_calloc (size_t num, size_t size, int gpu_idx);
+void aspen_gpu_memset (void *ptr, int val, size_t size, int gpu_idx);
 void *aspen_gpu_malloc (size_t num, size_t size, int gpu_idx);
 void *aspen_gpu_malloc_minus_one (size_t num, size_t size, int gpu_idx);
 

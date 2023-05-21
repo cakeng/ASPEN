@@ -305,14 +305,8 @@ unsigned int dse_check_nasm_completion (nasm_t *nasm)
 
 void dse_group_run_until_nasm_completion (dse_group_t *dse_group, nasm_t *nasm)
 {
-    pthread_mutex_lock (&nasm->nasm_mutex);
-    if (dse_check_nasm_completion (nasm) == 1)
-    {
-        pthread_mutex_unlock (&nasm->nasm_mutex);
-        return;
-    }
     dse_group_run (dse_group);
-    pthread_cond_wait (&nasm->nasm_cond, &nasm->nasm_mutex);
+    dse_wait_for_nasm_completion (nasm);
     dse_group_stop (dse_group);
 }
 
@@ -340,7 +334,7 @@ void dse_cudagraph_run (rpool_t *rpool, nasm_t *nasm)
         FPRT (stderr, "ERROR: dse_cudagraph_run: gpu not initialized.\n");
         assert (0);
     }
-    rpool_pop_all_nasm (rpool, nasm);
+    rpool_finish_nasm (rpool, nasm);
     run_cudagraph (nasm);
 }
 

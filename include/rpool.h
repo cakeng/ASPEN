@@ -55,6 +55,7 @@ void rpool_init_queue_group (rpool_queue_group_t *rpool_queue_group, char *queue
 void rpool_destroy_queue_group (rpool_queue_group_t *rpool_queue_group);
 
 void rpool_pop_all_nasm (rpool_t *rpool, nasm_t *nasm);
+void rpool_finish_nasm (rpool_t *rpool, nasm_t *nasm);
 
 rpool_queue_group_t *get_queue_group_from_nasm (rpool_t *rpool, nasm_t *nasm);
 int get_queue_group_idx_from_nasm (rpool_t *rpool, nasm_t *nasm);

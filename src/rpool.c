@@ -243,20 +243,8 @@ void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, float weight, char *input_fil
     aspen_free (data); 
 }
 
-void rpool_reset_nasm (rpool_t *rpool, nasm_t *nasm, float weight)
-{
-    reset_nasm (nasm);
-    int queue_group_idx = get_queue_group_idx_from_nasm (rpool, nasm);
-    if (queue_group_idx == -1)
-        FPRT (stderr, "ERROR: rpool_reset_nasm: nasm \"%s_nasm_%d\" is not in rpool.\n", nasm->dnn->name, nasm->nasm_id);
-    rpool->queue_group_weight_arr[queue_group_idx] = weight;
-    rpool->queue_group_weight_sum += weight;
-    push_first_layer_to_rpool (rpool, nasm, NULL);
-}
-
 void rpool_pop_all_nasm (rpool_t *rpool, nasm_t *nasm)
 {
-    set_nasm_to_finished (nasm);
     int queue_group_idx = get_queue_group_idx_from_nasm (rpool, nasm);
     if (queue_group_idx == -1)
         FPRT (stderr, "ERROR: rpool_pop_all_nasm: nasm \"%s_nasm_%d\" is not in rpool.\n", nasm->dnn->name, nasm->nasm_id);
@@ -270,6 +258,24 @@ void rpool_pop_all_nasm (rpool_t *rpool, nasm_t *nasm)
         queue_group->queue_arr[i].num_stored = 0;
         pthread_mutex_unlock (&queue_group->queue_arr[i].occupied_mutex);
     }
+}
+
+void rpool_finish_nasm (rpool_t *rpool, nasm_t *nasm)
+{
+    set_nasm_to_finished (nasm);
+    rpool_pop_all_nasm (rpool, nasm);
+}
+
+void rpool_reset_nasm (rpool_t *rpool, nasm_t *nasm, float weight)
+{
+    reset_nasm (nasm);
+    rpool_pop_all_nasm (rpool, nasm);
+    int queue_group_idx = get_queue_group_idx_from_nasm (rpool, nasm);
+    if (queue_group_idx == -1)
+        FPRT (stderr, "ERROR: rpool_reset_nasm: nasm \"%s_nasm_%d\" is not in rpool.\n", nasm->dnn->name, nasm->nasm_id);
+    rpool->queue_group_weight_arr[queue_group_idx] = weight;
+    rpool->queue_group_weight_sum += weight;
+    push_first_layer_to_rpool (rpool, nasm, NULL);
 }
 
 void rpool_add_queue_group 
