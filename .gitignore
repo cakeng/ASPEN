@@ -7,5 +7,7 @@
 *.tmp
 *.bin
 main
-data/*.aspen
-data/*.nasm
+*.aspen
+*.nasm
+*.tar
+*.gz
