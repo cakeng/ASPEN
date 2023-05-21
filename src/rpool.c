@@ -548,7 +548,7 @@ void push_ninsts_to_queue_front (rpool_queue_t *rpool_queue, ninst_t **ninst_ptr
     // if (rpool_queue->queue_group != NULL)
     //     atomic_fetch_add (&rpool_queue->queue_group->num_ninsts, num_ninsts);
 }
-rpool_queue_t *get_queue_for_fetching (rpool_t *rpool, void **input_cond, unsigned int ase_idx)
+rpool_queue_t *get_queue_for_fetching (rpool_t *rpool, void **input_cond, unsigned int dse_idx)
 {
     #ifdef DEBUG
     if (rpool == NULL)
@@ -597,7 +597,7 @@ rpool_queue_t *get_queue_for_fetching (rpool_t *rpool, void **input_cond, unsign
     // atomic_fetch_add (&rpool_queue_group->num_fetched, 1);
     unsigned int num_queues = atomic_load (&rpool_queue_group->num_queues);
     unsigned int num_ase = rpool->ref_ases > 0 ? rpool->ref_ases : 1;
-    unsigned int queue_idx = num_queues * ase_idx / num_ase;
+    unsigned int queue_idx = num_queues * dse_idx / num_ase;
     for (int i = 0; i < num_queues; i++)
     {
         rpool_queue_t *rpool_queue = &rpool_queue_group->queue_arr[queue_idx];
@@ -675,7 +675,7 @@ rpool_queue_t *get_queue_for_storing (rpool_t *rpool, unsigned int queue_val, vo
     return rpool_queue;
 }
 
-unsigned int rpool_fetch_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int max_ninst_to_fetch, unsigned int ase_idx)
+unsigned int rpool_fetch_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int max_ninst_to_fetch, unsigned int dse_idx)
 {
     #ifdef DEBUG
     if (rpool == NULL)
@@ -692,7 +692,7 @@ unsigned int rpool_fetch_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsig
     if (max_ninst_to_fetch == 0)
         return 0;
     rpool_queue_t *rpool_queue = NULL;
-    rpool_queue = get_queue_for_fetching (rpool, NULL, ase_idx);
+    rpool_queue = get_queue_for_fetching (rpool, NULL, dse_idx);
     if (rpool_queue == NULL)
         return 0;
     unsigned int num_ninsts = pop_ninsts_from_queue (rpool_queue, ninst_ptr_list, max_ninst_to_fetch);
@@ -701,7 +701,7 @@ unsigned int rpool_fetch_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsig
     return num_ninsts;
 }
 
-void rpool_push_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int num_ninsts, unsigned int ase_idx)
+void rpool_push_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int num_ninsts, unsigned int dse_idx)
 {
     #ifdef DEBUG
     if (rpool == NULL)
@@ -723,7 +723,7 @@ void rpool_push_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int n
     {
         ninst_t *ninst = ninst_ptr_list[i];
         aspen_layer_t *layer = ninst->ldata->layer;
-        unsigned int queue_val = (ase_idx * layer->dnn->num_layers * NUM_LAYERQUEUE_PER_ASE + (layer->layer_idx - 1)) * NUM_QUEUE_PER_LAYER;
+        unsigned int queue_val = (dse_idx * layer->dnn->num_layers * NUM_LAYERQUEUE_PER_ASE + (layer->layer_idx - 1)) * NUM_QUEUE_PER_LAYER;
         if (queue_val < 0)
             queue_val = 0;
         void* input_conds[NUM_RPOOL_CONDS] = {[RPOOL_DNN] = (void*)layer->dnn,
@@ -739,7 +739,7 @@ void rpool_push_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int n
     {
         ninst_t *ninst = ninst_ptr_list[i];
         aspen_layer_t *layer = ninst->ldata->layer;
-        unsigned int queue_val = (ase_idx * layer->dnn->num_layers * NUM_LAYERQUEUE_PER_ASE + (layer->layer_idx - 1)) * NUM_QUEUE_PER_LAYER;
+        unsigned int queue_val = (dse_idx * layer->dnn->num_layers * NUM_LAYERQUEUE_PER_ASE + (layer->layer_idx - 1)) * NUM_QUEUE_PER_LAYER;
         if (queue_val < 0)
             queue_val = 0;
         void* input_conds[NUM_RPOOL_CONDS] = {[RPOOL_DNN] = (void*)layer->dnn,

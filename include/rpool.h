@@ -3,15 +3,15 @@
 
 #include "aspen.h"
 #include "nasm.h"
-#include "ase.h"
+#include "dse.h"
 #include <stdatomic.h>
 
 #define INIT_QUEUE_SIZE 1024
 #define MAX_QUEUE_GROUPS 128
 #define MAX_NUM_QUEUES 1024*4
 #define NINST_PUSH_BATCH_SIZE 16
-#define NUM_QUEUE_PER_LAYER ((float)0.2)
-#define NUM_LAYERQUEUE_PER_ASE ((float)0.2)
+#define NUM_QUEUE_PER_LAYER ((float)0.5)
+#define NUM_LAYERQUEUE_PER_ASE ((float)0.1)
 
 struct rpool_queue_t
 {
@@ -71,10 +71,10 @@ unsigned int pop_ninsts_from_queue_back (rpool_queue_t *rpool_queue, ninst_t **n
 void push_ninsts_to_queue (rpool_queue_t *rpool_queue, ninst_t **ninst_ptr_list, unsigned int num_ninsts);
 void push_ninsts_to_queue_front (rpool_queue_t *rpool_queue, ninst_t **ninst_ptr_list, unsigned int num_ninsts);
 
-rpool_queue_t *get_queue_for_fetching (rpool_t *rpool, void **input_cond, unsigned int ase_idx);
+rpool_queue_t *get_queue_for_fetching (rpool_t *rpool, void **input_cond, unsigned int dse_idx);
 rpool_queue_t *get_queue_for_storing (rpool_t *rpool, unsigned int queue_val, void **input_cond);
 
-unsigned int rpool_fetch_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int max_ninst_to_fetch, unsigned int ase_idx);
-void rpool_push_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int num_ninsts, unsigned int ase_idx);
+unsigned int rpool_fetch_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int max_ninst_to_fetch, unsigned int dse_idx);
+void rpool_push_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int num_ninsts, unsigned int dse_idx);
 
 #endif /* _RPOOL_H_ */

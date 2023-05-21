@@ -44,33 +44,33 @@ void ninst_find_input_pos_idx (ninst_t *ninst)
     {
         unsigned int num_input_pos = ninst->tile_dims[OUT_W]*layer->params[WEIGHT_H]*layer->params[WEIGHT_W];
         ninst->num_input_pos = num_input_pos;
-        ninst->input_pos_idx_arr = calloc(num_input_pos, sizeof(int));
-        int *input_idx_arr = ninst->input_pos_idx_arr;
-        unsigned int num_idx = 0;
-        unsigned int mat_w = ninst->out_mat_pos[OUT_W];
-        for (; mat_w < ninst->out_mat_pos[OUT_W] + ninst->tile_dims[OUT_W]; mat_w++)
-        {
-            unsigned int out_b = mat_w / (layer->params[OUT_H] * layer->params[OUT_W]); 
-            unsigned int out_h = (mat_w % (layer->params[OUT_H] * layer->params[OUT_W])) / layer->params[OUT_W];
-            unsigned int out_w = mat_w % layer->params[OUT_W];
-            unsigned int in_b = out_b;
-            for (int kh = 0; kh < layer->params[WEIGHT_H]; kh++)
-            {
-                for (int kw = 0; kw < layer->params[WEIGHT_W]; kw++)
-                {
-                    int in_h = out_h * layer->params[STRIDE] + kh  - layer->params[PADDING];
-                    int in_w = out_w * layer->params[STRIDE] + kw  - layer->params[PADDING];
-                    if (in_h < 0 || in_h >= p_layer->params[OUT_H] || in_w < 0 || in_w >= p_layer->params[OUT_W])
-                    {
-                        input_idx_arr[num_idx++] = -1;
-                        continue;
-                    }
-                    int in_idx = in_b * p_layer->params[OUT_H] * p_layer->params[OUT_W] 
-                        + in_h * p_layer->params[OUT_W] + in_w;
-                    input_idx_arr[num_idx++] = in_idx;
-                }
-            }
-        }
+        // ninst->input_pos_idx_arr = calloc(num_input_pos, sizeof(int));
+        // int *input_idx_arr = ninst->input_pos_idx_arr;
+        // unsigned int num_idx = 0;
+        // unsigned int mat_w = ninst->out_mat_pos[OUT_W];
+        // for (; mat_w < ninst->out_mat_pos[OUT_W] + ninst->tile_dims[OUT_W]; mat_w++)
+        // {
+        //     unsigned int out_b = mat_w / (layer->params[OUT_H] * layer->params[OUT_W]); 
+        //     unsigned int out_h = (mat_w % (layer->params[OUT_H] * layer->params[OUT_W])) / layer->params[OUT_W];
+        //     unsigned int out_w = mat_w % layer->params[OUT_W];
+        //     unsigned int in_b = out_b;
+        //     for (int kh = 0; kh < layer->params[WEIGHT_H]; kh++)
+        //     {
+        //         for (int kw = 0; kw < layer->params[WEIGHT_W]; kw++)
+        //         {
+        //             int in_h = out_h * layer->params[STRIDE] + kh  - layer->params[PADDING];
+        //             int in_w = out_w * layer->params[STRIDE] + kw  - layer->params[PADDING];
+        //             if (in_h < 0 || in_h >= p_layer->params[OUT_H] || in_w < 0 || in_w >= p_layer->params[OUT_W])
+        //             {
+        //                 input_idx_arr[num_idx++] = -1;
+        //                 continue;
+        //             }
+        //             int in_idx = in_b * p_layer->params[OUT_H] * p_layer->params[OUT_W] 
+        //                 + in_h * p_layer->params[OUT_W] + in_w;
+        //             input_idx_arr[num_idx++] = in_idx;
+        //         }
+        //     }
+        // }
     }
 }
 
@@ -543,6 +543,8 @@ void destroy_ninst (ninst_t *ninst)
         free (ninst->child_ninst_arr);
     if (ninst->input_pos_idx_arr != NULL)
         free (ninst->input_pos_idx_arr);
+    if (ninst->input_pos_ptr_arr_gpu != NULL && ninst->ldata->nasm->gpu_idx >= 0)
+        aspen_gpu_free (ninst->input_pos_ptr_arr_gpu, ninst->ldata->nasm->gpu_idx);
 }
 
 nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size,  unsigned int min_ninst_per_ldata, unsigned int transformer_seq_len)
@@ -626,6 +628,26 @@ void set_child_list (ninst_t *ninst)
     }
     FPRT (stderr, "Error: set_child_list failed. Only found %d children for ninst %d, expected %d\n"
         , child_idx, ninst->ninst_idx, ninst->num_child_ninsts);
+}
+
+double test_nasm_time_sec (nasm_t *nasm, unsigned int num_iter)
+{
+    double total_time = 0;
+
+    rpool_t *rpool = rpool_init (-1);
+    dse_group_t *dse_group = dse_group_init (64, -1);
+    dse_group_set_rpool (dse_group, rpool);
+
+
+    return total_time;
+}
+
+nasm_t *apu_generate_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned int num_iter)
+{
+
+    nasm_t *new_nasm = NULL;
+
+    return new_nasm;
 }
 
 nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int min_ninst_per_ldata, unsigned int batch_size)
@@ -772,6 +794,11 @@ void apu_destroy_nasm (nasm_t *nasm)
             aspen_gpu_free (nasm->data, nasm->gpu_idx);
         else
             aspen_free (nasm->data);
+    }
+    if (nasm->gpu_null_data != NULL)
+    {
+        if (nasm->gpu_idx >= 0)
+            aspen_gpu_free (nasm->gpu_null_data, nasm->gpu_idx);
     }
     nasm->dnn->ref_nasms--;
     free(nasm);

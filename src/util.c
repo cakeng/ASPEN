@@ -510,6 +510,23 @@ int compare_float_tensor (float *input1, float* input2, int n, int c, int h ,int
     return num;
 }
 
+unsigned int get_cpu_count()
+{
+    cpu_set_t cs;
+    CPU_ZERO(&cs);
+    sched_getaffinity(0, sizeof(cs), &cs);
+
+    unsigned int count = 0;
+    for (int i = 0; i < 256; i++)
+    {
+        if (CPU_ISSET(i, &cs))
+            count++;
+        else
+            break;
+    }
+    return count;
+}
+
 void get_probability_results (char *class_data_path, float* probabilities, unsigned int num)
 {
     int buffer_length = 256;
