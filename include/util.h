@@ -5,6 +5,15 @@
 #include "apu.h"
 #include "nasm.h"
 
+#define GPU_MEM_STREAM_HOST_TO_GPU (35)
+#define GPU_MEM_STREAM_GPU_TO_HOST (34)
+#define GPU_GRAPH_RUN_STREAM (33)
+#define GPU_NAIVE_RUN_STREAM (32)
+#define GPU_RUN_STREAM_NUM (32)
+#define CUDAGRAPH_MAX_ARG_NUM (16)
+extern int use_gpu; // Default: 1
+extern int aspen_num_gpus;
+
 void *aspen_calloc (size_t num, size_t size);
 void *aspen_malloc (size_t num, size_t size);
 void aspen_free (void *ptr);

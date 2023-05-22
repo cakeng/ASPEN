@@ -495,7 +495,7 @@ void create_layer_tensors (aspen_layer_t *layer)
     }
     else
     {
-        FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], __LINE__, __FILE__);
+        FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
         assert (0);
     }
 
@@ -555,7 +555,7 @@ void create_layer_output_tensor (aspen_layer_t *layer, int gpu_idx)
     }
     else
     {
-        FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], __LINE__, __FILE__);
+        FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
         assert (0);
     }
     
@@ -626,7 +626,7 @@ void sync_dnn_data_to_gpu_layer (aspen_layer_t *layer)
 {
     if (layer == NULL)
     {
-        FPRT (stderr, "ERROR in sync_dnn_data_to_gpu_layer: layer is NULL, at line %d in file %s.\n", __LINE__, __FILE__);
+        FPRT (stderr, "ERROR in sync_dnn_data_to_gpu_layer: layer is NULL, at line %d in file %s.\n", 0, " ");
         assert (0);
     }
     for (int i = 0; i < NUM_TENSORS; i++)
@@ -651,7 +651,7 @@ void sync_dnn_data_to_gpu_dnn (aspen_dnn_t *dnn)
 {
     if (dnn == NULL)
     {
-        FPRT (stderr, "ERROR in sync_dnn_data_to_gpu_dnn: dnn is NULL, at line %d in file %s.\n", __LINE__, __FILE__);
+        FPRT (stderr, "ERROR in sync_dnn_data_to_gpu_dnn: dnn is NULL, at line %d in file %s.\n", 0, " ");
         assert (0);
     }
     for (int i = 0; i < dnn->num_layers; i++)
@@ -667,7 +667,7 @@ void sync_output_data_to_host_layer (aspen_layer_t *layer, int gpu_idx)
 {
     if (layer == NULL)
     {
-        FPRT (stderr, "ERROR in sync_output_data_to_host_layer: layer is NULL, at line %d in file %s.\n", __LINE__, __FILE__);
+        FPRT (stderr, "ERROR in sync_output_data_to_host_layer: layer is NULL, at line %d in file %s.\n", 0, " ");
         assert (0);
     }
     for (int i = 0; i < NUM_TENSORS; i++)
@@ -689,7 +689,7 @@ void sync_output_data_to_host_dnn (aspen_dnn_t *dnn, int gpu_idx)
 {
     if (dnn == NULL)
     {
-        FPRT (stderr, "ERROR in sync_output_data_to_host_dnn: dnn is NULL, at line %d in file %s.\n", __LINE__, __FILE__);
+        FPRT (stderr, "ERROR in sync_output_data_to_host_dnn: dnn is NULL, at line %d in file %s.\n", 0, " ");
         assert (0);
     }
     for (int i = 0; i < dnn->num_layers; i++)
@@ -705,7 +705,7 @@ void sync_output_data_to_gpu_layer (aspen_layer_t *layer, int gpu_idx)
 {
     if (layer == NULL)
     {
-        FPRT (stderr, "ERROR in sync_output_data_to_gpu_layer: layer is NULL, at line %d in file %s.\n", __LINE__, __FILE__);
+        FPRT (stderr, "ERROR in sync_output_data_to_gpu_layer: layer is NULL, at line %d in file %s.\n", 0, " ");
         assert (0);
     }
     for (int i = 0; i < NUM_TENSORS; i++)
@@ -727,7 +727,7 @@ void sync_output_data_to_gpu_dnn (aspen_dnn_t *dnn, int gpu_idx)
 {
     if (dnn == NULL)
     {
-        FPRT (stderr, "ERROR in sync_output_data_to_gpu_dnn: dnn is NULL, at line %d in file %s.\n", __LINE__, __FILE__);
+        FPRT (stderr, "ERROR in sync_output_data_to_gpu_dnn: dnn is NULL, at line %d in file %s.\n", 0, " ");
         assert (0);
     }
     for (int i = 0; i < dnn->num_layers; i++)
@@ -908,8 +908,9 @@ void *aspen_load_input(char *input_filename, unsigned int *input_dims, unsigned 
 }
 
 
-void aspen_init_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data, int gpu_idx)
+void aspen_init_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data)
 {
+    int gpu_idx = -1;
     if (dnn == NULL)
     {
         FPRT (stderr, "Error: DNN is NULL.\n");
@@ -946,8 +947,9 @@ void aspen_init_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input
         copy_aspen_tensor_to_gpu (dnn->layers[0].tensors[OUTPUT_TENSOR], gpu_idx);
 }
 // Change to add a new layer type
-void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data, int gpu_idx)
+void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data)
 {
+    int gpu_idx = -1;
     if (dnn == NULL)
     {
         FPRT (stderr, "Error: DNN is NULL.\n");

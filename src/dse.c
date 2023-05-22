@@ -150,8 +150,9 @@ void *dse_thread_runtime (void* thread_info)
     return NULL;
 }
 
-dse_group_t *dse_group_init (unsigned int num_ase, int gpu_idx)
+dse_group_t *dse_group_init (unsigned int num_ase)
 {
+    int gpu_idx = -1;
     if (gpu_idx >= 0 && gpu_idx >= aspen_num_gpus)
     {
         FPRT (stderr, "ERROR: dse_group_init: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);

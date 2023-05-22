@@ -597,7 +597,7 @@ double get_time_secs ()
     {
         initiallized = 1;
         gettimeofday (&zero_time, NULL);
-        printf ("Program clock initialized to zero.\n");
+        // printf ("Program clock initialized to zero.\n");
     }
     
     struct timeval now;

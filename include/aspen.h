@@ -31,13 +31,6 @@
 #define NINST_H_MIN (64)
 #define NINST_W_MIN (12)
 #define MEM_ALIGN 64
-#define GPU_MEM_STREAM_HOST_TO_GPU (35)
-#define GPU_MEM_STREAM_GPU_TO_HOST (34)
-#define GPU_GRAPH_RUN_STREAM (33)
-#define GPU_NAIVE_RUN_STREAM (32)
-#define GPU_RUN_STREAM_NUM (32)
-#define CUDAGRAPH_MAX_ARG_NUM (16)
-// #define GPU
 
 #if SUPPRESS_OUTPUT == 0
 #define PRT(...) printf(__VA_ARGS__) 
@@ -45,20 +38,6 @@
 #else
 #define PRT(...)
 #define FPRT(...) fprintf(stderr, "////An error has occurred////\n") 
-#endif
-
-#ifdef GPU
-#include <cuda_runtime.h> // CUDA
-static inline cudaError_t check_CUDA(cudaError_t result)
-{
-#if defined(DEBUG) || defined(_DEBUG)
-  if (result != cudaSuccess) 
-  {
-    FPRT(stderr, "CUDA Runtime Error: %s\n", cudaGetErrorString(result));
-  }
-#endif
-  return result;
-}
 #endif
 
 typedef enum {NINST_NOT_READY, NINST_READY, NINST_COMPLETED, NUM_NINST_STATES} NINST_STATE;
@@ -86,18 +65,12 @@ extern char *parent_type_str[NUM_PARENT_ELEMENTS];
 extern char *activation_type_str [NUM_ACTIVATIONS];
 extern char *rpool_cond_str [NUM_RPOOL_CONDS];
 
-extern int use_gpu; // Default: 1
-extern int aspen_num_gpus;
-#ifdef GPU
-extern cudaStream_t aspen_CUDA_streams[MAX_NUM_GPUS][GPU_MEM_STREAM_HOST_TO_GPU+1];
-#endif
-
 typedef struct aspen_dnn_t aspen_dnn_t;
 typedef struct aspen_layer_t aspen_layer_t;
 typedef struct aspen_tensor_t aspen_tensor_t;
 
-typedef struct ninst_t ninst_t; // Ninst - Neural instruction
-typedef struct nasm_t nasm_t;   // Nasm - Neural assembly
+typedef struct ninst_t ninst_t; // Ninst - ASPEN Graph Nodes
+typedef struct nasm_t nasm_t;   // Nasm - ASPEN Graph
 typedef struct nasm_ldata_t nasm_ldata_t; // Dynamic layer data
 
 typedef struct rpool_t rpool_t; // Ready pool
@@ -109,8 +82,8 @@ typedef struct dse_group_t dse_group_t;
 
 void *aspen_load_input(char *input_filename, unsigned int *input_dims, unsigned int element_size);
 void *aspen_load_input_NHWC(char *input_filename, unsigned int *input_dims, unsigned int element_size);
-void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data, int gpu_idx);
-void aspen_init_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data, int gpu_idx);
+void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data);
+void aspen_init_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data);
 
 aspen_dnn_t *apu_create_dnn(char *input_path, char *data_path);
 void apu_destroy_dnn(aspen_dnn_t *dnn);
@@ -127,7 +100,7 @@ void apu_destroy_nasm(nasm_t *nasm);
 nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn);
 void apu_save_nasm_to_file(nasm_t *nasm, char *filename);
 
-rpool_t *rpool_init (int gpu_idx);
+rpool_t *rpool_init ();
 void rpool_destroy (rpool_t *rpool);
 void rpool_add_nasm_raw_input (rpool_t *rpool, nasm_t* nasm, float weight, void* input_data);
 void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, float weight, char *input_filename);
@@ -137,10 +110,9 @@ void rpool_queue_group_set_blacklist (rpool_queue_group_t *rpool_queue_group, vo
 void rpool_queue_group_set_whitelist (rpool_queue_group_t *rpool_queue_group, void **whitelist);
 void rpool_reset_nasm (rpool_t *rpool, nasm_t *nasm, float weight);
 
-dse_group_t *dse_group_init (unsigned int num_ase, int gpu_idx);
+dse_group_t *dse_group_init (unsigned int num_ase);
 void dse_group_set_rpool (dse_group_t *dse_group, rpool_t *rpool);
 void dse_group_destroy (dse_group_t *dse_group);
-void dse_cudagraph_run (rpool_t *rpool, nasm_t *nasm);
 void dse_group_run (dse_group_t *dse_group);
 void dse_group_stop (dse_group_t *dse_group);
 void dse_group_run_until_nasm_completion (dse_group_t *dse_group, nasm_t *nasm);
