@@ -8,10 +8,10 @@
 int main(void)
 {
     // print_aspen_build_info();
-    // aspen_dnn_t *resnet50_dnn = apu_create_dnn("data/cfg/resnet50_aspen.cfg", "data/resnet50/resnet50_data.bin");
+    aspen_dnn_t *resnet50_dnn = apu_create_dnn("data/cfg/resnet50_aspen.cfg", "data/resnet50/resnet50_data.bin");
     // aspen_dnn_t *resnet50_dnn = apu_create_dnn("data/cfg/vgg16_aspen.cfg", "data/vgg16/vgg16_data.bin");
     // aspen_dnn_t *resnet50_dnn = apu_create_dnn("data/cfg/yolov3_aspen.cfg", "data/yolov3/yolov3_data.bin");
-    aspen_dnn_t *bert_dnn = apu_create_dnn ("data/cfg/bert_base_encoder.cfg", "data/bert/bert_base_data.bin");
+    // aspen_dnn_t *bert_dnn = apu_create_dnn ("data/cfg/bert_base_encoder.cfg", "data/bert/bert_base_data.bin");
     // aspen_dnn_t *gpt2_dnn = apu_create_dnn ("data/cfg/gpt2_124M_encoder.cfg", "data/gpt2/gpt2_124M_data.bin");
     // // // if (bert_dnn == NULL) 
     // // // {
@@ -19,7 +19,7 @@ int main(void)
     // // //     return -1;
     // // // }
     // print_dnn_info (vgg16_dnn, 0);
-    // apu_save_dnn_to_file (resnet50_dnn, "data/resnet50_base.aspen");
+    apu_save_dnn_to_file (resnet50_dnn, "data/resnet50_base.aspen");
     // aspen_dnn_t *gpt2_dnn = apu_load_dnn_from_file ("data/gpt2_base.aspen");
     // // if (bert_dnn_2 == NULL) 
     // // {
@@ -28,11 +28,13 @@ int main(void)
     // // }
     // // // print_dnn_info (bert_dnn_2, 0);
     
+    nasm_t *resnet50_nasm = apu_generate_nasm (resnet50_dnn, 32, 30);
+
     // nasm_t *bert_nasm = apu_create_transformer_nasm(bert_dnn, 1e6, 100, 1, 480);
     // nasm_t *gpt2_nasm = apu_create_transformer_nasm(vgg16_dnn, 10e6, 100, 1, 128);
-    // nasm_t *resnet50_nasm = apu_create_nasm(resnet50_dnn, 100e6, 100, 32);
+    // nasm_t *resnet50_nasm = apu_create_nasm(resnet50_dnn, 100e6, 50, 1);
     // nasm_t *yolov3_nasm = apu_create_nasm(yolov3_dnn, 100e6, 100, 1);
-    nasm_t *resnet50_nasm = apu_create_transformer_nasm(bert_dnn, 1e8, 100, 1, 480);
+    // nasm_t *resnet50_nasm = apu_create_transformer_nasm(resnet50_dnn, 1e8, 100, 1, 480);
     // // if (bert_nasm == NULL) 
     // // {
     // //     printf("Error: Failed to create NASM\n");
@@ -43,10 +45,10 @@ int main(void)
     // sprintf (nasm_file_name, "data/vgg16_124M_S%d_B%d_M%d_%2.1e.nasm"
     //     , gpt2_nasm->tr_seq_len, gpt2_nasm->batch_size, gpt2_nasm->min_ninst_per_ldata,
     //     (double)gpt2_nasm->flop_per_ninst);
-    // sprintf (nasm_file_name, "data/resnet50_B%d_M%d_%2.1e.nasm",
-    //     resnet50_nasm->batch_size, resnet50_nasm->min_ninst_per_ldata,
-    //     (double)resnet50_nasm->flop_per_ninst);
-    // apu_save_nasm_to_file (resnet50_nasm, nasm_file_name);
+    sprintf (nasm_file_name, "data/resnet50_B%d_M%d_%2.1e.nasm",
+        resnet50_nasm->batch_size, resnet50_nasm->min_ninst_per_ldata,
+        (double)resnet50_nasm->flop_per_ninst);
+    apu_save_nasm_to_file (resnet50_nasm, nasm_file_name);
     int gpu = -1;
     // aspen_dnn_t *bert_dnn = apu_load_dnn_from_file ("data/bert_base.aspen");
     // nasm_t *bert_nasm = apu_load_nasm_from_file ("data/bert_S128_B8.nasm", bert_dnn);
@@ -62,10 +64,10 @@ int main(void)
     dse_group_t *dse_group = dse_group_init (64, gpu);
     dse_group_set_rpool (dse_group, rpool);
 
-    // // // rpool_add_nasm_raw_input (rpool, bert_4_nasm, 0.5, dog_data);
-    // rpool_add_nasm (rpool, resnet50_nasm, 1.0, "data/batched_input_128.bin");
+    // rpool_add_nasm_raw_input (rpool, bert_4_nasm, 0.5, dog_data);
+    rpool_add_nasm (rpool, resnet50_nasm, 1.0, "data/batched_input_128.bin");
     // rpool_add_nasm (rpool, resnet50_nasm, 1.0, "data/yolov3/yolov3_cat_input_1.bin");
-    rpool_add_nasm (rpool, resnet50_nasm, 1.0, "data/bert/bert_base_text_len_480_embedded_input_batch1.bin");
+    // rpool_add_nasm (rpool, resnet50_nasm, 1.0, "data/bert/bert_base_text_len_480_embedded_input_batch1.bin");
     // print_rpool_info (rpool);
     // print_nasm_info(resnet50_nasm, 1, 0);
     // print_dnn_info(bert_dnn, 0);
@@ -73,7 +75,7 @@ int main(void)
 
     get_elapsed_time ("init");
 
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 1; i++)
     {
         rpool_reset_nasm (rpool, resnet50_nasm, 1.0);
         dse_group_run_until_nasm_completion (dse_group, resnet50_nasm);
@@ -156,34 +158,34 @@ int main(void)
     // }
 
     // LAYER_PARAMS output_order[] = {BATCH, OUT_H, OUT_W, OUT_C};
-    // LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
-    LAYER_PARAMS output_order[] = {BATCH, MAT_N, MAT_M, 0};
+    LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
+    // LAYER_PARAMS output_order[] = {BATCH, MAT_N, MAT_M, 0};
     float *layer_output = dse_get_nasm_result (resnet50_nasm, output_order);
     // void *expected_output = load_arr ("data/gpt2/gpt2_128_layer0_output.bin", 128*1600*sizeof(float));
-    void *expected_output = load_arr ("data/bert/bert_base_text_len_480_sequence_output_batch1.bin", 1*480*768*sizeof(float));
+    // void *expected_output = load_arr ("data/bert/bert_base_text_len_480_sequence_output_batch1.bin", 1*480*768*sizeof(float));
     // void *expected_output = load_arr ("data/yolov3/yolov3_cat_output_1.bin", 1*10647*85*sizeof(float));
     // compare_float_array (expected_output, layer_output, 128*1600, 1e-2, 1e-4, 20);
-    compare_float_array (expected_output, layer_output, 1*480*768, 1e-2, 1e-4, 20);
+    // compare_float_array (expected_output, layer_output, 1*480*768, 1e-2, 1e-4, 20);
 
     // printf ("Computed output:\n");
     // print_float_tensor (layer_output, 2, 1, 10647, 85);
     // printf ("Expected output:\n");
     // print_float_tensor (expected_output, 2, 1, 10647, 85);
 
-    // float *softmax_output = calloc (1000*resnet50_nasm->batch_size, sizeof(float));
-    // naive_softmax (layer_output, softmax_output, resnet50_nasm->batch_size, 1000);
-    // // float *layer_output = get_aspen_tensor_data ((resnet50_dnn->layers + resnet50_dnn->num_layers - 1)->tensors[OUTPUT_TENSOR], output_order);
-    // // print_float_array (layer_output, 1000*resnet50_nasm->batch_size, 1000);
-    // for (int i = 0; i < resnet50_nasm->batch_size; i++)
-    // {
-    //     get_probability_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
-    // }
-    // free (layer_output);
-    // free (softmax_output);
+    float *softmax_output = calloc (1000*resnet50_nasm->batch_size, sizeof(float));
+    naive_softmax (layer_output, softmax_output, resnet50_nasm->batch_size, 1000);
+    // float *layer_output = get_aspen_tensor_data ((resnet50_dnn->layers + resnet50_dnn->num_layers - 1)->tensors[OUTPUT_TENSOR], output_order);
+    // print_float_array (layer_output, 1000*resnet50_nasm->batch_size, 1000);
+    for (int i = 0; i < resnet50_nasm->batch_size; i++)
+    {
+        get_probability_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
+    }
+    free (layer_output);
+    free (softmax_output);
 
     dse_group_destroy (dse_group);
     rpool_destroy (rpool);
     apu_destroy_nasm (resnet50_nasm);
-    // apu_destroy_dnn (resnet50_dnn);
+    apu_destroy_dnn (resnet50_dnn);
     return 0;
 }

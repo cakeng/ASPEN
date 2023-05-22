@@ -626,7 +626,11 @@ double get_time_secs_suppressed ()
 void get_elapsed_time (char *name)
 {
     static int call_num = 0;
-    static double last = 0;
+    static double last = -1;
+    if (last < 0)
+    {
+        last = get_time_secs();
+    }
     double now = get_time_secs();
     double elapsed = now - last;
     if (call_num > 0)

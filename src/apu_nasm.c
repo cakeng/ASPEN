@@ -38,7 +38,7 @@ void ninst_find_input_pos_idx (ninst_t *ninst)
 {
     nasm_ldata_t *ldata = ninst->ldata;
     aspen_layer_t *layer = ldata->layer;
-    nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
+    // nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
     // aspen_layer_t *p_layer = p_ldata->layer;
     if (layer->type == CONV_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER)
     {
@@ -549,6 +549,11 @@ void destroy_ninst (ninst_t *ninst)
 
 nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size,  unsigned int min_ninst_per_ldata, unsigned int transformer_seq_len)
 {
+    if (min_ninst_per_ldata < 1)
+    {
+        FPRT(stderr, "ERROR: min_ninst_per_ldata should be at least 1, at line %d in file %s\n" , __LINE__, __FILE__);
+        assert (0);
+    }
     nasm_t *new_nasm = (nasm_t *) calloc(1, sizeof(nasm_t));
     new_nasm->dnn = dnn;
     new_nasm->tr_seq_len = transformer_seq_len;
@@ -633,35 +638,70 @@ void set_child_list (ninst_t *ninst)
 double test_nasm_time_sec (nasm_t *nasm, unsigned int num_iter)
 {
     double total_time = 0;
-
     rpool_t *rpool = rpool_init (-1);
-    dse_group_t *dse_group = dse_group_init (64, -1);
+    unsigned int num_cpu = get_cpu_count() / 2;
+    if (num_cpu < 1)
+        num_cpu = 1;
+    dse_group_t *dse_group = dse_group_init (num_cpu, -1);
     dse_group_set_rpool (dse_group, rpool);
     rpool_add_nasm (rpool, nasm, 1.0, NULL);
-
+    double start = get_time_secs();
     for (int i = 0; i < num_iter; i++)
     {
         dse_group_run_until_nasm_completion (dse_group, nasm);
         rpool_reset_nasm (rpool, nasm, 1.0);
     }
-
+    total_time = (double)get_time_secs() - start;
+    // PRT ("APU: Total time = %f sec, Start time = %f sec, End Time = %f sec, Average time = %f sec\n", 
+    //     total_time, start, (double)get_time_secs(), total_time / num_iter);
     dse_group_destroy (dse_group);
     rpool_destroy (rpool);
-    return total_time;
+    return total_time / num_iter;
 }
 
 nasm_t *apu_generate_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned int num_iter)
 {
-
-    nasm_t *new_nasm = NULL;
-
+    size_t num_ninst = APU_GENERATION_NUM_NINST;
+    nasm_t *new_nasm = apu_create_nasm(dnn, APU_GENERATION_NUM_FLOPS, num_ninst, batch_size);
+    double time = test_nasm_time_sec(new_nasm, 50);
+    double min_time = time;
+    size_t min_num_ninst = num_ninst;
+    for (int i = 0; i < num_iter; i++)
+    {
+        PRT ("APU: Iteration %d, time = %f sec at ninst num %ld\n", i, time, num_ninst);
+        size_t num_old = num_ninst;
+        if (time <= min_time*1.05)
+        {
+            num_ninst = num_ninst * APU_GENERATION_COEFF;
+            apu_destroy_nasm (new_nasm);
+            new_nasm = apu_create_nasm(dnn, APU_GENERATION_NUM_FLOPS, num_ninst, batch_size);
+            time = test_nasm_time_sec(new_nasm, 50);
+        }
+        else
+        {
+            num_ninst = num_ninst*APU_GENERATION_COEFF + min_num_ninst*(1-APU_GENERATION_COEFF);
+            apu_destroy_nasm (new_nasm);
+            new_nasm = apu_create_nasm(dnn, APU_GENERATION_NUM_FLOPS, num_ninst, batch_size);
+            time = test_nasm_time_sec(new_nasm, 50);
+        }
+        if (time < min_time)
+        {
+            min_time = time;
+            min_num_ninst = num_ninst;
+        }
+        PRT ("\tMin time = %f sec, min num ninst = %ld\n", min_time, min_num_ninst);
+        if (num_ninst <= num_old*1.10 && num_ninst >= num_old*0.90)
+            break;
+    }
+    apu_destroy_nasm (new_nasm);
+    PRT ("APU: NASM with num %ld, time = %f sec selected.\n", min_num_ninst, min_time);
+    new_nasm = apu_create_nasm(dnn, APU_GENERATION_NUM_FLOPS, min_num_ninst, batch_size);
     return new_nasm;
 }
 
 nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int min_ninst_per_ldata, unsigned int batch_size)
 {
     nasm_t *new_nasm = apu_create_nasm_without_finding_ninst_parents(dnn, flop_per_ninst, batch_size, min_ninst_per_ldata, 0);
-    PRT ("APU: Graphing ninsts...\n");
     for (int i = 0; i < new_nasm->num_ldata; i++)
     {
         #pragma omp parallel for
@@ -669,8 +709,8 @@ nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned 
         {
             ninst_find_parent (&new_nasm->ldata_arr[i].ninst_arr_start[j]);
         }
-        PRT ("APU: Layer %d, parents for %d ninsts found.\n", i, new_nasm->ldata_arr[i].num_ninst);
-
+        PRT ("\tAPU: Graphing layer %d/%d (%2.2f%%).\r", i+1, new_nasm->num_ldata, ((float)(i+1)/(float)new_nasm->num_ldata*100));
+        fflush (stdout);
     }
     PRT ("\n");
     for (int i = 0; i < new_nasm->num_ldata; i++)
@@ -680,9 +720,7 @@ nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned 
         {
             set_child_list (&new_nasm->ldata_arr[i].ninst_arr_start[j]);
         }
-        PRT ("Layer %d, children for %d ninsts found.\n", i, new_nasm->ldata_arr[i].num_ninst);
     }
-    PRT ("\n");
     // Calculat total flops
     new_nasm->total_flops = 0;
     for (int i = 0; i < new_nasm->num_ldata; i++)

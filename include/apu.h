@@ -8,8 +8,8 @@
 #include "rpool.h"
 #include "cuda_kernels.h"
 
-#define APU_GENERATION_NUM_NINST_1 50
-#define APU_GENERATION_NUM_NINST_2 100
+#define APU_GENERATION_COEFF ((double)0.8)
+#define APU_GENERATION_NUM_NINST 512
 #define APU_GENERATION_NUM_FLOPS 1e8
 
 aspen_dnn_t *init_aspen_dnn (unsigned int num_layers, char* name);

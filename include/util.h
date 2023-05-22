@@ -39,6 +39,7 @@ int compare_float_tensor (float *input1, float* input2, int n, int c, int h ,int
 unsigned int get_cpu_count();
 
 void get_probability_results (char *class_data_path, float* probabilities, unsigned int num);
+double get_time_secs();
 void get_elapsed_time (char *name);
 
 void print_float_array (float *input, int num, int newline_num);
