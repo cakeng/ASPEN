@@ -71,34 +71,85 @@ int main(void)
 {
     print_aspen_build_info();
     
-    int batch_size = 4;
-    int number_of_iterations = 1;
+    int batch_size = 1;
+    int number_of_iterations = 10;
     int num_cores = 32;
 
-    aspen_dnn_t *aspen_dnn = apu_create_dnn("data/cfg/resnet50_aspen.cfg", "data/resnet50/resnet50_data.bin");
-    apu_save_dnn_to_file (aspen_dnn, "data/resnet50_base.aspen");
-    nasm_t *aspen_nasm = apu_generate_nasm (aspen_dnn, batch_size, 20);
-    char nasm_file_name [1024] = {0};
-    sprintf (nasm_file_name, "data/resnet50_B%d.nasm", batch_size);
-    apu_save_nasm_to_file (aspen_nasm, nasm_file_name);
+    // aspen_dnn_t *resnet50_dnn = apu_create_dnn("data/cfg/resnet50_aspen.cfg", "data/resnet50/resnet50_data.bin");
+    // apu_save_dnn_to_file (resnet50_dnn, "data/resnet50_base.aspen");
+    // nasm_t *resnet50_nasm = apu_create_nasm (resnet50_dnn, 50, batch_size);
+    // char nasm_file_name [1024] = {0};
+    // sprintf (nasm_file_name, "data/resnet50_B%d.nasm", batch_size);
+    // apu_save_nasm_to_file (resnet50_nasm, nasm_file_name);
+
+    // nasm_t *resnet50_4_nasm = apu_create_nasm (resnet50_dnn, 100, 4);
+    // sprintf (nasm_file_name, "data/resnet50_B%d.nasm", 4);
+    // apu_save_nasm_to_file (resnet50_4_nasm, nasm_file_name);
+
+    // aspen_dnn_t *vgg16_dnn = apu_create_dnn("data/cfg/vgg16_aspen.cfg", "data/vgg16/vgg16_data.bin");
+    // apu_save_dnn_to_file (vgg16_dnn, "data/vgg16_base.aspen");
+    // nasm_t *vgg16_nasm = apu_create_nasm (vgg16_dnn, 50, batch_size);
+    // sprintf (nasm_file_name, "data/vgg16_B%d.nasm", batch_size);
+    // apu_save_nasm_to_file (vgg16_nasm, nasm_file_name);
+
+    aspen_dnn_t *resnet50_dnn = apu_load_dnn_from_file ("data/resnet50_base.aspen");
+    nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_B1.nasm", resnet50_dnn);
+    nasm_t *resnet50_4_nasm = apu_load_nasm_from_file ("data/resnet50_B4.nasm", resnet50_dnn);
+    aspen_dnn_t *vgg16_dnn = apu_load_dnn_from_file ("data/vgg16_base.aspen");
+    nasm_t *vgg16_nasm = apu_load_nasm_from_file ("data/vgg16_B1.nasm", vgg16_dnn);
+
 
     rpool_t *rpool = rpool_init ();
     dse_group_t *dse_group = dse_group_init (num_cores);
     dse_group_set_rpool (dse_group, rpool);
-    rpool_add_nasm (rpool, aspen_nasm, 1.0, "data/batched_input_128.bin");
+    rpool_add_nasm (rpool, resnet50_nasm, "data/batched_input_128.bin");
+    rpool_add_nasm (rpool, resnet50_4_nasm, "data/batched_input_128.bin");
+    rpool_add_nasm (rpool, vgg16_nasm, "data/batched_input_128.bin");
+
+    // print_rpool_info (rpool);
 
     double start_time = get_sec();
     for (int i = 0; i < number_of_iterations; i++)
     {
-        rpool_reset_nasm (rpool, aspen_nasm, 1.0);
-        dse_group_run_until_nasm_completion (dse_group, aspen_nasm);
+        rpool_reset (rpool);
+        rpool_reset_nasm (rpool, resnet50_nasm);
+        rpool_reset_nasm (rpool, resnet50_4_nasm);
+        rpool_reset_nasm (rpool, vgg16_nasm);
+        dse_group_run (dse_group);
+        dse_wait_for_nasm_completion (resnet50_nasm);
+        dse_wait_for_nasm_completion (resnet50_4_nasm);
+        dse_wait_for_nasm_completion (vgg16_nasm);
+        dse_group_stop (dse_group);
     }
     double end_time = get_sec();
     printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);
     
+    printf ("Resnet50:\n");
     LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
-    float *layer_output = dse_get_nasm_result (aspen_nasm, output_order);
+    float *layer_output = dse_get_nasm_result (resnet50_nasm, output_order);
     float *softmax_output = calloc (1000*batch_size, sizeof(float));
+    softmax (layer_output, softmax_output, batch_size, 1000);
+    for (int i = 0; i < batch_size; i++)
+    {
+        get_prob_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
+    }
+    free (layer_output);
+    free (softmax_output);
+
+    printf ("Resnet50_4:\n");
+    layer_output = dse_get_nasm_result (resnet50_4_nasm, output_order);
+    softmax_output = calloc (1000*4, sizeof(float));
+    softmax (layer_output, softmax_output, 4, 1000);
+    for (int i = 0; i < 4; i++)
+    {
+        get_prob_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
+    }
+    free (layer_output);
+    free (softmax_output);
+
+    printf ("VGG16:\n");
+    layer_output = dse_get_nasm_result (vgg16_nasm, output_order);
+    softmax_output = calloc (1000*batch_size, sizeof(float));
     softmax (layer_output, softmax_output, batch_size, 1000);
     for (int i = 0; i < batch_size; i++)
     {
@@ -109,7 +160,10 @@ int main(void)
 
     dse_group_destroy (dse_group);
     rpool_destroy (rpool);
-    apu_destroy_nasm (aspen_nasm);
-    apu_destroy_dnn (aspen_dnn);
+    apu_destroy_nasm (resnet50_nasm);
+    apu_destroy_nasm (resnet50_4_nasm);
+    apu_destroy_dnn (resnet50_dnn);
+    apu_destroy_nasm (vgg16_nasm);
+    apu_destroy_dnn (vgg16_dnn);
     return 0;
 }

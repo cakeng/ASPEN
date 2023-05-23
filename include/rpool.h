@@ -55,15 +55,19 @@ void rpool_init_queue_group (rpool_queue_group_t *rpool_queue_group, char *queue
 void rpool_destroy_queue_group (rpool_queue_group_t *rpool_queue_group);
 
 void rpool_pop_all_nasm (rpool_t *rpool, nasm_t *nasm);
+void rpool_pop_all (rpool_t *rpool);
 void rpool_finish_nasm (rpool_t *rpool, nasm_t *nasm);
 
 rpool_queue_group_t *get_queue_group_from_nasm (rpool_t *rpool, nasm_t *nasm);
 int get_queue_group_idx_from_nasm (rpool_t *rpool, nasm_t *nasm);
+void rpool_add_queue_group (rpool_t *rpool, char *queue_group_info, unsigned int num_queues, void **blacklist, void **whitelist);
+void rpool_queue_group_set_blacklist (rpool_queue_group_t *rpool_queue_group, void **blacklist);
+void rpool_queue_group_set_whitelist (rpool_queue_group_t *rpool_queue_group, void **whitelist);
+void rpool_set_nasm_weight (rpool_t *rpool, nasm_t* nasm, float weight);
 
 void set_queue_group_weight (rpool_t *rpool, rpool_queue_group_t *rpool_queue_group, float weight);
 void queue_group_add_queues (rpool_queue_group_t *rpool_queue_group, unsigned int num_queues);
 void add_ref_ases (rpool_t *rpool, unsigned int num_ases);
-
 unsigned int check_blacklist_cond (void **blacklist, void **input_cond);
 unsigned int check_whitelist_cond (void **whitelist, void **input_cond);
 

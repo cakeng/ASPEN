@@ -13,6 +13,9 @@
 #define APU_GENERATION_NUM_FLOPS 1e8
 
 aspen_dnn_t *init_aspen_dnn (unsigned int num_layers, char* name);
+void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path);
+void *aspen_load_input_NHWC(char *input_filename, unsigned int *input_dims, unsigned int element_size);
+void *aspen_load_input(char *input_filename, unsigned int *input_dims, unsigned int element_size);
 
 void init_aspen_layer (aspen_layer_t *layer, unsigned int layer_num, aspen_dnn_t *dnn);
 void create_layer_tensors (aspen_layer_t *layer);
@@ -45,7 +48,6 @@ nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigne
 
 void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata, aspen_layer_t *layer);
 void destroy_nasm_ldata_arr (nasm_ldata_t *ldata_arr, int num_ldata);
-void reset_nasm (nasm_t *nasm);
 void set_nasm_to_finished (nasm_t *nasm);
 
 void copy_tensor_data_to_nasm_data (aspen_tensor_t *tensor, nasm_ldata_t *ldata);

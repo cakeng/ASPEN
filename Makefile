@@ -1,5 +1,5 @@
 TARGET=main
-ALIB=libasapen.a
+ALIB=libaspen.a
 OBJECTS=build_info.o apu.o apu_nasm.o apu_file_io.o input_parser.o darknet_parser.o util.o 
 OBJECTS+=rpool.o dse.o naive_kernels.o tiled_kernels.o avx2_kernels.o neon_kernels.o dse_cudagraph.o
 AVX2=1
@@ -21,7 +21,7 @@ BUILD_INFO_BRANCH = $(shell git log -1 | grep -Eio "commit [0-9a-zA-Z]+")
 
 OPTS=-Ofast -march=native -funroll-loops
 LDFLAGS=-lm -lgomp
-COMMON=-I/usr/local/cuda/include/ -Iinclude/
+COMMON= -Iinclude/
 ifeq ($(DEBUG), 1) 
 OPTS=-O0 -g -DDEBUG
 endif

@@ -80,35 +80,26 @@ typedef struct rpool_queue_group_t rpool_queue_group_t;
 typedef struct dse_t dse_t;     // Distributed scheduling engine
 typedef struct dse_group_t dse_group_t;
 
-void *aspen_load_input(char *input_filename, unsigned int *input_dims, unsigned int element_size);
-void *aspen_load_input_NHWC(char *input_filename, unsigned int *input_dims, unsigned int element_size);
-void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data);
-void aspen_init_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data);
-
 aspen_dnn_t *apu_create_dnn(char *input_path, char *data_path);
 void apu_destroy_dnn(aspen_dnn_t *dnn);
 void apu_save_dnn_to_file(aspen_dnn_t *dnn, char *filename);
-void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path);
 aspen_dnn_t *apu_load_dnn_from_file(char *filename);
+
 nasm_t *apu_generate_nasm (aspen_dnn_t *dnn, unsigned int batch_size, unsigned int num_iter);
 nasm_t *apu_generate_transformer_nasm (aspen_dnn_t *dnn, unsigned int batch_size, unsigned int seq_num, unsigned int num_iter);
-nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int min_ninst_per_ldata, unsigned int batch_size);
-nasm_t *apu_create_transformer_nasm
-  (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int min_ninst_per_ldata, 
-  unsigned int batch_size, unsigned int seq_num);
+nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int min_ninst_per_ldata, unsigned int batch_size);
+nasm_t *apu_create_transformer_nasm(aspen_dnn_t *dnn, unsigned int min_ninst_per_ldata, unsigned int batch_size, unsigned int seq_num);
 void apu_destroy_nasm(nasm_t *nasm);
 nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn);
 void apu_save_nasm_to_file(nasm_t *nasm, char *filename);
+void apu_reset_nasm (nasm_t *nasm);
 
 rpool_t *rpool_init ();
 void rpool_destroy (rpool_t *rpool);
-void rpool_add_nasm_raw_input (rpool_t *rpool, nasm_t* nasm, float weight, void* input_data);
-void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, float weight, char *input_filename);
-void rpool_set_nasm_weight (rpool_t *rpool, nasm_t* nasm, float weight);
-void rpool_add_queue_group (rpool_t *rpool, char *queue_group_info, unsigned int num_queues, float weight, void **blacklist, void **whitelist);
-void rpool_queue_group_set_blacklist (rpool_queue_group_t *rpool_queue_group, void **blacklist);
-void rpool_queue_group_set_whitelist (rpool_queue_group_t *rpool_queue_group, void **whitelist);
-void rpool_reset_nasm (rpool_t *rpool, nasm_t *nasm, float weight);
+void rpool_add_nasm_raw_input (rpool_t *rpool, nasm_t* nasm, void* input_data);
+void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, char *input_filename);
+void rpool_reset (rpool_t *rpool);
+void rpool_reset_nasm (rpool_t *rpool, nasm_t *nasm);
 
 dse_group_t *dse_group_init (unsigned int num_ase);
 void dse_group_set_rpool (dse_group_t *dse_group, rpool_t *rpool);
@@ -131,6 +122,5 @@ void print_ninst_info (ninst_t *ninst, int print_data);
 void print_rpool_queue_info (rpool_queue_t *rpool_queue);
 void print_rpool_queue_group_info (rpool_queue_group_t *rpool_queue_group);
 void print_rpool_info (rpool_t *rpool);
-void print_nasm_cudagraph_info (nasm_t *nasm, char* output_dot_filename);
 
 #endif /* _ASPEN_H_ */
