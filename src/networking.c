@@ -3,26 +3,29 @@
 void *net_thread_runtime (void* thread_info) 
 {
     networking_engine *net_engine = (networking_engine*) thread_info;
-    while (net_engine->run)
+    while (!net_engine->kill)
     {
-        switch (net_engine->sock_type)
-        {
-        case SOCK_TX:
-            transmission(net_engine);
-            break;
-        case SOCK_RX:
-            break;
-        default:
-            continue;
+        if(net_engine->run) {
+            switch (net_engine->sock_type)
+            {
+            case SOCK_TX:
+                transmission(net_engine);
+                break;
+            case SOCK_RX:
+                receive(net_engine);
+                break;
+            default:
+                continue;
+            }
         }
     }
-
 }
 
 void init_networking_queue (networking_queue_t *networking_queue)
 {
     networking_queue->idx_start = 0;
     networking_queue->idx_end = 0;
+    networking_queue->num_stored = 0;
     networking_queue->max_stored = INIT_QUEUE_SIZE;
     networking_queue->ninst_ptr_arr = calloc (INIT_QUEUE_SIZE, sizeof(ninst_t*));
 }
@@ -91,6 +94,7 @@ unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ni
     #endif
     unsigned int num_ninsts = 0;
     unsigned int i = networking_queue->idx_start;
+    
     for (; num_ninsts < networking_queue->num_stored; num_ninsts++)
     {
         if (num_ninsts >= max_ninsts_to_get)
@@ -100,27 +104,33 @@ unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ni
         if (i == networking_queue->max_stored)
             i = 0;
     }
+    // if(networking_queue->num_stored > 0) {
+    //     printf("i: %d, num_stored: %d, ninst idx: %d\n", networking_queue->idx_start, networking_queue->num_stored, ninst_ptr_list[num_ninsts]->ninst_idx);
+    // }
+
     networking_queue->idx_start = i;
     networking_queue->num_stored -= num_ninsts;
     // if (networking_queue->queue_group != NULL)
     //     atomic_fetch_sub (&networking_queue->queue_group->num_ninsts, num_ninsts);    
+    
     return num_ninsts;
 }
 
-void push_ninsts_to_net_queue (networking_queue_t *networking_queue, ninst_t **ninst_ptr_list, unsigned int num_ninsts)
+void push_ninsts_to_net_queue (networking_queue_t *networking_queue, ninst_t *ninst_ptr, unsigned int num_ninsts)
 {
-    if (networking_queue->num_stored + num_ninsts > networking_queue->max_stored)
-        update_net_queue_size (networking_queue, num_ninsts);
+    // if (networking_queue->num_stored + num_ninsts > networking_queue->max_stored)
+    //     update_net_queue_size (networking_queue, num_ninsts);
     unsigned i = networking_queue->idx_end;
-    for (int j = 0; j < num_ninsts; j++)
-    {
-        networking_queue->ninst_ptr_arr[i] = ninst_ptr_list[j];
+    // for (int j = 0; j < num_ninsts; j++)
+    // {
+        networking_queue->ninst_ptr_arr[i] = ninst_ptr;
         i++;
         if (i == networking_queue->max_stored)
             i = 0;
-    }
+    // }
     networking_queue->idx_end = i;
     networking_queue->num_stored += num_ninsts;
+    // printf("push net_queue, num_stored: %d->%d idx_start: %d idx_end: %d, ninst_idx: %d\n", networking_queue->num_stored-num_ninsts, networking_queue->num_stored, networking_queue->idx_start, networking_queue->idx_end, networking_queue->ninst_ptr_arr[i-1]->ninst_idx);
     // if (networking_queue->queue_group != NULL)
     //     atomic_fetch_add (&networking_queue->queue_group->num_ninsts, num_ninsts);
 }
@@ -153,12 +163,16 @@ void push_ninsts_to_net_queue_front (networking_queue_t *networking_queue, ninst
     //     atomic_fetch_add (&networking_queue->queue_group->num_ninsts, num_ninsts);
 }
 
-networking_engine* init_networking (nasm_t* nasm, SOCK_TYPE sock_type, char* ip, int port, int is_UDP) 
+networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock_type, char* ip, int port, int is_UDP) 
 {
     networking_engine *net_engine = calloc (1, sizeof(networking_engine));
     networking_queue_t *networking_queue_t = calloc (1, sizeof(networking_queue_t));
     init_networking_queue(networking_queue_t);
-    atomic_store (&net_engine->run, 1);
+    net_engine->net_queue = networking_queue_t;
+    atomic_store (&net_engine->run, 0);
+    atomic_store (&net_engine->kill, 0);
+    net_engine->nasm = nasm;
+    net_engine->rpool = rpool;
 
     switch (sock_type)
     {
@@ -255,24 +269,64 @@ void init_tx(networking_engine* net_engine, char* ip, int port, int is_UDP) {
     init_socket(net_engine);
 }
 
-
-
 void transmission(networking_engine *net_engine) 
 {
     ninst_t *target_ninst = NULL;
-    unsigned int num_ninsts = pop_ninsts_from_queue(net_engine->net_queue, &target_ninst, 1);
-
-    if(!target_ninst->offloaded) {
+    unsigned int num_ninsts = pop_ninsts_from_net_queue(net_engine->net_queue, &target_ninst, 1);
+    
+    if(!target_ninst->offloaded) 
+    {
         return;
     }
     
-    // net_queue 에서 제일 앞에꺼 전송
-    // ldata 전송
-    nasm_ldata_t *ldata = target_ninst->ldata;
-    printf("ninst idx: %d\n", target_ninst->ninst_idx);
+    if(num_ninsts > 0) {
+        printf("ninst idx: %d child idx: ", target_ninst->ninst_idx);
+        for(int i = 0; i < target_ninst->num_child_ninsts; i++) {
+            printf("%d ", target_ninst->child_ninst_arr[i]->ninst_idx);
+        }
+        printf("\n");
+        nasm_ldata_t *ldata = target_ninst->ldata;
+        send(net_engine->tx_sock, (char*)target_ninst, sizeof(ninst_t), 0);
+    }
+    
 }
 
-void add_ninst_net_queue(networking_engine *net_engine, nasm_t* nasm, float weight, char *input_filename)
+void receive(networking_engine *net_engine) {
+    ninst_t recv_ninst;
+    ninst_t* target_ninst;
+    char* out_mat;
+
+    while(1) 
+    {
+        // 수신단의 ninst idx 와 recv_ninst idx 가 동일할 경우, out_mat 수신하고, state update
+        if(recv(net_engine->tx_sock, (char*)&recv_ninst, sizeof(ninst_t), 0)) 
+        {
+            // printf("recv ninst idx: %d, num_child:ninsts: %d\n", recv_ninst.ninst_idx, recv_ninst.num_child_ninsts);
+            for(int i = 0; i < net_engine->nasm->num_ninst; i++) {
+                if(i == recv_ninst.ninst_idx) {
+                    target_ninst = &net_engine->nasm->ninst_arr[i];
+                    target_ninst->state = NINST_COMPLETED;
+                    atomic_fetch_add (&target_ninst->ldata->num_ninst_completed , 1);
+                    update_children (net_engine->rpool, target_ninst);
+                    printf("%ls\n", target_ninst->input_pos_idx_arr);
+
+                    printf("recv ninst idx: %d child idx: ", target_ninst->ninst_idx);
+                    for(int i = 0; i < target_ninst->num_child_ninsts; i++) {
+                        printf("%d ", target_ninst->child_ninst_arr[i]->ninst_idx);
+                    }
+                    printf("\n");
+                }
+            }
+        } 
+        else 
+        {
+            FPRT (stderr, "ERROR: receive\n");
+            return;
+        }
+    }
+}
+
+void add_ninst_net_queue(networking_engine *net_engine, nasm_t* nasm, char *input_filename)
 {
     aspen_dnn_t *dnn = nasm->dnn;
     aspen_layer_t *first_layer = &dnn->layers[0];
@@ -339,6 +393,7 @@ void add_ninst_net_queue(networking_engine *net_engine, nasm_t* nasm, float weig
     for (int i = 0; i < ldata->num_ninst; i++)
     {
         ninst_t *ninst = &ldata->ninst_arr_start[i];
+        ninst->offloaded = 1; // For offloading temporary
         push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
     }
     

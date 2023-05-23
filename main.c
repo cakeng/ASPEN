@@ -6,8 +6,14 @@
 #include "networking.h"
 
 
-int main(void)
+int main(int argc, char **argv)
 {
+    int sock_type = 0;
+    if(!strcmp(argv[1], "RX")) {
+        sock_type = SOCK_RX;
+    } else if(!strcmp(argv[1], "TX")) {
+        sock_type = SOCK_TX;
+    }
     // print_aspen_build_info();
     aspen_dnn_t *resnet50_dnn = apu_create_dnn("data/cfg/resnet50.cfg", "data/resnet50/resnet50_data.bin");
     // aspen_dnn_t *yolov3_dnn = apu_create_dnn("data/cfg/yolov3.cfg", "data/yolov3_data.bin");
@@ -59,31 +65,41 @@ int main(void)
     ase_group_t *ase_group = ase_group_init (64, gpu);
     ase_group_set_rpool (ase_group, rpool);
 
-    networking_engine* net_engine = init_networking(resnet50_nasm, SOCK_RX, "127.0.0.1", 8080, 0);
-
-    // // // rpool_add_nasm_raw_input (rpool, bert_4_nasm, 0.5, dog_data);
+    networking_engine* net_engine = init_networking(resnet50_nasm, rpool, sock_type, "127.0.0.1", 8080, 0);
     
     /*
         여기서 offloading decision 찾는 알고리즘 동작
     */
-    
-    add_ninst_net_queue(net_engine, resnet50_nasm, 1.0, "data/resnet50/batched_input_64.bin");
-    // rpool_add_nasm (rpool, resnet50_nasm, 1.0, "data/resnet50/batched_input_64.bin"); // Offloading 할 때는 input 을 mobile 로부터 받도록 설계
-    // rpool_add_nasm (rpool, yolov3_nasm, 1.0, "data/yolov3_cat_input_128.bin");
-    // rpool_add_nasm (rpool, gpt2_nasm, 1.0, "data/gpt2/gpt2_124M_128_layer0_input.bin");
-    // // print_rpool_info (rpool);
-    // // print_nasm_info(bert_nasm, 0, 0);
-    // print_dnn_info(bert_dnn, 0);
-    // print_dnn_info(yolov3_dnn, 0);
+    if(sock_type == SOCK_RX) {
+        char info_str[MAX_STRING_LEN*2];
+        void *whitelist[NUM_RPOOL_CONDS] = {NULL};
+        whitelist [RPOOL_NASM] = resnet50_nasm;
+        sprintf (info_str, "%s_%s_%d", resnet50_nasm->dnn->name, "nasm", resnet50_nasm->nasm_id);
+        float queue_per_layer = rpool->ref_ases * NUM_QUEUE_PER_ASE * NUM_QUEUE_PER_LAYER;
+        unsigned int num_queues = resnet50_nasm->dnn->num_layers*queue_per_layer;
+        if (num_queues < 1)
+            num_queues = 1;
+        resnet50_nasm->gpu_idx = rpool->gpu_idx;
+        rpool_add_queue_group (rpool, info_str, num_queues, 1.0, NULL, whitelist);
+    }
+            
+    if(sock_type == SOCK_TX) {
+        add_ninst_net_queue(net_engine, resnet50_nasm, "data/resnet50/batched_input_64.bin");
+    }
+    atomic_store (&net_engine->run, 1);
 
-    // init_rx(resnet50_nasm, 8080, 0);
+    
+    // rpool_add_nasm (rpool, resnet50_nasm, 1.0, "data/resnet50/batched_input_64.bin"); // Offloading 할 때는 input 을 mobile 로부터 받도록 설계
 
     get_elapsed_time ("init");
 
     // // ase_cudagraph_run (rpool, bert_nasm);
     
-    ase_group_run (ase_group);
-    // ase_wait_for_nasm_completion (bert_nasm);
+    if(sock_type == SOCK_RX) {
+        ase_group_run (ase_group);
+        // ase_wait_for_nasm_completion (bert_nasm);
+        
+    }
     ase_wait_for_nasm_completion (resnet50_nasm);
     // ase_wait_for_nasm_completion (gpt2_nasm);
     // ase_wait_for_nasm_completion (bert_4_nasm);

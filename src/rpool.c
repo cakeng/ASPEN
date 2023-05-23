@@ -729,7 +729,9 @@ void rpool_push_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int n
         void* input_conds[NUM_RPOOL_CONDS] = {[RPOOL_DNN] = (void*)layer->dnn,
             [RPOOL_LAYER_TYPE] = (void*)layer->type, [RPOOL_LAYER_IDX] = (void*)(NULL + layer->layer_idx),
                 [RPOOL_NASM] = (void*)ninst->ldata->nasm, [RPOOL_ASE] = NULL};
+        
         rpool_queue = get_queue_for_storing (rpool, queue_val, input_conds);
+        
         push_ninsts_to_queue (rpool_queue, &ninst_ptr_list[i], num_ninsts%NINST_PUSH_BATCH_SIZE);
         // atomic_store (&rpool_queue->occupied, 0);
         pthread_mutex_unlock (&rpool_queue->occupied_mutex);

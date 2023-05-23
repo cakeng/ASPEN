@@ -13,6 +13,8 @@
 
 struct networking_engine
 {
+    nasm_t* nasm;
+    rpool_t* rpool;
     networking_queue_t *net_queue;
     // For offloading
     struct sockaddr_in rx_addr;
@@ -23,6 +25,7 @@ struct networking_engine
     SOCK_TYPE sock_type;
 
     _Atomic int run;
+    _Atomic int kill;
 
     pthread_t thread;
 };
@@ -30,7 +33,7 @@ struct networking_engine
 struct networking_queue_t
 {
     // _Atomic unsigned int occupied;
-    pthread_mutex_t occupied_mutex;
+    // pthread_mutex_t occupied_mutex;
     unsigned int idx_start;
     unsigned int idx_end;
     unsigned int num_stored;
@@ -38,7 +41,7 @@ struct networking_queue_t
     ninst_t **ninst_ptr_arr;
 };
 
-networking_engine* init_networking (nasm_t* nasm, SOCK_TYPE sock_type, char* ip, int port, int is_UDP);
+networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock_type, char* ip, int port, int is_UDP);
 void init_networking_queue (networking_queue_t *networking_queue);
 void init_rx(networking_engine* net_engine, int port,int is_UDP);
 void init_tx(networking_engine* net_engine, char* ip, int port, int is_UDP);
