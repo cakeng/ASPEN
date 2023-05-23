@@ -128,7 +128,6 @@ void tiled_conv2d (ninst_t *ninst, ase_t *ase)
     const unsigned int rem_k = K % _TILE_SIZE_K;
     unsigned int n = 0;
     
-    // printf("ninst idx: %d, N: %d, M: %d, K: %d, rem_n: %d, rem_m: %d, rem_k: %d\n", ninst->ninst_idx, N, M, K, rem_n, rem_m, rem_k);
     if (ase->gpu_idx < 0)
     {
         // <M, N, K> = <M, _TILE_SIZE_N, K>
@@ -152,7 +151,6 @@ void tiled_conv2d (ninst_t *ninst, ase_t *ase)
             // <M, N, K> = <M, _TILE_SIZE_N, _TILE_SIZE_K>
             for (; k < K - rem_k; k += _TILE_SIZE_K)
             {
-                printf("%d\n", ninst->input_pos_idx_arr[0]);
                 ldb = _TILE_SIZE_K;
                 load_im2col (B, ldb, 
                     ninst->input_pos_idx_arr + input_pos_per_n * n, p_ldata->out_mat, p_ldata->out_mat_stride, 

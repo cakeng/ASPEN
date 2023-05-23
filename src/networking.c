@@ -301,7 +301,6 @@ void receive(networking_engine *net_engine) {
         // 수신단의 ninst idx 와 recv_ninst idx 가 동일할 경우, out_mat 수신하고, state update
         if(recv(net_engine->tx_sock, (char*)&recv_ninst, sizeof(ninst_t), 0)) 
         {
-            // printf("recv ninst idx: %d, num_child:ninsts: %d\n", recv_ninst.ninst_idx, recv_ninst.num_child_ninsts);
             for(int i = 0; i < net_engine->nasm->num_ninst; i++) {
                 if(i == recv_ninst.ninst_idx) {
                     target_ninst = &net_engine->nasm->ninst_arr[i];
