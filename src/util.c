@@ -122,6 +122,23 @@ void *aspen_gpu_calloc (size_t num, size_t size, int gpu_idx)
     #endif
     return ptr;
 }
+void aspen_gpu_memset (void *ptr, int val, size_t size, int gpu_idx)
+{
+    if (size <= 0)
+        return;
+    #ifdef GPU
+    if (check_CUDA(cudaSetDevice(gpu_idx)) != cudaSuccess)
+    {
+        FPRT (stderr, "Error: Failed to set GPU device.\n");
+        assert (0);
+    }
+    if (check_CUDA(cudaMemset(ptr, val, get_smallest_dividable (size, MEM_ALIGN) )) != cudaSuccess)
+    {
+        FPRT (stderr, "Error: Failed to set GPU memory.\n");
+        assert (0);
+    }
+    #endif
+}
 void *aspen_gpu_malloc_minus_one (size_t num, size_t size, int gpu_idx)
 {
     if (num*size <= 0)
@@ -510,6 +527,23 @@ int compare_float_tensor (float *input1, float* input2, int n, int c, int h ,int
     return num;
 }
 
+unsigned int get_cpu_count()
+{
+    cpu_set_t cs;
+    CPU_ZERO(&cs);
+    sched_getaffinity(0, sizeof(cs), &cs);
+
+    unsigned int count = 0;
+    for (int i = 0; i < 256; i++)
+    {
+        if (CPU_ISSET(i, &cs))
+            count++;
+        else
+            break;
+    }
+    return count;
+}
+
 void get_probability_results (char *class_data_path, float* probabilities, unsigned int num)
 {
     int buffer_length = 256;
@@ -592,7 +626,11 @@ double get_time_secs_suppressed ()
 void get_elapsed_time (char *name)
 {
     static int call_num = 0;
-    static double last = 0;
+    static double last = -1;
+    if (last < 0)
+    {
+        last = get_time_secs();
+    }
     double now = get_time_secs();
     double elapsed = now - last;
     if (call_num > 0)

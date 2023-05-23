@@ -62,8 +62,8 @@ int main(int argc, char **argv)
     // // // // nasm_t *bert_4_nasm = apu_load_nasm_from_file ("data/bert_4.nasm", &bert_dnn);
     // // 
     rpool_t *rpool = rpool_init (gpu);
-    ase_group_t *ase_group = ase_group_init (64, gpu);
-    ase_group_set_rpool (ase_group, rpool);
+    dse_group_t *dse_group = ase_group_init (64, gpu);
+    dse_group_set_rpool (dse_group, rpool);
 
     networking_engine* net_engine = init_networking(resnet50_nasm, rpool, sock_type, "127.0.0.1", 8080, 0);
     
@@ -75,7 +75,7 @@ int main(int argc, char **argv)
         void *whitelist[NUM_RPOOL_CONDS] = {NULL};
         whitelist [RPOOL_NASM] = resnet50_nasm;
         sprintf (info_str, "%s_%s_%d", resnet50_nasm->dnn->name, "nasm", resnet50_nasm->nasm_id);
-        float queue_per_layer = rpool->ref_ases * NUM_QUEUE_PER_ASE * NUM_QUEUE_PER_LAYER;
+        float queue_per_layer = rpool->ref_ases * NUM_LAYERQUEUE_PER_ASE * NUM_QUEUE_PER_LAYER;
         unsigned int num_queues = resnet50_nasm->dnn->num_layers*queue_per_layer;
         if (num_queues < 1)
             num_queues = 1;
@@ -96,14 +96,14 @@ int main(int argc, char **argv)
     // // ase_cudagraph_run (rpool, bert_nasm);
     
     if(sock_type == SOCK_RX) {
-        ase_group_run (ase_group);
+        dse_group_run (dse_group);
         // ase_wait_for_nasm_completion (bert_nasm);
         
     }
     ase_wait_for_nasm_completion (resnet50_nasm);
     // ase_wait_for_nasm_completion (gpt2_nasm);
     // ase_wait_for_nasm_completion (bert_4_nasm);
-    ase_group_stop (ase_group);
+    dse_group_stop (dse_group);
 
 
     get_elapsed_time ("run_aspen");

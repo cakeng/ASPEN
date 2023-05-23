@@ -1,6 +1,6 @@
 #ifndef _ASPEN_H_
 #define _ASPEN_H_
-
+#define _GNU_SOURCE
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,6 +14,8 @@
 #include <sys/time.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <sched.h>
 
 #ifdef AVX2
 #include <immintrin.h>
@@ -96,16 +98,16 @@ typedef struct aspen_dnn_t aspen_dnn_t;
 typedef struct aspen_layer_t aspen_layer_t;
 typedef struct aspen_tensor_t aspen_tensor_t;
 
-typedef struct ninst_t ninst_t; // Neural instruction
-typedef struct nasm_t nasm_t;   // Neural assembly
+typedef struct ninst_t ninst_t; // Ninst - Neural instruction
+typedef struct nasm_t nasm_t;   // Nasm - Neural assembly
 typedef struct nasm_ldata_t nasm_ldata_t; // Dynamic layer data
 
 typedef struct rpool_t rpool_t; // Ready pool
 typedef struct rpool_queue_t rpool_queue_t;
 typedef struct rpool_queue_group_t rpool_queue_group_t;
 
-typedef struct ase_t ase_t;     // Asynchronous scheduling engine
-typedef struct ase_group_t ase_group_t;
+typedef struct dse_t dse_t;     // Distributed scheduling engine
+typedef struct dse_group_t dse_group_t;
 
 typedef struct networking_engine networking_engine; // Offloading
 typedef struct networking_queue_t networking_queue_t; 
@@ -120,6 +122,8 @@ void apu_destroy_dnn(aspen_dnn_t *dnn);
 void apu_save_dnn_to_file(aspen_dnn_t *dnn, char *filename);
 void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path);
 aspen_dnn_t *apu_load_dnn_from_file(char *filename);
+nasm_t *apu_generate_nasm (aspen_dnn_t *dnn, unsigned int batch_size, unsigned int num_iter);
+nasm_t *apu_generate_transformer_nasm (aspen_dnn_t *dnn, unsigned int batch_size, unsigned int seq_num, unsigned int num_iter);
 nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int min_ninst_per_ldata, unsigned int batch_size);
 nasm_t *apu_create_transformer_nasm
   (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int min_ninst_per_ldata, 
@@ -138,17 +142,17 @@ void rpool_queue_group_set_blacklist (rpool_queue_group_t *rpool_queue_group, vo
 void rpool_queue_group_set_whitelist (rpool_queue_group_t *rpool_queue_group, void **whitelist);
 void rpool_reset_nasm (rpool_t *rpool, nasm_t *nasm, float weight);
 
-ase_group_t *ase_group_init (unsigned int num_ase, int gpu_idx);
-void ase_group_set_rpool (ase_group_t *ase_group, rpool_t *rpool);
-void ase_group_destroy (ase_group_t *ase_group);
-void ase_cudagraph_run (rpool_t *rpool, nasm_t *nasm);
-void ase_group_run (ase_group_t *ase_group);
-void ase_group_stop (ase_group_t *ase_group);
-void ase_group_run_until_nasm_completion (ase_group_t *ase_group, nasm_t *nasm);
-void ase_wait_for_nasm_completion (nasm_t *nasm);
-unsigned int ase_check_nasm_completion (nasm_t *nasm);
-void *ase_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS *order);
-void *ase_get_nasm_result (nasm_t *nasm, LAYER_PARAMS *order);
+dse_group_t *dse_group_init (unsigned int num_ase, int gpu_idx);
+void dse_group_set_rpool (dse_group_t *dse_group, rpool_t *rpool);
+void dse_group_destroy (dse_group_t *dse_group);
+void dse_cudagraph_run (rpool_t *rpool, nasm_t *nasm);
+void dse_group_run (dse_group_t *dse_group);
+void dse_group_stop (dse_group_t *dse_group);
+void dse_group_run_until_nasm_completion (dse_group_t *dse_group, nasm_t *nasm);
+void dse_wait_for_nasm_completion (nasm_t *nasm);
+unsigned int dse_check_nasm_completion (nasm_t *nasm);
+void *dse_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS *order);
+void *dse_get_nasm_result (nasm_t *nasm, LAYER_PARAMS *order);
 
 void print_aspen_build_info(void);
 void print_dnn_info (aspen_dnn_t *dnn, int print_data);

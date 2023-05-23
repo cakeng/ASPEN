@@ -27,6 +27,16 @@ aspen_dnn_t *apu_create_dnn (char *input_path, char *weight_path)
             params[OUT_C] = (layer->params[OUT_C] + params[SUB_C] - 1) / params[SUB_C];
             reorder_aspen_tensor (&layer->tensors[WEIGHT_TENSOR], params, weight_dim_order, 5);
         }
+        else if (layer->type == FC_LAYER)
+        {
+            // printf ("Reordering weight tensor for layer %d\n", i);
+            LAYER_PARAMS weight_dim_order[] = {OUT_C, IN_H, IN_W, IN_C, SUB_C};
+            unsigned int params[NUM_PARAM_ELEMENTS] = {0};
+            memcpy (params, layer->params, sizeof(unsigned int) * NUM_PARAM_ELEMENTS);
+            params[SUB_C] = _VEC_SIZE_M;
+            params[OUT_C] = (layer->params[OUT_C] + params[SUB_C] - 1) / params[SUB_C];
+            reorder_aspen_tensor (&layer->tensors[WEIGHT_TENSOR], params, weight_dim_order, 5);
+        }
         else if (layer->type == MATMUL_LAYER)
         {
             // printf ("Reordering weight tensor for layer %d\n", i);
@@ -448,8 +458,8 @@ void create_layer_tensors (aspen_layer_t *layer)
     }
     else if (layer->type == FC_LAYER)
     {
-        LAYER_PARAMS weight_dim_order[] = {OUT_C, IN_C};
-        layer->tensors [WEIGHT_TENSOR] = init_aspen_tensor (layer->params, weight_dim_order, 2, layer->dnn->element_size);
+        LAYER_PARAMS weight_dim_order[] = {OUT_C, IN_C, IN_H, IN_W};
+        layer->tensors [WEIGHT_TENSOR] = init_aspen_tensor (layer->params, weight_dim_order, 4, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [WEIGHT_TENSOR]);
         calloc_aspen_gpu_tensors (layer->tensors [WEIGHT_TENSOR]);
         LAYER_PARAMS bias_dim_order[] = {OUT_C};
@@ -499,7 +509,7 @@ void create_layer_tensors (aspen_layer_t *layer)
 void create_layer_output_tensor (aspen_layer_t *layer, int gpu_idx)
 {
     if (layer->type == CONV_LAYER || layer->type == INPUT_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER 
-        || layer->type == RESIDUAL_LAYER || layer->type == YOLO_LAYER || layer->type == APPEND_LAYER)
+        || layer->type == FC_LAYER || layer->type == RESIDUAL_LAYER || layer->type == YOLO_LAYER || layer->type == APPEND_LAYER)
     {
         if (MAT_M != 0)
         {
@@ -858,7 +868,11 @@ void *aspen_load_input_NHWC(char *input_filename, unsigned int *input_dims, unsi
         if (input_dims[i] != 0)
             num_elements *= input_dims[i];
     }
-    void *file_data = load_arr (input_filename, num_elements * element_size);
+    void *file_data = NULL;
+    if (input_filename != NULL)
+        file_data = load_arr (input_filename, num_elements * element_size);
+    else
+        file_data = calloc (num_elements, element_size);
     void *output = aspen_calloc (num_elements, element_size);
     if (input_dims [OUT_C] != 0 && input_dims [OUT_H] != 0 && input_dims [OUT_W] != 0)
     {
@@ -882,7 +896,11 @@ void *aspen_load_input(char *input_filename, unsigned int *input_dims, unsigned 
         if (input_dims[i] != 0)
             num_elements *= input_dims[i];
     }
-    void *file_data = load_arr (input_filename, num_elements * element_size);
+    void *file_data = NULL;
+    if (input_filename != NULL)
+        file_data = load_arr (input_filename, num_elements * element_size);
+    else
+        file_data = calloc (num_elements, element_size);
     void *output = aspen_calloc (num_elements, element_size);
     memcpy (output, file_data, num_elements * element_size);
     free (file_data);
@@ -976,7 +994,7 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
             else if (layer->type == FC_LAYER)
             {
                 naive_fully_connected (input, layer->tensors[WEIGHT_TENSOR]->data, layer->tensors[BIAS_TENSOR]->data, output,
-                    layer->params[BATCH], layer->params[IN_C], layer->params[OUT_C]);
+                    layer->params[BATCH], layer->params[IN_C]*layer->params[IN_H]*layer->params[IN_W], layer->params[OUT_C]);
             }
             else if (layer->type == RESIDUAL_LAYER)
             {

@@ -2,7 +2,7 @@
 #define _KERNELS_H_
 
 #include "aspen.h"
-#include "ase.h"
+#include "dse.h"
 #include "util.h"
 
 #define _TILE_SIZE_M 128
@@ -32,18 +32,18 @@
 #define SGEMM_KERNEL_TILE_N naive_sgemm_vectorized
 #endif
 
-void tiled_conv2d (ninst_t *ninst, ase_t *ase);
-void tiled_maxpool2d (ninst_t *ninst, ase_t *ase);
-void tiled_avgpool2d (ninst_t *ninst, ase_t *ase);
-void tiled_fully_connected (ninst_t *ninst, ase_t *ase);
-void tiled_residual (ninst_t *ninst, ase_t *ase);
-void tiled_softmax (ninst_t *ninst, ase_t *ase);
-void tiled_yolo (ninst_t *ninst, ase_t *ase);
-void tiled_append (ninst_t *ninst, ase_t *ase);
-void tiled_matmul (ninst_t *ninst, ase_t *ase);
-void tiled_layernorm (ninst_t *ninst, ase_t *ase);
-void tiled_k_attention (ninst_t *ninst, ase_t *ase);
-void tiled_v_attention (ninst_t *ninst, ase_t *ase);
+void tiled_conv2d (ninst_t *ninst, dse_t *dse);
+void tiled_maxpool2d (ninst_t *ninst, dse_t *dse);
+void tiled_avgpool2d (ninst_t *ninst, dse_t *dse);
+void tiled_fully_connected (ninst_t *ninst, dse_t *dse);
+void tiled_residual (ninst_t *ninst, dse_t *dse);
+void tiled_softmax (ninst_t *ninst, dse_t *dse);
+void tiled_yolo (ninst_t *ninst, dse_t *dse);
+void tiled_append (ninst_t *ninst, dse_t *dse);
+void tiled_matmul (ninst_t *ninst, dse_t *dse);
+void tiled_layernorm (ninst_t *ninst, dse_t *dse);
+void tiled_k_attention (ninst_t *ninst, dse_t *dse);
+void tiled_v_attention (ninst_t *ninst, dse_t *dse);
 
 void naive_sigmoid (float *input, float *output, int size);
 void naive_activate (float *input, unsigned int num_elements, LAYER_ACT activation_type);

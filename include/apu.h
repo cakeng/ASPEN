@@ -5,7 +5,12 @@
 #include "nasm.h"
 #include "util.h"
 #include "kernels.h"
+#include "rpool.h"
 #include "cuda_kernels.h"
+
+#define APU_GENERATION_COEFF ((double)0.8)
+#define APU_GENERATION_NUM_NINST 512
+#define APU_GENERATION_NUM_FLOPS 1e8
 
 aspen_dnn_t *init_aspen_dnn (unsigned int num_layers, char* name);
 
@@ -33,6 +38,8 @@ void sync_output_data_to_host_layer (aspen_layer_t *layer, int gpu_idx);
 void sync_output_data_to_host_dnn (aspen_dnn_t *dnn, int gpu_idx);
 void sync_output_data_to_gpu_layer (aspen_layer_t *layer, int gpu_idx);
 void sync_output_data_to_gpu_dnn (aspen_dnn_t *dnn, int gpu_idx);
+
+double test_nasm_time_sec (nasm_t *nasm, unsigned int num_iter);
 
 nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size,  unsigned int min_ninst_per_ldata, unsigned int transformer_seq_len);
 
