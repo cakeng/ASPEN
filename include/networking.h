@@ -16,7 +16,10 @@ struct networking_engine
     nasm_t* nasm;
     rpool_t* rpool;
     networking_queue_t *net_queue;
-    // For offloading
+
+    pthread_mutex_t net_engine_mutex;
+    pthread_cond_t net_engine_cond;
+    
     struct sockaddr_in rx_addr;
     struct sockaddr_in tx_addr;
     int sock_id;
@@ -45,5 +48,6 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock
 void init_networking_queue (networking_queue_t *networking_queue);
 void init_rx(networking_engine* net_engine, int port,int is_UDP);
 void init_tx(networking_engine* net_engine, char* ip, int port, int is_UDP);
+void net_engine_wait(networking_engine* net_engine);
 
 #endif /* _NETWORKING_ */

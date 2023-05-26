@@ -104,8 +104,8 @@ unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ni
         if (i == networking_queue->max_stored)
             i = 0;
     }
-    // if(networking_queue->num_stored > 0) {
-    //     printf("i: %d, num_stored: %d, ninst idx: %d\n", networking_queue->idx_start, networking_queue->num_stored, ninst_ptr_list[num_ninsts]->ninst_idx);
+    // if(networking_queue->num_stored >= 0) {
+    //     printf("i: %d, num_stored: %d\n", networking_queue->idx_start, networking_queue->num_stored);
     // }
 
     networking_queue->idx_start = i;
@@ -174,6 +174,9 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock
     net_engine->nasm = nasm;
     net_engine->rpool = rpool;
 
+    pthread_mutex_init(&net_engine->net_engine_mutex, NULL);
+    pthread_cond_init(&net_engine->net_engine_cond, NULL);
+
     switch (sock_type)
     {
     case SOCK_TX:
@@ -186,6 +189,36 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock
         printf("Error - Unsupported socket type. Type: %d\n", net_engine->sock_type);
         assert(0);
         break;
+    }
+
+    size_t total_mem_req = 0;
+    for (int i = 0; i < nasm->num_ldata; i++)
+    {
+        nasm_ldata_t *ldata = &nasm->ldata_arr[i];
+        total_mem_req += ldata->out_mat_mem_size;
+    }
+    if (nasm->data == NULL)
+    {
+        nasm->data = aspen_calloc (total_mem_req, 1);
+        
+        nasm_ldata_t *ldata = &nasm->ldata_arr[0];
+        aspen_layer_t *layer = ldata->layer;
+        size_t num_cols = 0;
+        if (layer->params[OUT_H] != 0 && layer->params[OUT_W] != 0)
+            num_cols = nasm->batch_size * layer->params[OUT_H] * layer->params[OUT_W];
+        else if (layer->params[MAT_M] != 0)
+            num_cols = nasm->batch_size * nasm->tr_seq_len;
+            
+        if (nasm->data == NULL)
+        {
+            FPRT (stderr, "Error: nasm->data == NULL\n");
+            assert (0);
+        }
+        for (int i = 0; i < nasm->num_ldata; i++)
+        {
+            nasm_ldata_t *ldata = &nasm->ldata_arr[i];
+            set_ldata_out_mat_mem_pos (ldata);
+        }
     }
 
     pthread_create (&net_engine->thread, NULL, net_thread_runtime, (void*)net_engine);
@@ -274,54 +307,56 @@ void transmission(networking_engine *net_engine)
     ninst_t *target_ninst = NULL;
     unsigned int num_ninsts = pop_ninsts_from_net_queue(net_engine->net_queue, &target_ninst, 1);
     
-    if(!target_ninst->offloaded) 
-    {
-        return;
-    }
-    
-    if(num_ninsts > 0) {
-        printf("ninst idx: %d child idx: ", target_ninst->ninst_idx);
-        for(int i = 0; i < target_ninst->num_child_ninsts; i++) {
-            printf("%d ", target_ninst->child_ninst_arr[i]->ninst_idx);
+    if(num_ninsts > 0) {        
+        float* out_mat = (float*)target_ninst->out_mat;
+        const unsigned int W = target_ninst->tile_dims[OUT_W];
+        const unsigned int H = target_ninst->tile_dims[OUT_H];
+        const unsigned int stride = target_ninst->ldata->out_mat_stride;
+
+        send(net_engine->tx_sock, (char*)&target_ninst->ninst_idx, sizeof(int), 0);
+
+        for(int w = 0; w < W; w++) {
+            send(net_engine->tx_sock, (char*)out_mat + w * stride * sizeof(float), H * sizeof(float), 0);
         }
-        printf("\n");
-        nasm_ldata_t *ldata = target_ninst->ldata;
-        send(net_engine->tx_sock, (char*)target_ninst, sizeof(ninst_t), 0);
+
+        // TO DO: 종료시점 판단 코드
+        if(target_ninst->ninst_idx == 127) {
+            pthread_cond_signal(&net_engine->net_engine_cond);
+        }
     }
-    
 }
 
 void receive(networking_engine *net_engine) {
-    ninst_t recv_ninst;
+    int recv_ninst_idx;
     ninst_t* target_ninst;
     char* out_mat;
 
-    while(1) 
-    {
-        // 수신단의 ninst idx 와 recv_ninst idx 가 동일할 경우, out_mat 수신하고, state update
-        if(recv(net_engine->tx_sock, (char*)&recv_ninst, sizeof(ninst_t), 0)) 
-        {
+    while(1) {
+        if(recv(net_engine->tx_sock, (char*)&recv_ninst_idx, sizeof(int), 0)) {
             for(int i = 0; i < net_engine->nasm->num_ninst; i++) {
-                if(i == recv_ninst.ninst_idx) {
+                if(i == recv_ninst_idx) {
                     target_ninst = &net_engine->nasm->ninst_arr[i];
+                    float* out_mat = (float*)target_ninst->out_mat;
+                    const unsigned int W = target_ninst->tile_dims[OUT_W];
+                    const unsigned int H = target_ninst->tile_dims[OUT_H];
+                    const unsigned int stride = target_ninst->ldata->out_mat_stride;
+
+                    for(int w = 0; w < W; w++) {
+                        recv(net_engine->tx_sock, (char*)out_mat + w * stride * sizeof(float), H * sizeof(float), 0);
+                    }
                     target_ninst->state = NINST_COMPLETED;
                     atomic_fetch_add (&target_ninst->ldata->num_ninst_completed , 1);
-                    update_children (net_engine->rpool, target_ninst);
-                    printf("%ls\n", target_ninst->input_pos_idx_arr);
-
-                    printf("recv ninst idx: %d child idx: ", target_ninst->ninst_idx);
-                    for(int i = 0; i < target_ninst->num_child_ninsts; i++) {
-                        printf("%d ", target_ninst->child_ninst_arr[i]->ninst_idx);
-                    }
-                    printf("\n");
+                    int num_ase = net_engine->rpool->ref_ases > 0 ? net_engine->rpool->ref_ases : 1;
+                    update_children (net_engine->rpool, target_ninst, i/(net_engine->nasm->ldata_arr[0].num_ninst/num_ase));
                 }
             }
+
+            // TO DO: 종료시점 판단 코드
+            if(target_ninst->ninst_idx == 127) {
+                atomic_fetch_add (&net_engine->nasm->num_ldata_completed, 1);
+                pthread_cond_signal(&net_engine->net_engine_cond);
+            }
         } 
-        else 
-        {
-            FPRT (stderr, "ERROR: receive\n");
-            return;
-        }
     }
 }
 
@@ -352,40 +387,25 @@ void add_ninst_net_queue(networking_engine *net_engine, nasm_t* nasm, char *inpu
         return;
     }
 
-    size_t total_mem_req = 0;
-    for (int i = 0; i < nasm->num_ldata; i++)
+    if (data != NULL)
     {
-        nasm_ldata_t *ldata = &nasm->ldata_arr[i];
-        total_mem_req += ldata->out_mat_mem_size;
+        nasm_ldata_t *ldata = &nasm->ldata_arr[0];
+        aspen_layer_t *layer = ldata->layer;
+        size_t num_cols = 0;
+        if (layer->params[OUT_H] != 0 && layer->params[OUT_W] != 0)
+            num_cols = nasm->batch_size * layer->params[OUT_H] * layer->params[OUT_W];
+        else if (layer->params[MAT_M] != 0)
+            num_cols = nasm->batch_size * nasm->tr_seq_len;
+        for (int i = 0; i < num_cols; i++)
+            memcpy 
+                ((char*)nasm->data + i * ldata->out_mat_stride * nasm->dnn->element_size, 
+                (char*)data + i * ldata->out_mat_dims[OUT_H] * nasm->dnn->element_size, 
+                ldata->out_mat_dims[OUT_H] * nasm->dnn->element_size);
     }
     if (nasm->data == NULL)
     {
-        nasm->data = aspen_calloc (total_mem_req, 1);
-        if (data != NULL)
-        {
-            nasm_ldata_t *ldata = &nasm->ldata_arr[0];
-            aspen_layer_t *layer = ldata->layer;
-            size_t num_cols = 0;
-            if (layer->params[OUT_H] != 0 && layer->params[OUT_W] != 0)
-                num_cols = nasm->batch_size * layer->params[OUT_H] * layer->params[OUT_W];
-            else if (layer->params[MAT_M] != 0)
-                num_cols = nasm->batch_size * nasm->tr_seq_len;
-            for (int i = 0; i < num_cols; i++)
-                memcpy 
-                    ((char*)nasm->data + i * ldata->out_mat_stride * nasm->dnn->element_size, 
-                    (char*)data + i * ldata->out_mat_dims[OUT_H] * nasm->dnn->element_size, 
-                    ldata->out_mat_dims[OUT_H] * nasm->dnn->element_size);
-        }
-        if (nasm->data == NULL)
-        {
-            FPRT (stderr, "Error: nasm->data == NULL in ase_push_first_layer_to_rpool()\n");
-            assert (0);
-        }
-        for (int i = 0; i < nasm->num_ldata; i++)
-        {
-            nasm_ldata_t *ldata = &nasm->ldata_arr[i];
-            set_ldata_out_mat_mem_pos (ldata);
-        }
+        FPRT (stderr, "Error: nasm->data == NULL in add_ninst_net_queue()\n");
+        assert (0);
     }
 
     nasm_ldata_t *ldata = &nasm->ldata_arr[0];
@@ -397,4 +417,9 @@ void add_ninst_net_queue(networking_engine *net_engine, nasm_t* nasm, char *inpu
     }
     
     aspen_free (data); 
+}
+
+void net_engine_wait(networking_engine* net_engine)
+{
+    pthread_cond_wait (&net_engine->net_engine_cond, &net_engine->net_engine_mutex);
 }
