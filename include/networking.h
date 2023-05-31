@@ -49,5 +49,7 @@ void init_networking_queue (networking_queue_t *networking_queue);
 void init_rx(networking_engine* net_engine, int port,int is_UDP);
 void init_tx(networking_engine* net_engine, char* ip, int port, int is_UDP);
 void net_engine_wait(networking_engine* net_engine);
+void transmission(networking_engine *net_engine);
+void receive(networking_engine *net_engine);
 
 #endif /* _NETWORKING_ */

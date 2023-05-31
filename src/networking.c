@@ -304,6 +304,7 @@ void init_tx(networking_engine* net_engine, char* ip, int port, int is_UDP) {
 
 void transmission(networking_engine *net_engine) 
 {
+    int num_col_in_packet = 120;
     ninst_t *target_ninst = NULL;
     unsigned int num_ninsts = pop_ninsts_from_net_queue(net_engine->net_queue, &target_ninst, 1);
     
@@ -315,9 +316,24 @@ void transmission(networking_engine *net_engine)
 
         send(net_engine->tx_sock, (char*)&target_ninst->ninst_idx, sizeof(int), 0);
 
+        char* buffer = malloc(W * H * sizeof(float));
+
+        // printf("W: %d, H: %d, stride: %d\n", W, H, stride);
+
+        bzero(buffer, W * H * sizeof(float));
+        int num_packet = W / num_col_in_packet;
+        float last_pack_size = (W % num_col_in_packet) * H * sizeof(float);
+
         for(int w = 0; w < W; w++) {
-            send(net_engine->tx_sock, (char*)out_mat + w * stride * sizeof(float), H * sizeof(float), 0);
+            memcpy(buffer + w * H * sizeof(float), (char*)out_mat + w * stride * sizeof(float), H * sizeof(float));
+            // send(net_engine->tx_sock, (char*)out_mat + w * stride * sizeof(float), H * sizeof(float), 0);
         }
+
+        int pack = 0;
+        for(; pack < num_packet; pack++) {
+            send(net_engine->tx_sock, buffer + pack * H * sizeof(float), H * sizeof(float) * num_col_in_packet, 0);
+        }
+        send(net_engine->tx_sock, buffer + pack * H * sizeof(float), last_pack_size, 0);
 
         // TO DO: 종료시점 판단 코드
         if(target_ninst->ninst_idx == 127) {
@@ -327,23 +343,44 @@ void transmission(networking_engine *net_engine)
 }
 
 void receive(networking_engine *net_engine) {
+    int num_col_in_packet = 120;
     int recv_ninst_idx;
     ninst_t* target_ninst;
-    char* out_mat;
 
     while(1) {
         if(recv(net_engine->tx_sock, (char*)&recv_ninst_idx, sizeof(int), 0)) {
+            // if(recv_ninst_idx == 0) {
+            //     double now = get_time_secs ();
+            //     printf("First packet time stamp: %f\n", now);
+            // }
             for(int i = 0; i < net_engine->nasm->num_ninst; i++) {
                 if(i == recv_ninst_idx) {
+                    
                     target_ninst = &net_engine->nasm->ninst_arr[i];
                     float* out_mat = (float*)target_ninst->out_mat;
                     const unsigned int W = target_ninst->tile_dims[OUT_W];
                     const unsigned int H = target_ninst->tile_dims[OUT_H];
                     const unsigned int stride = target_ninst->ldata->out_mat_stride;
 
-                    for(int w = 0; w < W; w++) {
-                        recv(net_engine->tx_sock, (char*)out_mat + w * stride * sizeof(float), H * sizeof(float), 0);
+                    char* buffer = malloc(W * H * sizeof(float));
+
+                    // printf("W: %d, H: %d, stride: %d\n", W, H, stride);
+
+                    bzero(buffer, W * H * sizeof(float));
+                    int num_packet = W / num_col_in_packet;
+                    float last_pack_size = (W % num_col_in_packet) * H * sizeof(float);
+                    
+                    int pack = 0;
+                    for(; pack < num_packet; pack++) {
+                        recv(net_engine->tx_sock, buffer + pack * H * sizeof(float), H * sizeof(float) * num_col_in_packet, 0);
                     }
+                    recv(net_engine->tx_sock, buffer + pack * H * sizeof(float), last_pack_size, 0);
+
+                    for(int w = 0; w < W; w++) {
+                        // recv(net_engine->tx_sock, (char*)out_mat + w * stride * sizeof(float), H * sizeof(float), 0);
+                        memcpy((char*)out_mat + w * stride * sizeof(float), buffer + w * H * sizeof(float), H * sizeof(float));
+                    }
+                    
                     target_ninst->state = NINST_COMPLETED;
                     atomic_fetch_add (&target_ninst->ldata->num_ninst_completed , 1);
                     int num_ase = net_engine->rpool->ref_ases > 0 ? net_engine->rpool->ref_ases : 1;
@@ -355,6 +392,8 @@ void receive(networking_engine *net_engine) {
             if(target_ninst->ninst_idx == 127) {
                 atomic_fetch_add (&net_engine->nasm->num_ldata_completed, 1);
                 pthread_cond_signal(&net_engine->net_engine_cond);
+                // double now = get_time_secs ();
+                // printf("End of receive: %f\n", now);
             }
         } 
     }
