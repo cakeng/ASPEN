@@ -46,7 +46,7 @@ int main(int argc, char **argv)
     // //     return -1;
     // // }
     // print_nasm_info(gpt2_nasm, 1, 0);
-    // char nasm_file_name [1024] = "data/resnet50_aspen.nasm";
+    // char nasm_file_name [1024] = "data/resnet50_B1_aspen.nasm";
     // sprintf (nasm_file_name, "data/gpt2_124M_S%d_B%d_M%d_%2.1e.nasm"
     //     , gpt2_nasm->tr_seq_len, gpt2_nasm->batch_size, gpt2_nasm->min_ninst_per_ldata,
     //     (double)gpt2_nasm->flop_per_ninst);
@@ -58,7 +58,8 @@ int main(int argc, char **argv)
     // aspen_dnn_t *bert_dnn = apu_load_dnn_from_file ("data/bert_base.aspen");
     // nasm_t *bert_nasm = apu_load_nasm_from_file ("data/bert_S128_B8.nasm", bert_dnn);
     // aspen_dnn_t *resnet50_dnn = apu_load_dnn_from_file ("data/resnet50_base.aspen");
-    nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_aspen.nasm", resnet50_dnn);
+    // nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_aspen.nasm", resnet50_dnn);
+    nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_B1_aspen.nasm", resnet50_dnn);
     // aspen_dnn_t *yolov3_dnn = apu_load_dnn_from_file ("data/yolov3_base.aspen");
     // nasm_t *yolov3_nasm = apu_load_nasm_from_file ("data/yolov3_B1_M100_1.0e+08.nasm", yolov3_dnn);
     // // // // nasm_t *bert_4_nasm = apu_load_nasm_from_file ("data/bert_4.nasm", &bert_dnn);
@@ -66,7 +67,7 @@ int main(int argc, char **argv)
     rpool_t *rpool = rpool_init (gpu);
     dse_group_t *dse_group = dse_group_init (64, gpu);
     dse_group_set_rpool (dse_group, rpool);
-    
+
 
     if(sock_type == SOCK_RX || sock_type == SOCK_TX) 
     {
@@ -88,7 +89,7 @@ int main(int argc, char **argv)
             get_elapsed_time ("init");
 
             dse_group_run (dse_group);
-            net_engine_wait(net_engine);
+            // net_engine_wait(net_engine);
             dse_wait_for_nasm_completion (resnet50_nasm);
             double now = get_time_secs ();
             printf("End of computation: %f\n", now);
@@ -116,9 +117,8 @@ int main(int argc, char **argv)
             add_ninst_net_queue(net_engine, resnet50_nasm, "data/resnet50/batched_input_64.bin");
             // dse_group_run (dse_group);
             atomic_store (&net_engine->run, 1);
-            net_engine_wait(net_engine);
-            // dse_wait_for_nasm_completion (resnet50_nasm);
-            
+            // net_engine_wait(net_engine);
+            dse_wait_for_nasm_completion (resnet50_nasm);
         }
     }
     else { // Local run
@@ -230,7 +230,7 @@ int main(int argc, char **argv)
         // LAYER_PARAMS output_order[] = {BATCH, MAT_N, MAT_M, 0};
         LAYER_PARAMS output_order[] = {BATCH, OUT_H, OUT_W, OUT_C};
         float *layer_output = dse_get_nasm_result (resnet50_nasm, output_order);
-        float *out = dse_get_ldata_result(resnet50_nasm, 0, output_order);
+        // float *out = dse_get_ldata_result(resnet50_nasm, 0, output_order);
         // for(int i = 0; i < resnet50_nasm->ldata_arr[0].out_mat_dims[OUT_W]; i++) {
         //     for(int j = 0; j < resnet50_nasm->ldata_arr[0].out_mat_dims[OUT_H]; j++) {
         //         printf("%f ", out[j + i * resnet50_nasm->ldata_arr[0].out_mat_dims[OUT_H]]);
@@ -241,15 +241,16 @@ int main(int argc, char **argv)
         // compare_float_array (expected_output, layer_output, 128*1600, 1e-2, 1e-4, 20);
         float *softmax_output = calloc (1000*resnet50_nasm->batch_size, sizeof(float));
         naive_softmax (layer_output, softmax_output, resnet50_nasm->batch_size, 1000);
-        // // float *layer_output = get_aspen_tensor_data ((resnet50_dnn->layers + resnet50_dnn->num_layers - 1)->tensors[OUTPUT_TENSOR], output_order);
-        // print_float_array (layer_output, 1000*resnet50_nasm->batch_size, 1000);
-        // for (int i = 0; i < resnet50_nasm->batch_size; i++)
-        // {
-        //     get_probability_results ("data/resnet50/imagenet_classes.txt", softmax_output + 1000*i, 1000);
-        // }
-        get_probability_results ("data/resnet50/imagenet_classes.txt", softmax_output, 1000);
-        printf("%f\n", *layer_output);
-        printf("%f\n", *(out+1000));
+        // float *layer_output = get_aspen_tensor_data ((resnet50_dnn->layers + resnet50_dnn->num_layers - 1)->tensors[OUTPUT_TENSOR], output_order);
+        // print_float_array (out, 1000*resnet50_nasm->batch_size, 1000);
+        // print_float_tensor(out, resnet50_nasm->batch_size, 3, 224, 224);
+        for (int i = 0; i < resnet50_nasm->batch_size; i++)
+        {
+            get_probability_results ("data/resnet50/imagenet_classes.txt", softmax_output + 1000*i, 1000);
+        }
+        // get_probability_results ("data/resnet50/imagenet_classes.txt", softmax_output, 1000);
+        // printf("%f\n", *layer_output);
+        // printf("%f\n", *(out+resnet50_nasm->ldata_arr[0].out_mat_dims[OUT_W] * resnet50_nasm->ldata_arr[0].out_mat_dims[OUT_H] - 1));
         free (layer_output);
         free (softmax_output);
     }

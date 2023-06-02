@@ -340,6 +340,20 @@ void transmission(networking_engine *net_engine)
         const unsigned int H = target_ninst->tile_dims[OUT_H];
         
         const unsigned total_bytes = W * H * sizeof(float);
+        // unsigned int sent_bytes = 0;
+        // int num_col_in_pack = 120;
+        // int total_num_packs = W / num_col_in_pack;
+        // int last_pack_bytes = (W % num_col_in_pack) * sizeof(float);
+        // int num_pack = 0;
+        
+        // while(total_bytes - sent_bytes)
+        // {
+        //     sent_bytes += write(net_engine->tx_sock, buffer_start_ptr + num_pack * num_col_in_pack * H * sizeof(float), H * sizeof(float) * num_col_in_pack);
+        //     num_pack++;
+        //     if(num_pack == total_num_packs) break;
+        // }
+        // write(net_engine->tx_sock, buffer_start_ptr + num_pack * num_col_in_pack * H * sizeof(float), last_pack_bytes);
+
 
         send(net_engine->tx_sock, (char*)&target_ninst->ninst_idx, sizeof(int), 0);
 
@@ -352,7 +366,7 @@ void transmission(networking_engine *net_engine)
                 return -1;
             }
         }
-
+        
         // float* out_mat = (float*)target_ninst->out_mat;
         // if(target_ninst->ninst_idx == 127) {
         //     printf("%f %f %f\n", *(out_mat + (W-1) * target_ninst->ldata->out_mat_stride), *(out_mat + (W-1) * target_ninst->ldata->out_mat_stride +  1), *(out_mat + (W-1) * target_ninst->ldata->out_mat_stride + 2));
@@ -361,9 +375,9 @@ void transmission(networking_engine *net_engine)
         // printf("Sent ninst idx: %d\n", target_ninst->ninst_idx);
 
         // TO DO: 종료시점 판단 코드
-        if(target_ninst->ninst_idx == 127) {
-            pthread_cond_signal(&net_engine->net_engine_cond);
-        }
+        // if(target_ninst->ninst_idx == 127) {
+        //     pthread_cond_signal(&net_engine->net_engine_cond);
+        // }
     }
 }
 
@@ -385,10 +399,26 @@ void receive(networking_engine *net_engine) {
                     const unsigned int H = target_ninst->tile_dims[OUT_H];
                     const unsigned int stride = target_ninst->ldata->out_mat_stride;
                     const unsigned int total_bytes = W * H * sizeof(float);
+                    // unsigned int recv_bytes = 0;
+                    // int num_col_in_pack = 120;
+                    // int total_num_packs = W / num_col_in_pack;
+                    // int last_pack_bytes = (W % num_col_in_pack) * sizeof(float);
+                    // int num_pack = 0;
+
+                    // while(total_bytes - recv_bytes)
+                    // {
+                    //     recv_bytes += read(net_engine->tx_sock, buffer + num_pack * num_col_in_pack * H * sizeof(float), H * sizeof(float) * num_col_in_pack);
+                    //     num_pack++;
+                    //     printf("%d/%d\n", total_bytes, recv_bytes);
+                    //     if(num_pack == total_num_packs) break;
+                    // }
+                    // recv_bytes += read(net_engine->tx_sock, buffer + num_pack * num_col_in_pack * H * sizeof(float), last_pack_bytes);
+                    // printf("%d/%d\n", total_bytes, recv_bytes);
 
                     char* buffer = malloc(total_bytes);
                     bzero(buffer, total_bytes);
 
+                    // double now = get_time_secs ();
                     while((total_bytes == recv(net_engine->tx_sock, buffer, total_bytes, 0)) == -1)
                     {
                         if(errno == EINTR) {
@@ -398,27 +428,35 @@ void receive(networking_engine *net_engine) {
                             return -1;
                         }
                     }
+                    // printf("Recv ninst: %d Elasped: %f\n", target_ninst->ninst_idx, (get_time_secs() - now)*1000.0);
 
+                    // now = get_time_secs ();
                     for(int w = 0; w < W; w++) {
                         memcpy(out_mat + w * stride * sizeof(float), buffer + w * H * sizeof(float), H * sizeof(float));
                     }
+                    // printf("Recv ninst: %d Memcpy Elasped: %f\n", target_ninst->ninst_idx, (get_time_secs() - now)*1000.0);
 
                     // printf("Recv ninst: %d\n", target_ninst->ninst_idx);
                     
                     target_ninst->state = NINST_COMPLETED;
-                    atomic_fetch_add (&target_ninst->ldata->num_ninst_completed , 1);
+                    unsigned int num_ninst_completed = atomic_fetch_add (&target_ninst->ldata->num_ninst_completed , 1);
                     int num_ase = net_engine->rpool->ref_ases > 0 ? net_engine->rpool->ref_ases : 1;
                     update_children (net_engine->rpool, target_ninst, i/(net_engine->nasm->ldata_arr[0].num_ninst/num_ase));
+
+                    if (num_ninst_completed == target_ninst->ldata->num_ninst - 1)
+                    {
+                        atomic_fetch_add (&net_engine->nasm->num_ldata_completed, 1);
+                    }
                 }
             }
 
             // TO DO: 종료시점 판단 코드
-            if(target_ninst->ninst_idx == 127) {
-                atomic_fetch_add (&net_engine->nasm->num_ldata_completed, 1);
-                pthread_cond_signal(&net_engine->net_engine_cond);
-                // double now = get_time_secs ();
-                // printf("End of receive: %f\n", now);
-            }
+            // if(target_ninst->ninst_idx == 127) {
+            //     atomic_fetch_add (&net_engine->nasm->num_ldata_completed, 1);
+            //     pthread_cond_signal(&net_engine->net_engine_cond);
+            //     double now = get_time_secs ();
+            //     printf("End of receive: %f\n", now);
+            // }
         } 
     }
 }
