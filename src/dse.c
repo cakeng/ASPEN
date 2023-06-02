@@ -81,70 +81,84 @@ void *dse_thread_runtime (void* thread_info)
                 assert (0);
             }
             #endif
-            switch (ninst->ldata->layer->type)
+            if(!ninst->offloaded)
             {
-                case CONV_LAYER:
-                    tiled_conv2d (ninst, dse);
-                    break;
-                case MAXPOOL_LAYER:
-                    tiled_maxpool2d (ninst, dse);
-                    break;
-                case AVGPOOL_LAYER:
-                    tiled_avgpool2d (ninst, dse);
-                    break;
-                case FC_LAYER:
-                    tiled_fully_connected (ninst, dse);
-                    break;
-                case RESIDUAL_LAYER:
-                    tiled_residual (ninst, dse);
-                    break;
-                case SOFTMAX_LAYER:
-                    tiled_softmax (ninst, dse);
-                    break;
-                case YOLO_LAYER:
-                    tiled_yolo (ninst, dse);
-                    break;
-                case APPEND_LAYER:
-                    tiled_append (ninst, dse);
-                    break;
-                case MATMUL_LAYER:
-                    tiled_matmul (ninst, dse);
-                    break;
-                case LAYERNORM_LAYER:
-                    tiled_layernorm (ninst, dse);
-                    break;
-                case K_ATTENTION_LAYER:
-                    tiled_k_attention (ninst, dse);
-                    break;
-                case V_ATTENTION_LAYER:
-                    tiled_v_attention (ninst, dse);
-                    break;
-                default:
-                    // FPRT (stderr, "ERROR: dse_thread_runtime: layer type %s is not supported\n", layer_type_str[ninst->ldata->layer->type]);
-                    break;
-            }
-            ninst->state = NINST_COMPLETED;
-            unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
-            if (num_ninst_completed == ninst->ldata->num_ninst - 1)
-            {
-                // printf ("\t\tThread %d completed layer %d of nasm %d\n", 
-                //     dse->thread_id, ninst->ldata->layer->layer_idx, ninst->ldata->nasm->nasm_id);
-                nasm_t *nasm = ninst->ldata->nasm;
-                unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
-                if (num_ldata_completed == nasm->num_ldata - 1)
+                switch (ninst->ldata->layer->type)
                 {
-                    // printf ("\t\tSignaling nasm completion...\n");
-                    // All layers of the nasm is completed.
-                    rpool_queue_group_t *rpool_queue_group 
-                        = get_queue_group_from_nasm (dse->rpool, ninst->ldata->nasm);
-                    set_queue_group_weight (dse->rpool, rpool_queue_group, 0);
-                    pthread_mutex_lock (&nasm->nasm_mutex);
-                    pthread_cond_signal (&nasm->nasm_cond);
-                    pthread_mutex_unlock (&nasm->nasm_mutex);
+                    case CONV_LAYER:
+                        tiled_conv2d (ninst, dse);
+                        break;
+                    case MAXPOOL_LAYER:
+                        tiled_maxpool2d (ninst, dse);
+                        break;
+                    case AVGPOOL_LAYER:
+                        tiled_avgpool2d (ninst, dse);
+                        break;
+                    case FC_LAYER:
+                        tiled_fully_connected (ninst, dse);
+                        break;
+                    case RESIDUAL_LAYER:
+                        tiled_residual (ninst, dse);
+                        break;
+                    case SOFTMAX_LAYER:
+                        tiled_softmax (ninst, dse);
+                        break;
+                    case YOLO_LAYER:
+                        tiled_yolo (ninst, dse);
+                        break;
+                    case APPEND_LAYER:
+                        tiled_append (ninst, dse);
+                        break;
+                    case MATMUL_LAYER:
+                        tiled_matmul (ninst, dse);
+                        break;
+                    case LAYERNORM_LAYER:
+                        tiled_layernorm (ninst, dse);
+                        break;
+                    case K_ATTENTION_LAYER:
+                        tiled_k_attention (ninst, dse);
+                        break;
+                    case V_ATTENTION_LAYER:
+                        tiled_v_attention (ninst, dse);
+                        break;
+                    default:
+                        // FPRT (stderr, "ERROR: dse_thread_runtime: layer type %s is not supported\n", layer_type_str[ninst->ldata->layer->type]);
+                        break;
                 }
-            }
+            
+                ninst->state = NINST_COMPLETED;
+                unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
+                if (num_ninst_completed == ninst->ldata->num_ninst - 1)
+                {
+                    // printf ("\t\tThread %d completed layer %d of nasm %d\n", 
+                    //     dse->thread_id, ninst->ldata->layer->layer_idx, ninst->ldata->nasm->nasm_id);
+                    nasm_t *nasm = ninst->ldata->nasm;
+                    unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
+                    if (num_ldata_completed == nasm->num_ldata - 1)
+                    {
+                        // printf ("\t\tSignaling nasm completion...\n");
+                        // All layers of the nasm is completed.
+                        rpool_queue_group_t *rpool_queue_group 
+                            = get_queue_group_from_nasm (dse->rpool, ninst->ldata->nasm);
+                        set_queue_group_weight (dse->rpool, rpool_queue_group, 0);
+                        pthread_mutex_lock (&nasm->nasm_mutex);
+                        pthread_cond_signal (&nasm->nasm_cond);
+                        pthread_mutex_unlock (&nasm->nasm_mutex);
+                    }
+                }
             // update_children_to_cache (dse->ninst_cache, ninst);
-            update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
+                update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
+            }
+            else // For offloading
+            {
+                networking_engine *net_engine = dse->net_engine;
+                // if(pthread_mutex_trylock(&net_engine->net_engine_mutex)==0)
+                // {
+                    pthread_mutex_lock(&net_engine->net_engine_mutex);
+                    push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
+                    pthread_mutex_unlock(&net_engine->net_engine_mutex);
+                // }
+            }
         // }
     }
     return NULL;
@@ -197,6 +211,24 @@ void dse_group_set_rpool (dse_group_t *dse_group, rpool_t *rpool)
         dse_group->dse_arr[i].rpool = rpool;
     }
     add_ref_ases (rpool, dse_group->num_ases);
+}
+
+void dse_group_set_net_engine (dse_group_t *dse_group, networking_engine *net_engine)
+{
+    if (dse_group == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_set_net_engine: dse_group is NULL\n");
+        assert (0);
+    }
+    if (net_engine == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_set_net_engine: net_engine is NULL\n");
+        assert (0);
+    }
+    for (int i = 0; i < dse_group->num_ases; i++)
+    {
+        dse_group->dse_arr[i].net_engine = net_engine;
+    }
 }
 
 void dse_group_destroy (dse_group_t *dse_group)

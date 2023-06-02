@@ -8,6 +8,7 @@
 #include "util.h"
 #include "kernels.h"
 #include "cuda_kernels.h"
+#include "networking.h"
 
 #define dse_NINST_CACHE_BALLANCE 1
 #define dse_NINST_CACHE_DIFF 0
@@ -33,6 +34,8 @@ struct dse_t
     ninst_t *target;
     rpool_queue_t *ninst_cache;
     rpool_t *rpool;
+
+    networking_engine *net_engine;
 
     int gpu_idx;
 };

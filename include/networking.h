@@ -10,6 +10,7 @@
 
 
 #define INIT_QUEUE_SIZE 1024
+#define NETQUEUE_BUFFER_SIZE 1024*1024*320 // 32 MB
 
 struct networking_engine
 {
@@ -42,6 +43,8 @@ struct networking_queue_t
     unsigned int num_stored;
     unsigned int max_stored;
     ninst_t **ninst_ptr_arr;
+
+    void* net_queue_buffer;
 };
 
 networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock_type, char* ip, int port, int is_UDP);
@@ -51,5 +54,7 @@ void init_tx(networking_engine* net_engine, char* ip, int port, int is_UDP);
 void net_engine_wait(networking_engine* net_engine);
 void transmission(networking_engine *net_engine);
 void receive(networking_engine *net_engine);
+void push_ninsts_to_net_queue (networking_queue_t *networking_queue, ninst_t *ninst_ptr, unsigned int num_ninsts);
+void add_ninst_net_queue(networking_engine *net_engine, nasm_t* nasm, char *input_filename);
 
 #endif /* _NETWORKING_ */
