@@ -54,6 +54,7 @@ void set_ninst_out_mat_mem_pos (ninst_t *ninst);
 
 void generate_cudagraph (nasm_t *nasm);
 void run_cudagraph (nasm_t *nasm);
+void dse_cudagraph_run (rpool_t *rpool, nasm_t *nasm);
 #ifdef GPU
 void add_cudagraph_node_conv2d (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx);
 void add_cudagraph_node_matmul (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx);

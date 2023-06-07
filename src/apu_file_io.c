@@ -259,8 +259,7 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
                     copy_ptr_to_aspen_tensor (layer->tensors[WEIGHT_TENSOR], buffer);
                 else
                 {
-                    FPRT(stderr,"ASPEN DNN file %s parse error: Layer %d WEIGHT_TENSOR size mismatch:\
-                        Tensor: %d, File: %ld.\n", input_path, layer_num,
+                    FPRT(stderr,"ASPEN DNN file %s parse error: Layer %d WEIGHT_TENSOR size mismatch.\nTensor: %d, File: %ld.\n", input_path, layer_num,
                             layer->tensors[WEIGHT_TENSOR]->num_elements*layer->tensors[WEIGHT_TENSOR]->element_size,
                             data_size);
                     assert(0);
@@ -444,64 +443,64 @@ void apu_save_dnn_to_file(aspen_dnn_t *dnn, char *filename)
         FPRT(stderr, "Error: apu_save_dnn_to_file Failed to open file %s for writing\n", filename);
         return;
     }
-    fprintf(fp, "ASPEN_DNN\n");
-    fprintf(fp, "ASPEN_BUILD:%s\n", branch_info);
-    fprintf(fp, "DNN_NAME:%s\n", dnn->name);
-    fprintf(fp, "DNN_ELEMENT_SIZE:%d\n", dnn->element_size);
-    fprintf(fp, "NUM_LAYERS:%d\n", dnn->num_layers);
+    FPRT(fp, "ASPEN_DNN\n");
+    FPRT(fp, "ASPEN_BUILD:%s\n", branch_info);
+    FPRT(fp, "DNN_NAME:%s\n", dnn->name);
+    FPRT(fp, "DNN_ELEMENT_SIZE:%d\n", dnn->element_size);
+    FPRT(fp, "NUM_LAYERS:%d\n", dnn->num_layers);
     for (unsigned int i = 0; i < dnn->num_layers; i++)
     {
         aspen_layer_t *layer = dnn->layers + i;
-        fprintf(fp, "\tLAYER_IDX:%d\n", layer->layer_idx);
-        fprintf(fp, "\tLAYER_TYPE:%d\n", layer->type);
-        fprintf(fp, "\tLAYER_ACTIVATION:%d\n", layer->activation);
-        fprintf(fp, "\tLAYER_PARENTS:\n");
+        FPRT(fp, "\tLAYER_IDX:%d\n", layer->layer_idx);
+        FPRT(fp, "\tLAYER_TYPE:%d\n", layer->type);
+        FPRT(fp, "\tLAYER_ACTIVATION:%d\n", layer->activation);
+        FPRT(fp, "\tLAYER_PARENTS:\n");
         for (unsigned int j = 0; j < NUM_PARENT_ELEMENTS; j++)
         {
             if (layer->parent_layers[j] != NULL)
-                fprintf(fp, "\t\t%d %d\n", j, layer->parent_layers[j]->layer_idx);
+                FPRT(fp, "\t\t%d %d\n", j, layer->parent_layers[j]->layer_idx);
             else
-                fprintf(fp, "\t\t%d -1\n", j);
+                FPRT(fp, "\t\t%d -1\n", j);
         }
-        fprintf(fp, "\tLAYER_PARENTS_END\n");
-        fprintf(fp, "\tLAYER_PARAMS:\n");
+        FPRT(fp, "\tLAYER_PARENTS_END\n");
+        FPRT(fp, "\tLAYER_PARAMS:\n");
         for (unsigned int j = 0; j < NUM_PARAM_ELEMENTS; j++)
         {
-            fprintf(fp, "\t\t%d %d\n", j, layer->params[j]);
+            FPRT(fp, "\t\t%d %d\n", j, layer->params[j]);
         }
-        fprintf(fp, "\tLAYER_PARAMS_END\n");
-        fprintf(fp, "\tLAYER_TENSORS:\n");
+        FPRT(fp, "\tLAYER_PARAMS_END\n");
+        FPRT(fp, "\tLAYER_TENSORS:\n");
         for (unsigned int j = 0; j < NUM_TENSORS; j++)
         {
             if (layer->tensors[j] != NULL)
             {
                 aspen_tensor_t *tensor = layer->tensors[j];
-                fprintf(fp, "\t\t%d 1\n", j);
-                fprintf(fp, "\t\tNUM_DIMS:%d\n", tensor->num_dims);
-                fprintf(fp, "\t\tDATA_DIM_ORDER:\n");
+                FPRT(fp, "\t\t%d 1\n", j);
+                FPRT(fp, "\t\tNUM_DIMS:%d\n", tensor->num_dims);
+                FPRT(fp, "\t\tDATA_DIM_ORDER:\n");
                 for (unsigned int k = 0; k < MAX_TENSOR_DIMS; k++)
                 {
-                    fprintf(fp, "\t\t\t%d %d\n", k, tensor->data_dim_order[k]);
+                    FPRT(fp, "\t\t\t%d %d\n", k, tensor->data_dim_order[k]);
                 }
-                fprintf(fp, "\t\tDATA_DIM_ORDER_END\n");
-                fprintf(fp, "\t\tTENSOR_DIMS:\n");
+                FPRT(fp, "\t\tDATA_DIM_ORDER_END\n");
+                FPRT(fp, "\t\tTENSOR_DIMS:\n");
                 for (unsigned int k = 0; k < NUM_PARAM_ELEMENTS; k++)
                 {
-                    fprintf(fp, "\t\t\t%d %d\n", k, tensor->dims[k]);
+                    FPRT(fp, "\t\t\t%d %d\n", k, tensor->dims[k]);
                 }
-                fprintf(fp, "\t\tTENSOR_DIMS_END\n");
-                fprintf(fp, "\t\tTENSOR_DATA:\n");
+                FPRT(fp, "\t\tTENSOR_DIMS_END\n");
+                FPRT(fp, "\t\tTENSOR_DATA:\n");
                 fwrite (tensor->data, dnn->element_size, tensor->num_elements, fp);
-                fprintf(fp, "\t\tTENSOR_DATA_END\n");
+                FPRT(fp, "\t\tTENSOR_DATA_END\n");
             }
             else
             {
-                fprintf(fp, "\t\t%d -1\n", j);
+                FPRT(fp, "\t\t%d -1\n", j);
             }
         }
-        fprintf(fp, "\tLAYER_TENSORS_END\n");
+        FPRT(fp, "\tLAYER_TENSORS_END\n");
     }
-    fprintf(fp, "ASPEN_DNN_END\n");
+    FPRT(fp, "ASPEN_DNN_END\n");
     fclose(fp);
 }
 
@@ -582,7 +581,7 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
             if (tmp == NULL)
             {
                 FPRT(stderr,"ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
-                    filename, __LINE__, __FILE__);
+                    filename, 0, " ");
                 apu_destroy_dnn(dnn);
                 return NULL;
             }
@@ -616,7 +615,7 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
             if (tmp == NULL)
             {
                 FPRT(stderr,"ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
-                    filename, __LINE__, __FILE__);
+                    filename, 0, " ");
                 apu_destroy_dnn(dnn);
                 return NULL;
             }
@@ -647,7 +646,7 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
             if (tmp == NULL)
             {
                 FPRT(stderr,"ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
-                    filename, __LINE__, __FILE__);
+                    filename, 0, " ");
                 apu_destroy_dnn(dnn);
                 return NULL;
             }
@@ -689,7 +688,7 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
                     if (tmp == NULL)
                     {
                         FPRT(stderr,"ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
-                            filename, __LINE__, __FILE__);
+                            filename, 0, " ");
                         apu_destroy_dnn(dnn);
                         return NULL;
                     }
@@ -720,7 +719,7 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
                     if (tmp == NULL)
                     {
                         FPRT(stderr,"ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
-                            filename, __LINE__, __FILE__);
+                            filename, 0, " ");
                         apu_destroy_dnn(dnn);
                         return NULL;
                     }
@@ -839,43 +838,43 @@ void apu_save_nasm_to_file(nasm_t *nasm, char *filename)
         FPRT(stderr, "Error: apu_save_dnn_to_file Failed to open file %s for writing\n", filename);
         return;
     }
-    fprintf (fp, "ASPEN_NASM\n");
-    fprintf (fp, "DNN_NAME:%s\n", nasm->dnn->name);
-    fprintf (fp, "NUM_BATCH:%d\n", nasm->batch_size);
-    fprintf (fp, "MIN_NINST_PER_LDATA:%d\n", nasm->min_ninst_per_ldata);
-    fprintf (fp, "TOTAL_FLOPS:%ld\n", nasm->total_flops);
-    fprintf (fp, "FLOP_PER_NINST:%d\n", nasm->flop_per_ninst);
-    fprintf (fp, "SEQ_LEN:%d\n", nasm->tr_seq_len);
-    fprintf (fp, "NASM_NINSTS:\n");
+    FPRT (fp, "ASPEN_NASM\n");
+    FPRT (fp, "DNN_NAME:%s\n", nasm->dnn->name);
+    FPRT (fp, "NUM_BATCH:%d\n", nasm->batch_size);
+    FPRT (fp, "MIN_NINST_PER_LDATA:%d\n", nasm->min_ninst_per_ldata);
+    FPRT (fp, "TOTAL_FLOPS:%ld\n", nasm->total_flops);
+    FPRT (fp, "FLOP_PER_NINST:%d\n", nasm->flop_per_ninst);
+    FPRT (fp, "SEQ_LEN:%d\n", nasm->tr_seq_len);
+    FPRT (fp, "NASM_NINSTS:\n");
     for (unsigned int i = 0; i < nasm->num_ldata; i++)
     {
         for (unsigned int j = 0; j < nasm->ldata_arr[i].num_ninst; j++)
         {
             ninst_t *ninst = nasm->ldata_arr[i].ninst_arr_start + j;
-            fprintf (fp, "\tNINST_IDX:%ld\n", ninst - nasm->ninst_arr);
-            fprintf (fp, "\tNUM_CHILD_NINSTS:%d\n", ninst->num_child_ninsts);
-            fprintf (fp, "\tNUM_PARENT_NINSTS:%d\n", ninst->num_parent_ninsts);
-            fprintf (fp, "\tPARENT_NINSTS:\n");
+            FPRT (fp, "\tNINST_IDX:%ld\n", ninst - nasm->ninst_arr);
+            FPRT (fp, "\tNUM_CHILD_NINSTS:%d\n", ninst->num_child_ninsts);
+            FPRT (fp, "\tNUM_PARENT_NINSTS:%d\n", ninst->num_parent_ninsts);
+            FPRT (fp, "\tPARENT_NINSTS:\n");
             for (unsigned int k = 0; k < ninst->num_parent_ninsts; k++)
             {
-                fprintf (fp, "\t\t%d %d\n", k, ninst->parent_ninst_idx_arr[k]);
+                FPRT (fp, "\t\t%d %d\n", k, ninst->parent_ninst_idx_arr[k]);
             }
-            fprintf (fp, "\tPARENT_NINSTS_END\n");
-            fprintf (fp, "\tNUM_CHILD_NINSTS:%d\n", ninst->num_child_ninsts);
-            fprintf (fp, "\tCHILD_NINST_IDXES:\n");
+            FPRT (fp, "\tPARENT_NINSTS_END\n");
+            FPRT (fp, "\tNUM_CHILD_NINSTS:%d\n", ninst->num_child_ninsts);
+            FPRT (fp, "\tCHILD_NINST_IDXES:\n");
             for (unsigned int k = 0; k < ninst->num_child_ninsts; k++)
             {
-                fprintf (fp, "\t\t%d %ld\n", k, ninst->child_ninst_arr[k] - nasm->ninst_arr);
+                FPRT (fp, "\t\t%d %ld\n", k, ninst->child_ninst_arr[k] - nasm->ninst_arr);
             }
-            fprintf (fp, "\tCHILD_NINST_IDXES_END\n");
-            fprintf (fp, "\tNUM_INPUT_POS:%d\n", ninst->num_input_pos);
-            // fprintf (fp, "\tINPUT_POS:\n");
+            FPRT (fp, "\tCHILD_NINST_IDXES_END\n");
+            FPRT (fp, "\tNUM_INPUT_POS:%d\n", ninst->num_input_pos);
+            // FPRT (fp, "\tINPUT_POS:\n");
             // fwrite (ninst->input_pos_idx_arr, sizeof(int), ninst->num_input_pos, fp);
-            // fprintf (fp, "\tINPUT_POS_END\n");
+            // FPRT (fp, "\tINPUT_POS_END\n");
         }
     }
-    fprintf (fp, "NASM_NINSTS_END\n");
-    fprintf (fp, "ASPEN_NASM_END\n");
+    FPRT (fp, "NASM_NINSTS_END\n");
+    FPRT (fp, "ASPEN_NASM_END\n");
     fclose (fp);
 }
 
@@ -1017,7 +1016,7 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn)
                 if (tmp == NULL)
                 {
                     FPRT(stderr,"ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
-                        filename, __LINE__, __FILE__);
+                        filename, 0, " ");
                     apu_destroy_nasm (nasm);
                     fclose (fp);
                     return NULL;
@@ -1060,7 +1059,7 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn)
                 if (tmp == NULL)
                 {
                     FPRT(stderr,"ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
-                        filename, __LINE__, __FILE__);
+                        filename, 0, " ");
                     apu_destroy_nasm (nasm);
                     fclose (fp);
                     return NULL;
@@ -1102,7 +1101,7 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn)
             // if (val != ninst->num_input_pos)
             // {
             //     FPRT(stderr,"ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
-            //         filename, __LINE__, __FILE__);
+            //         filename, 0, " ");
             //     apu_destroy_nasm (nasm);
             //     fclose (fp);
             //     return NULL;

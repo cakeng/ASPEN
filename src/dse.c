@@ -133,11 +133,11 @@ void *dse_thread_runtime (void* thread_info)
                 unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
                 if (num_ldata_completed == nasm->num_ldata - 1)
                 {
-                    // printf ("\t\tSignaling nasm completion...\n");
+                    // printf ("\t\tSignaling nasm completion for %d (%s)...\n", nasm->nasm_id, nasm->dnn->name);
                     // All layers of the nasm is completed.
                     rpool_queue_group_t *rpool_queue_group 
                         = get_queue_group_from_nasm (dse->rpool, ninst->ldata->nasm);
-                    set_queue_group_weight (dse->rpool, rpool_queue_group, 0);
+                    // set_queue_group_weight (dse->rpool, rpool_queue_group, 0);
                     pthread_mutex_lock (&nasm->nasm_mutex);
                     pthread_cond_signal (&nasm->nasm_cond);
                     pthread_mutex_unlock (&nasm->nasm_mutex);
@@ -150,8 +150,9 @@ void *dse_thread_runtime (void* thread_info)
     return NULL;
 }
 
-dse_group_t *dse_group_init (unsigned int num_ase, int gpu_idx)
+dse_group_t *dse_group_init (unsigned int num_ase)
 {
+    int gpu_idx = -1;
     if (gpu_idx >= 0 && gpu_idx >= aspen_num_gpus)
     {
         FPRT (stderr, "ERROR: dse_group_init: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);

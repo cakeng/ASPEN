@@ -40,13 +40,13 @@ void error(const char *s)
 
 void malloc_error()
 {
-    fprintf(stderr, "Malloc error\n");
+    FPRT(stderr, "Malloc error\n");
     exit(-1);
 }
 
 void file_error(char *s)
 {
-    fprintf(stderr, "Couldn't open file: %s\n", s);
+    FPRT(stderr, "Couldn't open file: %s\n", s);
     exit(0);
 }
 
@@ -412,7 +412,7 @@ LAYER_ACT get_activation(char *s)
     if (strcmp(s, "tanh")==0) return TANH;
     if (strcmp(s, "gelu")==0) return GELU;
     if (strcmp(s, "gelu_acc")==0) return GELU_ACCURATE;
-    fprintf(stderr, "Couldn't find activation function %s, going with ReLU\n", s);
+    FPRT(stderr, "Couldn't find activation function %s, going with ReLU\n", s);
     return RELU;
 }
 

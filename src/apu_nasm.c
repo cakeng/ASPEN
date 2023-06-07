@@ -196,6 +196,12 @@ void ninst_find_parent (ninst_t *ninst)
             }
             else if (layer->type == FC_LAYER)
             {
+                if (parent_ldata->out_mat_stride != parent_ldata->out_mat_dims[OUT_H])
+                {
+                    FPRT (stderr, "ERROR: FC layer parent stride mismatatch - %d, %d\n", 
+                        parent_ldata->out_mat_stride, parent_ldata->out_mat_dims[OUT_H]);
+                    assert (0);
+                }
                 if (in_tensor_pos[BATCH] >= 0 && in_tensor_pos[BATCH] < ldata->nasm->batch_size)
                 {
                     for (int i = 0; i < layer->params[IN_C]; i++)
@@ -496,7 +502,7 @@ void ninst_find_parent (ninst_t *ninst)
             }
             else
             {
-                FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], __LINE__, __FILE__);
+                FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
                 assert (0);
             }
             // printf ("\n");
@@ -551,7 +557,7 @@ nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigne
 {
     if (min_ninst_per_ldata < 1)
     {
-        FPRT(stderr, "ERROR: min_ninst_per_ldata should be at least 1, at line %d in file %s\n" , __LINE__, __FILE__);
+        FPRT(stderr, "ERROR: min_ninst_per_ldata should be at least 1, at line %d in file %s\n" , 0, " ");
         assert (0);
     }
     nasm_t *new_nasm = (nasm_t *) calloc(1, sizeof(nasm_t));
@@ -642,14 +648,15 @@ double test_nasm_time_sec (nasm_t *nasm, unsigned int num_iter)
     unsigned int num_cpu = get_cpu_count() / 2;
     if (num_cpu < 1)
         num_cpu = 1;
-    dse_group_t *dse_group = dse_group_init (num_cpu, -1);
+    dse_group_t *dse_group = dse_group_init (num_cpu);
     dse_group_set_rpool (dse_group, rpool);
-    rpool_add_nasm (rpool, nasm, 1.0, NULL);
+    rpool_add_nasm (rpool, nasm, NULL);
     double start = get_time_secs();
     for (int i = 0; i < num_iter; i++)
     {
         dse_group_run_until_nasm_completion (dse_group, nasm);
-        rpool_reset_nasm (rpool, nasm, 1.0);
+        rpool_reset (rpool);
+        rpool_reset_nasm (rpool, nasm);
     }
     total_time = (double)get_time_secs() - start;
     // PRT ("APU: Total time = %f sec, Start time = %f sec, End Time = %f sec, Average time = %f sec\n", 
@@ -662,7 +669,7 @@ double test_nasm_time_sec (nasm_t *nasm, unsigned int num_iter)
 nasm_t *apu_generate_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned int num_iter)
 {
     size_t num_ninst = APU_GENERATION_NUM_NINST;
-    nasm_t *new_nasm = apu_create_nasm(dnn, APU_GENERATION_NUM_FLOPS, num_ninst, batch_size);
+    nasm_t *new_nasm = apu_create_nasm(dnn, num_ninst, batch_size);
     double time = test_nasm_time_sec(new_nasm, 50);
     double min_time = time;
     size_t min_num_ninst = num_ninst;
@@ -674,14 +681,14 @@ nasm_t *apu_generate_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned in
         {
             num_ninst = num_ninst * APU_GENERATION_COEFF;
             apu_destroy_nasm (new_nasm);
-            new_nasm = apu_create_nasm(dnn, APU_GENERATION_NUM_FLOPS, num_ninst, batch_size);
+            new_nasm = apu_create_nasm(dnn, num_ninst, batch_size);
             time = test_nasm_time_sec(new_nasm, 50);
         }
         else
         {
             num_ninst = num_ninst*APU_GENERATION_COEFF + min_num_ninst*(1-APU_GENERATION_COEFF);
             apu_destroy_nasm (new_nasm);
-            new_nasm = apu_create_nasm(dnn, APU_GENERATION_NUM_FLOPS, num_ninst, batch_size);
+            new_nasm = apu_create_nasm(dnn, num_ninst, batch_size);
             time = test_nasm_time_sec(new_nasm, 50);
         }
         if (time < min_time)
@@ -695,13 +702,54 @@ nasm_t *apu_generate_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned in
     }
     apu_destroy_nasm (new_nasm);
     PRT ("APU: NASM with num %ld, time = %f sec selected.\n", min_num_ninst, min_time);
-    new_nasm = apu_create_nasm(dnn, APU_GENERATION_NUM_FLOPS, min_num_ninst, batch_size);
+    new_nasm = apu_create_nasm(dnn, min_num_ninst, batch_size);
     return new_nasm;
 }
 
-nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int min_ninst_per_ldata, unsigned int batch_size)
+nasm_t *apu_generate_transformer_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned int seq_num, unsigned int num_iter)
 {
-    nasm_t *new_nasm = apu_create_nasm_without_finding_ninst_parents(dnn, flop_per_ninst, batch_size, min_ninst_per_ldata, 0);
+    size_t num_ninst = APU_GENERATION_NUM_NINST;
+    nasm_t *new_nasm = apu_create_transformer_nasm(dnn, num_ninst, batch_size, seq_num);
+    double time = test_nasm_time_sec(new_nasm, 50);
+    double min_time = time;
+    size_t min_num_ninst = num_ninst;
+    for (int i = 0; i < num_iter; i++)
+    {
+        PRT ("APU: Iteration %d, time = %f sec at ninst num %ld\n", i, time, num_ninst);
+        size_t num_old = num_ninst;
+        if (time <= min_time*1.05)
+        {
+            num_ninst = num_ninst * APU_GENERATION_COEFF;
+            apu_destroy_nasm (new_nasm);
+            new_nasm = apu_create_transformer_nasm(dnn, num_ninst, batch_size, seq_num);
+            time = test_nasm_time_sec(new_nasm, 50);
+        }
+        else
+        {
+            num_ninst = num_ninst*APU_GENERATION_COEFF + min_num_ninst*(1-APU_GENERATION_COEFF);
+            apu_destroy_nasm (new_nasm);
+            new_nasm = apu_create_transformer_nasm(dnn, num_ninst, batch_size, seq_num);
+            time = test_nasm_time_sec(new_nasm, 50);
+        }
+        if (time < min_time)
+        {
+            min_time = time;
+            min_num_ninst = num_ninst;
+        }
+        PRT ("\tMin time = %f sec, min num ninst = %ld\n", min_time, min_num_ninst);
+        if (num_ninst <= num_old*1.10 && num_ninst >= num_old*0.90)
+            break;
+    }
+    apu_destroy_nasm (new_nasm);
+    PRT ("APU: NASM with num %ld, time = %f sec selected.\n", min_num_ninst, min_time);
+    new_nasm = apu_create_transformer_nasm(dnn, num_ninst, batch_size, seq_num);
+    return new_nasm;
+}
+
+
+nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int min_ninst_per_ldata, unsigned int batch_size)
+{
+    nasm_t *new_nasm = apu_create_nasm_without_finding_ninst_parents(dnn, APU_GENERATION_NUM_FLOPS, batch_size, min_ninst_per_ldata, 0);
     for (int i = 0; i < new_nasm->num_ldata; i++)
     {
         #pragma omp parallel for
@@ -733,10 +781,10 @@ nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned 
 }
 
 nasm_t *apu_create_transformer_nasm
-    (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int min_ninst_per_ldata,
+    (aspen_dnn_t *dnn, unsigned int min_ninst_per_ldata,
     unsigned int batch_size, unsigned int seq_num)
 {
-    nasm_t *new_nasm = apu_create_nasm_without_finding_ninst_parents(dnn, flop_per_ninst, batch_size, min_ninst_per_ldata, seq_num);
+    nasm_t *new_nasm = apu_create_nasm_without_finding_ninst_parents(dnn, APU_GENERATION_NUM_FLOPS, batch_size, min_ninst_per_ldata, seq_num);
     PRT ("APU: Graphing ninsts...\n");
     for (int i = 0; i < new_nasm->num_ldata; i++)
     {
@@ -770,7 +818,7 @@ nasm_t *apu_create_transformer_nasm
     return new_nasm;
 }
 
-void reset_nasm (nasm_t *nasm)
+void apu_reset_nasm (nasm_t *nasm)
 {
     atomic_store (&nasm->num_ldata_completed, 0);
     for (int i = 0; i < nasm->num_ldata; i++)
@@ -921,7 +969,7 @@ void get_out_mat_info (nasm_ldata_t *ldata)
     }
     else
     {
-        FPRT(stderr, "ERROR) Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], __LINE__, __FILE__);
+        FPRT(stderr, "ERROR) Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
         assert (0);
     }
 }
@@ -1168,7 +1216,7 @@ void get_out_mat_pos_from_tensor_pos (nasm_ldata_t *ldata, unsigned int *tensor_
     }
     else
     {
-        FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], __LINE__, __FILE__);
+        FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
         assert (0);
     }
 }
@@ -1221,7 +1269,7 @@ void get_tensor_pos_from_out_mat_pos (nasm_ldata_t *ldata, unsigned int *out_mat
     }
     else
     {
-        FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], __LINE__, __FILE__);
+        FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
         assert (0);
     }
 }
