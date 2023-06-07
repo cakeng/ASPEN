@@ -30,7 +30,7 @@
 #define MAX_NUM_GPUS 16
 #define NINST_H_MIN (64)
 #define NINST_W_MIN (12)
-#define MEM_ALIGN 64
+#define MEM_ALIGN 32
 
 #if SUPPRESS_OUTPUT == 0
 #define PRT(...) printf(__VA_ARGS__) 

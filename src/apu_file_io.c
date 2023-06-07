@@ -259,8 +259,7 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
                     copy_ptr_to_aspen_tensor (layer->tensors[WEIGHT_TENSOR], buffer);
                 else
                 {
-                    FPRT(stderr,"ASPEN DNN file %s parse error: Layer %d WEIGHT_TENSOR size mismatch:\
-                        Tensor: %d, File: %ld.\n", input_path, layer_num,
+                    FPRT(stderr,"ASPEN DNN file %s parse error: Layer %d WEIGHT_TENSOR size mismatch.\nTensor: %d, File: %ld.\n", input_path, layer_num,
                             layer->tensors[WEIGHT_TENSOR]->num_elements*layer->tensors[WEIGHT_TENSOR]->element_size,
                             data_size);
                     assert(0);

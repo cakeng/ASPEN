@@ -106,6 +106,8 @@ int main(void)
     rpool_add_nasm (rpool, resnet50_4_nasm, "data/batched_input_128.bin");
     rpool_add_nasm (rpool, vgg16_nasm, "data/batched_input_128.bin");
 
+    print_nasm_info (resnet50_nasm, 0, 0);
+
     // print_rpool_info (rpool);
 
     double start_time = get_sec();

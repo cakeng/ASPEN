@@ -196,6 +196,12 @@ void ninst_find_parent (ninst_t *ninst)
             }
             else if (layer->type == FC_LAYER)
             {
+                if (parent_ldata->out_mat_stride != parent_ldata->out_mat_dims[OUT_H])
+                {
+                    FPRT (stderr, "ERROR: FC layer parent stride mismatatch - %d, %d\n", 
+                        parent_ldata->out_mat_stride, parent_ldata->out_mat_dims[OUT_H]);
+                    assert (0);
+                }
                 if (in_tensor_pos[BATCH] >= 0 && in_tensor_pos[BATCH] < ldata->nasm->batch_size)
                 {
                     for (int i = 0; i < layer->params[IN_C]; i++)
