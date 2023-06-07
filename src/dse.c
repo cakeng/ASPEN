@@ -152,12 +152,9 @@ void *dse_thread_runtime (void* thread_info)
             else // For offloading
             {
                 networking_engine *net_engine = dse->net_engine;
-                // if(pthread_mutex_trylock(&net_engine->net_engine_mutex)==0)
-                // {
-                    pthread_mutex_lock(&net_engine->net_engine_mutex);
-                    push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
-                    pthread_mutex_unlock(&net_engine->net_engine_mutex);
-                // }
+                pthread_mutex_lock(&net_engine->net_engine_mutex);
+                push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
+                pthread_mutex_unlock(&net_engine->net_engine_mutex);
             }
         // }
     }

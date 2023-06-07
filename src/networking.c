@@ -4,7 +4,6 @@
 void *net_thread_runtime (void* thread_info) 
 {
     networking_engine *net_engine = (networking_engine*) thread_info;
-    // pthread_mutex_lock(&net_engine->net_engine_mutex);
     while (!net_engine->kill)
     {
         if(net_engine->run) {
@@ -21,7 +20,6 @@ void *net_thread_runtime (void* thread_info)
             }
         }
     }
-    // close(net_engine->tx_sock);
 }
 
 void init_networking_queue (networking_queue_t *networking_queue)
@@ -30,8 +28,15 @@ void init_networking_queue (networking_queue_t *networking_queue)
     networking_queue->idx_end = 0;
     networking_queue->num_stored = 0;
     networking_queue->max_stored = INIT_QUEUE_SIZE;
+    
     networking_queue->ninst_ptr_arr = calloc (INIT_QUEUE_SIZE, sizeof(ninst_t*));
-    networking_queue->net_queue_buffer = malloc(NETQUEUE_BUFFER_SIZE);
+    
+    for(int i = 0; i < INIT_QUEUE_SIZE; i++) {
+        networking_queue->ninst_ptr_arr[i] = calloc(1, sizeof(ninst_t));
+    }
+    
+    networking_queue->ninst_buf_arr = calloc(INIT_QUEUE_SIZE, sizeof(void*));
+    
 }
 
 void check_and_update_net_queue_size (networking_queue_t *networking_queue, unsigned int num_to_add)
@@ -82,7 +87,7 @@ void update_net_queue_size (networking_queue_t *networking_queue, unsigned int n
     networking_queue->max_stored *= 2;
 }
 
-unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ninst_t **ninst_ptr_list, char** buffer_start_ptr, unsigned int max_ninsts_to_get)
+unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ninst_t **ninst_ptr_list, char* buffer, unsigned int max_ninsts_to_get)
 {
     #ifdef DEBUG
     if (networking_queue == NULL)
@@ -98,19 +103,19 @@ unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ni
     #endif
     unsigned int num_ninsts = 0;
     unsigned int i = networking_queue->idx_start;
-
+    
     if(networking_queue->num_stored > 0) 
     {
         const unsigned int W = networking_queue->ninst_ptr_arr[i]->tile_dims[OUT_W];
         const unsigned int H = networking_queue->ninst_ptr_arr[i]->tile_dims[OUT_H];
-
-        *buffer_start_ptr = networking_queue->net_queue_buffer + (i * W * H * sizeof(float));
         
         for (; num_ninsts < networking_queue->num_stored; num_ninsts++)
         {
             if (num_ninsts >= max_ninsts_to_get)
                 break;
             ninst_ptr_list[num_ninsts] = networking_queue->ninst_ptr_arr[i];
+            memcpy(buffer, networking_queue->ninst_buf_arr[i], W * H * sizeof(float));
+            free(networking_queue->ninst_buf_arr[i]);
             i++;
             if (i == networking_queue->max_stored)
                 i = 0;
@@ -118,7 +123,6 @@ unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ni
 
         networking_queue->idx_start = i;
         networking_queue->num_stored -= num_ninsts;
-        // printf("pop_ninst_to_net_queue--> idx: %d, idx_start: %d, num_stored: %d\n", ninst_ptr_list[0]->ninst_idx, networking_queue->idx_start, networking_queue->num_stored);
     }
     
     return num_ninsts;
@@ -126,31 +130,33 @@ unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ni
 
 void push_ninsts_to_net_queue (networking_queue_t *networking_queue, ninst_t *ninst_ptr, unsigned int num_ninsts)
 {
-    // if (networking_queue->num_stored + num_ninsts > networking_queue->max_stored)
-    //     update_net_queue_size (networking_queue, num_ninsts);
+
+    if (networking_queue->num_stored + num_ninsts > networking_queue->max_stored)
+        update_net_queue_size (networking_queue, num_ninsts);
     float* out_mat = (float*)ninst_ptr->out_mat;
     const unsigned int W = ninst_ptr->tile_dims[OUT_W];
     const unsigned int H = ninst_ptr->tile_dims[OUT_H];
     const unsigned int stride = ninst_ptr->ldata->out_mat_stride;
 
     unsigned i = networking_queue->idx_end;
+    
 
-    char* buffer_start_ptr = networking_queue->net_queue_buffer + (i * W * H * sizeof(float));
-    // for (int j = 0; j < num_ninsts; j++)
-    // {
-        networking_queue->ninst_ptr_arr[i] = ninst_ptr;
+
+    
+    for (int j = 0; j < num_ninsts; j++)
+    {
+        networking_queue->ninst_buf_arr[i] = malloc(W * H * sizeof(float));
+        *(networking_queue->ninst_ptr_arr + i) = ninst_ptr;
+        for(int w = 0; w < W; w++) {
+            memcpy((char*)networking_queue->ninst_buf_arr[i] + w * H * sizeof(float), (char*)out_mat + w * stride * sizeof(float), H * sizeof(float));
+        }
         i++;
         if (i == networking_queue->max_stored)
             i = 0;
-    // }
-
-    for(int w = 0; w < W; w++) {
-        memcpy(buffer_start_ptr + w * H * sizeof(float), (char*)out_mat + w * stride * sizeof(float), H * sizeof(float));
     }
 
     networking_queue->idx_end = i;
     networking_queue->num_stored += num_ninsts;
-    // printf("push_ninst_to_net_queue--> idx: %d, idx_end: %d, num_stored: %d\n", ninst_ptr->ninst_idx, networking_queue->idx_end, networking_queue->num_stored);
 }
 
 void push_ninsts_to_net_queue_front (networking_queue_t *networking_queue, ninst_t **ninst_ptr_list, unsigned int num_ninsts)
@@ -188,6 +194,7 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock
     networking_engine *net_engine = calloc (1, sizeof(networking_engine));
     networking_queue_t *networking_queue_t = calloc (1, sizeof(networking_queue_t));
     init_networking_queue(networking_queue_t);
+
     net_engine->net_queue = networking_queue_t;
     atomic_store (&net_engine->run, 0);
     atomic_store (&net_engine->kill, 0);
@@ -195,7 +202,6 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock
     net_engine->rpool = rpool;
 
     pthread_mutex_init(&net_engine->net_engine_mutex, NULL);
-    pthread_cond_init(&net_engine->net_engine_cond, NULL);
 
     switch (sock_type)
     {
@@ -210,6 +216,17 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock
         assert(0);
         break;
     }
+
+    char info_str[MAX_STRING_LEN*2];
+    void *whitelist[NUM_RPOOL_CONDS] = {NULL};
+    whitelist [RPOOL_NASM] = nasm;
+    sprintf (info_str, "%s_%s_%d", nasm->dnn->name, "nasm", nasm->nasm_id);
+    float queue_per_layer = rpool->ref_ases * NUM_LAYERQUEUE_PER_ASE * NUM_QUEUE_PER_LAYER;
+    unsigned int num_queues = nasm->dnn->num_layers*queue_per_layer;
+    if (num_queues < 1)
+        num_queues = 1;
+    nasm->gpu_idx = rpool->gpu_idx;
+    rpool_add_queue_group (rpool, info_str, num_queues, 1.0, NULL, whitelist);
 
     size_t total_mem_req = 0;
     for (int i = 0; i < nasm->num_ldata; i++)
@@ -324,61 +341,34 @@ void init_tx(networking_engine* net_engine, char* ip, int port, int is_UDP) {
 
 void transmission(networking_engine *net_engine) 
 {
-    // int num_col_in_packet = 100;
     ninst_t *target_ninst = NULL;
     char* buffer_start_ptr = NULL;
     unsigned int num_ninsts = 0;
-    // if(pthread_mutex_trylock(&net_engine->net_engine_mutex)==0)
-    // {
-        // pthread_mutex_lock(&net_engine->net_engine_mutex);
-        num_ninsts = pop_ninsts_from_net_queue(net_engine->net_queue, &target_ninst, &buffer_start_ptr, 1);
-        // pthread_mutex_unlock(&net_engine->net_engine_mutex);
-    // }
+    void* buffer = malloc(1024 * 1024);
     
-    if(num_ninsts > 0) {        
+    pthread_mutex_lock(&net_engine->net_engine_mutex);
+    num_ninsts = pop_ninsts_from_net_queue(net_engine->net_queue, &target_ninst, (char*)buffer, 1);
+    pthread_mutex_unlock(&net_engine->net_engine_mutex);
+
+    
+    if(num_ninsts > 0) {
         const unsigned int W = target_ninst->tile_dims[OUT_W];
         const unsigned int H = target_ninst->tile_dims[OUT_H];
         
         const unsigned total_bytes = W * H * sizeof(float);
-        // unsigned int sent_bytes = 0;
-        // int num_col_in_pack = 120;
-        // int total_num_packs = W / num_col_in_pack;
-        // int last_pack_bytes = (W % num_col_in_pack) * sizeof(float);
-        // int num_pack = 0;
-        
-        // while(total_bytes - sent_bytes)
-        // {
-        //     sent_bytes += write(net_engine->tx_sock, buffer_start_ptr + num_pack * num_col_in_pack * H * sizeof(float), H * sizeof(float) * num_col_in_pack);
-        //     num_pack++;
-        //     if(num_pack == total_num_packs) break;
-        // }
-        // write(net_engine->tx_sock, buffer_start_ptr + num_pack * num_col_in_pack * H * sizeof(float), last_pack_bytes);
-
+        unsigned int sent_bytes = 0;
 
         send(net_engine->tx_sock, (char*)&target_ninst->ninst_idx, sizeof(int), 0);
-
-        while((total_bytes == send(net_engine->tx_sock, buffer_start_ptr, total_bytes, 0) == -1))
-        {
-            if(errno == EINTR) {
-                continue;
-            } else {
-                fprintf(stderr, "Send Error: %s\n", strerror(errno));
-                return -1;
-            }
-        }
         
-        // float* out_mat = (float*)target_ninst->out_mat;
-        // if(target_ninst->ninst_idx == 127) {
-        //     printf("%f %f %f\n", *(out_mat + (W-1) * target_ninst->ldata->out_mat_stride), *(out_mat + (W-1) * target_ninst->ldata->out_mat_stride +  1), *(out_mat + (W-1) * target_ninst->ldata->out_mat_stride + 2));
-        // }
+        while(total_bytes - sent_bytes)
+        {
+            sent_bytes += send(net_engine->tx_sock, buffer, total_bytes, 0);
+        }
 
         // printf("Sent ninst idx: %d\n", target_ninst->ninst_idx);
-
-        // TO DO: 종료시점 판단 코드
-        // if(target_ninst->ninst_idx == 127) {
-        //     pthread_cond_signal(&net_engine->net_engine_cond);
-        // }
     }
+
+    free(buffer);
 }
 
 void receive(networking_engine *net_engine) {
@@ -398,45 +388,22 @@ void receive(networking_engine *net_engine) {
                     const unsigned int W = target_ninst->tile_dims[OUT_W];
                     const unsigned int H = target_ninst->tile_dims[OUT_H];
                     const unsigned int stride = target_ninst->ldata->out_mat_stride;
-                    const unsigned int total_bytes = W * H * sizeof(float);
-                    // unsigned int recv_bytes = 0;
-                    // int num_col_in_pack = 120;
-                    // int total_num_packs = W / num_col_in_pack;
-                    // int last_pack_bytes = (W % num_col_in_pack) * sizeof(float);
-                    // int num_pack = 0;
-
-                    // while(total_bytes - recv_bytes)
-                    // {
-                    //     recv_bytes += read(net_engine->tx_sock, buffer + num_pack * num_col_in_pack * H * sizeof(float), H * sizeof(float) * num_col_in_pack);
-                    //     num_pack++;
-                    //     printf("%d/%d\n", total_bytes, recv_bytes);
-                    //     if(num_pack == total_num_packs) break;
-                    // }
-                    // recv_bytes += read(net_engine->tx_sock, buffer + num_pack * num_col_in_pack * H * sizeof(float), last_pack_bytes);
-                    // printf("%d/%d\n", total_bytes, recv_bytes);
+                    int total_bytes = W * H * sizeof(float);
+                    unsigned int recv_bytes = 0;
 
                     char* buffer = malloc(total_bytes);
                     bzero(buffer, total_bytes);
 
-                    // double now = get_time_secs ();
-                    while((total_bytes == recv(net_engine->tx_sock, buffer, total_bytes, 0)) == -1)
+                    while(total_bytes - recv_bytes)
                     {
-                        if(errno == EINTR) {
-                            continue;
-                        } else {
-                            fprintf(stderr, "Recv Error: %s\n", strerror(errno));
-                            return -1;
-                        }
+                        recv_bytes += recv(net_engine->tx_sock, buffer, total_bytes, MSG_WAITALL);
                     }
-                    // printf("Recv ninst: %d Elasped: %f\n", target_ninst->ninst_idx, (get_time_secs() - now)*1000.0);
 
-                    // now = get_time_secs ();
+                    // printf("Recv idx: %d\n", target_ninst->ninst_idx);
+                    
                     for(int w = 0; w < W; w++) {
                         memcpy(out_mat + w * stride * sizeof(float), buffer + w * H * sizeof(float), H * sizeof(float));
                     }
-                    // printf("Recv ninst: %d Memcpy Elasped: %f\n", target_ninst->ninst_idx, (get_time_secs() - now)*1000.0);
-
-                    // printf("Recv ninst: %d\n", target_ninst->ninst_idx);
                     
                     target_ninst->state = NINST_COMPLETED;
                     unsigned int num_ninst_completed = atomic_fetch_add (&target_ninst->ldata->num_ninst_completed , 1);
@@ -449,14 +416,6 @@ void receive(networking_engine *net_engine) {
                     }
                 }
             }
-
-            // TO DO: 종료시점 판단 코드
-            // if(target_ninst->ninst_idx == 127) {
-            //     atomic_fetch_add (&net_engine->nasm->num_ldata_completed, 1);
-            //     pthread_cond_signal(&net_engine->net_engine_cond);
-            //     double now = get_time_secs ();
-            //     printf("End of receive: %f\n", now);
-            // }
         } 
     }
 }
@@ -513,16 +472,11 @@ void add_ninst_net_queue(networking_engine *net_engine, nasm_t* nasm, char *inpu
     for (int i = 0; i < ldata->num_ninst; i++)
     {
         ninst_t *ninst = &ldata->ninst_arr_start[i];
-        ninst->offloaded = 1; // For offloading temporary
-        push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
-        // ninst->state = NINST_READY;
-        // rpool_push_ninsts(net_engine->rpool, &ninst, 1, 0);
+        ninst->offloaded = 1; // For offloading temporary        
+        // push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
+        ninst->state = NINST_READY;
+        rpool_push_ninsts(net_engine->rpool, &ninst, 1, 0);
     }
     
     aspen_free (data); 
-}
-
-void net_engine_wait(networking_engine* net_engine)
-{
-    pthread_cond_wait (&net_engine->net_engine_cond, &net_engine->net_engine_mutex);
 }

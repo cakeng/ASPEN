@@ -10,7 +10,7 @@
 
 
 #define INIT_QUEUE_SIZE 1024
-#define NETQUEUE_BUFFER_SIZE 1024*1024*320 // 32 MB
+#define NETQUEUE_BUFFER_SIZE 1024 * 10 
 
 struct networking_engine
 {
@@ -19,7 +19,6 @@ struct networking_engine
     networking_queue_t *net_queue;
 
     pthread_mutex_t net_engine_mutex;
-    pthread_cond_t net_engine_cond;
     
     struct sockaddr_in rx_addr;
     struct sockaddr_in tx_addr;
@@ -38,13 +37,14 @@ struct networking_queue_t
 {
     // _Atomic unsigned int occupied;
     // pthread_mutex_t occupied_mutex;
+
     unsigned int idx_start;
     unsigned int idx_end;
     unsigned int num_stored;
     unsigned int max_stored;
-    ninst_t **ninst_ptr_arr;
 
-    void* net_queue_buffer;
+    ninst_t **ninst_ptr_arr;
+    void **ninst_buf_arr;
 };
 
 networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock_type, char* ip, int port, int is_UDP);
