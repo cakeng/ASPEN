@@ -6,6 +6,7 @@ AVX2=1
 NEON=0
 DEBUG=0
 SUPPRESS_OUTPUT=0
+GPU=1
 
 CC=gcc
 NVCC=nvcc
@@ -18,6 +19,7 @@ BUILD_INFO_TIME = $(shell LC_TIME=en_US date)
 BUILD_INFO_GCC = $(shell gcc --version | grep -Ei "gcc \([0-9a-zA-Z\. -~]+\) [0-9\.]+")
 BUILD_INFO_UNAME = $(shell uname -srvpim)
 BUILD_INFO_BRANCH = $(shell git log -1 | grep -Eio "commit [0-9a-zA-Z]+")
+BUILD_INFO_NVCC = 
 
 OPTS=-Ofast -march=native -funroll-loops
 LDFLAGS=-lm -lgomp
@@ -27,6 +29,15 @@ OPTS=-O0 -g -DDEBUG
 endif
 CFLAGS= -Wall -fopenmp
 ARFLAGS=rcs
+ifeq ($(GPU), 1)
+OBJECTS+=naive_cuda_kernels.o tiled_cuda_kernels.o
+LDFLAGS+=-L/usr/local/cuda/lib64 -lcudart -lcuda -lcublas
+COMMON+=-I/usr/local/cuda/include/
+ARCH= 	-gencode arch=compute_80,code=[sm_80,compute_80] \
+		-gencode arch=compute_86,code=[sm_86,compute_86]
+BUILD_INFO_NVCC = $(shell nvcc --version | grep -Eoi "Build .*")
+OPTS+=-DGPU
+endif
 ifeq ($(AVX2), 1)
 OPTS+=-mavx2 -mfma -DAVX2
 endif
@@ -38,6 +49,8 @@ OPTS+=-D_SUPPRESS_OUTPUT
 endif
 INFO_FLAGS= -DBUILD_INFO_TIME="\"$(BUILD_INFO_TIME)"\" -DBUILD_INFO_GCC="\"$(BUILD_INFO_GCC)\"" -DBUILD_INFO_UNAME="\"$(BUILD_INFO_UNAME)\"" -DBUILD_INFO_BRANCH="\"$(BUILD_INFO_BRANCH)\""
 INFO_FLAGS+= -DBUILD_INFO_FLAGS="\"$(COMMON) $(LDFLAGS) $(CFLAGS) $(OPTS)"\"
+INFO_FLAGS+= -DBUILD_INFO_NVCC="\"$(BUILD_INFO_NVCC)\""
+INFO_FLAGS+= -DBUILD_INFO_GPU_ARCH="\"$(ARCH)\""
 OBJS= $(addprefix $(OBJDIR), $(OBJECTS))
 EXEOBJSA= $(addsuffix .o, $(TARGET))
 EXEOBJS= $(addprefix $(OBJDIR), $(EXEOBJSA))

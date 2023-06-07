@@ -177,15 +177,15 @@ void add_ref_ases (rpool_t *rpool, unsigned int num_ases)
     atomic_fetch_add (&rpool->ref_ases, num_ases);
     for (int i = 0; i < rpool->num_groups; i++)
     {
-        if (rpool->queue_group_arr[i].whitelist_conds[RPOOL_NASM] != NULL)
-        {
-            nasm_t *nasm = rpool->queue_group_arr[i].whitelist_conds[RPOOL_NASM];
+        // if (rpool->queue_group_arr[i].whitelist_conds[RPOOL_NASM] != NULL)
+        // {
+        //     nasm_t *nasm = rpool->queue_group_arr[i].whitelist_conds[RPOOL_NASM];
             unsigned int num_queues = rpool->ref_ases * NUM_LAYERQUEUE_PER_ASE * 100  * NUM_QUEUE_PER_LAYER;
             if (num_queues < 1)
                 num_queues = 1;
             if (num_queues > atomic_load (&rpool->queue_group_arr[i].num_queues))
                 queue_group_add_queues (&rpool->queue_group_arr[i], num_queues - rpool->queue_group_arr[i].num_queues);
-        }
+        // }
     }
 }
 
@@ -771,7 +771,7 @@ void rpool_push_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int n
     {
         ninst_t *ninst = ninst_ptr_list[i];
         aspen_layer_t *layer = ninst->ldata->layer;
-        unsigned int queue_val = (dse_idx * layer->dnn->num_layers * NUM_LAYERQUEUE_PER_ASE + (layer->layer_idx - 1)) * NUM_QUEUE_PER_LAYER;
+        unsigned int queue_val = (dse_idx * layer->dnn->num_layers * NUM_LAYERQUEUE_PER_ASE + (layer->layer_idx - 1)) * NUM_QUEUE_PER_LAYER
             + (ninst->ninst_idx % 8);
         if (queue_val < 0)
             queue_val = 0;

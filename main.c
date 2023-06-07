@@ -75,7 +75,7 @@ int main(void)
     int number_of_iterations = 10;
     int num_cores = 32;
 
-    // aspen_dnn_t *resnet50_dnn = apu_create_dnn("data/cfg/resnet50_aspen.cfg", "data/resnet50/resnet50_data.bin");
+    // aspen_dnn_t *resnet50_dnn = apu_create_dnn("data/cfg/resnet50_aspen.cfg", "data/resnet50_data.bin");
     // apu_save_dnn_to_file (resnet50_dnn, "data/resnet50_base.aspen");
     // nasm_t *resnet50_nasm = apu_create_nasm (resnet50_dnn, 50, batch_size);
     // char nasm_file_name [1024] = {0};
@@ -86,7 +86,7 @@ int main(void)
     // sprintf (nasm_file_name, "data/resnet50_B%d.nasm", 4);
     // apu_save_nasm_to_file (resnet50_4_nasm, nasm_file_name);
 
-    // aspen_dnn_t *vgg16_dnn = apu_create_dnn("data/cfg/vgg16_aspen.cfg", "data/vgg16/vgg16_data.bin");
+    // aspen_dnn_t *vgg16_dnn = apu_create_dnn("data/cfg/vgg16_aspen.cfg", "data/vgg16_data.bin");
     // apu_save_dnn_to_file (vgg16_dnn, "data/vgg16_base.aspen");
     // nasm_t *vgg16_nasm = apu_create_nasm (vgg16_dnn, 50, batch_size);
     // sprintf (nasm_file_name, "data/vgg16_B%d.nasm", batch_size);
@@ -106,8 +106,7 @@ int main(void)
     rpool_add_nasm (rpool, resnet50_4_nasm, "data/batched_input_128.bin");
     rpool_add_nasm (rpool, vgg16_nasm, "data/batched_input_128.bin");
 
-    print_nasm_info (resnet50_nasm, 0, 0);
-
+    // print_nasm_info (resnet50_nasm, 0, 0);
     // print_rpool_info (rpool);
 
     double start_time = get_sec();

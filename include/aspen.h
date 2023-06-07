@@ -31,6 +31,12 @@
 #define NINST_H_MIN (64)
 #define NINST_W_MIN (12)
 #define MEM_ALIGN 32
+#define GPU_MEM_STREAM_HOST_TO_GPU (35)
+#define GPU_MEM_STREAM_GPU_TO_HOST (34)
+#define GPU_GRAPH_RUN_STREAM (33)
+#define GPU_NAIVE_RUN_STREAM (32)
+#define GPU_RUN_STREAM_NUM (32)
+#define CUDAGRAPH_MAX_ARG_NUM (16)
 
 #if SUPPRESS_OUTPUT == 0
 #define PRT(...) printf(__VA_ARGS__) 
@@ -38,6 +44,26 @@
 #else
 #define PRT(...)
 #define FPRT(...) fprintf(stderr, "////An error has occurred////\n") 
+#endif
+
+#ifdef GPU
+#include <cuda_runtime.h> // CUDA
+static inline cudaError_t check_CUDA(cudaError_t result)
+{
+#if defined(DEBUG) || defined(_DEBUG)
+  if (result != cudaSuccess) 
+  {
+    FPRT(stderr, "CUDA Runtime Error: %s\n", cudaGetErrorString(result));
+  }
+#endif
+  return result;
+}
+#endif
+
+extern int use_gpu; // Default: 1
+extern int aspen_num_gpus;
+#ifdef GPU
+extern cudaStream_t aspen_CUDA_streams[MAX_NUM_GPUS][GPU_MEM_STREAM_HOST_TO_GPU+1];
 #endif
 
 typedef enum {NINST_NOT_READY, NINST_READY, NINST_COMPLETED, NUM_NINST_STATES} NINST_STATE;

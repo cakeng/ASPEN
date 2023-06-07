@@ -135,8 +135,8 @@ void *dse_thread_runtime (void* thread_info)
                 {
                     // printf ("\t\tSignaling nasm completion for %d (%s)...\n", nasm->nasm_id, nasm->dnn->name);
                     // All layers of the nasm is completed.
-                    rpool_queue_group_t *rpool_queue_group 
-                        = get_queue_group_from_nasm (dse->rpool, ninst->ldata->nasm);
+                    // rpool_queue_group_t *rpool_queue_group 
+                    //     = get_queue_group_from_nasm (dse->rpool, ninst->ldata->nasm);
                     // set_queue_group_weight (dse->rpool, rpool_queue_group, 0);
                     pthread_mutex_lock (&nasm->nasm_mutex);
                     pthread_cond_signal (&nasm->nasm_cond);
