@@ -1,23 +1,44 @@
 #include "networking.h"
 #include <errno.h>
 
-void *net_thread_runtime (void* thread_info) 
+void *net_tx_thread_runtime (void* thread_info) 
 {
     networking_engine *net_engine = (networking_engine*) thread_info;
     while (!net_engine->kill)
     {
         if(net_engine->run) {
-            switch (net_engine->sock_type)
-            {
-            case SOCK_TX:
-                transmission(net_engine);
-                break;
-            case SOCK_RX:
-                receive(net_engine);
-                break;
-            default:
-                continue;
-            }
+            // switch (net_engine->sock_type)
+            // {
+                // case SOCK_TX:
+                    transmission(net_engine);
+                    // break;
+                // case SOCK_RX:
+                    // receive(net_engine);
+                    // break;
+                // default:
+                    // continue;
+            // }
+        }
+    }
+}
+
+void *net_rx_thread_runtime (void* thread_info) 
+{
+    networking_engine *net_engine = (networking_engine*) thread_info;
+    while (!net_engine->kill)
+    {
+        if(net_engine->run) {
+            // switch (net_engine->sock_type)
+            // {
+                // case SOCK_TX:
+                    // transmission(net_engine);
+                    // break;
+                // case SOCK_RX:
+                    receive(net_engine);
+                    // break;
+                // default:
+                    // continue;
+            // }
         }
     }
 }
@@ -38,6 +59,159 @@ void init_networking_queue (networking_queue_t *networking_queue)
     networking_queue->ninst_buf_arr = calloc(INIT_QUEUE_SIZE, sizeof(void*));
     
 }
+
+networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock_type, char* ip, int port, int is_UDP) 
+{
+    printf("Initializing Networkg Engine\n");
+    networking_engine *net_engine = calloc (1, sizeof(networking_engine));
+    networking_queue_t *networking_queue_t = calloc (1, sizeof(networking_queue_t));
+    init_networking_queue(networking_queue_t);
+
+    net_engine->net_queue = networking_queue_t;
+    atomic_store (&net_engine->run, 0);
+    atomic_store (&net_engine->kill, 0);
+    net_engine->nasm = nasm;
+    net_engine->rpool = rpool;
+
+    pthread_mutex_init(&net_engine->net_engine_mutex, NULL);
+
+    switch (sock_type)
+    {
+    case SOCK_TX:
+        init_tx(net_engine, ip, port, is_UDP);
+        break;
+    case SOCK_RX:
+        init_rx(net_engine, port, is_UDP);
+        break;
+    default:
+        printf("Error - Unsupported socket type. Type: %d\n", net_engine->sock_type);
+        assert(0);
+        break;
+    }
+
+    char info_str[MAX_STRING_LEN*2];
+    void *whitelist[NUM_RPOOL_CONDS] = {NULL};
+    whitelist [RPOOL_NASM] = nasm;
+    sprintf (info_str, "%s_%s_%d", nasm->dnn->name, "nasm", nasm->nasm_id);
+    float queue_per_layer = rpool->ref_ases * NUM_LAYERQUEUE_PER_ASE * NUM_QUEUE_PER_LAYER;
+    unsigned int num_queues = nasm->dnn->num_layers*queue_per_layer;
+    if (num_queues < 1)
+        num_queues = 1;
+    nasm->gpu_idx = rpool->gpu_idx;
+    rpool_add_queue_group (rpool, info_str, num_queues, 1.0, NULL, whitelist);
+
+    size_t total_mem_req = 0;
+    for (int i = 0; i < nasm->num_ldata; i++)
+    {
+        nasm_ldata_t *ldata = &nasm->ldata_arr[i];
+        total_mem_req += ldata->out_mat_mem_size;
+    }
+    if (nasm->data == NULL)
+    {
+        nasm->data = aspen_calloc (total_mem_req, 1);
+        
+        nasm_ldata_t *ldata = &nasm->ldata_arr[0];
+        aspen_layer_t *layer = ldata->layer;
+        size_t num_cols = 0;
+        if (layer->params[OUT_H] != 0 && layer->params[OUT_W] != 0)
+            num_cols = nasm->batch_size * layer->params[OUT_H] * layer->params[OUT_W];
+        else if (layer->params[MAT_M] != 0)
+            num_cols = nasm->batch_size * nasm->tr_seq_len;
+            
+        if (nasm->data == NULL)
+        {
+            FPRT (stderr, "Error: nasm->data == NULL\n");
+            assert (0);
+        }
+        for (int i = 0; i < nasm->num_ldata; i++)
+        {
+            nasm_ldata_t *ldata = &nasm->ldata_arr[i];
+            set_ldata_out_mat_mem_pos (ldata);
+        }
+    }
+
+    pthread_create (&net_engine->thread, NULL, net_tx_thread_runtime, (void*)net_engine);
+    pthread_create (&net_engine->thread, NULL, net_rx_thread_runtime, (void*)net_engine);
+    return net_engine;
+}
+
+void init_socket (networking_engine* net_engine)
+{
+    switch (net_engine->sock_type)
+    {
+    case SOCK_TX:
+        if(connect(net_engine->tx_sock,(struct sockaddr*)&net_engine->rx_addr, sizeof(net_engine->rx_addr)) == -1)
+        {
+            int rx_ip = net_engine->rx_addr.sin_addr.s_addr;
+            printf("Error - Socket connection error... Rx ip: %d.%d.%d.%d, Rx Port: %d\n", 
+                (rx_ip>>0)&0xff, (rx_ip>>8)&0xff, (rx_ip>>16)&0xff, (rx_ip>>24)&0xff, net_engine->rx_addr.sin_port);
+            assert (0);
+        }
+        break;
+    case SOCK_RX:
+        if(listen(net_engine->rx_sock, 99) == -1)
+        {
+            int rx_ip = net_engine->rx_addr.sin_addr.s_addr;
+            printf("Error - Socket listen error... Rx ip: %d.%d.%d.%d, Rx Port: %d\n", 
+                (rx_ip>>0)&0xff, (rx_ip>>8)&0xff, (rx_ip>>16)&0xff, (rx_ip>>24)&0xff, net_engine->rx_addr.sin_port);
+            assert(0);
+        }
+        socklen_t rx_addr_size = sizeof(net_engine->rx_addr);
+        net_engine->tx_sock = accept(net_engine->rx_sock, (struct sockaddr*)&net_engine->rx_addr, &rx_addr_size);
+        if(net_engine->tx_sock == -1)
+        {
+            printf("Error! - Socket accept error.\n");
+        } else {
+            int rx_ip = net_engine->rx_addr.sin_addr.s_addr;
+            printf("Connect to IP: %d.%d.%d.%d\n", (rx_ip>>0)&0xff, (rx_ip>>8)&0xff, (rx_ip>>16)&0xff, (rx_ip>>24)&0xff);
+        }
+        break;
+    default:
+        printf("Error - Unsupported socket type. Type: %d\n", net_engine->sock_type);
+        assert(0);
+        break;
+    }
+}
+
+void init_rx(networking_engine* net_engine, int port,int is_UDP) {
+
+    if (is_UDP != 0) {
+        net_engine->rx_sock = socket (PF_INET, SOCK_DGRAM, 0);
+    }
+    else {
+        net_engine->rx_sock = socket (PF_INET, SOCK_STREAM, 0);
+    }
+
+    int option = 1;
+    setsockopt(net_engine->rx_sock, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
+    net_engine->sock_type = SOCK_RX;
+    net_engine->tx_sock = 0;
+    net_engine->rx_addr.sin_family = AF_INET;
+    net_engine->rx_addr.sin_addr.s_addr = htonl (INADDR_ANY);
+    net_engine->rx_addr.sin_port = htons (port);
+    net_engine->isUDP = is_UDP;
+
+    if(bind(net_engine->rx_sock,(struct sockaddr*)&net_engine->rx_addr, sizeof(net_engine->rx_addr)) == -1)
+        printf("ERROR! socket bind error\n");
+
+    init_socket(net_engine);
+}
+
+void init_tx(networking_engine* net_engine, char* ip, int port, int is_UDP) {
+
+    bzero (&net_engine->rx_addr, sizeof(net_engine->rx_addr));
+    bzero (&net_engine->tx_addr, sizeof(net_engine->tx_addr));
+
+    net_engine->sock_type = SOCK_TX;
+    net_engine->tx_sock = socket (PF_INET, SOCK_STREAM, 0);
+    net_engine->rx_addr.sin_family = AF_INET;
+    net_engine->rx_addr.sin_addr.s_addr = inet_addr (ip);
+    net_engine->rx_addr.sin_port = htons (port);
+    net_engine->isUDP = 0;
+
+    init_socket(net_engine);
+}
+
 
 void check_and_update_net_queue_size (networking_queue_t *networking_queue, unsigned int num_to_add)
 {
@@ -188,169 +362,17 @@ void push_ninsts_to_net_queue_front (networking_queue_t *networking_queue, ninst
     //     atomic_fetch_add (&networking_queue->queue_group->num_ninsts, num_ninsts);
 }
 
-networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock_type, char* ip, int port, int is_UDP) 
-{
-    printf("Initializing Networkg Engine\n");
-    networking_engine *net_engine = calloc (1, sizeof(networking_engine));
-    networking_queue_t *networking_queue_t = calloc (1, sizeof(networking_queue_t));
-    init_networking_queue(networking_queue_t);
-
-    net_engine->net_queue = networking_queue_t;
-    atomic_store (&net_engine->run, 0);
-    atomic_store (&net_engine->kill, 0);
-    net_engine->nasm = nasm;
-    net_engine->rpool = rpool;
-
-    pthread_mutex_init(&net_engine->net_engine_mutex, NULL);
-
-    switch (sock_type)
-    {
-    case SOCK_TX:
-        init_tx(net_engine, ip, port, is_UDP);
-        break;
-    case SOCK_RX:
-        init_rx(net_engine, port, is_UDP);
-        break;
-    default:
-        printf("Error - Unsupported socket type. Type: %d\n", net_engine->sock_type);
-        assert(0);
-        break;
-    }
-
-    char info_str[MAX_STRING_LEN*2];
-    void *whitelist[NUM_RPOOL_CONDS] = {NULL};
-    whitelist [RPOOL_NASM] = nasm;
-    sprintf (info_str, "%s_%s_%d", nasm->dnn->name, "nasm", nasm->nasm_id);
-    float queue_per_layer = rpool->ref_ases * NUM_LAYERQUEUE_PER_ASE * NUM_QUEUE_PER_LAYER;
-    unsigned int num_queues = nasm->dnn->num_layers*queue_per_layer;
-    if (num_queues < 1)
-        num_queues = 1;
-    nasm->gpu_idx = rpool->gpu_idx;
-    rpool_add_queue_group (rpool, info_str, num_queues, 1.0, NULL, whitelist);
-
-    size_t total_mem_req = 0;
-    for (int i = 0; i < nasm->num_ldata; i++)
-    {
-        nasm_ldata_t *ldata = &nasm->ldata_arr[i];
-        total_mem_req += ldata->out_mat_mem_size;
-    }
-    if (nasm->data == NULL)
-    {
-        nasm->data = aspen_calloc (total_mem_req, 1);
-        
-        nasm_ldata_t *ldata = &nasm->ldata_arr[0];
-        aspen_layer_t *layer = ldata->layer;
-        size_t num_cols = 0;
-        if (layer->params[OUT_H] != 0 && layer->params[OUT_W] != 0)
-            num_cols = nasm->batch_size * layer->params[OUT_H] * layer->params[OUT_W];
-        else if (layer->params[MAT_M] != 0)
-            num_cols = nasm->batch_size * nasm->tr_seq_len;
-            
-        if (nasm->data == NULL)
-        {
-            FPRT (stderr, "Error: nasm->data == NULL\n");
-            assert (0);
-        }
-        for (int i = 0; i < nasm->num_ldata; i++)
-        {
-            nasm_ldata_t *ldata = &nasm->ldata_arr[i];
-            set_ldata_out_mat_mem_pos (ldata);
-        }
-    }
-
-    pthread_create (&net_engine->thread, NULL, net_thread_runtime, (void*)net_engine);
-    return net_engine;
-}
-
-void init_socket (networking_engine* net_engine)
-{
-    switch (net_engine->sock_type)
-    {
-    case SOCK_TX:
-        if(connect(net_engine->tx_sock,(struct sockaddr*)&net_engine->rx_addr, sizeof(net_engine->rx_addr)) == -1)
-        {
-            int rx_ip = net_engine->rx_addr.sin_addr.s_addr;
-            printf("Error - Socket connection error... Rx ip: %d.%d.%d.%d, Rx Port: %d\n", 
-                (rx_ip>>0)&0xff, (rx_ip>>8)&0xff, (rx_ip>>16)&0xff, (rx_ip>>24)&0xff, net_engine->rx_addr.sin_port);
-            assert (0);
-        }
-        break;
-    case SOCK_RX:
-        if(listen(net_engine->rx_sock, 99) == -1)
-        {
-            int rx_ip = net_engine->rx_addr.sin_addr.s_addr;
-            printf("Error - Socket listen error... Rx ip: %d.%d.%d.%d, Rx Port: %d\n", 
-                (rx_ip>>0)&0xff, (rx_ip>>8)&0xff, (rx_ip>>16)&0xff, (rx_ip>>24)&0xff, net_engine->rx_addr.sin_port);
-            assert(0);
-        }
-        socklen_t rx_addr_size = sizeof(net_engine->rx_addr);
-        net_engine->tx_sock = accept(net_engine->rx_sock, (struct sockaddr*)&net_engine->rx_addr, &rx_addr_size);
-        if(net_engine->tx_sock == -1)
-        {
-            printf("Error! - Socket accept error.\n");
-        } else {
-            int rx_ip = net_engine->rx_addr.sin_addr.s_addr;
-            printf("Connect to IP: %d.%d.%d.%d\n", (rx_ip>>0)&0xff, (rx_ip>>8)&0xff, (rx_ip>>16)&0xff, (rx_ip>>24)&0xff);
-        }
-        break;
-    default:
-        printf("Error - Unsupported socket type. Type: %d\n", net_engine->sock_type);
-        assert(0);
-        break;
-    }
-}
-
-void init_rx(networking_engine* net_engine, int port,int is_UDP) {
-
-    if (is_UDP != 0) {
-        net_engine->rx_sock = socket (PF_INET, SOCK_DGRAM, 0);
-    }
-    else {
-        net_engine->rx_sock = socket (PF_INET, SOCK_STREAM, 0);
-    }
-
-    int option = 1;
-    setsockopt(net_engine->rx_sock, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
-    net_engine->sock_type = SOCK_RX;
-    net_engine->tx_sock = 0;
-    net_engine->rx_addr.sin_family = AF_INET;
-    net_engine->rx_addr.sin_addr.s_addr = htonl (INADDR_ANY);
-    net_engine->rx_addr.sin_port = htons (port);
-    net_engine->isUDP = is_UDP;
-
-    if(bind(net_engine->rx_sock,(struct sockaddr*)&net_engine->rx_addr, sizeof(net_engine->rx_addr)) == -1)
-        printf("ERROR! socket bind error\n");
-
-    init_socket(net_engine);
-}
-
-void init_tx(networking_engine* net_engine, char* ip, int port, int is_UDP) {
-
-    bzero (&net_engine->rx_addr, sizeof(net_engine->rx_addr));
-    bzero (&net_engine->tx_addr, sizeof(net_engine->tx_addr));
-
-    net_engine->sock_type = SOCK_TX;
-    net_engine->tx_sock = socket (PF_INET, SOCK_STREAM, 0);
-    net_engine->rx_addr.sin_family = AF_INET;
-    net_engine->rx_addr.sin_addr.s_addr = inet_addr (ip);
-    net_engine->rx_addr.sin_port = htons (port);
-    net_engine->isUDP = 0;
-
-    init_socket(net_engine);
-}
 
 void transmission(networking_engine *net_engine) 
 {
     ninst_t *target_ninst = NULL;
-    char* buffer_start_ptr = NULL;
     unsigned int num_ninsts = 0;
     void* buffer = malloc(1024 * 1024);
-    
+        
     pthread_mutex_lock(&net_engine->net_engine_mutex);
     num_ninsts = pop_ninsts_from_net_queue(net_engine->net_queue, &target_ninst, (char*)buffer, 1);
     pthread_mutex_unlock(&net_engine->net_engine_mutex);
 
-    
     if(num_ninsts > 0) {
         const unsigned int W = target_ninst->tile_dims[OUT_W];
         const unsigned int H = target_ninst->tile_dims[OUT_H];
@@ -360,14 +382,12 @@ void transmission(networking_engine *net_engine)
 
         send(net_engine->tx_sock, (char*)&target_ninst->ninst_idx, sizeof(int), 0);
         
-        while(total_bytes - sent_bytes)
-        {
+        while(total_bytes - sent_bytes) {
             sent_bytes += send(net_engine->tx_sock, buffer, total_bytes, 0);
         }
-
+        
         // printf("Sent ninst idx: %d\n", target_ninst->ninst_idx);
     }
-
     free(buffer);
 }
 
@@ -377,10 +397,6 @@ void receive(networking_engine *net_engine) {
 
     while(1) {
         if(recv(net_engine->tx_sock, (char*)&recv_ninst_idx, sizeof(int), 0)) {
-            // if(recv_ninst_idx == 0) {
-            //     double now = get_time_secs ();
-            //     printf("First packet time stamp: %f\n", now);
-            // }
             for(int i = 0; i < net_engine->nasm->num_ninst; i++) {
                 if(i == recv_ninst_idx) {
                     target_ninst = &net_engine->nasm->ninst_arr[i];
@@ -409,10 +425,16 @@ void receive(networking_engine *net_engine) {
                     unsigned int num_ninst_completed = atomic_fetch_add (&target_ninst->ldata->num_ninst_completed , 1);
                     int num_ase = net_engine->rpool->ref_ases > 0 ? net_engine->rpool->ref_ases : 1;
                     update_children (net_engine->rpool, target_ninst, i/(net_engine->nasm->ldata_arr[0].num_ninst/num_ase));
-
+                    
                     if (num_ninst_completed == target_ninst->ldata->num_ninst - 1)
                     {
-                        atomic_fetch_add (&net_engine->nasm->num_ldata_completed, 1);
+                        atomic_fetch_add (&net_engine->nasm->num_ldata_completed, 1);   
+                        if( target_ninst->ldata->layer->layer_idx == net_engine->nasm->num_ldata - 1) {
+                            atomic_store(&net_engine->nasm->num_ldata_completed, net_engine->nasm->num_ldata);
+                            pthread_mutex_lock (&net_engine->nasm->nasm_mutex);
+                            pthread_cond_signal (&net_engine->nasm->nasm_cond);
+                            pthread_mutex_unlock (&net_engine->nasm->nasm_mutex);
+                        }
                     }
                 }
             }
@@ -420,7 +442,7 @@ void receive(networking_engine *net_engine) {
     }
 }
 
-void add_ninst_net_queue(networking_engine *net_engine, nasm_t* nasm, char *input_filename)
+void add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_filename)
 {
     aspen_dnn_t *dnn = nasm->dnn;
     aspen_layer_t *first_layer = &dnn->layers[0];
@@ -479,4 +501,24 @@ void add_ninst_net_queue(networking_engine *net_engine, nasm_t* nasm, char *inpu
     }
     
     aspen_free (data); 
+}
+
+void net_queue_destory(networking_queue_t* net_queue)
+{
+    if(net_queue == NULL) return;
+
+    for(int i = 0; i < net_queue->num_stored; i++)
+    {
+        if(net_queue->ninst_ptr_arr[i] != NULL) free(net_queue->ninst_ptr_arr[i]);
+        if(net_queue->ninst_buf_arr[i] != NULL) free(net_queue->ninst_buf_arr[i]);
+    }
+}
+
+void net_engine_destroy(networking_engine* net_engine)
+{
+    if(net_engine == NULL) return;
+    net_engine->kill = 1;
+    net_queue_destory(net_engine->net_queue);
+    close(net_engine->rx_sock);
+    close(net_engine->tx_sock);
 }

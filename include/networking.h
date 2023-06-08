@@ -12,6 +12,17 @@
 #define INIT_QUEUE_SIZE 1024
 #define NETQUEUE_BUFFER_SIZE 1024 * 10 
 
+struct networking_queue_t
+{
+    unsigned int idx_start;
+    unsigned int idx_end;
+    unsigned int num_stored;
+    unsigned int max_stored;
+
+    ninst_t **ninst_ptr_arr;
+    void **ninst_buf_arr;
+};
+
 struct networking_engine
 {
     nasm_t* nasm;
@@ -33,19 +44,7 @@ struct networking_engine
     pthread_t thread;
 };
 
-struct networking_queue_t
-{
-    // _Atomic unsigned int occupied;
-    // pthread_mutex_t occupied_mutex;
 
-    unsigned int idx_start;
-    unsigned int idx_end;
-    unsigned int num_stored;
-    unsigned int max_stored;
-
-    ninst_t **ninst_ptr_arr;
-    void **ninst_buf_arr;
-};
 
 networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock_type, char* ip, int port, int is_UDP);
 void init_networking_queue (networking_queue_t *networking_queue);
@@ -55,6 +54,7 @@ void net_engine_wait(networking_engine* net_engine);
 void transmission(networking_engine *net_engine);
 void receive(networking_engine *net_engine);
 void push_ninsts_to_net_queue (networking_queue_t *networking_queue, ninst_t *ninst_ptr, unsigned int num_ninsts);
-void add_ninst_net_queue(networking_engine *net_engine, nasm_t* nasm, char *input_filename);
+void add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_filename);
+void net_engine_destroy(networking_engine* net_engine);
 
 #endif /* _NETWORKING_ */

@@ -329,6 +329,7 @@ unsigned int dse_check_nasm_completion (nasm_t *nasm)
     #endif
     if (atomic_load(&nasm->num_ldata_completed) == nasm->num_ldata)
         return 1;
+        
     return 0;
 }
 
