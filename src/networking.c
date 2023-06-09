@@ -36,20 +36,18 @@ void init_networking_queue (networking_queue_t *networking_queue)
 
 networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock_type, char* ip, int port, int is_UDP) 
 {
-    printf("Initializing Networkg Engine\n");
+    printf("Initializing Networking Engine...\n");
     networking_engine *net_engine = calloc (1, sizeof(networking_engine));
-    networking_queue_t *networking_queue_t = calloc (1, sizeof(networking_queue_t));
-    init_networking_queue(networking_queue_t);
+    networking_queue_t *networking_queue = calloc (1, sizeof(networking_queue_t));
+    init_networking_queue(networking_queue);
 
-    net_engine->net_queue = networking_queue_t;
+    net_engine->net_queue = networking_queue;
     atomic_store (&net_engine->run, 0);
     atomic_store (&net_engine->kill, 0);
+    atomic_store (&net_engine->shutdown, 0);
     net_engine->nasm = nasm;
     net_engine->rpool = rpool;
-
-    // pthread_mutex_init(&net_engine->net_engine_mutex, NULL);
-    // pthread_mutex_init(&net_engine->net_engine_shutdown_mutex, NULL);
-    net_engine->shutdown = 0;
+    
 
     switch (sock_type)
     {
@@ -106,8 +104,8 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock
         }
     }
 
-    pthread_create (&net_engine->thread, NULL, net_tx_thread_runtime, (void*)net_engine);
-    pthread_create (&net_engine->thread, NULL, net_rx_thread_runtime, (void*)net_engine);
+    pthread_create (&net_engine->tx_thread, NULL, net_tx_thread_runtime, (void*)net_engine);
+    pthread_create (&net_engine->rx_thread, NULL, net_rx_thread_runtime, (void*)net_engine);
     return net_engine;
 }
 
@@ -502,6 +500,7 @@ void net_queue_destory(networking_queue_t* net_queue)
 
 void close_connection(networking_engine* net_engine)
 {
+    if(net_engine == NULL) return;
     int close_idx = -1;
     int shutdown = 0;
     if(net_engine->sock_type == SOCK_TX)

@@ -25,10 +25,6 @@ struct networking_queue_t
 
 struct networking_engine
 {
-    nasm_t* nasm;
-    rpool_t* rpool;
-    networking_queue_t *net_queue;
-
     pthread_mutex_t net_engine_mutex;
     pthread_mutex_t net_engine_shutdown_mutex;
     pthread_cond_t net_engine_shutdown_cond;
@@ -44,7 +40,12 @@ struct networking_engine
     _Atomic int kill;
     _Atomic int shutdown;
 
-    pthread_t thread;
+    pthread_t rx_thread;
+    pthread_t tx_thread;
+
+    nasm_t* nasm;
+    rpool_t* rpool;
+    networking_queue_t *net_queue;
 };
 
 

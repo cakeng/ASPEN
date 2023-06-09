@@ -73,8 +73,8 @@ int main(int argc, char **argv)
     close_connection (net_engine);
     net_engine_destroy (net_engine);
     dse_group_destroy (dse_group);
-    // rpool_destroy (rpool);
-    // apu_destroy_nasm (resnet50_nasm);
-    // apu_destroy_dnn (resnet50_dnn);
+    rpool_destroy (rpool);
+    apu_destroy_nasm (resnet50_nasm);
+    apu_destroy_dnn (resnet50_dnn);
     return 0;
 }
