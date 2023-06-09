@@ -7,17 +7,7 @@ void *net_tx_thread_runtime (void* thread_info)
     while (!net_engine->kill)
     {
         if(net_engine->run) {
-            // switch (net_engine->sock_type)
-            // {
-                // case SOCK_TX:
-                    transmission(net_engine);
-                    // break;
-                // case SOCK_RX:
-                    // receive(net_engine);
-                    // break;
-                // default:
-                    // continue;
-            // }
+            transmission(net_engine);
         }
     }
 }
@@ -28,17 +18,7 @@ void *net_rx_thread_runtime (void* thread_info)
     while (!net_engine->kill)
     {
         if(net_engine->run) {
-            // switch (net_engine->sock_type)
-            // {
-                // case SOCK_TX:
-                    // transmission(net_engine);
-                    // break;
-                // case SOCK_RX:
-                    receive(net_engine);
-                    // break;
-                // default:
-                    // continue;
-            // }
+            receive(net_engine);
         }
     }
 }
@@ -50,14 +30,8 @@ void init_networking_queue (networking_queue_t *networking_queue)
     networking_queue->num_stored = 0;
     networking_queue->max_stored = INIT_QUEUE_SIZE;
     
-    networking_queue->ninst_ptr_arr = calloc (INIT_QUEUE_SIZE, sizeof(ninst_t*));
-    
-    for(int i = 0; i < INIT_QUEUE_SIZE; i++) {
-        networking_queue->ninst_ptr_arr[i] = calloc(1, sizeof(ninst_t));
-    }
-    
-    networking_queue->ninst_buf_arr = calloc(INIT_QUEUE_SIZE, sizeof(void*));
-    
+    networking_queue->ninst_ptr_arr = (ninst_t**) calloc (INIT_QUEUE_SIZE, sizeof(ninst_t*));
+    networking_queue->ninst_buf_arr = (void**) calloc(INIT_QUEUE_SIZE, sizeof(void*));
 }
 
 networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock_type, char* ip, int port, int is_UDP) 
@@ -73,7 +47,9 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock
     net_engine->nasm = nasm;
     net_engine->rpool = rpool;
 
-    pthread_mutex_init(&net_engine->net_engine_mutex, NULL);
+    // pthread_mutex_init(&net_engine->net_engine_mutex, NULL);
+    // pthread_mutex_init(&net_engine->net_engine_shutdown_mutex, NULL);
+    net_engine->shutdown = 0;
 
     switch (sock_type)
     {
@@ -314,9 +290,6 @@ void push_ninsts_to_net_queue (networking_queue_t *networking_queue, ninst_t *ni
 
     unsigned i = networking_queue->idx_end;
     
-
-
-    
     for (int j = 0; j < num_ninsts; j++)
     {
         networking_queue->ninst_buf_arr[i] = malloc(W * H * sizeof(float));
@@ -367,8 +340,8 @@ void transmission(networking_engine *net_engine)
 {
     ninst_t *target_ninst = NULL;
     unsigned int num_ninsts = 0;
-    void* buffer = malloc(1024 * 1024);
-        
+    void* buffer = malloc(1024 * 512);
+
     pthread_mutex_lock(&net_engine->net_engine_mutex);
     num_ninsts = pop_ninsts_from_net_queue(net_engine->net_queue, &target_ninst, (char*)buffer, 1);
     pthread_mutex_unlock(&net_engine->net_engine_mutex);
@@ -385,7 +358,6 @@ void transmission(networking_engine *net_engine)
         while(total_bytes - sent_bytes) {
             sent_bytes += send(net_engine->tx_sock, buffer, total_bytes, 0);
         }
-        
         // printf("Sent ninst idx: %d\n", target_ninst->ninst_idx);
     }
     free(buffer);
@@ -395,40 +367,58 @@ void receive(networking_engine *net_engine) {
     int recv_ninst_idx;
     ninst_t* target_ninst;
 
-    while(1) {
-        if(recv(net_engine->tx_sock, (char*)&recv_ninst_idx, sizeof(int), 0)) {
-            for(int i = 0; i < net_engine->nasm->num_ninst; i++) {
-                if(i == recv_ninst_idx) {
-                    target_ninst = &net_engine->nasm->ninst_arr[i];
-                    char* out_mat = target_ninst->out_mat;
-                    const unsigned int W = target_ninst->tile_dims[OUT_W];
-                    const unsigned int H = target_ninst->tile_dims[OUT_H];
-                    const unsigned int stride = target_ninst->ldata->out_mat_stride;
-                    int total_bytes = W * H * sizeof(float);
-                    unsigned int recv_bytes = 0;
+    if(recv(net_engine->tx_sock, (char*)&recv_ninst_idx, sizeof(int), 0)) {
+        // For shutdown process
+        if(recv_ninst_idx == -1)
+        {
+            int close_idx = -1;
+            if(net_engine->sock_type == SOCK_RX)
+            {
+                // printf("close_connection recv shutdown in RX\n");
+                send(net_engine->tx_sock, (char*)&close_idx, sizeof(int), 0);
+                // printf("close_connection send shutdown in RX\n");
+                atomic_store (&net_engine->shutdown, 1);
+            }
+            else if(net_engine->sock_type == SOCK_TX)
+            {
+                // printf("close_connection recv shutdown in TX\n");
+                atomic_store (&net_engine->shutdown, 1);
+            }
+        }
+        for(int i = 0; i < net_engine->nasm->num_ninst; i++) {
+            if(i == recv_ninst_idx) {
+                target_ninst = &net_engine->nasm->ninst_arr[i];
+                char* out_mat = target_ninst->out_mat;
+                const unsigned int W = target_ninst->tile_dims[OUT_W];
+                const unsigned int H = target_ninst->tile_dims[OUT_H];
+                const unsigned int stride = target_ninst->ldata->out_mat_stride;
+                int total_bytes = W * H * sizeof(float);
+                unsigned int recv_bytes = 0;
 
-                    char* buffer = malloc(total_bytes);
-                    bzero(buffer, total_bytes);
+                char* buffer = malloc(total_bytes);
+                bzero(buffer, total_bytes);
 
-                    while(total_bytes - recv_bytes)
+                while(total_bytes - recv_bytes)
+                {
+                    recv_bytes += recv(net_engine->tx_sock, buffer, total_bytes, MSG_WAITALL);
+                }
+
+                // printf("Recv idx: %d\n", target_ninst->ninst_idx);
+                
+                for(int w = 0; w < W; w++) {
+                    memcpy(out_mat + w * stride * sizeof(float), buffer + w * H * sizeof(float), H * sizeof(float));
+                }
+                
+                target_ninst->state = NINST_COMPLETED;
+                unsigned int num_ninst_completed = atomic_fetch_add (&target_ninst->ldata->num_ninst_completed , 1);
+                int num_ase = net_engine->rpool->ref_ases > 0 ? net_engine->rpool->ref_ases : 1;
+                update_children (net_engine->rpool, target_ninst, i/(net_engine->nasm->ldata_arr[0].num_ninst/num_ase));
+                
+                if (num_ninst_completed == target_ninst->ldata->num_ninst - 1)
+                {
+                    atomic_fetch_add (&net_engine->nasm->num_ldata_completed, 1);
+                    if (net_engine->sock_type == SOCK_TX)
                     {
-                        recv_bytes += recv(net_engine->tx_sock, buffer, total_bytes, MSG_WAITALL);
-                    }
-
-                    // printf("Recv idx: %d\n", target_ninst->ninst_idx);
-                    
-                    for(int w = 0; w < W; w++) {
-                        memcpy(out_mat + w * stride * sizeof(float), buffer + w * H * sizeof(float), H * sizeof(float));
-                    }
-                    
-                    target_ninst->state = NINST_COMPLETED;
-                    unsigned int num_ninst_completed = atomic_fetch_add (&target_ninst->ldata->num_ninst_completed , 1);
-                    int num_ase = net_engine->rpool->ref_ases > 0 ? net_engine->rpool->ref_ases : 1;
-                    update_children (net_engine->rpool, target_ninst, i/(net_engine->nasm->ldata_arr[0].num_ninst/num_ase));
-                    
-                    if (num_ninst_completed == target_ninst->ldata->num_ninst - 1)
-                    {
-                        atomic_fetch_add (&net_engine->nasm->num_ldata_completed, 1);   
                         if( target_ninst->ldata->layer->layer_idx == net_engine->nasm->num_ldata - 1) {
                             atomic_store(&net_engine->nasm->num_ldata_completed, net_engine->nasm->num_ldata);
                             pthread_mutex_lock (&net_engine->nasm->nasm_mutex);
@@ -438,7 +428,7 @@ void receive(networking_engine *net_engine) {
                     }
                 }
             }
-        } 
+        }
     }
 }
 
@@ -506,11 +496,23 @@ void add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_f
 void net_queue_destory(networking_queue_t* net_queue)
 {
     if(net_queue == NULL) return;
+    if(net_queue->ninst_ptr_arr != NULL) free(net_queue->ninst_ptr_arr);
+    if(net_queue->ninst_buf_arr != NULL) free(net_queue->ninst_buf_arr);
+}
 
-    for(int i = 0; i < net_queue->num_stored; i++)
+void close_connection(networking_engine* net_engine)
+{
+    int close_idx = -1;
+    int shutdown = 0;
+    if(net_engine->sock_type == SOCK_TX)
     {
-        if(net_queue->ninst_ptr_arr[i] != NULL) free(net_queue->ninst_ptr_arr[i]);
-        if(net_queue->ninst_buf_arr[i] != NULL) free(net_queue->ninst_buf_arr[i]);
+        send(net_engine->tx_sock, (char*)&close_idx, sizeof(int), 0);
+        // printf("close_connection send shutdown in TX\n");
+    } 
+
+    while(!shutdown)
+    {
+        shutdown = atomic_load(&net_engine->shutdown);
     }
 }
 
@@ -521,4 +523,6 @@ void net_engine_destroy(networking_engine* net_engine)
     net_queue_destory(net_engine->net_queue);
     close(net_engine->rx_sock);
     close(net_engine->tx_sock);
+    pthread_mutex_destroy(&net_engine->net_engine_mutex);
+    free(net_engine);
 }

@@ -10,7 +10,7 @@
 
 
 #define INIT_QUEUE_SIZE 1024
-#define NETQUEUE_BUFFER_SIZE 1024 * 10 
+#define NETQUEUE_BUFFER_SIZE 1024 * 10
 
 struct networking_queue_t
 {
@@ -30,6 +30,8 @@ struct networking_engine
     networking_queue_t *net_queue;
 
     pthread_mutex_t net_engine_mutex;
+    pthread_mutex_t net_engine_shutdown_mutex;
+    pthread_cond_t net_engine_shutdown_cond;
     
     struct sockaddr_in rx_addr;
     struct sockaddr_in tx_addr;
@@ -40,6 +42,7 @@ struct networking_engine
 
     _Atomic int run;
     _Atomic int kill;
+    _Atomic int shutdown;
 
     pthread_t thread;
 };
@@ -56,5 +59,6 @@ void receive(networking_engine *net_engine);
 void push_ninsts_to_net_queue (networking_queue_t *networking_queue, ninst_t *ninst_ptr, unsigned int num_ninsts);
 void add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_filename);
 void net_engine_destroy(networking_engine* net_engine);
+void close_connection(networking_engine* net_engine);
 
 #endif /* _NETWORKING_ */

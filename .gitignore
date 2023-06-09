@@ -11,3 +11,4 @@ main
 *.nasm
 *.tar
 *.gz
+baselines

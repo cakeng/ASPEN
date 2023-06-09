@@ -46,6 +46,8 @@ void dse_destroy (dse_t *dse);
 void dse_run (dse_t *dse);
 void dse_stop (dse_t *dse);
 
+void dse_group_set_net_engine (dse_group_t *dse_group, networking_engine *net_engine);
+
 void update_children_to_cache_but_prioritize_dse_target (rpool_queue_t *cache, ninst_t *ninst, ninst_t **dse_target);
 void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst);
 void update_children_but_prioritize_dse_target (rpool_t *rpool, ninst_t *ninst, dse_t *dse);
