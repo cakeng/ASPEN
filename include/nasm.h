@@ -27,11 +27,11 @@ struct nasm_t
     pthread_cond_t nasm_cond;
 
     void *gpu_null_data;
-    #ifdef GPU
-    cudaGraph_t cuda_graph;
-    cudaGraphExec_t cuda_graph_exec; 
-    int cudagraph_instantiated;
-    #endif
+    // #ifdef GPU
+    // cudaGraph_t cuda_graph;
+    // cudaGraphExec_t cuda_graph_exec; 
+    // int cudagraph_instantiated;
+    // #endif
 };
 
 struct nasm_ldata_t
@@ -76,9 +76,9 @@ struct ninst_t
     void *out_mat;
     rpool_t *affinity_pool;
 
-    #ifdef GPU
-    cudaGraphNode_t cudagraph_node;
-    #endif
+    // #ifdef GPU
+    // cudaGraphNode_t cudagraph_node;
+    // #endif
 };
 
 struct aspen_dnn_t

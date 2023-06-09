@@ -908,9 +908,8 @@ void *aspen_load_input(char *input_filename, unsigned int *input_dims, unsigned 
 }
 
 
-void aspen_init_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data)
+void aspen_init_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data, int gpu_idx)
 {
-    int gpu_idx = -1;
     if (dnn == NULL)
     {
         FPRT (stderr, "Error: DNN is NULL.\n");
@@ -947,9 +946,8 @@ void aspen_init_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input
         copy_aspen_tensor_to_gpu (dnn->layers[0].tensors[OUTPUT_TENSOR], gpu_idx);
 }
 // Change to add a new layer type
-void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data)
+void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data, int gpu_idx)
 {
-    int gpu_idx = -1;
     if (dnn == NULL)
     {
         FPRT (stderr, "Error: DNN is NULL.\n");

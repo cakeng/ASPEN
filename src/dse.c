@@ -150,9 +150,8 @@ void *dse_thread_runtime (void* thread_info)
     return NULL;
 }
 
-dse_group_t *dse_group_init (unsigned int num_ase)
+dse_group_t *dse_group_init (unsigned int num_ase, int gpu_idx)
 {
-    int gpu_idx = -1;
     if (gpu_idx >= 0 && gpu_idx >= aspen_num_gpus)
     {
         FPRT (stderr, "ERROR: dse_group_init: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);
@@ -520,6 +519,51 @@ void update_children_to_cache_but_prioritize_dse_target (rpool_queue_t *cache, n
     }
 }
 
+void prepare_gpu_im2col (ninst_t *ninst, void **input_ptr_arr, size_t num)
+{
+    nasm_ldata_t *ldata = ninst->ldata;
+    aspen_layer_t *layer = ldata->layer;
+    nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
+    aspen_layer_t *p_layer = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr)->layer;
+    unsigned int parent_stride = p_ldata->out_mat_stride;
+    unsigned int num_idx = 0;
+    if (layer->type == CONV_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER)
+    {
+        unsigned int mat_w = ninst->out_mat_pos[OUT_W];
+        for (; mat_w < ninst->out_mat_pos[OUT_W] + ninst->tile_dims[OUT_W]; mat_w++)
+        {
+            unsigned int out_b = mat_w / (layer->params[OUT_H] * layer->params[OUT_W]); 
+            unsigned int out_h = (mat_w % (layer->params[OUT_H] * layer->params[OUT_W])) / layer->params[OUT_W];
+            unsigned int out_w = mat_w % layer->params[OUT_W];
+            unsigned int in_b = out_b;
+            for (int kh = 0; kh < layer->params[WEIGHT_H]; kh++)
+            {
+                for (int kw = 0; kw < layer->params[WEIGHT_W]; kw++)
+                {
+                    int in_h = out_h * layer->params[STRIDE] + kh  - layer->params[PADDING];
+                    int in_w = out_w * layer->params[STRIDE] + kw  - layer->params[PADDING];
+                    if (in_h < 0 || in_h >= p_layer->params[OUT_H] || in_w < 0 || in_w >= p_layer->params[OUT_W])
+                    {
+                        input_ptr_arr[num_idx++] = ldata->nasm->gpu_null_data;
+                        continue;
+                    }
+                    unsigned int in_idx = in_b * p_layer->params[OUT_H] * p_layer->params[OUT_W] 
+                        + in_h * p_layer->params[OUT_W] + in_w;
+                    input_ptr_arr[num_idx++] = (char*)p_ldata->out_mat + in_idx*parent_stride * layer->dnn->element_size;
+                }
+            }
+        }
+    }
+    else
+    {
+        FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
+        assert (0);
+    }
+    for (; num_idx < num; num_idx++)
+        input_ptr_arr[num_idx] = ldata->nasm->gpu_null_data;
+}
+
+
 void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
 {
     #ifdef DEBUG
@@ -579,33 +623,27 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
         {
             #ifdef GPU
             ninst_t *ninst = &nasm->ninst_arr[i];
-            if (ninst->input_pos_idx_arr != NULL && rpool->gpu_idx >= 0)
+            if (ninst->num_input_pos != 0 && rpool->gpu_idx >= 0)
             {
                 nasm_ldata_t *ldata = ninst->ldata;
                 aspen_layer_t *layer = ninst->ldata->layer;
                 nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
                 const unsigned int input_pos_per_n = ninst->num_input_pos/ninst->tile_dims[OUT_W];
-                size_t pos_arr_range = ninst->num_input_pos + input_pos_per_n*_TILE_SIZE_M;
+                size_t pos_arr_range = ninst->num_input_pos + input_pos_per_n*_BLOCK_N_SIZE;
                 ninst->input_pos_ptr_arr_gpu = 
                     aspen_gpu_calloc (pos_arr_range, sizeof (void*), rpool->gpu_idx);
-                void *idx_arr_temp = 
-                    aspen_gpu_calloc (pos_arr_range, sizeof (int), rpool->gpu_idx);
+                void **idx_ptr_temp = aspen_calloc (pos_arr_range, sizeof (void*));
+                prepare_gpu_im2col (ninst, idx_ptr_temp, pos_arr_range);
                 aspen_host_to_gpu_memcpy 
-                    (idx_arr_temp, ninst->input_pos_idx_arr, 
-                        ninst->num_input_pos * sizeof (int), rpool->gpu_idx);
-                aspen_sync_gpu (rpool->gpu_idx);
-                cuda_preset_conv2d_ptrs (ninst->tile_dims[OUT_W], pos_arr_range/input_pos_per_n, nasm->gpu_null_data, 
-                    idx_arr_temp, (float**)ninst->input_pos_ptr_arr_gpu, input_pos_per_n, layer->params[IN_C],
-                    p_ldata->out_mat, p_ldata->out_mat_stride,
-                    aspen_CUDA_streams[rpool->gpu_idx][GPU_NAIVE_RUN_STREAM]);
-                aspen_sync_gpu_stream (rpool->gpu_idx, GPU_NAIVE_RUN_STREAM);
-                aspen_gpu_free (idx_arr_temp, rpool->gpu_idx);
+                    (ninst->input_pos_ptr_arr_gpu, idx_ptr_temp, 
+                        ninst->num_input_pos * sizeof (void*), rpool->gpu_idx);
+                aspen_free (idx_ptr_temp);
             }
             #endif
         }
     }
-    if (rpool->gpu_idx >= 0)
-        generate_cudagraph (nasm);
+    // if (rpool->gpu_idx >= 0)
+    //     generate_cudagraph (nasm);
     nasm_ldata_t *ldata = &nasm->ldata_arr[0];
     for (int i = 0; i < ldata->num_ninst; i++)
     {

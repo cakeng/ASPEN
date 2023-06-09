@@ -1,4 +1,7 @@
 #include "aspen.h"
+#include "apu.h"
+#include "nasm.h"
+#include "dse.h"
 
 double get_sec()
 {
@@ -72,8 +75,9 @@ int main(void)
     print_aspen_build_info();
     
     int batch_size = 1;
-    int number_of_iterations = 10;
+    int number_of_iterations = 2;
     int num_cores = 32;
+    int gpu_idx = 0;
 
     // aspen_dnn_t *resnet50_dnn = apu_create_dnn("data/cfg/resnet50_aspen.cfg", "data/resnet50_data.bin");
     // apu_save_dnn_to_file (resnet50_dnn, "data/resnet50_base.aspen");
@@ -99,8 +103,8 @@ int main(void)
     nasm_t *vgg16_nasm = apu_load_nasm_from_file ("data/vgg16_B1.nasm", vgg16_dnn);
 
 
-    rpool_t *rpool = rpool_init ();
-    dse_group_t *dse_group = dse_group_init (num_cores);
+    rpool_t *rpool = rpool_init (gpu_idx);
+    dse_group_t *dse_group = dse_group_init (num_cores, gpu_idx);
     dse_group_set_rpool (dse_group, rpool);
     rpool_add_nasm (rpool, resnet50_nasm, "data/batched_input_128.bin");
     rpool_add_nasm (rpool, resnet50_4_nasm, "data/batched_input_128.bin");
@@ -125,6 +129,39 @@ int main(void)
     double end_time = get_sec();
     printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);
     
+    // int i = 72;
+    // // gpt2_dnn->layers[7].tensors[WEIGHT_TENSOR]->data = aspen_calloc (1600*1600,4);
+    // unsigned int input_params[NUM_PARAM_ELEMENTS] = {0};
+    // // input_params[BATCH] = 1; input_params[NUM_SEQ] = 128; input_params[NUM_HIDDEN] = 768;
+    // input_params[BATCH] = 1; input_params[OUT_C] = 3; input_params[OUT_H] = 224; input_params[OUT_W] = 224;
+    // // void *dog_data = aspen_load_input ("data/batched_input_128.bin", input_params, sizeof(float));
+    // void *dog_data = aspen_load_input_NHWC ("data/batched_input_128.bin", input_params, sizeof(float));
+    // aspen_init_naive (resnet50_dnn, input_params, dog_data, -1);
+    // get_elapsed_time ("init_naive");
+    // aspen_run_naive (resnet50_dnn, input_params, dog_data, -1);
+    // get_elapsed_time ("run_naive");
+    // printf ("\tLayer %d - Type %s\n", i, layer_type_str[resnet50_dnn->layers[i].type]);
+    // aspen_layer_t *layer = &resnet50_dnn->layers[i];
+    // nasm_ldata_t *ldata = &resnet50_nasm->ldata_arr[i];
+    // assert (ldata->layer == layer);
+    // LAYER_PARAMS output_order[] = {BATCH, MAT_N, MAT_M, 0};
+    // LAYER_PARAMS output_order_nhwc[] = {BATCH, OUT_H, OUT_W, OUT_C};
+    // LAYER_PARAMS output_order_nchw[] = {BATCH, OUT_C, OUT_H, OUT_W};
+    // if (layer->type == K_ATTENTION_LAYER)
+    // {
+    //     output_order [1] = NUM_HEAD; 
+    //     output_order [2] = MAT_N; 
+    //     output_order [3] = MAT_M;
+    // }
+    // void *layer_output = get_aspen_tensor_data 
+    //     (layer->tensors[OUTPUT_TENSOR], output_order_nchw, -1);
+    // void *ldata_output = get_ldata_output (ldata, output_order_nchw);
+
+    // compare_float_tensor (layer_output, ldata_output, 
+    //     input_params[BATCH], layer->params[OUT_C], layer->params[OUT_H],
+    //     layer->params[OUT_W], 1e-2, 1e-4, 20);
+
+
     printf ("Resnet50:\n");
     LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
     float *layer_output = dse_get_nasm_result (resnet50_nasm, output_order);
@@ -162,9 +199,9 @@ int main(void)
     dse_group_destroy (dse_group);
     rpool_destroy (rpool);
     apu_destroy_nasm (resnet50_nasm);
-    apu_destroy_nasm (resnet50_4_nasm);
+    // apu_destroy_nasm (resnet50_4_nasm);
     apu_destroy_dnn (resnet50_dnn);
-    apu_destroy_nasm (vgg16_nasm);
-    apu_destroy_dnn (vgg16_dnn);
+    // apu_destroy_nasm (vgg16_nasm);
+    // apu_destroy_dnn (vgg16_dnn);
     return 0;
 }

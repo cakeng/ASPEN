@@ -45,9 +45,8 @@ void rpool_destroy_queue_group (rpool_queue_group_t *rpool_queue_group)
     }
 }
 
-rpool_t *rpool_init ()
+rpool_t *rpool_init (int gpu_idx)
 {
-    int gpu_idx = -1;
     if (gpu_idx >= 0 && gpu_idx >= aspen_num_gpus)
     {
         FPRT (stderr, "ERROR: rpool_init: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);
@@ -207,12 +206,12 @@ void rpool_add_nasm_raw_input (rpool_t *rpool, nasm_t* nasm, void* input_data)
         FPRT (stderr, "ERROR: rpool_add_nasm_raw_input: weight must be positive. Cannot add nasm \"%s_nasm_%d\".\n", nasm->dnn->name, nasm->nasm_id);
         return;
     }
+    nasm->gpu_idx = rpool->gpu_idx;
     if (rpool->num_groups == 0)
     {
         unsigned int num_queues = rpool->ref_ases * NUM_LAYERQUEUE_PER_ASE * 150 *  NUM_QUEUE_PER_LAYER;
         if (num_queues < 1)
             num_queues = 1;
-        nasm->gpu_idx = rpool->gpu_idx;
         rpool_add_queue_group (rpool, "default", num_queues, NULL, NULL);
     }
     push_first_layer_to_rpool (rpool, nasm, input_data);

@@ -641,14 +641,14 @@ void set_child_list (ninst_t *ninst)
         , child_idx, ninst->ninst_idx, ninst->num_child_ninsts);
 }
 
-double test_nasm_time_sec (nasm_t *nasm, unsigned int num_iter)
+double test_nasm_time_sec (nasm_t *nasm, unsigned int num_iter, int gpu_idx)
 {
     double total_time = 0;
-    rpool_t *rpool = rpool_init (-1);
+    rpool_t *rpool = rpool_init (gpu_idx);
     unsigned int num_cpu = get_cpu_count() / 2;
     if (num_cpu < 1)
         num_cpu = 1;
-    dse_group_t *dse_group = dse_group_init (num_cpu);
+    dse_group_t *dse_group = dse_group_init (num_cpu, gpu_idx);
     dse_group_set_rpool (dse_group, rpool);
     rpool_add_nasm (rpool, nasm, NULL);
     double start = get_time_secs();
@@ -666,11 +666,11 @@ double test_nasm_time_sec (nasm_t *nasm, unsigned int num_iter)
     return total_time / num_iter;
 }
 
-nasm_t *apu_generate_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned int num_iter)
+nasm_t *apu_generate_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned int num_iter, int gpu_idx)
 {
     size_t num_ninst = APU_GENERATION_NUM_NINST;
     nasm_t *new_nasm = apu_create_nasm(dnn, num_ninst, batch_size);
-    double time = test_nasm_time_sec(new_nasm, 50);
+    double time = test_nasm_time_sec(new_nasm, 50, gpu_idx);
     double min_time = time;
     size_t min_num_ninst = num_ninst;
     for (int i = 0; i < num_iter; i++)
@@ -682,14 +682,14 @@ nasm_t *apu_generate_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned in
             num_ninst = num_ninst * APU_GENERATION_COEFF;
             apu_destroy_nasm (new_nasm);
             new_nasm = apu_create_nasm(dnn, num_ninst, batch_size);
-            time = test_nasm_time_sec(new_nasm, 50);
+            time = test_nasm_time_sec(new_nasm, 50, gpu_idx);
         }
         else
         {
             num_ninst = num_ninst*APU_GENERATION_COEFF + min_num_ninst*(1-APU_GENERATION_COEFF);
             apu_destroy_nasm (new_nasm);
             new_nasm = apu_create_nasm(dnn, num_ninst, batch_size);
-            time = test_nasm_time_sec(new_nasm, 50);
+            time = test_nasm_time_sec(new_nasm, 50, gpu_idx);
         }
         if (time < min_time)
         {
@@ -706,11 +706,11 @@ nasm_t *apu_generate_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned in
     return new_nasm;
 }
 
-nasm_t *apu_generate_transformer_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned int seq_num, unsigned int num_iter)
+nasm_t *apu_generate_transformer_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned int seq_num, unsigned int num_iter, int gpu_idx)
 {
     size_t num_ninst = APU_GENERATION_NUM_NINST;
     nasm_t *new_nasm = apu_create_transformer_nasm(dnn, num_ninst, batch_size, seq_num);
-    double time = test_nasm_time_sec(new_nasm, 50);
+    double time = test_nasm_time_sec(new_nasm, 50, gpu_idx);
     double min_time = time;
     size_t min_num_ninst = num_ninst;
     for (int i = 0; i < num_iter; i++)
@@ -722,14 +722,14 @@ nasm_t *apu_generate_transformer_nasm(aspen_dnn_t *dnn, unsigned int batch_size,
             num_ninst = num_ninst * APU_GENERATION_COEFF;
             apu_destroy_nasm (new_nasm);
             new_nasm = apu_create_transformer_nasm(dnn, num_ninst, batch_size, seq_num);
-            time = test_nasm_time_sec(new_nasm, 50);
+            time = test_nasm_time_sec(new_nasm, 50, gpu_idx);
         }
         else
         {
             num_ninst = num_ninst*APU_GENERATION_COEFF + min_num_ninst*(1-APU_GENERATION_COEFF);
             apu_destroy_nasm (new_nasm);
             new_nasm = apu_create_transformer_nasm(dnn, num_ninst, batch_size, seq_num);
-            time = test_nasm_time_sec(new_nasm, 50);
+            time = test_nasm_time_sec(new_nasm, 50, gpu_idx);
         }
         if (time < min_time)
         {
@@ -1304,8 +1304,12 @@ void *get_packed_ldata_output_colwise (nasm_ldata_t *ldata)
     }
     for (unsigned int w = 0; w < ldata->out_mat_dims[OUT_W]; w++)
     {
-        void *packed_ptr = packed_data + w * ldata->out_mat_dims[OUT_H] * elem_size;
-        void *input_ptr = out_mat + w * ldata->out_mat_stride * elem_size;
+        void *packed_ptr = (char*)packed_data + w * ldata->out_mat_dims[OUT_H] * elem_size;
+        void *input_ptr = (char*)out_mat + w * ldata->out_mat_stride * elem_size;
+        // for (unsigned int h = 0; h < ldata->out_mat_dims[OUT_H]; h++)
+        // {
+        //     *((float*)packed_ptr + h) = *((float*)input_ptr + h);
+        // }
         memcpy (packed_ptr, input_ptr, ldata->out_mat_dims[OUT_H] * elem_size);
     }
     if (ldata->nasm->gpu_idx >= 0)

@@ -25,13 +25,13 @@ __global__ void cuda_conv2d_kernel(
     const float *Bias, LAYER_ACT activation_type);
 
 __global__ void cuda_maxpool_kernel(
-    const unsigned int M, const unsigned int N, 
+    const unsigned int M, const unsigned int N, const unsigned int K_pos,
     const int *col_idx_arr, const unsigned int col_per_n,
     const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
     LAYER_ACT activation_type);
 
 __global__ void cuda_avgpool_kernel(
-    const unsigned int M, const unsigned int N, 
+    const unsigned int M, const unsigned int N, const unsigned int K_pos,
     const int *col_idx_arr, const unsigned int col_per_n,
     const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
     LAYER_ACT activation_type);
@@ -66,13 +66,13 @@ __global__ void cuda_tiled_conv2d_kernel(
 __global__ void cuda_tiled_maxpool_kernel(
     const unsigned int M, const unsigned int N, 
     const float **col_ptr_arr, const unsigned int col_per_n,
-    const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
+    float *C, const unsigned int ldc,
     LAYER_ACT activation_type);
 
 __global__ void cuda_tiled_avgpool_kernel(
     const unsigned int M, const unsigned int N, 
     const float **col_ptr_arr, const unsigned int col_per_n,
-    const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
+    float *C, const unsigned int ldc,
     LAYER_ACT activation_type);
 
 __global__ void cuda_tiled_k_matmul_kernel(
@@ -119,15 +119,15 @@ void cuda_tiled_conv2d (const unsigned int M, const unsigned int N,
     const float *Bias, LAYER_ACT activation_type, cudaStream_t stream);
 
 void cuda_tiled_maxpool(
-    const unsigned int M, const unsigned int N, 
+    const unsigned int M, const unsigned int N, const unsigned int K_pos,
     const float **col_ptr_arr, const unsigned int col_per_n,
-    const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
+    float *C, const unsigned int ldc,
     LAYER_ACT activation_type, cudaStream_t stream);
 
 void cuda_tiled_avgpool(
-    const unsigned int M, const unsigned int N, 
+    const unsigned int M, const unsigned int N, const unsigned int K_pos,
     const float **col_ptr_arr, const unsigned int col_per_n,
-    const float *B, const unsigned int ldb, float *C, const unsigned int ldc,
+    float *C, const unsigned int ldc,
     LAYER_ACT activation_type, cudaStream_t stream);
 
 void cuda_tiled_k_attention (

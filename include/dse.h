@@ -52,19 +52,19 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data);
 void set_ldata_out_mat_mem_pos (nasm_ldata_t *ldata);
 void set_ninst_out_mat_mem_pos (ninst_t *ninst);
 
-void generate_cudagraph (nasm_t *nasm);
-void run_cudagraph (nasm_t *nasm);
-void dse_cudagraph_run (rpool_t *rpool, nasm_t *nasm);
-#ifdef GPU
-void add_cudagraph_node_conv2d (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx);
-void add_cudagraph_node_matmul (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx);
-void add_cudagraph_node_maxpool2d (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx);
-void add_cudagraph_node_avgpool2d (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx);
-void add_cudagraph_node_fully_connected (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx);
-void add_cudagraph_node_residual (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx);
-void add_cudagraph_node_softmax (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx);
-void add_cudagraph_node_layernorm (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx);
-void add_cudagraph_node_k_attention (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx);
-void add_cudagraph_node_v_attention (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx);
-#endif
+// void generate_cudagraph (nasm_t *nasm);
+// void run_cudagraph (nasm_t *nasm);
+// void dse_cudagraph_run (rpool_t *rpool, nasm_t *nasm);
+// #ifdef GPU
+// void add_cudagraph_node_conv2d (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx);
+// void add_cudagraph_node_matmul (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx);
+// void add_cudagraph_node_maxpool2d (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx);
+// void add_cudagraph_node_avgpool2d (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx);
+// void add_cudagraph_node_fully_connected (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx);
+// void add_cudagraph_node_residual (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx);
+// void add_cudagraph_node_softmax (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx);
+// void add_cudagraph_node_layernorm (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx);
+// void add_cudagraph_node_k_attention (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx);
+// void add_cudagraph_node_v_attention (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_idx);
+// #endif
 #endif

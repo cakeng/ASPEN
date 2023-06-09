@@ -2,7 +2,7 @@
 
 #define _SKIP_KERNELS 0
 
-void *prepare_input (ninst_t *ninst, void *buffer)
+void *prepare_im2col (ninst_t *ninst, void *buffer)
 {
     nasm_ldata_t *ldata = ninst->ldata;
     aspen_layer_t *layer = ldata->layer;
@@ -166,7 +166,7 @@ void tiled_conv2d (ninst_t *ninst, dse_t *dse)
     nasm_ldata_t *ldata = ninst->ldata;
     aspen_layer_t *layer = ninst->ldata->layer;
     nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
-    void *scratchpad = prepare_input (ninst, dse->scratchpad);
+    void *scratchpad = prepare_im2col (ninst, dse->scratchpad);
     unsigned int input_col_size = p_ldata->out_mat_dims[OUT_H];
     void **input_pos_arr = dse->scratchpad;   
     const unsigned int input_pos_per_n = ninst->num_input_pos/ninst->tile_dims[OUT_W];
@@ -316,7 +316,7 @@ void tiled_conv2d (ninst_t *ninst, dse_t *dse)
         A = (float*)layer->tensors[WEIGHT_TENSOR]->data_gpu[dse->gpu_idx] + ninst->out_mat_pos[OUT_H] * lda;
         cuda_tiled_conv2d (M, N, ninst->input_pos_ptr_arr_gpu, input_pos_per_n, layer->params[IN_C],
             A, lda, p_ldata->out_mat, p_ldata->out_mat_stride, C, ldc, 
-            layer->tensors[BIAS_TENSOR]->data_gpu[dse->gpu_idx], layer->activation,
+            (float*)layer->tensors[BIAS_TENSOR]->data_gpu[dse->gpu_idx] + ninst->out_mat_pos[OUT_H], layer->activation,
             aspen_CUDA_streams[dse->gpu_idx][dse->thread_id%GPU_RUN_STREAM_NUM]);
         aspen_sync_gpu_stream (dse->gpu_idx, dse->thread_id%GPU_RUN_STREAM_NUM);
         #endif
@@ -468,7 +468,7 @@ void tiled_maxpool2d (ninst_t *ninst, dse_t *dse)
     #if _SKIP_KERNELS == 0
     nasm_ldata_t *ldata = ninst->ldata;
     aspen_layer_t *layer = ninst->ldata->layer;
-    prepare_input (ninst, dse->scratchpad);
+    prepare_im2col (ninst, dse->scratchpad);
     void **input_ptr_arr = dse->scratchpad;   
     const unsigned int input_pos_per_n = ninst->num_input_pos/ninst->tile_dims[OUT_W];
     const unsigned int M = ninst->tile_dims[OUT_H];
@@ -511,7 +511,10 @@ void tiled_maxpool2d (ninst_t *ninst, dse_t *dse)
     else
     {
         #ifdef GPU
-
+        cuda_tiled_maxpool (M, N, ninst->out_mat_pos[OUT_H], ninst->input_pos_ptr_arr_gpu, input_pos_per_n,
+            C, ldc, layer->activation, 
+            aspen_CUDA_streams[dse->gpu_idx][dse->thread_id%GPU_RUN_STREAM_NUM]);
+        aspen_sync_gpu_stream (dse->gpu_idx, dse->thread_id%GPU_RUN_STREAM_NUM);
         #endif
     }
     #endif
@@ -521,7 +524,7 @@ void tiled_avgpool2d (ninst_t *ninst, dse_t *dse)
     #if _SKIP_KERNELS == 0
     nasm_ldata_t *ldata = ninst->ldata;
     aspen_layer_t *layer = ninst->ldata->layer;
-    prepare_input (ninst, dse->scratchpad);
+    prepare_im2col (ninst, dse->scratchpad);
     void **input_ptr_arr = dse->scratchpad;   
     const unsigned int input_pos_per_n = ninst->num_input_pos/ninst->tile_dims[OUT_W];
     const unsigned int M = ninst->tile_dims[OUT_H];
@@ -565,7 +568,10 @@ void tiled_avgpool2d (ninst_t *ninst, dse_t *dse)
     else
     {
         #ifdef GPU
-
+        cuda_tiled_avgpool (M, N, ninst->out_mat_pos[OUT_H], ninst->input_pos_ptr_arr_gpu, input_pos_per_n,
+            C, ldc, layer->activation, 
+            aspen_CUDA_streams[dse->gpu_idx][dse->thread_id%GPU_RUN_STREAM_NUM]);
+        aspen_sync_gpu_stream (dse->gpu_idx, dse->thread_id%GPU_RUN_STREAM_NUM);
         #endif
     }
     #endif

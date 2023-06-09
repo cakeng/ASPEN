@@ -12,6 +12,9 @@
 #define APU_GENERATION_NUM_NINST 512
 #define APU_GENERATION_NUM_FLOPS 1e8
 
+void aspen_init_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data, int gpu_idx);
+void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data, int gpu_idx);
+
 aspen_dnn_t *init_aspen_dnn (unsigned int num_layers, char* name);
 void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path);
 void *aspen_load_input_NHWC(char *input_filename, unsigned int *input_dims, unsigned int element_size);
@@ -42,7 +45,7 @@ void sync_output_data_to_host_dnn (aspen_dnn_t *dnn, int gpu_idx);
 void sync_output_data_to_gpu_layer (aspen_layer_t *layer, int gpu_idx);
 void sync_output_data_to_gpu_dnn (aspen_dnn_t *dnn, int gpu_idx);
 
-double test_nasm_time_sec (nasm_t *nasm, unsigned int num_iter);
+double test_nasm_time_sec (nasm_t *nasm, unsigned int num_iter, int gpu_idx);
 
 nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size,  unsigned int min_ninst_per_ldata, unsigned int transformer_seq_len);
 

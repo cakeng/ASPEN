@@ -1,7 +1,6 @@
 extern "C"
 {
     #include "cuda_kernels.h"
-}
 
 // Custom CUDA GEMM kernel.
 __global__ void cuda_matmul_kernel(const unsigned int M, const unsigned int N, const unsigned int K,
@@ -689,9 +688,6 @@ __global__ void cuda_layernorm_kernel(const float *input, const float *weight, c
         output[n * ldc + m] = (input[n * ldb + m] - mean) * var * weight[m] + bias[m];
     }
 }
-// Wrapper function for CUDA weight.
-extern "C"
-{
 void cuda_preset_conv2d_ptrs(
     const unsigned int N, const unsigned int Range, float *null_data,
     int *col_idx_arr, float **col_ptr_arr, const unsigned int col_per_n, const unsigned int K_col,

@@ -111,8 +111,8 @@ void apu_destroy_dnn(aspen_dnn_t *dnn);
 void apu_save_dnn_to_file(aspen_dnn_t *dnn, char *filename);
 aspen_dnn_t *apu_load_dnn_from_file(char *filename);
 
-nasm_t *apu_generate_nasm (aspen_dnn_t *dnn, unsigned int batch_size, unsigned int num_iter);
-nasm_t *apu_generate_transformer_nasm (aspen_dnn_t *dnn, unsigned int batch_size, unsigned int seq_num, unsigned int num_iter);
+nasm_t *apu_generate_nasm (aspen_dnn_t *dnn, unsigned int batch_size, unsigned int num_iter, int gpu_idx);
+nasm_t *apu_generate_transformer_nasm (aspen_dnn_t *dnn, unsigned int batch_size, unsigned int seq_num, unsigned int num_iter, int gpu_idx);
 nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int min_ninst_per_ldata, unsigned int batch_size);
 nasm_t *apu_create_transformer_nasm(aspen_dnn_t *dnn, unsigned int min_ninst_per_ldata, unsigned int batch_size, unsigned int seq_num);
 void apu_destroy_nasm(nasm_t *nasm);
@@ -120,14 +120,14 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn);
 void apu_save_nasm_to_file(nasm_t *nasm, char *filename);
 void apu_reset_nasm (nasm_t *nasm);
 
-rpool_t *rpool_init ();
+rpool_t *rpool_init (int gpu_idx);
 void rpool_destroy (rpool_t *rpool);
 void rpool_add_nasm_raw_input (rpool_t *rpool, nasm_t* nasm, void* input_data);
 void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, char *input_filename);
 void rpool_reset (rpool_t *rpool);
 void rpool_reset_nasm (rpool_t *rpool, nasm_t *nasm);
 
-dse_group_t *dse_group_init (unsigned int num_ase);
+dse_group_t *dse_group_init (unsigned int num_ase, int gpu_idx);
 void dse_group_set_rpool (dse_group_t *dse_group, rpool_t *rpool);
 void dse_group_destroy (dse_group_t *dse_group);
 void dse_group_run (dse_group_t *dse_group);
