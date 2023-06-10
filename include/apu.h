@@ -10,6 +10,8 @@
 
 #define APU_GENERATION_COEFF ((double)0.8)
 #define APU_GENERATION_NUM_NINST 512
+#define APU_GENERATION_COEFF_GPU ((double)0.8)
+#define APU_GENERATION_NUM_NINST_GPU 35
 #define APU_GENERATION_NUM_FLOPS 1e8
 
 void aspen_init_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data, int gpu_idx);

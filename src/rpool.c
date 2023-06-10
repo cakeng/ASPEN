@@ -1,7 +1,8 @@
 #include "rpool.h"
-unsigned int _rand_seed = 19960930;
+
 inline unsigned int xors_rand ()
 {
+    static unsigned int _rand_seed = 19960930;
     _rand_seed ^= _rand_seed << 13;
     _rand_seed ^= _rand_seed >> 17;
     _rand_seed ^= _rand_seed << 5;
