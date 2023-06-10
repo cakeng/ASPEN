@@ -629,7 +629,7 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
                 aspen_layer_t *layer = ninst->ldata->layer;
                 nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
                 const unsigned int input_pos_per_n = ninst->num_input_pos/ninst->tile_dims[OUT_W];
-                size_t pos_arr_range = ninst->num_input_pos + input_pos_per_n*_BLOCK_N_SIZE;
+                size_t pos_arr_range = ninst->num_input_pos;
                 ninst->input_pos_ptr_arr_gpu = 
                     aspen_gpu_calloc (pos_arr_range, sizeof (void*), rpool->gpu_idx);
                 void **idx_ptr_temp = aspen_calloc (pos_arr_range, sizeof (void*));
@@ -656,7 +656,7 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
         ninst->state = NINST_COMPLETED;
         atomic_fetch_add (&ninst->ldata->num_ninst_completed , 1);
         int num_ase = rpool->ref_ases > 0 ? rpool->ref_ases : 1;
-        update_children (rpool, ninst, i/(ldata->num_ninst/num_ase));
+        update_children (rpool, ninst, i/(1 + ldata->num_ninst/num_ase));
     }
     atomic_fetch_add (&nasm->num_ldata_completed, 1);
 }

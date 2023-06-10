@@ -75,38 +75,38 @@ int main(void)
     print_aspen_build_info();
     
     int batch_size = 1;
-    int number_of_iterations = 1;
-    int num_cores = 16;
+    int number_of_iterations = 10;
+    int num_cores = 32;
     int gpu_idx = 0;
 
     aspen_dnn_t *resnet50_dnn = apu_create_dnn("data/cfg/resnet50_aspen.cfg", "data/resnet50_data.bin");
     apu_save_dnn_to_file (resnet50_dnn, "data/resnet50_base.aspen");
     // nasm_t *resnet50_nasm = apu_generate_nasm (resnet50_dnn, batch_size, 10, 0);
-    nasm_t *resnet50_nasm = apu_create_nasm (resnet50_dnn, 10, batch_size);
+    nasm_t *resnet50_nasm = apu_generate_nasm (resnet50_dnn, 1, 15, 0);
     char nasm_file_name [1024] = {0};
     sprintf (nasm_file_name, "data/resnet50_B%d_GPU.nasm", batch_size);
     apu_save_nasm_to_file (resnet50_nasm, nasm_file_name);
 
-    // nasm_t *resnet50_4_nasm = apu_generate_nasm (resnet50_dnn, 4, 10, 0);
-    // sprintf (nasm_file_name, "data/resnet50_B%d_GPU.nasm", 4);
-    // apu_save_nasm_to_file (resnet50_4_nasm, nasm_file_name);
+    nasm_t *resnet50_4_nasm = apu_generate_nasm (resnet50_dnn, 4, 15, 0);
+    sprintf (nasm_file_name, "data/resnet50_B%d_GPU.nasm", 4);
+    apu_save_nasm_to_file (resnet50_4_nasm, nasm_file_name);
 
-    // nasm_t *resnet50_32_nasm = apu_generate_nasm (resnet50_dnn, 32, 10, 0);
-    // sprintf (nasm_file_name, "data/resnet50_B%d_GPU.nasm", 32);
-    // apu_save_nasm_to_file (resnet50_4_nasm, nasm_file_name);
+    nasm_t *resnet50_32_nasm = apu_generate_nasm (resnet50_dnn, 32, 15, 0);
+    sprintf (nasm_file_name, "data/resnet50_B%d_GPU.nasm", 32);
+    apu_save_nasm_to_file (resnet50_4_nasm, nasm_file_name);
 
-    // nasm_t *resnet50_128_nasm = apu_generate_nasm (resnet50_dnn, 128, 10, 0);
-    // sprintf (nasm_file_name, "data/resnet50_B%d_GPU.nasm", 128);
-    // apu_save_nasm_to_file (resnet50_4_nasm, nasm_file_name);
+    nasm_t *resnet50_128_nasm = apu_generate_nasm (resnet50_dnn, 128, 15, 0);
+    sprintf (nasm_file_name, "data/resnet50_B%d_GPU.nasm", 128);
+    apu_save_nasm_to_file (resnet50_4_nasm, nasm_file_name);
 
-    // aspen_dnn_t *vgg16_dnn = apu_create_dnn("data/cfg/vgg16_aspen.cfg", "data/vgg16_data.bin");
-    // apu_save_dnn_to_file (vgg16_dnn, "data/vgg16_base.aspen");
-    // nasm_t *vgg16_nasm = apu_generate_nasm (vgg16_dnn, batch_size, 10, 0);
-    // sprintf (nasm_file_name, "data/vgg16_B%d_GPU.nasm", batch_size);
-    // apu_save_nasm_to_file (vgg16_nasm, nasm_file_name);
+    aspen_dnn_t *vgg16_dnn = apu_create_dnn("data/cfg/vgg16_aspen.cfg", "data/vgg16_data.bin");
+    apu_save_dnn_to_file (vgg16_dnn, "data/vgg16_base.aspen");
+    nasm_t *vgg16_nasm = apu_generate_nasm (vgg16_dnn, batch_size, 15, 0);
+    sprintf (nasm_file_name, "data/vgg16_B%d_GPU.nasm", batch_size);
+    apu_save_nasm_to_file (vgg16_nasm, nasm_file_name);
 
-    // aspen_dnn_t *resnet50_dnn = apu_load_dnn_from_file ("data/resnet50_base.aspen");
-    // nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_B1.nasm", resnet50_dnn);
+    aspen_dnn_t *resnet50_dnn = apu_load_dnn_from_file ("data/resnet50_base.aspen");
+    nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_B1_GPU.nasm", resnet50_dnn);
     // nasm_t *resnet50_4_nasm = apu_load_nasm_from_file ("data/resnet50_B4.nasm", resnet50_dnn);
     // aspen_dnn_t *vgg16_dnn = apu_load_dnn_from_file ("data/vgg16_base.aspen");
     // nasm_t *vgg16_nasm = apu_load_nasm_from_file ("data/vgg16_B1.nasm", vgg16_dnn);
@@ -125,8 +125,8 @@ int main(void)
     double start_time = get_sec();
     for (int i = 0; i < number_of_iterations; i++)
     {
-        // rpool_reset (rpool);
-        // rpool_reset_nasm (rpool, resnet50_nasm);
+        rpool_reset (rpool);
+        rpool_reset_nasm (rpool, resnet50_nasm);
         // rpool_reset_nasm (rpool, resnet50_4_nasm);
         // rpool_reset_nasm (rpool, vgg16_nasm);
         dse_group_run (dse_group);
