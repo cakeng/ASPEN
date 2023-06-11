@@ -34,6 +34,7 @@ struct networking_engine
     int sock_id;
     int rx_sock, tx_sock;
     int isUDP;
+    int sequential;
     SOCK_TYPE sock_type;
 
     _Atomic int run;
@@ -46,11 +47,12 @@ struct networking_engine
     nasm_t* nasm;
     rpool_t* rpool;
     networking_queue_t *net_queue;
+    dse_group_t *dse_group;
 };
 
 
 
-networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock_type, char* ip, int port, int is_UDP);
+networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock_type, char* ip, int port, int is_UDP, int sequential);
 void init_networking_queue (networking_queue_t *networking_queue);
 void init_rx(networking_engine* net_engine, int port,int is_UDP);
 void init_tx(networking_engine* net_engine, char* ip, int port, int is_UDP);

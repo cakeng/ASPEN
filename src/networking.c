@@ -34,7 +34,7 @@ void init_networking_queue (networking_queue_t *networking_queue)
     networking_queue->ninst_buf_arr = (void**) calloc(INIT_QUEUE_SIZE, sizeof(void*));
 }
 
-networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock_type, char* ip, int port, int is_UDP) 
+networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock_type, char* ip, int port, int is_UDP, int sequential) 
 {
     printf("Initializing Networking Engine...\n");
     networking_engine *net_engine = calloc (1, sizeof(networking_engine));
@@ -47,13 +47,7 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock
     atomic_store (&net_engine->shutdown, 0);
     net_engine->nasm = nasm;
     net_engine->rpool = rpool;
-
-    // net_engine->recv_time_arr = calloc(INIT_QUEUE_SIZE, sizeof(float));
-    // net_engine->trans_time_arr = calloc(INIT_QUEUE_SIZE, sizeof(float));
-    // net_engine->com_time_arr = calloc(nasm->num_ninst, sizeof(float));
-    // net_engine->recved_ninsts = 0;
-    // net_engine->trans_ninsts = 0;
-    // net_engine->com_ninsts = 0;
+    net_engine->sequential = sequential;
 
     switch (sock_type)
     {
@@ -421,7 +415,7 @@ void receive(networking_engine *net_engine) {
                 for(int w = 0; w < W; w++) {
                     memcpy(out_mat + w * stride * sizeof(float), buffer + w * H * sizeof(float), H * sizeof(float));
                 }
-                
+
                 target_ninst->state = NINST_COMPLETED;
                 unsigned int num_ninst_completed = atomic_fetch_add (&target_ninst->ldata->num_ninst_completed , 1);
                 int num_ase = net_engine->rpool->ref_ases > 0 ? net_engine->rpool->ref_ases : 1;
@@ -430,6 +424,10 @@ void receive(networking_engine *net_engine) {
                 if (num_ninst_completed == target_ninst->ldata->num_ninst - 1)
                 {
                     atomic_fetch_add (&net_engine->nasm->num_ldata_completed, 1);
+                    if(net_engine->sequential)
+                    {
+                        dse_group_run(net_engine->dse_group);
+                    } 
                     if (net_engine->sock_type == SOCK_TX)
                     {
                         if( target_ninst->ldata->layer->layer_idx == net_engine->nasm->num_ldata - 1) {

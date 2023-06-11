@@ -8,6 +8,7 @@
 
 int main(int argc, char **argv)
 {
+    int sequential = 0;
     int sock_type = 999;
     if(argc > 1) {
         if(!strcmp(argv[1], "RX")) {
@@ -17,7 +18,16 @@ int main(int argc, char **argv)
         }
     }
     
-    char* file_name = "./logs/ninst_time_logs.txt";
+    char* file_name;
+    if(sequential)
+    {
+        file_name = "./logs/sequential_ninst_time_logs.txt";
+    }
+    else
+    {
+        file_name = "./logs/pipeline_ninst_time_logs.txt";
+    }
+    
     FILE *log_fp = fopen(file_name, "w");
 
     aspen_dnn_t *resnet50_dnn = apu_create_dnn("data/cfg/resnet50_aspen.cfg", "data/resnet50/resnet50_data.bin");
@@ -32,8 +42,9 @@ int main(int argc, char **argv)
 
     if(sock_type == SOCK_RX || sock_type == SOCK_TX) 
     {
-        net_engine = init_networking(resnet50_nasm, rpool, sock_type, "127.0.0.1", 8080, 0);
+        net_engine = init_networking(resnet50_nasm, rpool, sock_type, "127.0.0.1", 8080, 0, sequential);
         dse_group_set_net_engine(dse_group, net_engine);
+        net_engine->dse_group = dse_group;
         
         if(sock_type == SOCK_TX) {
             add_input_rpool (net_engine, resnet50_nasm, "data/resnet50/batched_input_64.bin");
@@ -46,8 +57,7 @@ int main(int argc, char **argv)
     }
     
     get_elapsed_time ("init");
-    // close_connection (net_engine);
-    dse_group_run (dse_group);
+    if (!sequential) dse_group_run (dse_group);
     dse_wait_for_nasm_completion (resnet50_nasm);
     get_elapsed_time ("run_aspen");
     dse_group_stop (dse_group);
