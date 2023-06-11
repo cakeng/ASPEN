@@ -45,5 +45,5 @@ void get_elapsed_time (char *name);
 void print_float_array (float *input, int num, int newline_num);
 void print_float_tensor (float *input, int n, int c, int h, int w);
 
-void save_net_time(FILE* log_fp, networking_engine* net_engine);
+void save_ninst_log(FILE* log_fp, nasm_t* nasm);
 #endif /* _UTIL_H_ */

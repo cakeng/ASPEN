@@ -125,6 +125,8 @@ void *dse_thread_runtime (void* thread_info)
                         // FPRT (stderr, "ERROR: dse_thread_runtime: layer type %s is not supported\n", layer_type_str[ninst->ldata->layer->type]);
                         break;
                 }
+
+                ninst->computed_time = get_time_secs();
             
                 ninst->state = NINST_COMPLETED;
                 unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);

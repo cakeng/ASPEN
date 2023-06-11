@@ -726,22 +726,12 @@ void print_float_tensor (float *input, int n, int c, int h, int w)
     printf ("\n");
 }
 
-void save_net_time(FILE* log_fp, networking_engine* net_engine)
+void save_ninst_log(FILE* log_fp, nasm_t* nasm)
 {
-    fprintf(log_fp,"idx,time(ms)\n");
-    if(net_engine->sock_type == SOCK_RX)
+    fprintf(log_fp,"idx,computed time (ms),received time (ms),sent time (ms)\n");
+    for(int i = 0; i < nasm->num_ninst; i++)
     {
-        for(int i = 0; i < net_engine->recved_ninsts; i++)
-        {
-            fprintf(log_fp, "%d,%f\n", i, net_engine->recv_time_arr[i]*1000.0);
-        }
-    }
-
-    if(net_engine->sock_type == SOCK_TX)
-    {
-        for(int i = 0; i < net_engine->trans_ninsts; i++)
-        {
-            fprintf(log_fp, "%d,%f\n", i, net_engine->trans_time_arr[i]*1000.0);
-        }
+        ninst_t* ninst = &nasm->ninst_arr[i];
+        fprintf(log_fp, "%d,%f,%f,%f\n",ninst->ninst_idx, ninst->computed_time*1000.0, ninst->recved_time*1000.0, ninst->sent_time*1000.0);
     }
 }

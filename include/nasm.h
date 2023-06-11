@@ -78,6 +78,11 @@ struct ninst_t
     void *out_mat;
     rpool_t *affinity_pool;
 
+    //For logging
+    float computed_time;
+    float recved_time;
+    float sent_time;
+
     #ifdef GPU
     cudaGraphNode_t cudagraph_node;
     #endif
