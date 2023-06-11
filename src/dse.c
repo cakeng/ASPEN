@@ -629,7 +629,7 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
                 aspen_layer_t *layer = ninst->ldata->layer;
                 nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
                 const unsigned int input_pos_per_n = ninst->num_input_pos/ninst->tile_dims[OUT_W];
-                size_t pos_arr_range = ninst->num_input_pos;
+                size_t pos_arr_range = ninst->num_input_pos + input_pos_per_n*_BLOCK_N_SIZE;
                 ninst->input_pos_ptr_arr_gpu = 
                     aspen_gpu_calloc (pos_arr_range, sizeof (void*), rpool->gpu_idx);
                 void **idx_ptr_temp = aspen_calloc (pos_arr_range, sizeof (void*));
@@ -713,6 +713,11 @@ void set_ninst_out_mat_mem_pos (ninst_t *ninst)
 
 void *dse_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS *order)
 {
+    if (nasm->data == NULL)
+    {
+        FPRT (stderr, "Error: nasm->data == NULL in dse_get_ldata_result()\n");
+        assert (0);
+    }
     nasm_ldata_t *ldata = &nasm->ldata_arr[ldata_idx];
     if (ldata->layer->type == YOLO_LAYER)
     {
