@@ -269,6 +269,8 @@ unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ni
             memcpy(buffer, networking_queue->ninst_buf_arr[i], W * H * sizeof(float));
             free(networking_queue->ninst_buf_arr[i]);
             i++;
+            buffer += W * H * sizeof(float);
+
             if (i == networking_queue->max_stored)
                 i = 0;
         }
@@ -340,31 +342,36 @@ void push_ninsts_to_net_queue_front (networking_queue_t *networking_queue, ninst
 
 void transmission(networking_engine *net_engine) 
 {
-    ninst_t *target_ninst = NULL;
+    ninst_t *target_ninst_list[4];
     unsigned int num_ninsts = 0;
-    void* buffer = malloc(1024 * 512);
+    void* buffer = malloc(1024 * 1024);
+    void* buffer_start_ptr = buffer;
 
     pthread_mutex_lock(&net_engine->net_engine_mutex);
-    num_ninsts = pop_ninsts_from_net_queue(net_engine->net_queue, &target_ninst, (char*)buffer, 1);
+    num_ninsts = pop_ninsts_from_net_queue(net_engine->net_queue, target_ninst_list, (char*)buffer, 4);
     pthread_mutex_unlock(&net_engine->net_engine_mutex);
 
     if(num_ninsts > 0) {
-        const unsigned int W = target_ninst->tile_dims[OUT_W];
-        const unsigned int H = target_ninst->tile_dims[OUT_H];
-        
-        const unsigned total_bytes = W * H * sizeof(float);
-        unsigned int sent_bytes = 0;
+        for(int i = 0; i < num_ninsts; i++)
+        {
+            ninst_t* target_ninst = target_ninst_list[i];
+            const unsigned int W = target_ninst->tile_dims[OUT_W];
+            const unsigned int H = target_ninst->tile_dims[OUT_H];
+            
+            const unsigned int total_bytes = W * H * sizeof(float);
+            unsigned int sent_bytes = 0;
 
-        send(net_engine->tx_sock, (char*)&target_ninst->ninst_idx, sizeof(int), 0);
-        
-        while(total_bytes - sent_bytes) {
-            sent_bytes += send(net_engine->tx_sock, buffer, total_bytes, 0);
+            send(net_engine->tx_sock, (char*)&target_ninst->ninst_idx, sizeof(int), 0);
+            
+            while(total_bytes - sent_bytes) {
+                sent_bytes += send(net_engine->tx_sock, buffer_start_ptr, total_bytes, 0);
+            }
+            buffer_start_ptr += W * H * sizeof(float);
+
+            net_engine->trans_time_arr[net_engine->trans_ninsts] = get_time_secs();
+            // printf("Send idx: %d, %d, %f\n", target_ninst->ninst_idx, net_engine->trans_ninsts, net_engine->trans_time_arr[net_engine->trans_ninsts]);
+            net_engine->trans_ninsts++;
         }
-
-        net_engine->recv_time_arr[net_engine->trans_ninsts] = get_time_secs();
-        // printf("Recv idx: %d, %d, %f\n", target_ninst->ninst_idx, net_engine->recved_ninsts, net_engine->recv_time_arr[net_engine->recved_ninsts]);
-        net_engine->trans_ninsts++;
-        // printf("Sent ninst idx: %d\n", target_ninst->ninst_idx);
     }
     free(buffer);
 }
