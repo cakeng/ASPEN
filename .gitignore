@@ -12,3 +12,4 @@ main
 *.tar
 *.gz
 baselines
+logs

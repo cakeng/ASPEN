@@ -63,7 +63,7 @@ struct ninst_t
     unsigned int ninst_idx;
     unsigned int out_mat_pos [2];
     unsigned int tile_dims [2];
-    unsigned int offloaded;
+    unsigned int offloaded; // For offloading decision
 
     unsigned int *parent_ninst_idx_arr;
     unsigned int num_parent_ninsts;

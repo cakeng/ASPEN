@@ -46,6 +46,11 @@ struct networking_engine
     nasm_t* nasm;
     rpool_t* rpool;
     networking_queue_t *net_queue;
+
+    float* recv_time_arr;
+    float* trans_time_arr;
+    int recved_ninsts;
+    int trans_ninsts;
 };
 
 

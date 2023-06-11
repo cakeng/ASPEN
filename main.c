@@ -16,6 +16,11 @@ int main(int argc, char **argv)
             sock_type = SOCK_TX;
         }
     }
+    FILE *log_fp;
+    char* file_name;
+    if(sock_type == SOCK_RX) file_name = "./logs/recv_time_logs.txt";
+    if(sock_type == SOCK_TX) file_name = "./logs/trans_time_logs.txt";
+    log_fp = fopen(file_name, "w");
 
     aspen_dnn_t *resnet50_dnn = apu_create_dnn("data/cfg/resnet50_aspen.cfg", "data/resnet50/resnet50_data.bin");
     int gpu = -1;
@@ -41,8 +46,9 @@ int main(int argc, char **argv)
     else { // Local run
         rpool_add_nasm (rpool, resnet50_nasm, 1.0, "data/resnet50/batched_input_64.bin"); 
     }
-
+    
     get_elapsed_time ("init");
+    // close_connection (net_engine);
     dse_group_run (dse_group);
     dse_wait_for_nasm_completion (resnet50_nasm);
     get_elapsed_time ("run_aspen");
@@ -71,6 +77,8 @@ int main(int argc, char **argv)
     free (softmax_output);
 
     close_connection (net_engine);
+    if(sock_type == SOCK_RX || sock_type == SOCK_TX)
+        save_net_time(log_fp, net_engine);
     net_engine_destroy (net_engine);
     dse_group_destroy (dse_group);
     rpool_destroy (rpool);

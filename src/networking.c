@@ -47,7 +47,11 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock
     atomic_store (&net_engine->shutdown, 0);
     net_engine->nasm = nasm;
     net_engine->rpool = rpool;
-    
+
+    net_engine->recv_time_arr = calloc(INIT_QUEUE_SIZE, sizeof(float));
+    net_engine->trans_time_arr = calloc(INIT_QUEUE_SIZE, sizeof(float));
+    net_engine->recved_ninsts = 0;
+    net_engine->trans_ninsts = 0;
 
     switch (sock_type)
     {
@@ -356,6 +360,10 @@ void transmission(networking_engine *net_engine)
         while(total_bytes - sent_bytes) {
             sent_bytes += send(net_engine->tx_sock, buffer, total_bytes, 0);
         }
+
+        net_engine->recv_time_arr[net_engine->trans_ninsts] = get_time_secs();
+        // printf("Recv idx: %d, %d, %f\n", target_ninst->ninst_idx, net_engine->recved_ninsts, net_engine->recv_time_arr[net_engine->recved_ninsts]);
+        net_engine->trans_ninsts++;
         // printf("Sent ninst idx: %d\n", target_ninst->ninst_idx);
     }
     free(buffer);
@@ -401,7 +409,10 @@ void receive(networking_engine *net_engine) {
                     recv_bytes += recv(net_engine->tx_sock, buffer, total_bytes, MSG_WAITALL);
                 }
 
-                // printf("Recv idx: %d\n", target_ninst->ninst_idx);
+                
+                net_engine->recv_time_arr[net_engine->recved_ninsts] = get_time_secs();
+                // printf("Recv idx: %d, %d, %f\n", target_ninst->ninst_idx, net_engine->recved_ninsts, net_engine->recv_time_arr[net_engine->recved_ninsts]);
+                net_engine->recved_ninsts++;
                 
                 for(int w = 0; w < W; w++) {
                     memcpy(out_mat + w * stride * sizeof(float), buffer + w * H * sizeof(float), H * sizeof(float));

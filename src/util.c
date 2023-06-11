@@ -725,3 +725,23 @@ void print_float_tensor (float *input, int n, int c, int h, int w)
     }
     printf ("\n");
 }
+
+void save_net_time(FILE* log_fp, networking_engine* net_engine)
+{
+    fprintf(log_fp,"idx,time(ms)\n");
+    if(net_engine->sock_type == SOCK_RX)
+    {
+        for(int i = 0; i < net_engine->recved_ninsts; i++)
+        {
+            fprintf(log_fp, "%d,%f\n", i, net_engine->recv_time_arr[i]*1000.0);
+        }
+    }
+
+    if(net_engine->sock_type == SOCK_TX)
+    {
+        for(int i = 0; i < net_engine->trans_ninsts; i++)
+        {
+            fprintf(log_fp, "%d,%f\n", i, net_engine->trans_time_arr[i]*1000.0);
+        }
+    }
+}
