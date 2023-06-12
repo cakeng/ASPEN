@@ -381,14 +381,14 @@ void receive(networking_engine *net_engine) {
             int close_idx = -1;
             if(net_engine->sock_type == SOCK_RX)
             {
-                // printf("close_connection recv shutdown in RX\n");
+                printf("close_connection recv shutdown in RX\n");
                 send(net_engine->tx_sock, (char*)&close_idx, sizeof(int), 0);
-                // printf("close_connection send shutdown in RX\n");
+                printf("close_connection send shutdown in RX\n");
                 atomic_store (&net_engine->shutdown, 1);
             }
             else if(net_engine->sock_type == SOCK_TX)
             {
-                // printf("close_connection recv shutdown in TX\n");
+                printf("close_connection recv shutdown in TX\n");
                 atomic_store (&net_engine->shutdown, 1);
             }
         }
@@ -411,6 +411,7 @@ void receive(networking_engine *net_engine) {
                 }
 
                 target_ninst->recved_time = get_time_secs();
+                // printf("recv ninst: %d, %f\n", target_ninst->ninst_idx, target_ninst->recved_time * 1000.0);
                 
                 for(int w = 0; w < W; w++) {
                     memcpy(out_mat + w * stride * sizeof(float), buffer + w * H * sizeof(float), H * sizeof(float));
@@ -519,7 +520,7 @@ void close_connection(networking_engine* net_engine)
     if(net_engine->sock_type == SOCK_TX)
     {
         send(net_engine->tx_sock, (char*)&close_idx, sizeof(int), 0);
-        // printf("close_connection send shutdown in TX\n");
+        printf("close_connection send shutdown in TX\n");
     } 
 
     while(!shutdown)

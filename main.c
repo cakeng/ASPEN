@@ -10,23 +10,26 @@ int main(int argc, char **argv)
 {
     int sequential = 0;
     int sock_type = 999;
-    if(argc > 1) {
+    if(argc > 2)
+    {
+        sequential = atoi(argv[2]);
+    }
+
+    if(argc > 1) 
+    {
         if(!strcmp(argv[1], "RX")) {
             sock_type = SOCK_RX;
         } else if(!strcmp(argv[1], "TX")) {
             sock_type = SOCK_TX;
         }
+        if(sequential > 0) printf("Offloading mode: [Sequential]\n");
+        else printf("Offloading mode: [Pipelining]\n");
     }
     
     char* file_name;
-    if(sequential)
-    {
-        file_name = "./logs/sequential_ninst_time_logs.txt";
-    }
-    else
-    {
-        file_name = "./logs/pipeline_ninst_time_logs.txt";
-    }
+    if(sequential) file_name = "./logs/sequential_ninst_time_logs.csv";
+    else file_name = "./logs/pipeline_ninst_time_logs.csv";
+    
     
     FILE *log_fp = fopen(file_name, "w");
 
@@ -34,6 +37,9 @@ int main(int argc, char **argv)
     int gpu = -1;
 
     nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_B1_aspen.nasm", resnet50_dnn);
+    // nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_B32_fine_aspen.nasm", resnet50_dnn);
+    // nasm_t *resnet50_nasm = apu_create_nasm(resnet50_dnn, 1e6, 200, 32);
+    // apu_save_nasm_to_file(resnet50_nasm, "data/resnset50_B32_fine_aspen.nasm");
     rpool_t *rpool = rpool_init (gpu);
     dse_group_t *dse_group = dse_group_init (16, gpu);
     dse_group_set_rpool (dse_group, rpool);
@@ -57,7 +63,7 @@ int main(int argc, char **argv)
     }
     
     get_elapsed_time ("init");
-    if (!sequential) dse_group_run (dse_group);
+    if (!sequential || sock_type == SOCK_TX) dse_group_run (dse_group);
     dse_wait_for_nasm_completion (resnet50_nasm);
     get_elapsed_time ("run_aspen");
     dse_group_stop (dse_group);
@@ -78,7 +84,7 @@ int main(int argc, char **argv)
     naive_softmax (layer_output, softmax_output, resnet50_nasm->batch_size, 1000);
     for (int i = 0; i < resnet50_nasm->batch_size; i++)
     {
-        get_probability_results ("data/resnet50/imagenet_classes.txt", softmax_output + 1000*i, 1000);
+        // get_probability_results ("data/resnet50/imagenet_classes.txt", softmax_output + 1000*i, 1000);
     }
     
     free (layer_output);
