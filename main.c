@@ -40,17 +40,18 @@ int main(int argc, char **argv)
 
     // nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_B1_aspen.nasm", resnet50_dnn);
     // nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_B32_fine_aspen.nasm", resnet50_dnn);
+    nasm_t *vgg16_nasm = apu_load_nasm_from_file ("data/vgg15_B1_fine_aspen.nasm", vgg16_dnn);
     // nasm_t *resnet50_nasm = apu_create_nasm(resnet50_dnn, 1e6, 200, 32);
-    nasm_t *resnet50_nasm = apu_create_nasm(vgg16_dnn, 1e6, 200, 1);
+    // nasm_t *resnet50_nasm = apu_create_nasm(vgg16_dnn, 1e6, 200, 1);
     // apu_save_nasm_to_file(resnet50_nasm, "data/resnset50_B32_fine_aspen.nasm");
-    apu_save_nasm_to_file(resnet50_nasm, "data/vgg16_B1_fine_aspen.nasm");
+    // apu_save_nasm_to_file(resnet50_nasm, "data/vgg16_B1_fine_aspen.nasm");
     aspen_dnn_t *target_dnn;
     nasm_t *target_nasm;
     // char* target_input = "data/resnet50/batched_input_64.bin";
     char *target_input = NULL;
 
     target_dnn = vgg16_dnn;
-    target_nasm = resnet50_nasm;
+    target_nasm = vgg16_nasm;
 
     rpool_t *rpool = rpool_init (gpu);
     dse_group_t *dse_group = dse_group_init (16, gpu);
