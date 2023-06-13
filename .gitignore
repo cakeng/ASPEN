@@ -13,3 +13,4 @@ main
 *.gz
 baselines
 logs
+.out
