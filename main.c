@@ -27,8 +27,8 @@ int main(int argc, char **argv)
     }
     
     char* file_name;
-    if(sequential) file_name = "./logs/sequential_ninst_time_logs.csv";
-    else file_name = "./logs/pipeline_ninst_time_logs.csv";
+    if(sequential) file_name = sock_type == SOCK_RX ? "./logs/sequential_ninst_time_logs_RX.csv" : "./logs/sequential_ninst_time_logs_TX.csv";
+    else file_name = sock_type == SOCK_RX ? "./logs/pipeline_ninst_time_logs_RX.csv" : "./logs/pipeline_ninst_time_logs_TX.csv";
     
     
     FILE *log_fp = fopen(file_name, "w");
@@ -48,7 +48,7 @@ int main(int argc, char **argv)
 
     if(sock_type == SOCK_RX || sock_type == SOCK_TX) 
     {
-        net_engine = init_networking(resnet50_nasm, rpool, sock_type, "127.0.0.1", 8080, 0, sequential);
+        net_engine = init_networking(resnet50_nasm, rpool, sock_type, "127.0.0.1", 3786, 0, sequential);
         dse_group_set_net_engine(dse_group, net_engine);
         net_engine->dse_group = dse_group;
         

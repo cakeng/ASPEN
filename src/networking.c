@@ -340,7 +340,7 @@ void transmission(networking_engine *net_engine)
 {
     ninst_t *target_ninst_list[4];
     unsigned int num_ninsts = 0;
-    void* buffer = malloc(1024 * 1024);
+    void* buffer = malloc(1024 * 1024 * 128);
     void* buffer_start_ptr = buffer;
 
     pthread_mutex_lock(&net_engine->net_engine_mutex);
