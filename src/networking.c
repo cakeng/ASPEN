@@ -1,6 +1,7 @@
 #include "networking.h"
 #include <errno.h>
 
+
 void *net_tx_thread_runtime (void* thread_info) 
 {
     networking_engine *net_engine = (networking_engine*) thread_info;
@@ -404,6 +405,7 @@ void receive(networking_engine *net_engine) {
 
                 char* buffer = malloc(total_bytes);
                 bzero(buffer, total_bytes);
+
 
                 while(total_bytes - recv_bytes)
                 {

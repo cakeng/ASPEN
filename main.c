@@ -5,6 +5,7 @@
 #include "apu.h"
 #include "networking.h"
 
+int total_transferred = 0;
 
 int main(int argc, char **argv)
 {
@@ -97,5 +98,7 @@ int main(int argc, char **argv)
     rpool_destroy (rpool);
     apu_destroy_nasm (resnet50_nasm);
     apu_destroy_dnn (resnet50_dnn);
+
+    printf("total transferred: %d\n", total_transferred);
     return 0;
 }

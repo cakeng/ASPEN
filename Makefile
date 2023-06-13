@@ -74,6 +74,10 @@ $(OBJDIR)%.o: %.cu $(DEPS)
 obj:
 	mkdir -p obj
 
+test:
+	$(CC) test_transfer_rx.c -o test_transfer_rx.out
+	$(CC) test_transfer_tx.c -o test_transfer_tx.out
+
 clean:
 	rm -rf $(TARGET) $(OBJS)
 
