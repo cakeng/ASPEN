@@ -5,7 +5,7 @@ OBJECTS+=rpool.o dse.o naive_kernels.o tiled_kernels.o avx2_kernels.o neon_kerne
 AVX2=1
 NEON=0
 GPU=0
-DEBUG=0
+DEBUG=1
 SUPPRESS_OUTPUT=1
 
 CC=gcc
