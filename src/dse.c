@@ -1,4 +1,5 @@
 #include "dse.h"
+#include "../testconfig.h"
 
 static _Atomic unsigned int dse_thread_id_counter = 0;
 
@@ -24,7 +25,7 @@ void *dse_thread_runtime (void* thread_info)
             // unsigned int fetch_num = 
             //     rpool_fetch_ninsts (dse->rpool, dse->scratchpad, dse_NINST_CACHE_BALLANCE - dse->ninst_cache->num_stored);
             // push_ninsts_to_queue (dse->ninst_cache, dse->scratchpad, fetch_num);
-            // PRT ("Thread %d fetched %d ninsts from rpool\n", dse->thread_id, fetch_num);
+            // PRT ("Thread %d fetched ninst idx %d from rpool\n", dse->thread_id, dse->target->ninst_idx);
             // #ifdef DEBUG
             // PRT ("Thread %d fetched %d ninsts from rpool\n", dse->thread_id, fetch_num);
             // print_rpool_info (dse->rpool);
@@ -74,7 +75,7 @@ void *dse_thread_runtime (void* thread_info)
             // Execute.
             ninst_t *ninst = dse->target;
             dse->target = NULL;
-            #ifdef DEBUG 
+            #ifdef DEBUG_ 
             if (ninst->state != NINST_READY)
             {
                 FPRT (stderr, "Error: ninst->state != NINST_READY in dse_thread_runtime()\n");
@@ -136,7 +137,7 @@ void *dse_thread_runtime (void* thread_info)
                     //     dse->thread_id, ninst->ldata->layer->layer_idx, ninst->ldata->nasm->nasm_id);
                     nasm_t *nasm = ninst->ldata->nasm;
                     unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
-                    if (num_ldata_completed == nasm->num_ldata - 1)
+                    if (num_ldata_completed == nasm->num_ldata - 2)
                     {
                         // printf ("\t\tSignaling nasm completion...\n");
                         // All layers of the nasm is completed.
@@ -149,7 +150,32 @@ void *dse_thread_runtime (void* thread_info)
                     }
                 }
             // update_children_to_cache (dse->ninst_cache, ninst);
+                /* ORIGINAL */
                 update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
+
+                /* COLLABORATIVE PIPELINING */
+                // ninst_t **cache = dse->scratchpad;
+                // unsigned int num_cache = 0;
+                // for (int i = 0; i < ninst->num_child_ninsts; i++)
+                // {
+                //     ninst_t *child_ninst = ninst->child_ninst_arr[i];
+                //     unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
+                //     if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
+                //     {
+                //         child_ninst->state = NINST_READY;
+                //         networking_engine *net_engine = dse->net_engine;
+                //         pthread_mutex_lock(&net_engine->net_engine_mutex);
+                //         push_ninsts_to_net_queue(net_engine->net_queue, child_ninst, 1);
+                //         pthread_mutex_unlock(&net_engine->net_engine_mutex);
+                //     }
+                // }
+                // if (ninst->ninst_idx == 25) {
+                //     networking_engine *net_engine = dse->net_engine;
+                //     pthread_mutex_lock(&net_engine->net_engine_mutex);
+                //     push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
+                //     pthread_mutex_unlock(&net_engine->net_engine_mutex);
+                // }
+
             }
             else // For offloading
             {
@@ -329,7 +355,8 @@ unsigned int dse_check_nasm_completion (nasm_t *nasm)
         assert (0);
     }
     #endif
-    if (atomic_load(&nasm->num_ldata_completed) == nasm->num_ldata)
+    // if (atomic_load(&nasm->num_ldata_completed) == nasm->num_ldata)
+    if (atomic_load(&nasm->num_ldata_completed) == nasm->num_ldata - 1)
         return 1;
         
     return 0;
@@ -427,7 +454,7 @@ void update_children (rpool_t *rpool, ninst_t *ninst, unsigned int dse_idx)
         unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
         if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
         {
-            #ifdef DEBUG
+            #ifdef DEBUG_
             if (child_ninst->state != NINST_NOT_READY)
             {
                 FPRT (stderr, "Error: child_ninst->state != NINST_NOT_READY in dse_update_children()\n");

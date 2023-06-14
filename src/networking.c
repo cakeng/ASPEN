@@ -1,6 +1,7 @@
 #include "networking.h"
 #include <errno.h>
 
+#include "../testconfig.h"
 
 void *net_tx_thread_runtime (void* thread_info) 
 {
@@ -258,7 +259,8 @@ unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ni
         const unsigned int W = networking_queue->ninst_ptr_arr[i]->tile_dims[OUT_W];
         const unsigned int H = networking_queue->ninst_ptr_arr[i]->tile_dims[OUT_H];
         
-        for (; num_ninsts < networking_queue->num_stored; num_ninsts++)
+        // for (; num_ninsts < networking_queue->num_stored; num_ninsts++)
+        for (; num_ninsts < 1; num_ninsts++)
         {
             if (num_ninsts >= max_ninsts_to_get)
                 break;
@@ -366,6 +368,7 @@ void transmission(networking_engine *net_engine)
             unsigned int sent_bytes = 0;
 
             send(net_engine->tx_sock, (char*)&target_ninst->ninst_idx, sizeof(int), 0);
+            printf("send ninst idx %d\n", target_ninst->ninst_idx);
             
             while(total_bytes - sent_bytes) {
                 sent_bytes += send(net_engine->tx_sock, buffer_start_ptr, total_bytes, 0);
@@ -502,11 +505,31 @@ void add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_f
     }
 
     nasm_ldata_t *ldata = &nasm->ldata_arr[0];
-    for (int i = 0; i < ldata->num_ninst; i++)
+    /* ORIGINAL */
+    // for (int i = 0; i < ldata->num_ninst; i++)
+    // {
+    //     ninst_t *ninst = &ldata->ninst_arr_start[i];
+    //     ninst->offloaded = 1; // For offloading temporary        
+    //     // push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
+    //     ninst->state = NINST_READY;
+    //     rpool_push_ninsts(net_engine->rpool, &ninst, 1, 0);
+    // }
+
+    /* COLLABORATIVE PIPELINING */
+    int ninst_div_idx = (int)(ldata->num_ninst * OFFLOAD_RATIO);
+    for (int i = 0; i < ninst_div_idx; i++)
     {
         ninst_t *ninst = &ldata->ninst_arr_start[i];
+        printf("pushed ninst %d as offload\n", ninst->ninst_idx);
         ninst->offloaded = 1; // For offloading temporary        
-        // push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
+        ninst->state = NINST_READY;
+        rpool_push_ninsts(net_engine->rpool, &ninst, 1, 0);
+    }
+    for (int i = ldata->num_ninst - 1; i >= ninst_div_idx; i--)
+    {
+        ninst_t *ninst = &ldata->ninst_arr_start[i];
+        printf("pushed ninst %d as compute\n", ninst->ninst_idx);
+        ninst->offloaded = 0; // For offloading temporary
         ninst->state = NINST_READY;
         rpool_push_ninsts(net_engine->rpool, &ninst, 1, 0);
     }
