@@ -345,6 +345,13 @@ void transmission(networking_engine *net_engine)
     void* buffer_start_ptr = buffer;
 
     pthread_mutex_lock(&net_engine->net_engine_mutex);
+    struct timeval sleep_start, sleep_now;
+    gettimeofday(&sleep_start, NULL);
+    while (1) {
+        int sleep_usec =50000;
+        gettimeofday(&sleep_now, NULL);
+        if (sleep_start.tv_sec*1e6 + sleep_start.tv_usec + sleep_usec < sleep_now.tv_sec*1e6 + sleep_now.tv_usec) break;
+    }
     num_ninsts = pop_ninsts_from_net_queue(net_engine->net_queue, target_ninst_list, (char*)buffer, 4);
     pthread_mutex_unlock(&net_engine->net_engine_mutex);
 
