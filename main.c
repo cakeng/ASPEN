@@ -61,7 +61,7 @@ int main(int argc, char **argv)
 
     if(sock_type == SOCK_RX || sock_type == SOCK_TX) 
     {
-        net_engine = init_networking(target_nasm, rpool, sock_type, "192.168.1.167", 3786, 0, sequential);
+        net_engine = init_networking(target_nasm, rpool, sock_type, "192.168.1.176", 3786, 0, sequential);
         dse_group_set_net_engine(dse_group, net_engine);
         net_engine->dse_group = dse_group;
         

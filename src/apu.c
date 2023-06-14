@@ -144,9 +144,9 @@ aspen_tensor_t *init_aspen_tensor (unsigned int *params_arr, LAYER_PARAMS *order
     {
         if (params_arr[order[i]] <= 0) 
             continue;
-        new_tensor->data_dim_order[idx] = order[idx];
-        new_tensor->dims[order[idx]] = params_arr[order[idx]];
-        new_tensor->num_elements *= new_tensor->dims[order[idx]];
+        new_tensor->data_dim_order[idx] = order[i];
+        new_tensor->dims[order[i]] = params_arr[order[i]];
+        new_tensor->num_elements *= new_tensor->dims[order[i]];
         idx++;
     }
     return new_tensor;
