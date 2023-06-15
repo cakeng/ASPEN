@@ -1,5 +1,6 @@
 #include "dse.h"
 extern int socket_type_global;
+extern int division_idx;
 
 static _Atomic unsigned int dse_thread_id_counter = 0;
 
@@ -171,7 +172,7 @@ void *dse_thread_runtime (void* thread_info)
                             pthread_mutex_unlock(&net_engine->net_engine_mutex);
                         }
                     }
-                    if (ninst->ninst_idx == 25) {
+                    if (ninst->ninst_idx == division_idx) {
                         networking_engine *net_engine = dse->net_engine;
                         pthread_mutex_lock(&net_engine->net_engine_mutex);
                         push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);

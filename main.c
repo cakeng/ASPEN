@@ -8,6 +8,7 @@
 
 int total_transferred = 0;
 int socket_type_global;
+int division_idx;
 
 int main(int argc, char **argv)
 {

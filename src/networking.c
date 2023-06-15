@@ -4,6 +4,7 @@
 #include "../testconfig.h"
 
 extern int socket_type_global;
+extern int division_idx;
 
 void *net_tx_thread_runtime (void* thread_info) 
 {
@@ -540,6 +541,7 @@ void add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_f
             ninst->state = NINST_READY;
             rpool_push_ninsts(net_engine->rpool, &ninst, 1, 0);
         }
+        division_idx = ninst_div_idx;
     }
     
     aspen_free (data); 
