@@ -3,6 +3,8 @@
 
 #include "../testconfig.h"
 
+extern int socket_type_global;
+
 void *net_tx_thread_runtime (void* thread_info) 
 {
     networking_engine *net_engine = (networking_engine*) thread_info;

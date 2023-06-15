@@ -7,6 +7,7 @@
 #include "testconfig.h"
 
 int total_transferred = 0;
+int socket_type_global;
 
 int main(int argc, char **argv)
 {

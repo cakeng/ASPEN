@@ -1,5 +1,5 @@
 #include "dse.h"
-#include "../testconfig.h"
+extern int socket_type_global;
 
 static _Atomic unsigned int dse_thread_id_counter = 0;
 
