@@ -260,7 +260,8 @@ unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ni
         const unsigned int H = networking_queue->ninst_ptr_arr[i]->tile_dims[OUT_H];
         
         // for (; num_ninsts < networking_queue->num_stored; num_ninsts++)
-        for (; num_ninsts < 1; num_ninsts++)
+        int batch_size = networking_queue->num_stored < 5 ? networking_queue->num_stored : 5;
+        for (; num_ninsts < batch_size; num_ninsts++)
         {
             if (num_ninsts >= max_ninsts_to_get)
                 break;
@@ -506,33 +507,33 @@ void add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_f
 
     nasm_ldata_t *ldata = &nasm->ldata_arr[0];
     /* ORIGINAL */
-    // for (int i = 0; i < ldata->num_ninst; i++)
+    for (int i = 0; i < ldata->num_ninst; i++)
+    {
+        ninst_t *ninst = &ldata->ninst_arr_start[i];
+        ninst->offloaded = 1; // For offloading temporary        
+        // push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
+        ninst->state = NINST_READY;
+        rpool_push_ninsts(net_engine->rpool, &ninst, 1, 0);
+    }
+
+    /* COLLABORATIVE PIPELINING */
+    // int ninst_div_idx = (int)(ldata->num_ninst * OFFLOAD_RATIO);
+    // for (int i = 0; i < ninst_div_idx; i++)
     // {
     //     ninst_t *ninst = &ldata->ninst_arr_start[i];
+    //     printf("pushed ninst %d as offload\n", ninst->ninst_idx);
     //     ninst->offloaded = 1; // For offloading temporary        
-    //     // push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
     //     ninst->state = NINST_READY;
     //     rpool_push_ninsts(net_engine->rpool, &ninst, 1, 0);
     // }
-
-    /* COLLABORATIVE PIPELINING */
-    int ninst_div_idx = (int)(ldata->num_ninst * OFFLOAD_RATIO);
-    for (int i = 0; i < ninst_div_idx; i++)
-    {
-        ninst_t *ninst = &ldata->ninst_arr_start[i];
-        printf("pushed ninst %d as offload\n", ninst->ninst_idx);
-        ninst->offloaded = 1; // For offloading temporary        
-        ninst->state = NINST_READY;
-        rpool_push_ninsts(net_engine->rpool, &ninst, 1, 0);
-    }
-    for (int i = ldata->num_ninst - 1; i >= ninst_div_idx; i--)
-    {
-        ninst_t *ninst = &ldata->ninst_arr_start[i];
-        printf("pushed ninst %d as compute\n", ninst->ninst_idx);
-        ninst->offloaded = 0; // For offloading temporary
-        ninst->state = NINST_READY;
-        rpool_push_ninsts(net_engine->rpool, &ninst, 1, 0);
-    }
+    // for (int i = ldata->num_ninst - 1; i >= ninst_div_idx; i--)
+    // {
+    //     ninst_t *ninst = &ldata->ninst_arr_start[i];
+    //     printf("pushed ninst %d as compute\n", ninst->ninst_idx);
+    //     ninst->offloaded = 0; // For offloading temporary
+    //     ninst->state = NINST_READY;
+    //     rpool_push_ninsts(net_engine->rpool, &ninst, 1, 0);
+    // }
     
     aspen_free (data); 
 }

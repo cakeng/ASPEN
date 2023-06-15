@@ -29,7 +29,8 @@ int main(int argc, char **argv)
     
     char* file_name;
     if(sequential) file_name = sock_type == SOCK_RX ? "./logs/sequential_ninst_time_logs_RX.csv" : "./logs/sequential_ninst_time_logs_TX.csv";
-    else file_name = sock_type == SOCK_RX ? "./logs/pipeline_ninst_time_logs_RX.csv" : "./logs/pipeline_ninst_time_logs_TX.csv";
+    else if (sock_type != 999) file_name = sock_type == SOCK_RX ? "./logs/pipeline_ninst_time_logs_RX.csv" : "./logs/pipeline_ninst_time_logs_TX.csv";
+    else file_name = "./logs/local_logs.csv";
     
     
     FILE *log_fp = fopen(file_name, "w");
@@ -54,7 +55,7 @@ int main(int argc, char **argv)
     target_nasm = vgg16_nasm;
 
     rpool_t *rpool = rpool_init (gpu);
-    dse_group_t *dse_group = dse_group_init (8, gpu);
+    dse_group_t *dse_group = dse_group_init (16, gpu);
     dse_group_set_rpool (dse_group, rpool);
     networking_engine* net_engine = NULL;
 
