@@ -151,30 +151,33 @@ void *dse_thread_runtime (void* thread_info)
                 }
             // update_children_to_cache (dse->ninst_cache, ninst);
                 /* ORIGINAL */
-                update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
+                if (socket_type_global != SOCK_TX)
+                    update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
 
                 /* COLLABORATIVE PIPELINING */
-                // ninst_t **cache = dse->scratchpad;
-                // unsigned int num_cache = 0;
-                // for (int i = 0; i < ninst->num_child_ninsts; i++)
-                // {
-                //     ninst_t *child_ninst = ninst->child_ninst_arr[i];
-                //     unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
-                //     if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
-                //     {
-                //         child_ninst->state = NINST_READY;
-                //         networking_engine *net_engine = dse->net_engine;
-                //         pthread_mutex_lock(&net_engine->net_engine_mutex);
-                //         push_ninsts_to_net_queue(net_engine->net_queue, child_ninst, 1);
-                //         pthread_mutex_unlock(&net_engine->net_engine_mutex);
-                //     }
-                // }
-                // if (ninst->ninst_idx == 25) {
-                //     networking_engine *net_engine = dse->net_engine;
-                //     pthread_mutex_lock(&net_engine->net_engine_mutex);
-                //     push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
-                //     pthread_mutex_unlock(&net_engine->net_engine_mutex);
-                // }
+                else {
+                    ninst_t **cache = dse->scratchpad;
+                    unsigned int num_cache = 0;
+                    for (int i = 0; i < ninst->num_child_ninsts; i++)
+                    {
+                        ninst_t *child_ninst = ninst->child_ninst_arr[i];
+                        unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
+                        if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
+                        {
+                            child_ninst->state = NINST_READY;
+                            networking_engine *net_engine = dse->net_engine;
+                            pthread_mutex_lock(&net_engine->net_engine_mutex);
+                            push_ninsts_to_net_queue(net_engine->net_queue, child_ninst, 1);
+                            pthread_mutex_unlock(&net_engine->net_engine_mutex);
+                        }
+                    }
+                    if (ninst->ninst_idx == 25) {
+                        networking_engine *net_engine = dse->net_engine;
+                        pthread_mutex_lock(&net_engine->net_engine_mutex);
+                        push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
+                        pthread_mutex_unlock(&net_engine->net_engine_mutex);
+                    }
+                }
 
             }
             else // For offloading

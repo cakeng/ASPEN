@@ -4,6 +4,7 @@
 #include "nasm.h"
 #include "apu.h"
 #include "networking.h"
+#include "testconfig.h"
 
 int total_transferred = 0;
 
@@ -26,6 +27,7 @@ int main(int argc, char **argv)
         if(sequential > 0) printf("Offloading mode: [Sequential]\n");
         else printf("Offloading mode: [Pipelining]\n");
     }
+    socket_type_global = sock_type;
     
     char* file_name;
     if(sequential) file_name = sock_type == SOCK_RX ? "./logs/sequential_ninst_time_logs_RX.csv" : "./logs/sequential_ninst_time_logs_TX.csv";
