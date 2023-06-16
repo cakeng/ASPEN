@@ -1,293 +1,103 @@
+#include <stdio.h>
 #include "aspen.h"
-#include "apu.h"
+#include "util.h"
 #include "nasm.h"
-#include "dse.h"
+#include "apu.h"
 
-double get_sec()
-{
-    struct timeval now;
-    gettimeofday (&now, NULL);
-    return now.tv_sec + now.tv_usec*1e-6;
-}
+//gettimeofday
+int main(int argc,char ** argv) {
 
-void softmax (float *input, float *output, unsigned int num_batch, unsigned int num_elements)
-{
-    for (int i = 0; i < num_batch; i++)
-    {
-        float max = input[i * num_elements];
-        for (int j = 1; j < num_elements; j++)
-        {
-            if (input[i * num_elements + j] > max)
-                max = input[i * num_elements + j];
-        }
-        float sum = 0;
-        for (int j = 0; j < num_elements; j++)
-        {
-            output[i * num_elements + j] = expf (input[i * num_elements + j] - max);
-            sum += output[i * num_elements + j];
-        }
-        for (int j = 0; j < num_elements; j++)
-            output[i * num_elements + j] /= sum;
-    }
-}
-
-void get_prob_results (char *class_data_path, float* probabilities, unsigned int num)
-{
-    int buffer_length = 256;
-    char buffer[num][buffer_length];
-    FILE *fptr = fopen(class_data_path, "r");
-    if (fptr == NULL)
-        assert (0);
-    for (int i = 0; i < num; i++)
-    {
-        void *tmp = fgets(buffer[i], buffer_length, fptr);
-        if (tmp == NULL)
-            assert (0);
-        for (char *ptr = buffer[i]; *ptr != '\0'; ptr++)
-        {
-            if (*ptr == '\n')
-            {
-                *ptr = '\0';
-            }
-        }
-    }
-    fclose(fptr);
-    printf ("Results:\n");
-    for (int i = 0; i < 5; i++)
-    {
-        float max_val = -INFINITY;
-        int max_idx = 0;
-        for (int j = 0; j < num; j++)
-        {
-            if (max_val < *(probabilities + j))
-            {
-                max_val = *(probabilities + j);
-                max_idx = j;
-            }
-        }
-        printf ("%d: %s - %2.2f%%\n", i+1, buffer[max_idx], max_val*100);
-        *(probabilities + max_idx) = -INFINITY;
-    }
-}
-
-int main(void)
-{
-    print_aspen_build_info();
-    
     int batch_size = 1;
-    int number_of_iterations = 1;
-    int num_cores = 32;
-    int gpu_idx = 0;
-    char nasm_file_name [1024] = {0};
-
-    aspen_dnn_t *resnet50_dnn = apu_create_dnn("data/cfg/resnet50_aspen.cfg", "data/resnet50_data.bin");
-    apu_save_dnn_to_file (resnet50_dnn, "nasms/resnet50_base.aspen");
-    nasm_t *resnet50_1_nasm = apu_create_nasm (resnet50_dnn, 50, 1);
-    apu_save_nasm_to_file (resnet50_1_nasm, "nasms/resnet50_B1_CPU.nasm");
-    nasm_t *resnet50_4_nasm = apu_create_nasm (resnet50_dnn, 100, 4);
-    apu_save_nasm_to_file (resnet50_4_nasm, "nasms/resnet50_B4_CPU.nasm");
-    nasm_t *resnet50_32_nasm = apu_create_nasm (resnet50_dnn, 100, 32);
-    apu_save_nasm_to_file (resnet50_32_nasm, "nasms/resnet50_B32_CPU.nasm");
-    nasm_t *resnet50_128_nasm = apu_create_nasm (resnet50_dnn, 100, 128);
-    apu_save_nasm_to_file (resnet50_128_nasm, "nasms/resnet50_B128_CPU.nasm");
-
-    aspen_dnn_t *vgg16_dnn = apu_create_dnn("data/cfg/vgg16_aspen.cfg", "data/vgg16_data.bin");
-    apu_save_dnn_to_file (vgg16_dnn, "nasms/vgg16_base.aspen");
-    nasm_t *vgg16_1_nasm = apu_create_nasm (vgg16_dnn, 50, 1);
-    apu_save_nasm_to_file (vgg16_1_nasm, "nasms/vgg16_B1_CPU.nasm");
-    nasm_t *vgg16_4_nasm = apu_create_nasm (vgg16_dnn, 100, 4);
-    apu_save_nasm_to_file (vgg16_4_nasm, "nasms/vgg16_B4_CPU.nasm");
-    nasm_t *vgg16_8_nasm = apu_create_nasm (vgg16_dnn, 100, 8);
-    apu_save_nasm_to_file (vgg16_8_nasm, "nasms/vgg16_B8_CPU.nasm");
-    nasm_t *vgg16_32_nasm = apu_create_nasm (vgg16_dnn, 100, 32);
-    apu_save_nasm_to_file (vgg16_32_nasm, "nasms/vgg16_B32_CPU.nasm");
-
-    aspen_dnn_t *yolov3_dnn = apu_create_dnn("data/cfg/yolov3_aspen.cfg", "data/yolov3_data.bin");
-    apu_save_dnn_to_file (yolov3_dnn, "nasms/yolov3_base.aspen");
-    nasm_t *yolov3_1_nasm = apu_create_nasm (yolov3_dnn, 100, 1);
-    apu_save_nasm_to_file (yolov3_1_nasm, "nasms/yolov3_B1_CPU.nasm");
-    nasm_t *yolov3_4_nasm = apu_create_nasm (yolov3_dnn, 100, 4);
-    apu_save_nasm_to_file (yolov3_4_nasm, "nasms/yolov3_B4_CPU.nasm");
-    nasm_t *yolov3_8_nasm = apu_create_nasm (yolov3_dnn, 100, 8);
-    apu_save_nasm_to_file (yolov3_8_nasm, "nasms/yolov3_B8_CPU.nasm");
-    nasm_t *yolov3_32_nasm = apu_create_nasm (yolov3_dnn, 100, 32);
-    apu_save_nasm_to_file (yolov3_32_nasm, "nasms/yolov3_B32_CPU.nasm");
-
-    aspen_dnn_t *bert_dnn = apu_create_dnn("data/cfg/bert_base_encoder.cfg", "data/bert_base_data.bin");
-    apu_save_dnn_to_file (bert_dnn, "nasms/bert_base.aspen");
-    nasm_t *bert_1_nasm = apu_create_transformer_nasm (bert_dnn, 50, 1, 128);
-    apu_save_nasm_to_file (bert_1_nasm, "nasms/bert_base_S128_B1_CPU.nasm");
-    nasm_t *bert_2_nasm = apu_create_transformer_nasm (bert_dnn, 100, 8, 128);
-    apu_save_nasm_to_file (bert_2_nasm, "nasms/bert_base_S128_B8_CPU.nasm");
-    nasm_t *bert_3_nasm = apu_create_transformer_nasm (bert_dnn, 100, 1, 480);
-    apu_save_nasm_to_file (bert_3_nasm, "nasms/bert_base_S480_B1_CPU.nasm");
-    nasm_t *bert_4_nasm = apu_create_transformer_nasm (bert_dnn, 100, 8, 480);
-    apu_save_nasm_to_file (bert_4_nasm, "nasms/bert_base_S480_B8_CPU.nasm");
-
-    aspen_dnn_t *bert_large_dnn = apu_create_dnn("data/cfg/bert_large_encoder.cfg", "data/bert_large_data.bin");
-    apu_save_dnn_to_file (bert_large_dnn, "nasms/bert_large_base.aspen");
-    nasm_t *bert_large_1_nasm = apu_create_transformer_nasm (bert_large_dnn, 50, 1, 128);
-    apu_save_nasm_to_file (bert_large_1_nasm, "nasms/bert_large_S128_B1_CPU.nasm");
-    nasm_t *bert_large_2_nasm = apu_create_transformer_nasm (bert_large_dnn, 100, 8, 128);
-    apu_save_nasm_to_file (bert_large_2_nasm, "nasms/bert_large_S128_B8_CPU.nasm");
-    nasm_t *bert_large_3_nasm = apu_create_transformer_nasm (bert_large_dnn, 100, 1, 480);
-    apu_save_nasm_to_file (bert_large_3_nasm, "nasms/bert_large_S480_B1_CPU.nasm");
-    nasm_t *bert_large_4_nasm = apu_create_transformer_nasm (bert_large_dnn, 100, 8, 480);
-    apu_save_nasm_to_file (bert_large_4_nasm, "nasms/bert_large_S480_B8_CPU.nasm");
-
-    aspen_dnn_t *gpt2_124M_dnn = apu_create_dnn("data/cfg/gpt2_124M_encoder.cfg", "data/gpt2_124M_data.bin");
-    apu_save_dnn_to_file (gpt2_124M_dnn, "nasms/gpt2_124M_base.aspen");
-    nasm_t *gpt2_124M_1_nasm = apu_create_transformer_nasm (gpt2_124M_dnn, 50, 1, 128);
-    apu_save_nasm_to_file (gpt2_124M_1_nasm, "nasms/gpt2_124M_S128_B1_CPU.nasm");
-    nasm_t *gpt2_124M_2_nasm = apu_create_transformer_nasm (gpt2_124M_dnn, 100, 1, 256);
-    apu_save_nasm_to_file (gpt2_124M_2_nasm, "nasms/gpt2_124M_S256_B1_CPU.nasm");
-    nasm_t *gpt2_124M_3_nasm = apu_create_transformer_nasm (gpt2_124M_dnn, 100, 1, 512);
-    apu_save_nasm_to_file (gpt2_124M_3_nasm, "nasms/gpt2_124M_S512_B1_CPU.nasm");
-    nasm_t *gpt2_124M_4_nasm = apu_create_transformer_nasm (gpt2_124M_dnn, 100, 1, 1024);
-    apu_save_nasm_to_file (gpt2_124M_4_nasm, "nasms/gpt2_124M_S1024_B1_CPU.nasm");
-
-    // nasm_t *bert_1_nasm = apu_generate_transformer_nasm (bert_dnn, 1, 128, 15, 0);
-    // sprintf (nasm_file_name, "data/bert_B%d_S%d_GPU.nasm", 1, 128);
-    // apu_save_nasm_to_file (bert_1_nasm, nasm_file_name);
-
-    // nasm_t *bert_2_nasm = apu_generate_transformer_nasm (bert_dnn, 1, 480, 15, 0);
-    // sprintf (nasm_file_name, "data/bert_B%d_S%d_GPU.nasm", 1, 480);
-    // apu_save_nasm_to_file (bert_2_nasm, nasm_file_name);
-
-    // nasm_t *bert_3_nasm = apu_generate_transformer_nasm (bert_dnn, 8, 128, 15, 0);
-    // sprintf (nasm_file_name, "data/bert_B%d_S%d_GPU.nasm", 8, 128);
-    // apu_save_nasm_to_file (bert_3_nasm, nasm_file_name);
-
-    // nasm_t *bert_4_nasm = apu_generate_transformer_nasm (bert_dnn, 8, 480, 15, 0);
-    // sprintf (nasm_file_name, "data/bert_B%d_S%d_GPU.nasm", 8, 480);
-    // apu_save_nasm_to_file (bert_4_nasm, nasm_file_name);
-
-    // nasm_t *resnet50_4_nasm = apu_generate_nasm (resnet50_dnn, 4, 15, 0);
-    // sprintf (nasm_file_name, "data/resnet50_B%d_GPU.nasm", 4);
-    // apu_save_nasm_to_file (resnet50_4_nasm, nasm_file_name);
-
-    // nasm_t *resnet50_32_nasm = apu_generate_nasm (resnet50_dnn, 32, 15, 0);
-    // sprintf (nasm_file_name, "data/resnet50_B%d_GPU.nasm", 32);
-    // apu_save_nasm_to_file (resnet50_32_nasm, nasm_file_name);
-
-    // nasm_t *resnet50_128_nasm = apu_generate_nasm (resnet50_dnn, 128, 15, 0);
-    // nasm_t *resnet50_128_nasm = apu_create_nasm (resnet50_dnn, 50, 128);
-    // sprintf (nasm_file_name, "data/resnet50_B%d_GPU.nasm", 128);
-    // apu_save_nasm_to_file (resnet50_128_nasm, nasm_file_name);
-
-    // aspen_dnn_t *vgg16_dnn = apu_create_dnn("data/cfg/vgg16_aspen.cfg", "data/vgg16_data.bin");
-    // apu_save_dnn_to_file (vgg16_dnn, "data/vgg16_base.aspen");
-    // nasm_t *vgg16_nasm = apu_generate_nasm (vgg16_dnn, batch_size, 15, 0);
-    // sprintf (nasm_file_name, "data/vgg16_B%d_GPU.nasm", batch_size);
-    // apu_save_nasm_to_file (vgg16_nasm, nasm_file_name);
-
-    // aspen_dnn_t *resnet50_dnn = apu_load_dnn_from_file ("data/resnet50_base.aspen");
-    // nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_B128_GPU.nasm", resnet50_dnn);
-    // nasm_t *resnet50_4_nasm = apu_load_nasm_from_file ("data/resnet50_B4_GPU.nasm", resnet50_dnn);
-    // nasm_t *resnet50_128_nasm = apu_load_nasm_from_file ("data/resnet50_B128_GPU.nasm", resnet50_dnn);
-    // aspen_dnn_t *vgg16_dnn = apu_load_dnn_from_file ("data/vgg16_base.aspen");
-    // nasm_t *vgg16_nasm = apu_load_nasm_from_file ("data/vgg16_B1.nasm", vgg16_dnn);
-
-
-    // rpool_t *rpool = rpool_init (gpu_idx);
-    // dse_group_t *dse_group = dse_group_init (num_cores, gpu_idx);
-    // dse_group_set_rpool (dse_group, rpool);
-    // rpool_add_nasm (rpool, resnet50_nasm, "data/batched_input_128.bin");
-    // rpool_add_nasm (rpool, resnet50_4_nasm, "data/batched_input_128.bin");
-    // rpool_add_nasm (rpool, vgg16_nasm, "data/batched_input_128.bin");
-
-    // print_nasm_info (resnet50_nasm, 0, 0);
-    // print_rpool_info (rpool);
-
-    // double start_time = get_sec();
-    // for (int i = 0; i < number_of_iterations; i++)
-    // {
-    //     rpool_reset (rpool);
-    //     rpool_reset_nasm (rpool, resnet50_nasm);
-    //     // rpool_reset_nasm (rpool, resnet50_4_nasm);
-    //     // rpool_reset_nasm (rpool, vgg16_nasm);
-    //     dse_group_run (dse_group);
-    //     dse_wait_for_nasm_completion (resnet50_nasm);
-    //     // dse_wait_for_nasm_completion (resnet50_4_nasm);
-    //     // dse_wait_for_nasm_completion (vgg16_nasm);
-    //     dse_group_stop (dse_group);
-    // }
-    // double end_time = get_sec();
-    // printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);
+    if (argc > 1)
+    {
+        batch_size = atoi(argv[1]);
+    }
+    int thread_size = 64;
+    if (argc > 2)
+    {
+        thread_size = atoi(argv[2]);
+    }
     
-    // int i = 72;
-    // // gpt2_dnn->layers[7].tensors[WEIGHT_TENSOR]->data = aspen_calloc (1600*1600,4);
-    // unsigned int input_params[NUM_PARAM_ELEMENTS] = {0};
-    // // input_params[BATCH] = 1; input_params[NUM_SEQ] = 128; input_params[NUM_HIDDEN] = 768;
-    // input_params[BATCH] = 1; input_params[OUT_C] = 3; input_params[OUT_H] = 224; input_params[OUT_W] = 224;
-    // // void *dog_data = aspen_load_input ("data/batched_input_128.bin", input_params, sizeof(float));
-    // void *dog_data = aspen_load_input_NHWC ("data/batched_input_128.bin", input_params, sizeof(float));
-    // aspen_init_naive (resnet50_dnn, input_params, dog_data, -1);
-    // get_elapsed_time ("init_naive");
-    // aspen_run_naive (resnet50_dnn, input_params, dog_data, -1);
-    // get_elapsed_time ("run_naive");
-    // printf ("\tLayer %d - Type %s\n", i, layer_type_str[resnet50_dnn->layers[i].type]);
-    // aspen_layer_t *layer = &resnet50_dnn->layers[i];
-    // nasm_ldata_t *ldata = &resnet50_nasm->ldata_arr[i];
-    // assert (ldata->layer == layer);
-    // LAYER_PARAMS output_order[] = {BATCH, MAT_N, MAT_M, 0};
-    // LAYER_PARAMS output_order_nhwc[] = {BATCH, OUT_H, OUT_W, OUT_C};
-    // LAYER_PARAMS output_order_nchw[] = {BATCH, OUT_C, OUT_H, OUT_W};
-    // if (layer->type == K_ATTENTION_LAYER)
-    // {
-    //     output_order [1] = NUM_HEAD; 
-    //     output_order [2] = MAT_N; 
-    //     output_order [3] = MAT_M;
-    // }
-    // void *layer_output = get_aspen_tensor_data 
-    //     (layer->tensors[OUTPUT_TENSOR], output_order_nchw, -1);
-    // void *ldata_output = get_ldata_output (ldata, output_order_nchw);
 
-    // compare_float_tensor (layer_output, ldata_output, 
-    //     input_params[BATCH], layer->params[OUT_C], layer->params[OUT_H],
-    //     layer->params[OUT_W], 1e-2, 1e-4, 20);
+    //third is loop time
+    int loop_time = 1;
+    if (argc > 3)
+    {
+        loop_time = atoi(argv[3]);
+    }
 
 
-    // printf ("Resnet50:\n");
-    // LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
-    // float *layer_output = dse_get_nasm_result (resnet50_nasm, output_order);
-    // float *softmax_output = calloc (1000*batch_size, sizeof(float));
-    // softmax (layer_output, softmax_output, batch_size, 1000);
-    // for (int i = 0; i < batch_size; i++)
-    // {
-    //     get_prob_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
-    // }
-    // free (layer_output);
-    // free (softmax_output);
+    //forth is whether to warm up
+    int warm_up = 0;
+    if (argc > 4)
+    {
+        warm_up = atoi(argv[4]);
+    
+    }
 
-    // printf ("Resnet50_4:\n");
-    // layer_output = dse_get_nasm_result (resnet50_4_nasm, output_order);
-    // softmax_output = calloc (1000*4, sizeof(float));
-    // softmax (layer_output, softmax_output, 4, 1000);
-    // for (int i = 0; i < 4; i++)
-    // {
-    //     get_prob_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
-    // }
-    // free (layer_output);
-    // free (softmax_output);
+    int gpu = -1;
+    nasm_t *bert_nasm;
+    nasm_t *resnet50_nasm;
 
-    // printf ("VGG16:\n");
-    // layer_output = dse_get_nasm_result (vgg16_nasm, output_order);
-    // softmax_output = calloc (1000*batch_size, sizeof(float));
-    // softmax (layer_output, softmax_output, batch_size, 1000);
-    // for (int i = 0; i < batch_size; i++)
-    // {
-    //     get_prob_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
-    // }
-    // free (layer_output);
-    // free (softmax_output);
+    aspen_dnn_t *resnet50_dnn = apu_load_dnn_from_file ("/home/nxc/resnet50_weights/resnet50_bdse.aspen");
+    char *resnet50_nasm_file_name = (char *)malloc(sizeof(char) * 100);
+    sprintf(resnet50_nasm_file_name, "/home/nxc/resnet50_weights/resnet50_B%d.nasm", batch_size);
+        //print model name
+    printf("model name: %s\n", resnet50_nasm_file_name);
+    resnet50_nasm = apu_load_nasm_from_file (resnet50_nasm_file_name, resnet50_dnn);
 
-    // dse_group_destroy (dse_group);
-    // rpool_destroy (rpool);
-    // apu_destroy_nasm (resnet50_nasm);
-    // // apu_destroy_nasm (resnet50_4_nasm);
-    // apu_destroy_dnn (resnet50_dnn);
-    // // apu_destroy_nasm (vgg16_nasm);
-    // // apu_destroy_dnn (vgg16_dnn);
+   
+    rpool_t *rpool = rpool_init (gpu);
+
+    dse_group_t *dse_group = dse_group_init (thread_size, gpu);
+    dse_group_set_rpool (dse_group, rpool);
+
+    rpool_add_nasm (rpool, resnet50_nasm, "data/batched_input_128.bin");
+   
+    get_elapsed_time ("init");
+
+    // dse_cudagraph_run (rpool, bert_nasm);
+    //measure time
+
+    struct timeval start, end;
+    gettimeofday(&start, NULL);
+    
+    
+    dse_group_run (dse_group);
+
+    dse_wait_for_nasm_completion (resnet50_nasm);
+    
+
+    gettimeofday(&end, NULL);
+    // print time in millisecond
+    printf("time: %f ms\n", (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_usec - start.tv_usec) / 1000.0);
+    // float time save time in millisecond
+    float time = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_usec - start.tv_usec) / 1000.0;
+
+    get_elapsed_time ("run_aspen");
+    FILE *file;
+
+    file = fopen("/home/nxc/benchmark/resnet_bench.txt", "a");
+    //add "aspen batchsize threadsize seq_len time"
+   //fprintf(file, "aspen %d %d %d %f\n", batch_size, thread_size, warm_up, time);
+    //LAYER_PARAMS output_order[] = {BATCH, OUT_H, OUT_W, OUT_C};
+    LAYER_PARAMS output_order[] = {BATCH,OUT_H, OUT_W, OUT_C};
+    float *layer_output =  dse_get_nasm_result(resnet50_nasm,output_order);
+
+    float *softmax_output = calloc (1000 * batch_size, sizeof(float));
+    naive_softmax (layer_output, softmax_output, resnet50_nasm->batch_size, 1000);
+    // float *layer_output = get_aspen_tensor_data ((resnet50_dnn->layers + resnet50_dnn->num_layers - 1)->tensors[OUTPUT_TENSOR], output_order);
+    // print_float_array (out, 1000*resnet50_nasm->batch_size, 1000);
+    // print_float_tensor(out, resnet50_nasm->batch_size, 3, 224, 224);
+    for (int i = 0; i < batch_size; i++)
+    {
+       get_probability_results ("/home/nxc/benchmark/tfc/imagenet_classes.txt", softmax_output + 1000*i, 1000);
+    }
+    // Write the line to the file.
+    // Close the file.
+    fclose(file);   
     return 0;
+    
 }
+
+

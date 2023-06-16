@@ -335,7 +335,7 @@ void dse_cudagraph_run (rpool_t *rpool, nasm_t *nasm)
         assert (0);
     }
     rpool_finish_nasm (rpool, nasm);
-    run_cudagraph (nasm);
+    // run_cudagraph (nasm);
 }
 
 void dse_run (dse_t *dse)
