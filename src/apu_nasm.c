@@ -805,8 +805,8 @@ nasm_t *apu_create_transformer_nasm
         {
             ninst_find_parent (&new_nasm->ldata_arr[i].ninst_arr_start[j]);
         }
-        PRT ("APU: Layer %d, parents for %d ninsts found.\n", i, new_nasm->ldata_arr[i].num_ninst);
-
+        PRT ("\tAPU: Graphing layer %d/%d (%2.2f%%).\r", i+1, new_nasm->num_ldata, ((float)(i+1)/(float)new_nasm->num_ldata*100));
+        fflush (stdout);
     }
     PRT ("\n");
     for (int i = 0; i < new_nasm->num_ldata; i++)
@@ -816,7 +816,6 @@ nasm_t *apu_create_transformer_nasm
         {
             set_child_list (&new_nasm->ldata_arr[i].ninst_arr_start[j]);
         }
-        PRT ("Layer %d, children for %d ninsts found.\n", i, new_nasm->ldata_arr[i].num_ninst);
     }
     PRT ("\n");
     // Calculate total flops
