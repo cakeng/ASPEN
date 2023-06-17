@@ -202,10 +202,6 @@ int main(int argc,char ** argv) {
 
     rpool_add_nasm (rpool, resnet50_nasm, "../models/bert_large_weights/bert_large_data.bin");
    
-    get_elapsed_time ("init");
-
-
-
     struct timeval start, end;
     gettimeofday(&start, NULL);
     
@@ -221,7 +217,6 @@ int main(int argc,char ** argv) {
     // float time save time in millisecond
     float time = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_usec - start.tv_usec) / 1000.0;
 
-    get_elapsed_time ("run_aspen");
     FILE *file;
     if (model == RESNET){
         if(hardware == USE_CPU)
