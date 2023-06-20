@@ -364,7 +364,7 @@ void transmission(networking_engine *net_engine)
 
             send(net_engine->tx_sock, (char*)&target_ninst->ninst_idx, sizeof(int), 0);
 
-            printf("send ninst %d\n", target_ninst->ninst_idx);
+            // printf("send ninst %d\n", target_ninst->ninst_idx);
             
             while(total_bytes - sent_bytes) {
                 sent_bytes += send(net_engine->tx_sock, buffer_start_ptr, total_bytes, 0);
@@ -401,7 +401,7 @@ void receive(networking_engine *net_engine) {
         }
         for(int i = 0; i < net_engine->nasm->num_ninst; i++) {
             if(i == recv_ninst_idx) {
-                printf("recv ninst %d\n", recv_ninst_idx);
+                // printf("recv ninst %d\n", recv_ninst_idx);
                 target_ninst = &net_engine->nasm->ninst_arr[i];
                 char* out_mat = target_ninst->out_mat;
                 const unsigned int W = target_ninst->tile_dims[OUT_W];

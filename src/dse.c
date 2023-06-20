@@ -91,7 +91,7 @@ void *dse_thread_runtime (void* thread_info)
             }
             if (is_ninst_mine(ninst, dse->device_idx))    // It's mine, so compute
             {
-                printf("compute ninst %d\n", ninst->ninst_idx);
+                // printf("compute ninst %d\n", ninst->ninst_idx);
                 switch (ninst->ldata->layer->type)
                 {
                     case CONV_LAYER:

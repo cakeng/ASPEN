@@ -1,4 +1,5 @@
 TARGET=main
+SUBTARGET=main_scheduling
 ALIB=libasapen.a
 OBJECTS=build_info.o apu.o apu_nasm.o apu_file_io.o input_parser.o darknet_parser.o util.o 
 OBJECTS+=rpool.o dse.o naive_kernels.o tiled_kernels.o avx2_kernels.o neon_kernels.o dse_cudagraph.o networking.o scheduling.o
@@ -53,10 +54,15 @@ INFO_FLAGS+= -DBUILD_INFO_GPU_ARCH="\"$(ARCH)\""
 OBJS= $(addprefix $(OBJDIR), $(OBJECTS))
 EXEOBJSA= $(addsuffix .o, $(TARGET))
 EXEOBJS= $(addprefix $(OBJDIR), $(EXEOBJSA))
+SUBEXEOBJSA= $(addsuffix .o, $(SUBTARGET))
+SUBEXEOBJS= $(addprefix $(OBJDIR), $(SUBEXEOBJSA))
 
-all: obj $(TARGET)
+all: obj $(TARGET) $(SUBTARGET)
 
 $(TARGET): $(EXEOBJS) $(ALIB) 
+	$(CC) $(COMMON) $(CFLAGS) $(OPTS) $^ -o $@ $(LDFLAGS) $(ALIB)
+
+$(SUBTARGET): $(SUBEXEOBJS) $(ALIB) 
 	$(CC) $(COMMON) $(CFLAGS) $(OPTS) $^ -o $@ $(LDFLAGS) $(ALIB)
 
 $(ALIB): $(OBJS)
