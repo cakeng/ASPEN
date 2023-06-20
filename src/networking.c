@@ -252,6 +252,7 @@ unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ni
     #endif
     unsigned int num_ninsts = 0;
     unsigned int i = networking_queue->idx_start;
+    unsigned int buffer_usage = 0;
     
     if(networking_queue->num_stored > 0) 
     {
@@ -262,11 +263,14 @@ unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ni
         {
             if (num_ninsts >= max_ninsts_to_get)
                 break;
+            if (buffer_usage + W * H * sizeof(float) > NETQUEUE_BUFFER_SIZE)
+                break;
             ninst_ptr_list[num_ninsts] = networking_queue->ninst_ptr_arr[i];
             memcpy(buffer, networking_queue->ninst_buf_arr[i], W * H * sizeof(float));
             free(networking_queue->ninst_buf_arr[i]);
             i++;
             buffer += W * H * sizeof(float);
+            buffer_usage += W * H * sizeof(float);
 
             if (i == networking_queue->max_stored)
                 i = 0;
@@ -341,11 +345,11 @@ void transmission(networking_engine *net_engine)
 {
     ninst_t *target_ninst_list[4];
     unsigned int num_ninsts = 0;
-    void* buffer = malloc(1024 * 1024 * 128);
+    void* buffer = malloc(NETQUEUE_BUFFER_SIZE);
     void* buffer_start_ptr = buffer;
 
     pthread_mutex_lock(&net_engine->net_engine_mutex);
-    num_ninsts = pop_ninsts_from_net_queue(net_engine->net_queue, target_ninst_list, (char*)buffer, 4);
+    num_ninsts = pop_ninsts_from_net_queue(net_engine->net_queue, target_ninst_list, (char*)buffer, 1);
     pthread_mutex_unlock(&net_engine->net_engine_mutex);
 
     if(num_ninsts > 0) {
@@ -498,7 +502,6 @@ void add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_f
     for (int i = 0; i < ldata->num_ninst; i++)
     {
         ninst_t *ninst = &ldata->ninst_arr_start[i];
-        ninst->offloaded = 1; // For offloading temporary        
         // push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
         ninst->state = NINST_READY;
         rpool_push_ninsts(net_engine->rpool, &ninst, 1, 0);

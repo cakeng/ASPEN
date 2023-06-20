@@ -75,14 +75,23 @@ void *dse_thread_runtime (void* thread_info)
             ninst_t *ninst = dse->target;
             dse->target = NULL;
             #ifdef DEBUG 
-            if (ninst->state != NINST_READY)
+            if (ninst->state != NINST_READY && ninst->state != NINST_COMPLETED)
             {
                 FPRT (stderr, "Error: ninst->state != NINST_READY in dse_thread_runtime()\n");
                 assert (0);
             }
             #endif
-            if(!ninst->offloaded)
+            // printf("fetched ninst %d, offload: %d, compute: %d\n", ninst->ninst_idx, ninst->offload, ninst->compute);
+            if(is_ninst_mine(ninst, !dse->device_idx)) // Should be offload
             {
+                networking_engine *net_engine = dse->net_engine;
+                pthread_mutex_lock(&net_engine->net_engine_mutex);
+                push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
+                pthread_mutex_unlock(&net_engine->net_engine_mutex);
+            }
+            if (is_ninst_mine(ninst, dse->device_idx))    // It's mine, so compute
+            {
+                // printf("compute ninst %d\n", ninst->ninst_idx);
                 switch (ninst->ldata->layer->type)
                 {
                     case CONV_LAYER:
@@ -150,13 +159,6 @@ void *dse_thread_runtime (void* thread_info)
                 }
             // update_children_to_cache (dse->ninst_cache, ninst);
                 update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
-            }
-            else // For offloading
-            {
-                networking_engine *net_engine = dse->net_engine;
-                pthread_mutex_lock(&net_engine->net_engine_mutex);
-                push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
-                pthread_mutex_unlock(&net_engine->net_engine_mutex);
             }
         // }
     }
@@ -227,6 +229,19 @@ void dse_group_set_net_engine (dse_group_t *dse_group, networking_engine *net_en
     for (int i = 0; i < dse_group->num_ases; i++)
     {
         dse_group->dse_arr[i].net_engine = net_engine;
+    }
+}
+
+void dse_group_set_device (dse_group_t *dse_group, int device_idx)
+{
+    if (dse_group == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_set_device: dse_group is NULL\n");
+        assert (0);
+    }
+    for (int i = 0; i < dse_group->num_ases; i++)
+    {
+        dse_group->dse_arr[i].device_idx = device_idx;
     }
 }
 

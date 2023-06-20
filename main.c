@@ -53,6 +53,7 @@ int main(int argc, char **argv)
     target_dnn = vgg16_dnn;
     target_nasm = vgg16_nasm;
 
+    init_partial_offload(target_nasm, 0.1);
     rpool_t *rpool = rpool_init (gpu);
     dse_group_t *dse_group = dse_group_init (8, gpu);
     dse_group_set_rpool (dse_group, rpool);

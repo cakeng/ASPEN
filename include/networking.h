@@ -9,8 +9,8 @@
 #include <netinet/in.h>
 
 
-#define INIT_QUEUE_SIZE 1024
-#define NETQUEUE_BUFFER_SIZE 1024 * 10
+#define INIT_QUEUE_SIZE 1024 * 128 * 4
+#define NETQUEUE_BUFFER_SIZE 1024 * 1024 * 32
 
 struct networking_queue_t
 {
