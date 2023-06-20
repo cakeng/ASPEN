@@ -92,6 +92,7 @@ void *dse_thread_runtime (void* thread_info)
             if (is_ninst_mine(ninst, dse->device_idx))    // It's mine, so compute
             {
                 // printf("compute ninst %d\n", ninst->ninst_idx);
+                if (dse->profile_compute) ninst->compute_start = get_time_secs();
                 switch (ninst->ldata->layer->type)
                 {
                     case CONV_LAYER:
@@ -136,6 +137,7 @@ void *dse_thread_runtime (void* thread_info)
                 }
 
                 ninst->computed_time = get_time_secs();
+                if (dse->profile_compute) ninst->compute_end = ninst->computed_time;
             
                 ninst->state = NINST_COMPLETED;
                 unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
@@ -242,6 +244,19 @@ void dse_group_set_device (dse_group_t *dse_group, int device_idx)
     for (int i = 0; i < dse_group->num_ases; i++)
     {
         dse_group->dse_arr[i].device_idx = device_idx;
+    }
+}
+
+void dse_group_set_profile (dse_group_t *dse_group, int profile_compute)
+{
+    if (dse_group == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_set_device: dse_group is NULL\n");
+        assert (0);
+    }
+    for (int i = 0; i < dse_group->num_ases; i++)
+    {
+        dse_group->dse_arr[i].profile_compute = profile_compute;
     }
 }
 

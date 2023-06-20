@@ -41,6 +41,8 @@ struct dse_t
     int device_idx;
 
     int gpu_idx;
+
+    int profile_compute;
 };
 
 void dse_init (dse_t *dse, int gpu_idx);
@@ -51,6 +53,7 @@ void dse_stop (dse_t *dse);
 
 void dse_group_set_net_engine (dse_group_t *dse_group, networking_engine *net_engine);
 void dse_group_set_device (dse_group_t *dse_group, int device_idx);
+void dse_group_set_profile (dse_group_t *dse_group, int profile_compute);
 
 void update_children_to_cache_but_prioritize_dse_target (rpool_queue_t *cache, ninst_t *ninst, ninst_t **dse_target);
 void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst);

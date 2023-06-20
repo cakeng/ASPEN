@@ -84,6 +84,12 @@ struct ninst_t
     float recved_time;
     float sent_time;
 
+    // For Scheduling
+    float compute_start;
+    float compute_end;
+    float send_from_here;
+    float recv_from_other;
+
     #ifdef GPU
     cudaGraphNode_t cudagraph_node;
     #endif

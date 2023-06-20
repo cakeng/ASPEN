@@ -26,6 +26,20 @@ typedef enum {
     HEFT_SYNC
 } schedule_meta_type_t;
 
+typedef struct ninst_profile_t {
+    int idx;
+    int total;
+    int transmit_size;
+    float computation_time;
+    
+} ninst_profile_t;
+
+typedef struct network_profile_t {
+    float sync;     // add to tx_timestamp then becomes rx_timestamp
+    float rtt;
+    float transmit_rate;
+} network_profile_t;
+
 /*
 typedef struct device_t {
     int idx;
@@ -80,8 +94,11 @@ typedef struct schedule_meta_t {
 
 int is_ninst_mine(ninst_t *ninst, int device_idx);
 
+void init_full_local(nasm_t *nasm);
 void init_full_offload(nasm_t *nasm);
 void init_partial_offload(nasm_t *nasm, float compute_ratio);
+
+ninst_profile_t *extract_profile_from_ninsts(nasm_t *nasm);
 
 // void init_heft_devices(device_t **devices, SOCK_TYPE *types, char **ips, int* ports, int num_devices, int my_dev_idx);
 // void init_heft_scheduling(nasm_t *nasm, heft_params_t *heft_params, device_t **devices, int num_devices, int my_dev_idx);

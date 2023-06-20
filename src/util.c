@@ -735,3 +735,21 @@ void save_ninst_log(FILE* log_fp, nasm_t* nasm)
         fprintf(log_fp, "%d,%f,%f,%f\n",ninst->ninst_idx, ninst->computed_time*1000.0, ninst->recved_time*1000.0, ninst->sent_time*1000.0);
     }
 }
+
+ssize_t read_n(int fd, const void *buf, size_t n) {
+    size_t bytes_read = 0;
+    while(bytes_read < n) {
+        bytes_read += read(fd, buf+bytes_read, n-bytes_read);
+    }
+
+    return n;
+}
+
+ssize_t write_n(int fd, const void *buf, size_t n) {
+    size_t bytes_written = 0;
+    while(bytes_written < n) {
+        bytes_written += write(fd, buf+bytes_written, n-bytes_written);
+    }
+
+    return n;
+}

@@ -7,6 +7,16 @@ int is_ninst_mine(ninst_t *ninst, int device_idx) {
     return 0;
 }
 
+void init_full_local(nasm_t *nasm) {
+    for (int i = 0; i < nasm->num_ninst; i++) {
+        ninst_t *ninst = nasm->ninst_arr + i;
+        ninst->alloc_devices[0] = SOCK_TX;
+        for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
+            ninst->alloc_devices[i] = -1;
+        }
+    }
+}
+
 void init_full_offload(nasm_t *nasm) {
     for (int i = 0; i < nasm->num_ninst; i++) {
         ninst_t *ninst = nasm->ninst_arr + i;
@@ -65,6 +75,24 @@ void init_partial_offload(nasm_t *nasm, float compute_ratio) {
             }
         }
     }
+}
+
+ninst_profile_t *extract_profile_from_ninsts(nasm_t *nasm) {
+    ninst_profile_t *result = calloc(nasm->num_ninst, sizeof(ninst_profile_t));
+    for (int i=0; i<nasm->num_ninst; i++) {
+        ninst_t *target_ninst = &(nasm->ninst_arr[i]);
+
+        const unsigned int W = target_ninst->tile_dims[OUT_W];
+        const unsigned int H = target_ninst->tile_dims[OUT_H];    
+        const unsigned int total_bytes = W * H * sizeof(float);
+
+        result[i].idx = i;
+        result[i].total = nasm->num_ninst;
+        result[i].computation_time = target_ninst->compute_end - target_ninst->compute_start;
+        result[i].transmit_size = total_bytes;
+    }
+
+    return result;
 }
 
 /*
