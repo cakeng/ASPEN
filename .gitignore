@@ -6,7 +6,7 @@
 *.pth
 *.tmp
 *.bin
-main
+main*
 *.aspen
 *.nasm
 *.tar

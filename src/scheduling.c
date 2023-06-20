@@ -1,7 +1,10 @@
 #include "scheduling.h"
 
 int is_ninst_mine(ninst_t *ninst, int device_idx) {
-    return ninst->alloc_devices[0] == device_idx || ninst->alloc_devices[1] == device_idx;
+    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
+        if (ninst->alloc_devices[i] == device_idx) return 1;
+    }
+    return 0;
 }
 
 void init_full_offload(nasm_t *nasm) {
@@ -9,11 +12,15 @@ void init_full_offload(nasm_t *nasm) {
         ninst_t *ninst = nasm->ninst_arr + i;
         if (ninst->ldata->layer->layer_idx != nasm->num_ldata - 1) {
             ninst->alloc_devices[0] = SOCK_RX;
-            ninst->alloc_devices[1] = -1;
+            for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
+                ninst->alloc_devices[i] = -1;
+            }
         }
         else {
             ninst->alloc_devices[0] = SOCK_TX;
-            ninst->alloc_devices[1] = -1;
+            for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
+                ninst->alloc_devices[i] = -1;
+            }
         }
     }
 }
@@ -26,29 +33,41 @@ void init_partial_offload(nasm_t *nasm, float compute_ratio) {
         if (ninst->ldata->layer->layer_idx == 0) {  // for the first layer,
             if (ninst->ninst_idx < division_idx) {  // front ninsts are for RX
                 ninst->alloc_devices[0] = SOCK_RX;
-                ninst->alloc_devices[1] = -1;
+                for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
+                ninst->alloc_devices[i] = -1;
+            }
             }
             else if (ninst->ninst_idx > division_idx) { // behind ninsts are for TX
                 ninst->alloc_devices[0] = SOCK_TX;
-                ninst->alloc_devices[1] = -1;
+                for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
+                ninst->alloc_devices[i] = -1;
+            }
             }
             else {  // division ninst is for the both
                 ninst->alloc_devices[0] = SOCK_RX;
                 ninst->alloc_devices[1] = SOCK_TX;
+                for (int i=2; i<SCHEDULE_MAX_DEVICES; i++) {
+                ninst->alloc_devices[i] = -1;
+            }
             }
         }
         else if (ninst->ldata->layer->layer_idx != nasm->num_ldata - 1) {   // intermediate layers are for RX
             ninst->alloc_devices[0] = SOCK_RX;
-            ninst->alloc_devices[1] = -1;
+            for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
+                ninst->alloc_devices[i] = -1;
+            }
         }
         else {  // final layer is for TX -> main.c has its own logic handling final layer
             // ninst->alloc_devices[0] = SOCK_TX;
             ninst->alloc_devices[0] = SOCK_RX;
-            ninst->alloc_devices[1] = -1;
+            for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
+                ninst->alloc_devices[i] = -1;
+            }
         }
     }
 }
 
+/*
 void init_heft_devices(device_t **devices, SOCK_TYPE *types, char **ips, int* ports, int num_devices, int my_dev_idx) {
     device_t *mydev = devices[my_dev_idx];
 
@@ -458,3 +477,4 @@ double profile_ninst_computation(ninst_t *ninst, int num_repeat) {
 
     return end_time - start_time;
 }
+*/

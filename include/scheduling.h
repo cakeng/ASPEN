@@ -1,16 +1,16 @@
 #ifndef _SCHEDULING_H_
 #define _SCHEDULING_H_
 
+#define SCHEDULE_INIT_BUF_SIZE      (1024 * 1024)
+#define PROFILE_REPEAT              4
+#define PROFILE_LONG_MESSAGE_SIZE   (1024 * 64)
+#define SCHEDULE_MAX_DEVICES        4
+
 #include "nasm.h"
-#include "aspen.h"
-#include "dse.h"
 
 #include <float.h>
 #include <limits.h>
 
-#define SCHEDULE_INIT_BUF_SIZE      (1024 * 1024)
-#define PROFILE_REPEAT              4
-#define PROFILE_LONG_MESSAGE_SIZE   (1024 * 64)
 
 typedef enum {
     FULL_OFFLOAD,
@@ -26,6 +26,7 @@ typedef enum {
     HEFT_SYNC
 } schedule_meta_type_t;
 
+/*
 typedef struct device_t {
     int idx;
     SOCK_TYPE type;
@@ -75,16 +76,17 @@ typedef struct schedule_meta_t {
 
     double send_time_sec;
 } schedule_meta_t;
+*/
 
 int is_ninst_mine(ninst_t *ninst, int device_idx);
 
 void init_full_offload(nasm_t *nasm);
 void init_partial_offload(nasm_t *nasm, float compute_ratio);
 
-void init_heft_devices(device_t **devices, SOCK_TYPE *types, char **ips, int* ports, int num_devices, int my_dev_idx);
-void init_heft_scheduling(nasm_t *nasm, heft_params_t *heft_params, device_t **devices, int num_devices, int my_dev_idx);
-void init_cpop_scheduling(nasm_t *nasm, cpop_params_t *cpop_params, device_t **devices, int num_devices, int my_dev_idx);
+// void init_heft_devices(device_t **devices, SOCK_TYPE *types, char **ips, int* ports, int num_devices, int my_dev_idx);
+// void init_heft_scheduling(nasm_t *nasm, heft_params_t *heft_params, device_t **devices, int num_devices, int my_dev_idx);
+// void init_cpop_scheduling(nasm_t *nasm, cpop_params_t *cpop_params, device_t **devices, int num_devices, int my_dev_idx);
 
-double profile_ninst_computation(ninst_t *ninst, int num_repeat);
+// double profile_ninst_computation(ninst_t *ninst, int num_repeat);
 
 #endif
