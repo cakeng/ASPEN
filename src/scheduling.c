@@ -41,8 +41,9 @@ void init_partial_offload(nasm_t *nasm, float compute_ratio) {
             ninst->alloc_devices[0] = SOCK_RX;
             ninst->alloc_devices[1] = -1;
         }
-        else {  // final layer is for TX
-            ninst->alloc_devices[0] = SOCK_TX;
+        else {  // final layer is for TX -> main.c has its own logic handling final layer
+            // ninst->alloc_devices[0] = SOCK_TX;
+            ninst->alloc_devices[0] = SOCK_RX;
             ninst->alloc_devices[1] = -1;
         }
     }

@@ -82,7 +82,7 @@ void *dse_thread_runtime (void* thread_info)
             }
             #endif
             // printf("fetched ninst %d, offload: %d, compute: %d\n", ninst->ninst_idx, ninst->offload, ninst->compute);
-            if(is_ninst_mine(ninst, !dse->device_idx)) // Should be offload
+            if (is_ninst_mine(ninst, !dse->device_idx)) // Should be offload
             {
                 networking_engine *net_engine = dse->net_engine;
                 pthread_mutex_lock(&net_engine->net_engine_mutex);
@@ -91,7 +91,7 @@ void *dse_thread_runtime (void* thread_info)
             }
             if (is_ninst_mine(ninst, dse->device_idx))    // It's mine, so compute
             {
-                // printf("compute ninst %d\n", ninst->ninst_idx);
+                printf("compute ninst %d\n", ninst->ninst_idx);
                 switch (ninst->ldata->layer->type)
                 {
                     case CONV_LAYER:
@@ -145,9 +145,9 @@ void *dse_thread_runtime (void* thread_info)
                     //     dse->thread_id, ninst->ldata->layer->layer_idx, ninst->ldata->nasm->nasm_id);
                     nasm_t *nasm = ninst->ldata->nasm;
                     unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
-                    if (num_ldata_completed == nasm->num_ldata - 1)
+                    if (num_ldata_completed == nasm->num_ldata - 2)
                     {
-                        // printf ("\t\tSignaling nasm completion...\n");
+                        printf ("\t\tSignaling nasm completion...\n");
                         // All layers of the nasm is completed.
                         rpool_queue_group_t *rpool_queue_group 
                             = get_queue_group_from_nasm (dse->rpool, ninst->ldata->nasm);

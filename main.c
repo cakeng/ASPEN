@@ -4,6 +4,7 @@
 #include "nasm.h"
 #include "apu.h"
 #include "networking.h"
+#include "scheduling.h"
 
 int total_transferred = 0;
 
@@ -64,6 +65,7 @@ int main(int argc, char **argv)
     {
         net_engine = init_networking(target_nasm, rpool, sock_type, "192.168.1.176", 3786, 0, sequential);
         dse_group_set_net_engine(dse_group, net_engine);
+        dse_group_set_device(dse_group, sock_type);
         net_engine->dse_group = dse_group;
         
         if(sock_type == SOCK_TX) {

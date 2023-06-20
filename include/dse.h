@@ -9,6 +9,7 @@
 #include "kernels.h"
 #include "cuda_kernels.h"
 #include "networking.h"
+#include "scheduling.h"
 
 #define dse_NINST_CACHE_BALLANCE 1
 #define dse_NINST_CACHE_DIFF 0
