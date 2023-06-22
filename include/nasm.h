@@ -3,6 +3,7 @@
 
 #include "aspen.h"
 #include "scheduling.h"
+#include "profiling.h"
 #include <stdatomic.h>
 #include <netinet/in.h>
 
@@ -89,6 +90,9 @@ struct ninst_t
     float compute_end;
     float send_from_here;
     float recv_from_other;
+
+    float rank_upward;
+    float rank_downward;
 
     #ifdef GPU
     cudaGraphNode_t cudagraph_node;

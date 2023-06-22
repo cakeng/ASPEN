@@ -112,6 +112,12 @@ typedef struct dse_group_t dse_group_t;
 typedef struct networking_engine networking_engine; // Offloading
 typedef struct networking_queue_t networking_queue_t; 
 
+typedef struct ninst_profile_t ninst_profile_t;
+typedef struct network_profile_t network_profile_t;
+
+typedef struct sched_task_t sched_task_t;
+typedef struct sched_processor_t sched_processor_t;
+
 void *aspen_load_input(char *input_filename, unsigned int *input_dims, unsigned int element_size);
 void *aspen_load_input_NHWC(char *input_filename, unsigned int *input_dims, unsigned int element_size);
 void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data, int gpu_idx);
