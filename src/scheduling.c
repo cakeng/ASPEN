@@ -121,7 +121,6 @@ void init_heft(char *target_config, char *target_bin, char *target_nasm_dir, nin
 
     float *EST = calloc(num_device, sizeof(float));
     float *EFT = calloc(num_device, sizeof(float));
-    float *AFT = calloc(num_ninst, sizeof(float));
     int *alloc_dev = calloc(num_ninst, sizeof(int));    // TODO: use for convenience!
 
     for (int i=0; i<num_ninst; i++) {
@@ -132,15 +131,17 @@ void init_heft(char *target_config, char *target_bin, char *target_nasm_dir, nin
             // case of entry task
             const unsigned int total_bytes = target_ninst->tile_dims[OUT_W] * target_ninst->tile_dims[OUT_H] * sizeof(float);
 
-            EST[SOCK_TX] = 0;
-            EST[SOCK_RX] = total_bytes / network_profile->transmit_rate;
 
+            EST[SOCK_TX] = heft_earliest_idle(&(sched_processor_arr[SOCK_TX]), 0, W[i][SOCK_TX]);
             EFT[SOCK_TX] = EST[SOCK_TX] + W[i][SOCK_TX];
+            
+            float avail_RX = heft_earliest_idle(&(sched_processor_arr[SOCK_RX]), 0, W[i][SOCK_RX]);
+            EST[SOCK_RX] = total_bytes / network_profile->transmit_rate > avail_RX ? total_bytes / network_profile->transmit_rate : avail_RX;
             EFT[SOCK_RX] = EST[SOCK_RX] + W[i][SOCK_RX];
 
             // find best processor
             float min_EFT = FLT_MAX;
-            int min_EFT_proc;
+            int min_EFT_proc = -1;
             
             for (int proc=0; proc<num_device; proc++) {
                 if (EFT[proc] < min_EFT) {
@@ -149,9 +150,20 @@ void init_heft(char *target_config, char *target_bin, char *target_nasm_dir, nin
                 }
             }
 
+            if (min_EFT_proc == -1) {
+                PRT("init_heft: min_EFT_proc is -1\n");
+                assert(0);
+            }
+
             // push task into processor min_EFT_proc
-            // record AFT[i] = min_EFT_proc
+            // record AFT[i] = min_EFT_proc : recorded at sched_task_arr[i]
             /* TODO */
+            sched_task_arr[i].processor = &(sched_processor_arr[min_EFT_proc]);
+            sched_task_arr[i].start_time = EST[min_EFT_proc];
+            sched_task_arr[i].end_time = min_EFT;
+
+            heft_push_task(&(sched_processor_arr[min_EFT_proc]), &(sched_task_arr[i]));
+
         }
         else {
             // case of normal task
@@ -165,15 +177,14 @@ void init_heft(char *target_config, char *target_bin, char *target_nasm_dir, nin
                     if (ninst_dependency[parent][i]) {
                         // check data arrival time from a parent
                         sched_task_t *parent_task = &(sched_task_arr[parent]);
-                        float dependency_time = AFT[parent] + L[parent_task->processor->idx] + data[parent_task->processor->idx][proc] / network_profile->transmit_rate;
+                        float dependency_time = sched_task_arr[parent].end_time + L[parent_task->processor->idx] + data[parent_task->processor->idx][proc] / network_profile->transmit_rate;
                         max_dependency_time = max_dependency_time < dependency_time ? dependency_time : max_dependency_time;
                     }
                 }
 
                 // when can processor have big enough idle time?
-                float avail = heft_earliest_idle(&(sched_processor_arr[proc]), max_dependency_time, W[i][proc]);
 
-                EST[proc] = max_dependency_time > avail ? max_dependency_time : avail;
+                EST[proc] = heft_earliest_idle(&(sched_processor_arr[proc]), max_dependency_time, W[i][proc]);
                 EFT[proc] = EST[proc] + W[i][proc];
 
                 if (min_EFT > EFT[proc]) {
@@ -183,10 +194,17 @@ void init_heft(char *target_config, char *target_bin, char *target_nasm_dir, nin
             }
 
             // push task into processor min_EFT_proc at time EST[min_EFT_proc]
-            // record AFT[i] = min_EFT_proc
+            // record AFT[i] = min_EFT_proc : recorded at sched_task_arr[i]
             /* TODO */
+            sched_task_arr[i].processor = &(sched_processor_arr[min_EFT_proc]);
+            sched_task_arr[i].start_time = EST[min_EFT_proc];
+            sched_task_arr[i].end_time = min_EFT;
+
+            heft_push_task(&(sched_processor_arr[min_EFT_proc]), &(sched_task_arr[i]));
         }
     }
+
+
 }
 
 void heft_gen_dependency(nasm_t *nasm, int **dependency) {
@@ -346,6 +364,7 @@ sched_processor_t *heft_init_processor(int num_processor) {
 
     for(int i=0; i<num_processor; i++) {
         result_processor_arr[i].idx = i;
+        result_processor_arr[i].num_task = 0;
         result_processor_arr[i].task_list = calloc(1, sizeof(sched_task_t));
         result_processor_arr[i].task_list->processor = result_processor_arr + i;
         result_processor_arr[i].task_list->idx = -1;
@@ -387,5 +406,29 @@ float heft_earliest_idle(sched_processor_t *sched_processor, float min_limit, fl
         }
 
         return iter_task->end_time;
+    }
+}
+
+void heft_push_task(sched_processor_t *sched_processor, sched_task_t *sched_task) {
+    sched_task_t *iter_task = sched_processor->task_list;
+    sched_processor->num_task++;
+    while(1) {
+        if (iter_task->next == NULL) {
+            // end of schedule - just push
+            iter_task->next = sched_task;
+            sched_task->prev = iter_task;
+            sched_task->next = NULL;
+            return;
+        }
+        else if (iter_task->end_time <= sched_task->start_time && sched_task->end_time < iter_task->next->start_time) {
+            // found space - push
+            iter_task->next->prev = sched_task;
+            sched_task->next = iter_task->next;
+            iter_task->next = sched_task;
+            sched_task->prev = iter_task;
+            return;
+        }
+
+        iter_task = iter_task->next;
     }
 }

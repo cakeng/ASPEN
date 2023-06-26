@@ -50,7 +50,9 @@ int main(int argc, char **argv)
     /** STAGE: PROFILING COMPUTATION **/
 
     printf("STAGE: PROFILING COMPUTATION\n");
-    ninst_profile[sock_type] = profile_computation(target_config, target_bin, target_nasm_dir, target_input, gpu, 1);
+    // ninst_profile[sock_type] = profile_computation(target_config, target_bin, target_nasm_dir, target_input, gpu, 1);
+    ninst_profile[sock_type] = load_computation_profile("./data/vgg16_B1_comp_profile.bin");
+    // save_computation_profile(ninst_profile[sock_type], "data/vgg16_B1_comp_profile.bin");
 
     
     /** STAGE: PROFILING NETWORK **/

@@ -23,5 +23,7 @@ network_profile_t *profile_network(ninst_profile_t **ninst_profile, int sock_typ
 
 ninst_profile_t *extract_profile_from_ninsts(nasm_t *nasm);
 ninst_profile_t *merge_computation_profile(ninst_profile_t **ninst_profiles, int num_ninst_profiles);
+void save_computation_profile(ninst_profile_t *profile, char *file_path);
+ninst_profile_t *load_computation_profile(char *file_path);
 
 #endif

@@ -39,6 +39,7 @@ struct sched_task_t {
 
 struct sched_processor_t {
     int idx;
+    int num_task;
     sched_task_t *task_list;
 };
 
@@ -59,6 +60,11 @@ void gen_rank_upward(nasm_t *nasm, float *W_avg, float **C_avg, int **dependency
 void gen_rank_downward(nasm_t *nasm, float *W_avg, float **C_avg, int **dependency, float *rank_downward);
 float calc_rank_upward_rec(nasm_t *nasm, float *W_avg, float **C_avg, int **dependency, float *rank_upward, int target_idx);
 float calc_rank_downward_rec(nasm_t *nasm, float *W_avg, float **C_avg, int **dependency, float *rank_downward, int target_idx);
+
+sched_processor_t *heft_init_processor(int num_processor);
+sched_task_t *heft_init_task(int num_ninst);
+float heft_earliest_idle(sched_processor_t *sched_processor, float min_limit, float duration);
+void heft_push_task(sched_processor_t *sched_processor, sched_task_t *sched_task);
 
 int compare_by_rank_upward(const void *ninst_1, const void *ninst_2);
 

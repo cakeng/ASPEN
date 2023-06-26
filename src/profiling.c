@@ -215,3 +215,26 @@ ninst_profile_t *merge_computation_profile(ninst_profile_t **ninst_profiles, int
 
     return merged;
 }
+
+void save_computation_profile(ninst_profile_t *profile, char *file_path) {
+    int num_ninst = profile[0].total;
+    void *temp = malloc(sizeof(int) + sizeof(ninst_profile_t) * num_ninst);
+    *((int *)temp) = num_ninst;
+    memcpy((int *)temp + 1, profile, sizeof(ninst_profile_t) * num_ninst);
+    save_arr(temp, file_path, sizeof(int) + sizeof(ninst_profile_t) * num_ninst);
+    free(temp);
+}
+
+ninst_profile_t *load_computation_profile(char *file_path) {
+
+    void *temp = load_arr(file_path, sizeof(int));
+    int num_ninst = *(int *)temp;
+    free(temp);
+
+    ninst_profile_t *result = malloc(sizeof(ninst_profile_t) * num_ninst);
+    temp = load_arr(file_path, sizeof(int) + sizeof(ninst_profile_t) * num_ninst);
+    memcpy(result, (int *)temp + 1, sizeof(ninst_profile_t) * num_ninst);
+    free(temp);
+
+    return result;
+}
