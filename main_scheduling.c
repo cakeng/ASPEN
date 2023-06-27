@@ -62,17 +62,19 @@ int main(int argc, char **argv)
     char *rx_ip = "192.168.1.176";
     int rx_port = 3786;
 
-    network_profile = profile_network(ninst_profile, sock_type, rx_ip, rx_port+1);
+    network_profile = profile_network(ninst_profile, sock_type, rx_ip, rx_port);
     
     
     /** STAGE: SCHEDULING - HEFT **/
 
     printf("STAGE: SCHEUDLING - HEFT\n");
 
-    init_heft(target_config, target_bin, target_nasm_dir, ninst_profile, network_profile, 2);
+    sched_processor_t *schedule = init_heft(target_config, target_bin, target_nasm_dir, ninst_profile, network_profile, 2);
+    save_schedule(schedule, 2, "./temp_sched.txt");
 
     /** STAGE: INFERENCE **/
 
+    
 
     return 0;
 }

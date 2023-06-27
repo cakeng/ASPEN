@@ -1,22 +1,34 @@
 #include "scheduling.h"
 
 int is_ninst_mine(ninst_t *ninst, int device_idx) {
-    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
-        if (ninst->alloc_devices[i] == device_idx) return 1;
-    }
-    return 0;
+    return ninst->alloc_devices[device_idx];
 }
 
 void clear_device_alloc(ninst_t *ninst) {
     for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
-        ninst->alloc_devices[i] = -1;
+        ninst->alloc_devices[i] = 0;
     }
 }
 
 void alloc_device_to_ninst(ninst_t *ninst, int device_idx) {
+    ninst->alloc_devices[device_idx] = 1;
+}
+
+void clear_device_desiring(ninst_t *ninst) {
     for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
-        if (ninst->alloc_devices[i] == -1) {
-            ninst->alloc_devices[i] = device_idx;
+        ninst->desiring_devices[i] = 0;
+    }
+}
+
+void set_desiring_through_alloc(nasm_t *nasm) {
+    for (int i=0; i<nasm->num_ninst; i++) {
+        ninst_t *ninst = nasm->ninst_arr + i;
+        clear_device_desiring(ninst);
+        for (int j=0; j<ninst->num_child_ninsts; j++) {
+            ninst_t *child_ninst = ninst->child_ninst_arr[j];
+            for (int dev=0; dev<SCHEDULE_MAX_DEVICES; dev++) {
+                ninst->desiring_devices[dev] |= child_ninst->alloc_devices[dev];
+            }
         }
     }
 }
@@ -27,6 +39,7 @@ void init_full_local(nasm_t *nasm) {
         clear_device_alloc(ninst);
         alloc_device_to_ninst(ninst, SOCK_TX);
     }
+    set_desiring_through_alloc(nasm);
 }
 
 void init_full_offload(nasm_t *nasm) {
@@ -40,15 +53,22 @@ void init_full_offload(nasm_t *nasm) {
             alloc_device_to_ninst(ninst, SOCK_TX);
         }
     }
+    set_desiring_through_alloc(nasm);
 }
 
 void init_partial_offload(nasm_t *nasm, float compute_ratio) {
-    int division_idx = (int)(nasm->ldata_arr[0].num_ninst * (1 - compute_ratio));
+    int layer_start_ninst_idx = nasm->ldata_arr[1].ninst_arr_start[0].ninst_idx;
+    int layer_end_ninst_idx = layer_start_ninst_idx + nasm->ldata_arr[1].num_ninst;
+    
+    int division_idx = layer_start_ninst_idx + (1-compute_ratio) * (layer_end_ninst_idx - layer_start_ninst_idx);
     printf("division idx: %d\n", division_idx);
     for (int i = 0; i < nasm->num_ninst; i++) {
         ninst_t *ninst = nasm->ninst_arr + i;
         clear_device_alloc(ninst);
-        if (ninst->ldata->layer->layer_idx == 0) {  // for the first layer,
+        if (ninst->ldata->layer->layer_idx == 0) {  // for the input data,
+            alloc_device_to_ninst(ninst, SOCK_TX);  // all inputs are generated from TX
+        }
+        else if (ninst->ldata->layer->layer_idx == 1) { // for the first computation layer,
             if (ninst->ninst_idx < division_idx) {  // front ninsts are for RX
                 alloc_device_to_ninst(ninst, SOCK_RX);
             }
@@ -68,9 +88,10 @@ void init_partial_offload(nasm_t *nasm, float compute_ratio) {
             alloc_device_to_ninst(ninst, SOCK_RX);
         }
     }
+    set_desiring_through_alloc(nasm);
 }
 
-void init_heft(char *target_config, char *target_bin, char *target_nasm_dir, ninst_profile_t **ninst_profile, network_profile_t *network_profile, int num_device) {
+sched_processor_t *init_heft(char *target_config, char *target_bin, char *target_nasm_dir, ninst_profile_t **ninst_profile, network_profile_t *network_profile, int num_device) {
     aspen_dnn_t *target_dnn = apu_create_dnn(target_config, target_bin);
     nasm_t *nasm = apu_load_nasm_from_file (target_nasm_dir, target_dnn);
 
@@ -204,7 +225,7 @@ void init_heft(char *target_config, char *target_bin, char *target_nasm_dir, nin
         }
     }
 
-
+    return sched_processor_arr;
 }
 
 void heft_gen_dependency(nasm_t *nasm, int **dependency) {
@@ -430,5 +451,115 @@ void heft_push_task(sched_processor_t *sched_processor, sched_task_t *sched_task
         }
 
         iter_task = iter_task->next;
+    }
+}
+
+void save_schedule(sched_processor_t *sched_processor_arr, int num_device, char *file_path) {
+    // file structure: ${num_device}\n${num_task}\n${tasks...\n}
+    FILE *fptr = fopen(file_path, "wb");
+    fprintf(fptr, "%d\n", num_device);
+    
+    for (int i=0; i<num_device; i++) {
+        fprintf(fptr, "%d\n", sched_processor_arr[i].num_task);
+
+        sched_task_t *iter_task = sched_processor_arr[i].task_list->next;
+        for (int j=0; j<sched_processor_arr[i].num_task; j++) {
+            fprintf(fptr, "%d\n", iter_task->idx);
+            iter_task = iter_task->next;
+        }
+    }
+
+    fclose (fptr);
+}
+
+sched_processor_t *load_schedule(char *file_path) {
+
+}
+
+void share_schedule(sched_processor_t *sched_processor_arr, int num_device, int sock_type, char *rx_ip, int rx_port) {
+    
+    if (sock_type == SOCK_RX) {
+        int server_sock;
+        int client_sock;
+
+        struct sockaddr_in server_addr;
+        struct sockaddr_in client_addr;
+        
+        int client_addr_size;
+        
+        // open server
+        server_sock = socket(PF_INET, SOCK_STREAM, 0);
+        if (server_sock == -1) {
+            printf("Error: socket() returned -1\n");
+            assert(0);
+        }
+
+        memset(&server_addr, 0, sizeof(server_addr));
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+        server_addr.sin_port = htons(rx_port);
+
+        if (bind(server_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
+            printf("Error: bind() returned -1\n");
+            assert(0);
+        }
+
+        if (listen(server_sock, 5) == -1) {
+            printf("Error: listen() returned -1\n");
+            assert(0);
+        }
+
+        client_addr_size = sizeof(client_addr);
+        client_sock = accept(server_sock, (struct sockaddr*)&client_addr, &client_addr_size);
+        if (client_sock == -1) {
+            printf("Error: accept() returned -1\n");
+            assert(0);
+        }
+
+        for (int i=0; i<num_device; i++) {
+            write_n(client_sock, &(sched_processor_arr[i].num_task), sizeof(int));
+
+            sched_task_t *iter_task = sched_processor_arr[i].task_list->next;
+            for (int j=0; j<sched_processor_arr[i].num_task; j++) {
+                write_n(client_sock, iter_task->idx, sizeof(int));
+                iter_task = iter_task->next;
+            }
+        }
+
+        close(client_sock);
+        close(server_sock);
+
+    }
+    else if (sock_type == SOCK_TX) {
+        int server_sock;
+        struct sockaddr_in server_addr;
+
+        // connect to server
+        server_sock = socket(PF_INET, SOCK_STREAM, 0);
+        if (server_sock == -1) {
+            printf("Error: socket() returned -1\n");
+            assert(0);
+        }
+
+        memset(&server_addr, 0, sizeof(server_addr));
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+        server_addr.sin_port = htons(rx_port);
+
+        if (connect(server_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
+            printf("Error: socket() returned -1\n");
+            assert(0);
+        }
+
+        int buffer;
+
+        read_n(server_sock, &buffer, sizeof(int));
+
+        for (int i=0; i<num_device; i++) {
+            /* TODO: read integer from server, then create and push task into sched_proccessor_arr */
+        }
+
+
+        close(server_sock);
     }
 }

@@ -48,7 +48,7 @@ int is_ninst_mine(ninst_t *ninst, int device_idx);
 void init_full_local(nasm_t *nasm);
 void init_full_offload(nasm_t *nasm);
 void init_partial_offload(nasm_t *nasm, float compute_ratio);
-void init_heft(char *target_config, char *target_bin, char *target_nasm_dir, ninst_profile_t **ninst_profile, network_profile_t *network_profile, int num_device);
+sched_processor_t *init_heft(char *target_config, char *target_bin, char *target_nasm_dir, ninst_profile_t **ninst_profile, network_profile_t *network_profile, int num_device);
 
 void heft_gen_dependency(nasm_t *nasm, int **dependency);
 void heft_gen_data(nasm_t *nasm, ninst_profile_t **ninst_profile, int **dependency, float **data);
@@ -67,5 +67,9 @@ float heft_earliest_idle(sched_processor_t *sched_processor, float min_limit, fl
 void heft_push_task(sched_processor_t *sched_processor, sched_task_t *sched_task);
 
 int compare_by_rank_upward(const void *ninst_1, const void *ninst_2);
+
+void save_schedule(sched_processor_t *sched_processor_arr, int num_device, char *file_path);
+sched_processor_t *load_schedule(char *file_path);
+void share_schedule(sched_processor_t *sched_processor_arr, int num_device, int sock_type, char *rx_ip, int rx_port);
 
 #endif

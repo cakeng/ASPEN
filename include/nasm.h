@@ -65,7 +65,8 @@ struct ninst_t
     unsigned int ninst_idx;
     unsigned int out_mat_pos [2];
     unsigned int tile_dims [2];
-    int alloc_devices [SCHEDULE_MAX_DEVICES];
+    int alloc_devices [SCHEDULE_MAX_DEVICES];       // who will compute this ninst?
+    int desiring_devices [SCHEDULE_MAX_DEVICES];    // who wants the result of this ninst? TODO: manage this
 
     unsigned int *parent_ninst_idx_arr;
     unsigned int num_parent_ninsts;

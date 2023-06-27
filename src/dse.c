@@ -82,13 +82,6 @@ void *dse_thread_runtime (void* thread_info)
             }
             #endif
             // printf("fetched ninst %d, offload: %d, compute: %d\n", ninst->ninst_idx, ninst->offload, ninst->compute);
-            if (is_ninst_mine(ninst, !dse->device_idx)) // Should be offload
-            {
-                networking_engine *net_engine = dse->net_engine;
-                pthread_mutex_lock(&net_engine->net_engine_mutex);
-                push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
-                pthread_mutex_unlock(&net_engine->net_engine_mutex);
-            }
             if (is_ninst_mine(ninst, dse->device_idx))    // It's mine, so compute
             {
                 // printf("compute ninst %d\n", ninst->ninst_idx);
@@ -161,7 +154,16 @@ void *dse_thread_runtime (void* thread_info)
                 }
             // update_children_to_cache (dse->ninst_cache, ninst);
                 update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
-            }
+
+                // check desiring devices for the computation output
+                if (ninst->desiring_devices[!dse->device_idx]) // Should be offload
+                    {
+                        networking_engine *net_engine = dse->net_engine;
+                        pthread_mutex_lock(&net_engine->net_engine_mutex);
+                        push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
+                        pthread_mutex_unlock(&net_engine->net_engine_mutex);
+                    }
+                }
         // }
     }
     return NULL;
