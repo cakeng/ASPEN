@@ -70,6 +70,8 @@ int compare_by_rank_upward(const void *ninst_1, const void *ninst_2);
 
 void save_schedule(sched_processor_t *sched_processor_arr, int num_device, char *file_path);
 sched_processor_t *load_schedule(char *file_path);
-void share_schedule(sched_processor_t *sched_processor_arr, int num_device, int sock_type, char *rx_ip, int rx_port);
+void share_schedule(sched_processor_t **sched_processor_arr, int num_device, int sock_type, int server_sock, int client_sock);
+
+void apply_schedule_to_nasm(nasm_t *nasm, sched_processor_t *sched_processor, int num_device, int sock_type);
 
 #endif

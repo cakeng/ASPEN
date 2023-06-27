@@ -476,90 +476,67 @@ sched_processor_t *load_schedule(char *file_path) {
 
 }
 
-void share_schedule(sched_processor_t *sched_processor_arr, int num_device, int sock_type, char *rx_ip, int rx_port) {
+void share_schedule(sched_processor_t **sched_processor_arr, int num_device, int sock_type, int server_sock, int client_sock) {
     
     if (sock_type == SOCK_RX) {
-        int server_sock;
-        int client_sock;
-
-        struct sockaddr_in server_addr;
-        struct sockaddr_in client_addr;
-        
-        int client_addr_size;
-        
-        // open server
-        server_sock = socket(PF_INET, SOCK_STREAM, 0);
-        if (server_sock == -1) {
-            printf("Error: socket() returned -1\n");
-            assert(0);
-        }
-
-        memset(&server_addr, 0, sizeof(server_addr));
-        server_addr.sin_family = AF_INET;
-        server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-        server_addr.sin_port = htons(rx_port);
-
-        if (bind(server_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
-            printf("Error: bind() returned -1\n");
-            assert(0);
-        }
-
-        if (listen(server_sock, 5) == -1) {
-            printf("Error: listen() returned -1\n");
-            assert(0);
-        }
-
-        client_addr_size = sizeof(client_addr);
-        client_sock = accept(server_sock, (struct sockaddr*)&client_addr, &client_addr_size);
-        if (client_sock == -1) {
-            printf("Error: accept() returned -1\n");
-            assert(0);
-        }
 
         for (int i=0; i<num_device; i++) {
-            write_n(client_sock, &(sched_processor_arr[i].num_task), sizeof(int));
+            printf("send %dth device schedule\n", i);
+            write_n(client_sock, &((*sched_processor_arr)[i].num_task), sizeof(int));
 
-            sched_task_t *iter_task = sched_processor_arr[i].task_list->next;
-            for (int j=0; j<sched_processor_arr[i].num_task; j++) {
-                write_n(client_sock, iter_task->idx, sizeof(int));
+            sched_task_t *iter_task = (*sched_processor_arr)[i].task_list->next;
+            for (int j=0; j<(*sched_processor_arr)[i].num_task; j++) {
+                write_n(client_sock, &(iter_task->idx), sizeof(int));
+                write_n(client_sock, &(iter_task->start_time), sizeof(float));
+                write_n(client_sock, &(iter_task->end_time), sizeof(float));
                 iter_task = iter_task->next;
             }
         }
-
-        close(client_sock);
-        close(server_sock);
-
     }
     else if (sock_type == SOCK_TX) {
-        int server_sock;
-        struct sockaddr_in server_addr;
-
-        // connect to server
-        server_sock = socket(PF_INET, SOCK_STREAM, 0);
-        if (server_sock == -1) {
-            printf("Error: socket() returned -1\n");
-            assert(0);
-        }
-
-        memset(&server_addr, 0, sizeof(server_addr));
-        server_addr.sin_family = AF_INET;
-        server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-        server_addr.sin_port = htons(rx_port);
-
-        if (connect(server_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
-            printf("Error: socket() returned -1\n");
-            assert(0);
-        }
-
-        int buffer;
-
-        read_n(server_sock, &buffer, sizeof(int));
+        *sched_processor_arr = heft_init_processor(num_device);
 
         for (int i=0; i<num_device; i++) {
             /* TODO: read integer from server, then create and push task into sched_proccessor_arr */
+            printf("receive %dth device schedule\n", i);
+            sched_processor_t *processor = *sched_processor_arr + i;
+            sched_task_t *iter_task = processor->task_list;
+            
+            read_n(server_sock, &(processor->num_task), sizeof(int));
+            for (int j=0; j<processor->num_task; j++) {
+                sched_task_t *new_task = calloc(1, sizeof(sched_task_t));
+                iter_task->next = new_task;
+                new_task->prev = iter_task;
+                new_task->next = NULL;
+                new_task->processor = i;
+
+                read_n(server_sock, &(new_task->idx), sizeof(int));
+                read_n(server_sock, &(new_task->start_time), sizeof(float));
+                read_n(server_sock, &(new_task->end_time), sizeof(float));
+
+                iter_task = new_task;
+            }
         }
-
-
-        close(server_sock);
     }
+}
+
+void apply_schedule_to_nasm(nasm_t *nasm, sched_processor_t *sched_processor, int num_device, int sock_type) {
+    ninst_t *ninst_arr = nasm->ninst_arr;
+    int num_ninst = nasm->num_ninst;
+
+    for (int dev=0; dev<num_device; dev++) {
+        sched_task_t *iter_task = sched_processor[dev].task_list->next;
+        for (int i=0; i<sched_processor[dev].num_task; i++) {
+            ninst_arr[iter_task->idx].alloc_devices[dev] = 1;
+            iter_task = iter_task->next;
+        }
+    }
+
+    // last array is always for RX
+    nasm_ldata_t *last_layer = &(nasm->ldata_arr[nasm->num_ldata-1]);
+    for (int i=0; i<last_layer->num_ninst; i++) {
+        last_layer->ninst_arr_start[i].alloc_devices[SOCK_RX] = 1;
+    }
+
+    set_desiring_through_alloc(nasm);
 }

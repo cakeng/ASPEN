@@ -45,7 +45,7 @@ ninst_profile_t *profile_computation(char *target_config, char *target_bin, char
     return result;
 }
 
-network_profile_t *profile_network(ninst_profile_t **ninst_profile, int sock_type, char *rx_ip, int rx_port) {
+network_profile_t *profile_network(ninst_profile_t **ninst_profile, int sock_type, int server_sock, int client_sock) {
     network_profile_t *network_profile = malloc(sizeof(network_profile_t));
     
     const int num_repeat = 4;
@@ -53,42 +53,6 @@ network_profile_t *profile_network(ninst_profile_t **ninst_profile, int sock_typ
 
     if (sock_type == SOCK_RX) { // echo
         printf("\tprofiling as RX...\n");
-        int server_sock;
-        int client_sock;
-
-        struct sockaddr_in server_addr;
-        struct sockaddr_in client_addr;
-        
-        int client_addr_size;
-        
-        // open server
-        server_sock = socket(PF_INET, SOCK_STREAM, 0);
-        if (server_sock == -1) {
-            printf("Error: socket() returned -1\n");
-            assert(0);
-        }
-
-        memset(&server_addr, 0, sizeof(server_addr));
-        server_addr.sin_family = AF_INET;
-        server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-        server_addr.sin_port = htons(rx_port);
-
-        if (bind(server_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
-            printf("Error: bind() returned -1\n");
-            assert(0);
-        }
-
-        if (listen(server_sock, 5) == -1) {
-            printf("Error: listen() returned -1\n");
-            assert(0);
-        }
-
-        client_addr_size = sizeof(client_addr);
-        client_sock = accept(server_sock, (struct sockaddr*)&client_addr, &client_addr_size);
-        if (client_sock == -1) {
-            printf("Error: accept() returned -1\n");
-            assert(0);
-        }
 
         // echo shortmessage
         for (int i=0; i<num_repeat; i++) {
@@ -105,31 +69,9 @@ network_profile_t *profile_network(ninst_profile_t **ninst_profile, int sock_typ
         
         // receive network_profile
         read_n(client_sock, network_profile, sizeof(network_profile_t));
-
-        close(client_sock);
-        close(server_sock);
     }
     else {
         printf("\tprofiling as TX...\n");
-        int server_sock;
-        struct sockaddr_in server_addr;
-
-        // connect to server
-        server_sock = socket(PF_INET, SOCK_STREAM, 0);
-        if (server_sock == -1) {
-            printf("Error: socket() returned -1\n");
-            assert(0);
-        }
-
-        memset(&server_addr, 0, sizeof(server_addr));
-        server_addr.sin_family = AF_INET;
-        server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-        server_addr.sin_port = htons(rx_port);
-
-        if (connect(server_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
-            printf("Error: socket() returned -1\n");
-            assert(0);
-        }
 
         // send shortmessage
         float send_timestamp[num_repeat];
@@ -173,8 +115,6 @@ network_profile_t *profile_network(ninst_profile_t **ninst_profile, int sock_typ
         network_profile->transmit_rate = transmit_rate;
 
         write_n(server_sock, network_profile, sizeof(network_profile_t));
-
-        close(server_sock);
     }
 
     return network_profile;

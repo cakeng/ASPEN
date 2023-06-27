@@ -140,7 +140,8 @@ void *dse_thread_runtime (void* thread_info)
                     //     dse->thread_id, ninst->ldata->layer->layer_idx, ninst->ldata->nasm->nasm_id);
                     nasm_t *nasm = ninst->ldata->nasm;
                     unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
-                    if (num_ldata_completed == nasm->num_ldata - 2)
+                    // if (num_ldata_completed == nasm->num_ldata - 1)
+                    if (nasm->ldata_arr[nasm->num_ldata-1].num_ninst_completed == nasm->ldata_arr[nasm->num_ldata-1].num_ninst)
                     {
                         printf ("\t\tSignaling nasm completion...\n");
                         // All layers of the nasm is completed.
@@ -456,18 +457,21 @@ void update_children (rpool_t *rpool, ninst_t *ninst, unsigned int dse_idx)
     for (int i = 0; i < ninst->num_child_ninsts; i++)
     {
         ninst_t *child_ninst = ninst->child_ninst_arr[i];
-        unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
-        if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
-        {
-            #ifdef DEBUG
-            if (child_ninst->state != NINST_NOT_READY)
+        if (child_ninst->state == NINST_NOT_READY) {
+            unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
+            if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
             {
-                FPRT (stderr, "Error: child_ninst->state != NINST_NOT_READY in dse_update_children()\n");
-                assert (0);
+                #ifdef DEBUG_
+                if (child_ninst->state != NINST_NOT_READY)
+                {
+                    FPRT (stderr, "Error: child_ninst->state != NINST_NOT_READY in dse_update_children()\n");
+                    assert (0);
+                }
+                #endif
+                
+                child_ninst->state = NINST_READY;
+                rpool_push_ninsts (rpool, &child_ninst, 1, 0);
             }
-            #endif
-            child_ninst->state = NINST_READY;
-            rpool_push_ninsts (rpool, &child_ninst, 1, 0);
         }
     }
 }
