@@ -68,6 +68,7 @@ int main(int argc, char **argv)
 
     int server_sock;
     int client_sock;
+    
     if (sock_type == SOCK_RX) {
         server_sock = create_server_sock(rx_ip, rx_port+1);
         client_sock = accept_client_sock(server_sock);
@@ -77,6 +78,18 @@ int main(int argc, char **argv)
     }
 
     network_profile = profile_network(ninst_profile, sock_type, server_sock, client_sock);
+
+    int connection_key;
+    if (sock_type == SOCK_RX) {
+        connection_key = 12534;
+        write_n(client_sock, &connection_key, sizeof(int));
+        printf("connection key: %d\n", connection_key);
+    }
+    else if (sock_type == SOCK_TX) {
+        connection_key = -1;
+        read_n(server_sock, &connection_key, sizeof(int));
+        printf("connection key: %d\n", connection_key);
+    }
     
     
     /** STAGE: SCHEDULING - HEFT **/
