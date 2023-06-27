@@ -810,7 +810,7 @@ int connect_server_sock(char *rx_ip, int rx_port) {
 
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    server_addr.sin_addr.s_addr = inet_addr(rx_ip);
     server_addr.sin_port = htons(rx_port);
 
     if (connect(server_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
