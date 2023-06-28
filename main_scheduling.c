@@ -90,6 +90,8 @@ int main(int argc, char **argv)
         read_n(server_sock, &connection_key, sizeof(int));
         printf("connection key: %d\n", connection_key);
     }
+
+    printf("sync: %f\n", network_profile->sync);
     
     
     /** STAGE: SCHEDULING - HEFT **/
@@ -165,7 +167,7 @@ int main(int argc, char **argv)
     naive_softmax (layer_output, softmax_output, target_nasm->batch_size, 1000);
     for (int i = 0; i < target_nasm->batch_size; i++)
     {
-        // get_probability_results ("data/resnet50/imagenet_classes.txt", softmax_output + 1000*i, 1000);
+        get_probability_results ("data/resnet50/imagenet_classes.txt", softmax_output + 1000*i, 1000);
     }
     
     free (layer_output);

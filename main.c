@@ -35,26 +35,26 @@ int main(int argc, char **argv)
     
     FILE *log_fp = fopen(file_name, "w");
 
-    // aspen_dnn_t *resnet50_dnn = apu_create_dnn("data/cfg/resnet50_aspen.cfg", "data/resnet50/resnet50_data.bin");
-    aspen_dnn_t *vgg16_dnn = apu_create_dnn("data/cfg/vgg16_aspen.cfg", "data/vgg16/vgg16_data.bin");
+    aspen_dnn_t *resnet50_dnn = apu_create_dnn("data/cfg/resnet50_aspen.cfg", "data/resnet50/resnet50_data.bin");
+    // aspen_dnn_t *vgg16_dnn = apu_create_dnn("data/cfg/vgg16_aspen.cfg", "data/vgg16/vgg16_data.bin");
     int gpu = -1;
 
-    // nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_B1_aspen.nasm", resnet50_dnn);
+    nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_B1_aspen.nasm", resnet50_dnn);
     // nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_B32_fine_aspen.nasm", resnet50_dnn);
-    nasm_t *vgg16_nasm = apu_load_nasm_from_file ("data/vgg16_B1_aspen.nasm", vgg16_dnn);
+    // nasm_t *vgg16_nasm = apu_load_nasm_from_file ("data/vgg16_B1_aspen.nasm", vgg16_dnn);
     // nasm_t *resnet50_nasm = apu_create_nasm(resnet50_dnn, 1e6, 200, 32);
     // nasm_t *vgg16_nasm = apu_create_nasm(vgg16_dnn, 1e6, 8, 1);
     // apu_save_nasm_to_file(resnet50_nasm, "data/resnset50_B32_fine_aspen.nasm");
     // apu_save_nasm_to_file(vgg16_nasm, "data/vgg16_B1_aspen.nasm");
     aspen_dnn_t *target_dnn;
     nasm_t *target_nasm;
-    // char* target_input = "data/resnet50/batched_input_64.bin";
-    char *target_input = NULL;
+    char* target_input = "data/resnet50/batched_input_64.bin";
+    // char *target_input = NULL;
 
-    target_dnn = vgg16_dnn;
-    target_nasm = vgg16_nasm;
+    target_dnn = resnet50_dnn;
+    target_nasm = resnet50_nasm;
 
-    init_partial_offload(target_nasm, 0.1);
+    init_partial_offload(target_nasm, 0.05);
     rpool_t *rpool = rpool_init (gpu);
     dse_group_t *dse_group = dse_group_init (8, gpu);
     dse_group_set_rpool (dse_group, rpool);
@@ -100,7 +100,7 @@ int main(int argc, char **argv)
     naive_softmax (layer_output, softmax_output, target_nasm->batch_size, 1000);
     for (int i = 0; i < target_nasm->batch_size; i++)
     {
-        // get_probability_results ("data/resnet50/imagenet_classes.txt", softmax_output + 1000*i, 1000);
+        get_probability_results ("data/resnet50/imagenet_classes.txt", softmax_output + 1000*i, 1000);
     }
     
     free (layer_output);
