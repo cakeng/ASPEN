@@ -82,7 +82,7 @@ void *dse_thread_runtime (void* thread_info)
             }
             #endif
             // printf("fetched ninst %d, offload: %d, compute: %d\n", ninst->ninst_idx, ninst->offload, ninst->compute);
-            if (is_ninst_mine(ninst, dse->device_idx))    // It's mine, so compute
+            if (is_ninst_mine(ninst, dse->device_idx) || dse->profile_compute)    // It's mine, so compute
             {
                 // printf("compute ninst %d\n", ninst->ninst_idx);
                 if (dse->profile_compute) ninst->compute_start = get_time_secs();
