@@ -109,6 +109,8 @@ int main(int argc, char **argv)
 
     /** STAGE: INFERENCE **/
 
+    printf("STAGE: INFERENCE\n");
+
     char* file_name;
     if(sequential) file_name = sock_type == SOCK_RX ? "./logs/scheduled/sequential_ninst_time_logs_RX.csv" : "./logs/scheduled/sequential_ninst_time_logs_TX.csv";
     else file_name = sock_type == SOCK_RX ? "./logs/scheduled/pipeline_ninst_time_logs_RX.csv" : "./logs/scheduled/pipeline_ninst_time_logs_TX.csv";
