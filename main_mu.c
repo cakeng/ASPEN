@@ -75,7 +75,7 @@ int main(int argc, char **argv)
             dse_group_add_netengine_arr(dse_group, net_engine_arr[i]);
             net_engine_arr[i]->dse_group = dse_group;
         
-            atomic_store (&net_engine->run, 1);
+            atomic_store (&net_engine_arr[i]->run, 1);
         }
     }
     else {
@@ -133,8 +133,8 @@ int main(int argc, char **argv)
         close_connection (net_engine);
         save_ninst_log(log_fp, target_nasm[device_idx]);
         net_engine_destroy (net_engine);
-        apu_destroy_nasm (target_nasm);
-        apu_destroy_dnn (target_dnn);
+        apu_destroy_nasm (target_nasm[device_idx]);
+        apu_destroy_dnn (target_dnn[device_idx]);
     }
     dse_group_destroy (dse_group);
     rpool_destroy (rpool);
