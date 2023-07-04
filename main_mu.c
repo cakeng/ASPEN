@@ -81,8 +81,7 @@ int main(int argc, char **argv)
         net_engine = init_networking(target_nasm[device_idx], rpool, SOCK_TX, rx_ip, rx_ports[device_idx], 0, sequential);
         dse_group_add_netengine_arr(dse_group, net_engine, 0);
         net_engine->dse_group = dse_group;
-        // add_input_rpool (net_engine, target_nasm[device_idx], target_input);
-        rpool_add_nasm (rpool, target_nasm[device_idx], 1.0, target_input);
+        add_input_rpool (net_engine, target_nasm[device_idx], target_input);
         
         atomic_store (&net_engine->run, 1);
     }
