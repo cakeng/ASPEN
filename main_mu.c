@@ -19,11 +19,6 @@ int main(int argc, char **argv)
     else {
         printf("Usage: %s [device_idx]\n", argv[0]);
     }
-    
-    char file_name[256];
-    sprintf(file_name, "./logs/multiuser/pipeline_dev%d\n", device_idx);
-    
-    FILE *log_fp = fopen(file_name, "w");
 
     // aspen_dnn_t *resnet50_dnn = apu_create_dnn("data/cfg/resnet50_aspen.cfg", "data/resnet50/resnet50_data.bin");
     // aspen_dnn_t *vgg16_dnn = apu_create_dnn("data/cfg/vgg16_aspen.cfg", "data/vgg16/vgg16_data.bin");
@@ -130,8 +125,14 @@ int main(int argc, char **argv)
     
 
     // WRAP UP
+    char file_name[256];
     if (device_idx == 0) {
+        FILE *log_fp;
+        
         for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
+            sprintf(file_name, "./logs/multiuser/pipeline_dev%d_RX.txt\n", device_idx);
+            log_fp = fopen(file_name, "w");
+
             close_connection(net_engine_arr[i]);
             save_ninst_log(log_fp, target_nasm[i]);
             net_engine_destroy (net_engine_arr[i]);
@@ -140,6 +141,9 @@ int main(int argc, char **argv)
         }
     }
     else {
+        sprintf(file_name, "./logs/multiuser/pipeline_dev%d_TX.txt\n", device_idx);
+        FILE *log_fp = fopen(file_name, "w");
+
         close_connection (net_engine);
         save_ninst_log(log_fp, target_nasm[device_idx]);
         net_engine_destroy (net_engine);
