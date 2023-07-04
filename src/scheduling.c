@@ -94,7 +94,7 @@ void init_partial_offload(nasm_t *nasm, float compute_ratio) {
 void init_sequential_offload(nasm_t *nasm, int split_layer, int from_dev, int to_dev) {
     printf("division ninst idx: %d\n", split_layer);
     for (int i=0; i<nasm->num_ldata; i++) {
-        if (i < split_layer) {
+        if (i < split_layer || i == nasm->num_ldata - 1) {
             for (int j=0; j<nasm->ldata_arr[i].num_ninst; j++) {
                 clear_device_alloc(&(nasm->ldata_arr[i].ninst_arr_start[j]));
                 alloc_device_to_ninst(&(nasm->ldata_arr[i].ninst_arr_start[j]), from_dev);

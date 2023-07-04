@@ -86,16 +86,22 @@ int main(int argc, char **argv)
         
         atomic_store (&net_engine->run, 1);
     }
-
-    // WORKED 'TIL HERE
     
-    /*
     get_elapsed_time ("init");
-    if (!sequential || sock_type == SOCK_TX) dse_group_run (dse_group);
-    dse_wait_for_nasm_completion (target_nasm);
+    if (!sequential || device_idx != SOCK_RX) dse_group_run (dse_group);
+    if (device_idx == SOCK_RX) {
+        for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
+            dse_wait_for_nasm_completion (target_nasm[i]);
+        }
+    }
+    else {
+        dse_wait_for_nasm_completion (target_nasm[device_idx]);
+    }
+    
     get_elapsed_time ("run_aspen");
     dse_group_stop (dse_group);
 
+    /*
     if(sock_type == SOCK_RX) {
         for(int i = 0; i < target_nasm->ldata_arr[target_nasm->num_ldata-1].num_ninst; i++)
         {
