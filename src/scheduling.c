@@ -91,6 +91,26 @@ void init_partial_offload(nasm_t *nasm, float compute_ratio) {
     set_desiring_through_alloc(nasm);
 }
 
+void init_sequential_offload(nasm_t *nasm, int split_layer, int from_dev, int to_dev) {
+    printf("division ninst idx: %d\n", split_layer);
+    for (int i=0; i<nasm->num_ldata; i++) {
+        if (i < split_layer) {
+            for (int j=0; j<nasm->ldata_arr[i].num_ninst; j++) {
+                clear_device_alloc(&(nasm->ldata_arr[i].ninst_arr_start[j]));
+                alloc_device_to_ninst(&(nasm->ldata_arr[i].ninst_arr_start[j]), from_dev);
+            }
+        }
+        else {
+            for (int j=0; j<nasm->ldata_arr[i].num_ninst; j++) {
+                clear_device_alloc(&(nasm->ldata_arr[i].ninst_arr_start[j]));
+                alloc_device_to_ninst(&(nasm->ldata_arr[i].ninst_arr_start[j]), to_dev);
+            }
+        }
+    }
+    
+    set_desiring_through_alloc(nasm);
+}
+
 sched_processor_t *init_heft(char *target_config, char *target_bin, char *target_nasm_dir, ninst_profile_t **ninst_profile, network_profile_t *network_profile, int num_device) {
     aspen_dnn_t *target_dnn = apu_create_dnn(target_config, target_bin);
     nasm_t *nasm = apu_load_nasm_from_file (target_nasm_dir, target_dnn);
