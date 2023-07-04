@@ -112,19 +112,22 @@ int main(int argc, char **argv)
             pthread_mutex_unlock(&net_engine->net_engine_mutex);
         }
     }
+    */
     
-    LAYER_PARAMS output_order[] = {BATCH, OUT_H, OUT_W, OUT_C};
-    float *layer_output = dse_get_nasm_result (target_nasm, output_order);
-    float *softmax_output = calloc (1000*target_nasm->batch_size, sizeof(float));
-    naive_softmax (layer_output, softmax_output, target_nasm->batch_size, 1000);
-    for (int i = 0; i < target_nasm->batch_size; i++)
-    {
-        get_probability_results ("data/resnet50/imagenet_classes.txt", softmax_output + 1000*i, 1000);
+    if (device_idx > 0) {
+        LAYER_PARAMS output_order[] = {BATCH, OUT_H, OUT_W, OUT_C};
+        float *layer_output = dse_get_nasm_result (target_nasm[device_idx], output_order);
+        float *softmax_output = calloc (1000*target_nasm[device_idx]->batch_size, sizeof(float));
+        naive_softmax (layer_output, softmax_output, target_nasm[device_idx]->batch_size, 1000);
+        for (int i = 0; i < target_nasm[device_idx]->batch_size; i++)
+        {
+            get_probability_results ("data/resnet50/imagenet_classes.txt", softmax_output + 1000*i, 1000);
+        }
+
+        free (layer_output);
+        free (softmax_output);
     }
     
-    free (layer_output);
-    free (softmax_output);
-    */
 
     // WRAP UP
     if (device_idx == 0) {
