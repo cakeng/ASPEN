@@ -1,5 +1,5 @@
 TARGET=main
-SUBTARGET=main_scheduling
+SUBTARGET=main_mu
 ALIB=libasapen.a
 OBJECTS=build_info.o apu.o apu_nasm.o apu_file_io.o input_parser.o darknet_parser.o util.o 
 OBJECTS+=rpool.o dse.o naive_kernels.o tiled_kernels.o avx2_kernels.o neon_kernels.o dse_cudagraph.o networking.o scheduling.o profiling.o

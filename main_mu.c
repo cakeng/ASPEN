@@ -21,7 +21,7 @@ int main(int argc, char **argv)
     }
     
     char file_name[256];
-    sprintf(file_name, "./logs/multiuser/pipeline_dev%n\n", device_idx);
+    sprintf(file_name, "./logs/multiuser/pipeline_dev%d\n", device_idx);
     
     FILE *log_fp = fopen(file_name, "w");
 
@@ -45,13 +45,13 @@ int main(int argc, char **argv)
         for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
             target_dnn[i] = apu_create_dnn("data/cfg/resnet50_aspen.cfg", "data/resnet50/resnet50_data.bin");
             target_nasm[i] = apu_load_nasm_from_file ("data/resnet50_B1_aspen.nasm", target_dnn[i]);
-            init_sequential_offload(target_nasm+i, 1, i, device_idx);
+            init_sequential_offload(target_nasm[i], 1, i, device_idx);
         }
     }
     else {
         target_dnn[device_idx] = apu_create_dnn("data/cfg/resnet50_aspen.cfg", "data/resnet50/resnet50_data.bin");
         target_nasm[device_idx] = apu_load_nasm_from_file ("data/resnet50_B1_aspen.nasm", target_dnn[device_idx]);
-        init_sequential_offload(target_nasm+device_idx, 1, device_idx, 0);
+        init_sequential_offload(target_nasm[device_idx], 1, device_idx, 0);
     }
 
     rpool_t *rpool = rpool_init (gpu);

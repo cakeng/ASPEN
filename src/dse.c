@@ -263,6 +263,46 @@ void dse_group_set_profile (dse_group_t *dse_group, int profile_compute)
     }
 }
 
+void dse_group_set_multiuser (dse_group_t *dse_group, int is_multiuser_case) {
+    if (dse_group == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_set_multiuser: dse_group is NULL\n");
+        assert (0);
+    }
+    for (int i = 0; i < dse_group->num_ases; i++)
+    {
+        dse_group->dse_arr[i].is_multiuser_case = is_multiuser_case;
+    }
+}
+
+void dse_group_init_netengine_arr (dse_group_t *dse_group) {
+    if (dse_group == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_init_netengine_arr: dse_group is NULL\n");
+        assert (0);
+    }
+    for (int i = 0; i < dse_group->num_ases; i++) {
+        for (int j=0; j<SCHEDULE_MAX_DEVICES; j++) {
+            dse_group->dse_arr[i].net_engine_arr[j] = NULL;
+        }
+    }
+}
+
+void dse_group_add_netengine_arr (dse_group_t *dse_group, networking_engine *net_engine) {
+    if (dse_group == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_add_netengine_arr: dse_group is NULL\n");
+        assert (0);
+    }
+    for (int i = 0; i < dse_group->num_ases; i++) {
+        for (int j=0; j<SCHEDULE_MAX_DEVICES; j++) {
+            if (dse_group->dse_arr[i].net_engine_arr[j] == NULL) {
+                dse_group->dse_arr[i].net_engine_arr[j] = net_engine;
+            }
+        }
+    }
+}
+
 void dse_group_destroy (dse_group_t *dse_group)
 {
     if (dse_group == NULL)
