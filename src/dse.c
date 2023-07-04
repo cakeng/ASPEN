@@ -157,14 +157,18 @@ void *dse_thread_runtime (void* thread_info)
                 update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
 
                 // check desiring devices for the computation output
-                if (ninst->desiring_devices[!dse->device_idx]) // Should be offload
+                for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
+                    if (i == dse->device_idx) continue;
+                    if (ninst->desiring_devices[i]) // Should be offload
                     {
-                        networking_engine *net_engine = dse->net_engine;
+                        networking_engine *net_engine = dse->net_engine_arr[i];
                         pthread_mutex_lock(&net_engine->net_engine_mutex);
                         push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
                         pthread_mutex_unlock(&net_engine->net_engine_mutex);
                     }
                 }
+                }
+                
         // }
     }
     return NULL;
@@ -288,18 +292,14 @@ void dse_group_init_netengine_arr (dse_group_t *dse_group) {
     }
 }
 
-void dse_group_add_netengine_arr (dse_group_t *dse_group, networking_engine *net_engine) {
+void dse_group_add_netengine_arr (dse_group_t *dse_group, networking_engine *net_engine, int device_idx) {
     if (dse_group == NULL)
     {
         FPRT (stderr, "ERROR: dse_group_add_netengine_arr: dse_group is NULL\n");
         assert (0);
     }
     for (int i = 0; i < dse_group->num_ases; i++) {
-        for (int j=0; j<SCHEDULE_MAX_DEVICES; j++) {
-            if (dse_group->dse_arr[i].net_engine_arr[j] == NULL) {
-                dse_group->dse_arr[i].net_engine_arr[j] = net_engine;
-            }
-        }
+        dse_group->dse_arr[i].net_engine_arr[device_idx] = net_engine;
     }
 }
 

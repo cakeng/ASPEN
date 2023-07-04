@@ -68,11 +68,10 @@ int main(int argc, char **argv)
         rx_ports[i] = rx_port_start + i - 1;
     }
 
-    dse_group_init_netengine_arr(dse_group);
     if (device_idx == 0) {
         for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
             net_engine_arr[i] = init_networking(target_nasm[i], rpool, SOCK_RX, rx_ip, rx_ports[i], 0, sequential);
-            dse_group_add_netengine_arr(dse_group, net_engine_arr[i]);
+            dse_group_add_netengine_arr(dse_group, net_engine_arr[i], i);
             net_engine_arr[i]->dse_group = dse_group;
         
             atomic_store (&net_engine_arr[i]->run, 1);
@@ -80,7 +79,7 @@ int main(int argc, char **argv)
     }
     else {
         net_engine = init_networking(target_nasm[device_idx], rpool, SOCK_TX, rx_ip, rx_ports[device_idx], 0, sequential);
-        dse_group_add_netengine_arr(dse_group, net_engine);
+        dse_group_add_netengine_arr(dse_group, net_engine, 0);
         net_engine->dse_group = dse_group;
         add_input_rpool (net_engine, target_nasm[device_idx], target_input);
         

@@ -61,7 +61,7 @@ void dse_group_set_device (dse_group_t *dse_group, int device_idx);
 void dse_group_set_profile (dse_group_t *dse_group, int profile_compute);
 void dse_group_set_multiuser (dse_group_t *dse_group, int is_multiuser_case);
 void dse_group_init_netengine_arr (dse_group_t *dse_group);
-void dse_group_add_netengine_arr (dse_group_t *dse_group, networking_engine *net_engine);
+void dse_group_add_netengine_arr (dse_group_t *dse_group, networking_engine *net_engine, int device_idx);
 
 void update_children_to_cache_but_prioritize_dse_target (rpool_queue_t *cache, ninst_t *ninst, ninst_t **dse_target);
 void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst);
