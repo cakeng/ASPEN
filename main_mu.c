@@ -60,7 +60,7 @@ int main(int argc, char **argv)
     int rx_port_start = 3786;
     int rx_ports[SCHEDULE_MAX_DEVICES];
     for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
-        rx_ports[i] = rx_port_start + i - 1;
+        rx_ports[i] = rx_port_start + i;
     }
 
     if (device_idx == 0) {
@@ -82,6 +82,30 @@ int main(int argc, char **argv)
         
         atomic_store (&net_engine->run, 1);
     }
+
+    // SYNC HERE
+    int sync_key = 12534;
+    int control_server_sock;
+    int client_sock_arr[SCHEDULE_MAX_DEVICES];
+
+    if (device_idx == 0) {
+        printf("SYNC KEY: %d\n", sync_key);
+        control_server_sock = create_server_sock(rx_ip, rx_port_start);
+        for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
+            client_sock_arr[i] = accept_client_sock(control_server_sock);
+        }
+        for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
+            write_n(client_sock_arr[i], &sync_key, sizeof(int));
+            close(client_sock_arr[i]);
+        }
+        close(control_server_sock);
+    }
+    else {
+        control_server_sock = connect_server_sock(rx_ip, rx_port_start);
+        read_n(control_server_sock, &sync_key, sizeof(int));
+        close(control_server_sock);
+        printf("SYNC KEY: %d\n", sync_key);
+    }
     
     get_elapsed_time ("init");
     if (!sequential || device_idx != SOCK_RX) dse_group_run (dse_group);
@@ -96,18 +120,6 @@ int main(int argc, char **argv)
     
     get_elapsed_time ("run_aspen");
     dse_group_stop (dse_group);
-
-    /*
-    if(sock_type == SOCK_RX) {
-        for(int i = 0; i < target_nasm->ldata_arr[target_nasm->num_ldata-1].num_ninst; i++)
-        {
-            ninst_t* ninst = &target_nasm->ldata_arr[target_nasm->num_ldata-1].ninst_arr_start[i];
-            pthread_mutex_lock(&net_engine->net_engine_mutex);
-            push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
-            pthread_mutex_unlock(&net_engine->net_engine_mutex);
-        }
-    }
-    */
     
     if (device_idx > 0) {
         LAYER_PARAMS output_order[] = {BATCH, OUT_H, OUT_W, OUT_C};
