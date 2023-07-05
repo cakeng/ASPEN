@@ -91,6 +91,7 @@ int main(int argc, char **argv)
     if (device_idx == 0) {
         printf("SYNC KEY: %d\n", sync_key);
         control_server_sock = create_server_sock(rx_ip, rx_port_start);
+        sleep(5);
         for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
             client_sock_arr[i] = accept_client_sock(control_server_sock);
         }
@@ -101,6 +102,7 @@ int main(int argc, char **argv)
         close(control_server_sock);
     }
     else {
+        sleep(5);
         control_server_sock = connect_server_sock(rx_ip, rx_port_start);
         read_n(control_server_sock, &sync_key, sizeof(int));
         close(control_server_sock);
