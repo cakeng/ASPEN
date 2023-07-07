@@ -11,10 +11,14 @@ int total_transferred = 0;
 int main(int argc, char **argv)
 {
     int device_idx = 0;
-    int sequential = 1;
+    int sequential = 0;
 
     if (argc > 1) {
-        device_idx = atoi(argv[1]);
+        if(strcmp(argv[1], "PIP")) sequential = 0;
+        else if (strcmp(argv[1], "SEQ")) sequential = 1;
+    }
+    else if (argc > 2) {
+        device_idx = atoi(argv[2]);
     }
     else {
         printf("Usage: %s [device_idx]\n", argv[0]);
@@ -84,18 +88,23 @@ int main(int argc, char **argv)
     }
 
     // SYNC HERE
-    int sync_key = 12534;
+    float sync_key;
     int control_server_sock;
     int client_sock_arr[SCHEDULE_MAX_DEVICES];
 
     if (device_idx == 0) {
-        printf("SYNC KEY: %d\n", sync_key);
         control_server_sock = create_server_sock(rx_ip, rx_port_start);
         for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
             client_sock_arr[i] = accept_client_sock(control_server_sock);
         }
         for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
-            write_n(client_sock_arr[i], &sync_key, sizeof(int));
+            sync_key = get_time_secs();
+            printf("SYNC KEY SEND %d: %f\n", i, sync_key);
+            write_n(client_sock_arr[i], &sync_key, sizeof(float));
+            read_n(client_sock_arr[i], &sync_key, sizeof(float));
+            printf("SYNC KEY RECV %d: %f\n", i, sync_key);
+            sync_key = get_time_secs();
+            printf("SYNC KEY LAST %d: %f\n", i, sync_key);
             close(client_sock_arr[i]);
         }
         close(control_server_sock);
@@ -103,7 +112,9 @@ int main(int argc, char **argv)
     else {
         sleep(5 + device_idx);
         control_server_sock = connect_server_sock(rx_ip, rx_port_start);
-        read_n(control_server_sock, &sync_key, sizeof(int));
+        read_n(control_server_sock, &sync_key, sizeof(float));
+        sync_key = get_time_secs();
+        write_n(control_server_sock, &sync_key, sizeof(float));
         close(control_server_sock);
         printf("SYNC KEY: %d\n", sync_key);
     }
@@ -143,7 +154,7 @@ int main(int argc, char **argv)
         FILE *log_fp;
         
         for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
-            sprintf(file_name, "./logs/multiuser/pipeline_dev%d_RX.txt\n", device_idx);
+            sprintf(file_name, "./logs/multiuser/pipeline_dev%d_RX.txt", i);
             log_fp = fopen(file_name, "w");
 
             close_connection(net_engine_arr[i]);
@@ -154,7 +165,7 @@ int main(int argc, char **argv)
         }
     }
     else {
-        sprintf(file_name, "./logs/multiuser/pipeline_dev%d_TX.txt\n", device_idx);
+        sprintf(file_name, "./logs/multiuser/pipeline_dev%d_TX.txt", device_idx);
         FILE *log_fp = fopen(file_name, "w");
 
         close_connection (net_engine);
