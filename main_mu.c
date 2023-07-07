@@ -17,7 +17,7 @@ int main(int argc, char **argv)
         if(strcmp(argv[1], "PIP")) sequential = 0;
         else if (strcmp(argv[1], "SEQ")) sequential = 1;
     }
-    else if (argc > 2) {
+    if (argc > 2) {
         device_idx = atoi(argv[2]);
     }
     else {
