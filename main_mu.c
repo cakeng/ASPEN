@@ -154,7 +154,7 @@ int main(int argc, char **argv)
         FILE *log_fp;
         
         for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
-            sprintf(file_name, "./logs/multiuser/pipeline_dev%d_RX.txt", i);
+            sprintf(file_name, "./logs/multiuser/%s_dev%d_RX.txt", (sequential ? "seq" : "pip"), i);
             log_fp = fopen(file_name, "w");
 
             close_connection(net_engine_arr[i]);
@@ -165,7 +165,7 @@ int main(int argc, char **argv)
         }
     }
     else {
-        sprintf(file_name, "./logs/multiuser/pipeline_dev%d_TX.txt", device_idx);
+        sprintf(file_name, "./logs/multiuser/%s_dev%d_TX.txt", (sequential ? "seq" : "pip"), device_idx);
         FILE *log_fp = fopen(file_name, "w");
 
         close_connection (net_engine);
