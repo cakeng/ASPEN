@@ -122,6 +122,8 @@ __global__ void cuda_matmul_kernel(const unsigned int M, const unsigned int N, c
                     cout[vecN][vecM] = cout[vecN][vecM] > 0 ? cout[vecN][vecM] : 0;
                 else if (activation_type == GELU)
                     cout[vecN][vecM] = cout[vecN][vecM] * 0.5 * (1 + erff ((cout[vecN][vecM])*0.7071067811865475f));
+                else if (activation_type == GELU_ACCURATE)
+                    cout[vecN][vecM] = cout[vecN][vecM] * 0.5 * (1 + tanhf (0.7978845608028654f * (cout[vecN][vecM] + 0.044715f * powf (cout[vecN][vecM], 3))));
                 C[ldc*n + m] = cout[vecN][vecM];
             }
         }   
@@ -293,6 +295,8 @@ __global__ void cuda_conv2d_kernel(
                     cout[vecN][vecM] = cout[vecN][vecM] > 0 ? cout[vecN][vecM] : 0;
                 else if (activation_type == GELU)
                     cout[vecN][vecM] = cout[vecN][vecM] * 0.5 * (1 + erff ((cout[vecN][vecM])*0.7071067811865475f));
+                else if (activation_type == GELU_ACCURATE)
+                    cout[vecN][vecM] = cout[vecN][vecM] * 0.5 * (1 + tanhf (0.7978845608028654f * (cout[vecN][vecM] + 0.044715f * powf (cout[vecN][vecM], 3))));
                 C[ldc*n + m] = cout[vecN][vecM];
             }
         }   
@@ -350,6 +354,8 @@ __global__ void cuda_maxpool_kernel(
                     cout[vecN][vecM] = cout[vecN][vecM] > 0 ? cout[vecN][vecM] : 0;
                 else if (activation_type == GELU)
                     cout[vecN][vecM] = cout[vecN][vecM] * 0.5 * (1 + erff ((cout[vecN][vecM])*0.7071067811865475f));
+                else if (activation_type == GELU_ACCURATE)
+                    cout[vecN][vecM] = cout[vecN][vecM] * 0.5 * (1 + tanhf (0.7978845608028654f * (cout[vecN][vecM] + 0.044715f * powf (cout[vecN][vecM], 3))));
                 C[ldc*n + m] = cout[vecN][vecM];
             }
         }   
@@ -403,11 +409,14 @@ __global__ void cuda_avgpool_kernel(
             const int n = nGroup + nLocal + vecN;
             if (m < M &&  n < N)
             {
+                cout[vecN][vecM] = cout[vecN][vecM] / col_per_n;
                 if (activation_type == RELU)
                     cout[vecN][vecM] = cout[vecN][vecM] > 0 ? cout[vecN][vecM] : 0;
                 else if (activation_type == GELU)
                     cout[vecN][vecM] = cout[vecN][vecM] * 0.5 * (1 + erff ((cout[vecN][vecM])*0.7071067811865475f));
-                C[ldc*n + m] = cout[vecN][vecM] / col_per_n;
+                else if (activation_type == GELU_ACCURATE)
+                    cout[vecN][vecM] = cout[vecN][vecM] * 0.5 * (1 + tanhf (0.7978845608028654f * (cout[vecN][vecM] + 0.044715f * powf (cout[vecN][vecM], 3))));
+                C[ldc*n + m] = cout[vecN][vecM];
             }
         }   
     }
@@ -663,6 +672,8 @@ __global__ void cuda_residual_kernel (const unsigned int num_elements, const flo
             val = val > 0 ? val : 0;
         else if (activation_type == GELU)
             val = val * 0.5 * (1 + erff (val*0.7071067811865475f));
+        else if (activation_type == GELU_ACCURATE)
+            val = val * 0.5 * (1 + tanhf (0.7978845608028654f * (val + 0.044715f * powf (val, 3))));
         C[id] = val;
     }
 }
