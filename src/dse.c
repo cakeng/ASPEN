@@ -19,7 +19,12 @@ void *dse_thread_runtime (void* thread_info)
         //     dse->ninst_cache->num_stored == 0)
         if (dse->target == NULL)
         {
-            if (dse->is_multiuser_case) {
+            if (dse->device_idx != 0 && dse->is_multiuser_case) {
+                rpool_fetch_ninsts (dse->rpool_arr[0], &dse->target, 1, 0);
+
+                if (dse->target == NULL) continue;
+            }
+            if (dse->device_idx == 0 && dse->is_multiuser_case) {
                 int checked[SCHEDULE_MAX_DEVICES];
                 for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) checked[i] = 0;
 

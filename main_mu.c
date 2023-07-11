@@ -146,7 +146,6 @@ int main(int argc, char **argv)
         }
     }
     else {
-        dse_group_set_enable_device (dse_group, device_idx, 1);
         dse_wait_for_nasm_completion (target_nasm[device_idx]);
     }
     
