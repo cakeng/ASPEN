@@ -202,9 +202,11 @@ void *dse_thread_runtime (void* thread_info)
                     }
                 }
             // update_children_to_cache (dse->ninst_cache, ninst);
-                if (dse->is_multiuser_case) {
+                if (dse->is_multiuser_case && dse->device_idx == 0) {
                     update_children_but_prioritize_dse_target (dse->rpool_arr[target_device], ninst, dse);
-
+                }
+                else if (dse->is_multiuser_case && dse->device_idx != 0) {
+                    update_children_but_prioritize_dse_target (dse->rpool_arr[0], ninst, dse);
                 }
                 else {
                     update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
