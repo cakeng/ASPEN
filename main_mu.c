@@ -14,8 +14,8 @@ int main(int argc, char **argv)
     int sequential = 0;
 
     if (argc > 1) {
-        if(strcmp(argv[1], "PIP")) sequential = 0;
-        else if (strcmp(argv[1], "SEQ")) sequential = 1;
+        if(!strcmp(argv[1], "PIP")) sequential = 0;
+        else if (!strcmp(argv[1], "SEQ")) sequential = 1;
     }
     if (argc > 2) {
         device_idx = atoi(argv[2]);
@@ -54,8 +54,11 @@ int main(int argc, char **argv)
     }
 
     rpool_t *rpool = rpool_init (gpu);
-    dse_group_t *dse_group = dse_group_init (8, gpu);
+    rpool_t *rpool_arr[SCHEDULE_MAX_DEVICES];
+    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) rpool_arr[i] = rpool_init (gpu);
+    dse_group_t *dse_group = dse_group_init (1, gpu);
     dse_group_set_rpool (dse_group, rpool);
+    dse_group_set_multiuser (dse_group, 1);
 
     networking_engine* net_engine = NULL;
     networking_engine *net_engine_arr[SCHEDULE_MAX_DEVICES];
@@ -69,10 +72,20 @@ int main(int argc, char **argv)
 
     if (device_idx == 0) {
         for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
-            net_engine_arr[i] = init_networking(target_nasm[i], rpool, SOCK_RX, rx_ip, rx_ports[i], 0, sequential);
+            if (sequential) {
+                dse_group_init_enable_device(dse_group);
+            }
+            else {
+                for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
+                    dse_group_set_enable_device(dse_group, i, 1);
+                }
+            }
+
+            net_engine_arr[i] = init_networking(target_nasm[i], rpool_arr[i], SOCK_RX, rx_ip, rx_ports[i], 0, sequential);
             dse_group_add_netengine_arr(dse_group, net_engine_arr[i], i);
             dse_group_set_device(dse_group, device_idx);
             net_engine_arr[i]->dse_group = dse_group;
+            net_engine_arr[i]->device_idx = i;
         
             atomic_store (&net_engine_arr[i]->run, 1);
         }
@@ -89,6 +102,7 @@ int main(int argc, char **argv)
 
     // SYNC HERE
     float sync_key;
+    float sync;
     int control_server_sock;
     int client_sock_arr[SCHEDULE_MAX_DEVICES];
 
@@ -100,11 +114,16 @@ int main(int argc, char **argv)
         for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
             sync_key = get_time_secs();
             printf("SYNC KEY SEND %d: %f\n", i, sync_key);
+            sync += sync_key/2;
             write_n(client_sock_arr[i], &sync_key, sizeof(float));
             read_n(client_sock_arr[i], &sync_key, sizeof(float));
             printf("SYNC KEY RECV %d: %f\n", i, sync_key);
+            sync -= sync_key;
             sync_key = get_time_secs();
             printf("SYNC KEY LAST %d: %f\n", i, sync_key);
+            sync += sync_key/2;
+            printf("SYNC %d: %f\n", i, sync);
+            
             close(client_sock_arr[i]);
         }
         close(control_server_sock);
@@ -116,7 +135,7 @@ int main(int argc, char **argv)
         sync_key = get_time_secs();
         write_n(control_server_sock, &sync_key, sizeof(float));
         close(control_server_sock);
-        printf("SYNC KEY: %d\n", sync_key);
+        printf("SYNC KEY: %f\n", sync_key);
     }
     
     get_elapsed_time ("init");

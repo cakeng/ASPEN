@@ -437,6 +437,8 @@ void receive(networking_engine *net_engine) {
                     if(net_engine->sequential)
                     {
                         dse_group_run(net_engine->dse_group);
+                        dse_group_set_enable_device(net_engine->dse_group, net_engine->device_idx, 1);
+                        dse_group_add_prioritize_rpool(net_engine->dse_group, net_engine->device_idx);
                     } 
                     if (net_engine->sock_type == SOCK_TX)
                     {

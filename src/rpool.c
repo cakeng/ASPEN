@@ -419,6 +419,37 @@ unsigned int pop_ninsts_from_queue (rpool_queue_t *rpool_queue, ninst_t **ninst_
     //     atomic_fetch_sub (&rpool_queue->queue_group->num_ninsts, num_ninsts);    
     return num_ninsts;
 }
+unsigned int pop_ninsts_from_queue_enabled (rpool_queue_t *rpool_queue, ninst_t **ninst_ptr_list, unsigned int max_ninsts_to_get, int *enabled_device)
+{
+    #ifdef DEBUG
+    if (rpool_queue == NULL)
+    {
+        FPRT (stderr, "ERROR: pop_nists_from_queue: rpool_queue is NULL.\n");
+        return 0;
+    }
+    if (ninst_ptr_list == NULL)
+    {
+        FPRT (stderr, "ERROR: pop_nists_from_queue: ninst_ptr_list is NULL.\n");
+        return 0;
+    }
+    #endif
+    unsigned int num_ninsts = 0;
+    unsigned int i = rpool_queue->idx_start;
+    for (; num_ninsts < rpool_queue->num_stored; num_ninsts++)
+    {
+        if (num_ninsts >= max_ninsts_to_get)
+            break;
+        ninst_ptr_list[num_ninsts] = rpool_queue->ninst_ptr_arr[i];
+        i++;
+        if (i == rpool_queue->max_stored)
+            i = 0;
+    }
+    rpool_queue->idx_start = i;
+    rpool_queue->num_stored -= num_ninsts;
+    // if (rpool_queue->queue_group != NULL)
+    //     atomic_fetch_sub (&rpool_queue->queue_group->num_ninsts, num_ninsts);    
+    return num_ninsts;
+}
 unsigned int pop_ninsts_from_queue_back (rpool_queue_t *rpool_queue, ninst_t **ninst_ptr_list, unsigned int max_ninsts_to_get)
 {
     #ifdef DEBUG
@@ -702,6 +733,32 @@ unsigned int rpool_fetch_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsig
     if (rpool_queue == NULL)
         return 0;
     unsigned int num_ninsts = pop_ninsts_from_queue (rpool_queue, ninst_ptr_list, max_ninst_to_fetch);
+    // atomic_store (&rpool_queue->occupied, 0);
+    pthread_mutex_unlock (&rpool_queue->occupied_mutex);
+    return num_ninsts;
+}
+
+unsigned int rpool_fetch_ninsts_enabled (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int max_ninst_to_fetch, unsigned int dse_idx, int *enabled_device)
+{
+    #ifdef DEBUG
+    if (rpool == NULL)
+    {
+        FPRT (stderr, "ERROR: rpool_fetch_ninsts: rpool is NULL.\n");
+        return 0;
+    }
+    if (ninst_ptr_list == NULL)
+    {
+        FPRT (stderr, "ERROR: rpool_fetch_ninsts: ninst_ptr_list is NULL.\n");
+        return 0;
+    }
+    #endif
+    if (max_ninst_to_fetch == 0)
+        return 0;
+    rpool_queue_t *rpool_queue = NULL;
+    rpool_queue = get_queue_for_fetching (rpool, NULL, dse_idx);
+    if (rpool_queue == NULL)
+        return 0;
+    unsigned int num_ninsts = pop_ninsts_from_queue_enabled (rpool_queue, ninst_ptr_list, max_ninst_to_fetch, enabled_device);
     // atomic_store (&rpool_queue->occupied, 0);
     pthread_mutex_unlock (&rpool_queue->occupied_mutex);
     return num_ninsts;

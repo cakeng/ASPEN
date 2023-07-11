@@ -5,6 +5,7 @@ static _Atomic unsigned int dse_thread_id_counter = 0;
 void *dse_thread_runtime (void* thread_info)
 {
     dse_t *dse = (dse_t*) thread_info;
+    int target_device;
     pthread_mutex_lock(&dse->thread_mutex);
     while (dse->kill == 0)
     {
@@ -18,9 +19,45 @@ void *dse_thread_runtime (void* thread_info)
         //     dse->ninst_cache->num_stored == 0)
         if (dse->target == NULL)
         {
-            rpool_fetch_ninsts (dse->rpool, &dse->target, 1, 0);
-            if (dse->target == NULL)
-                continue;
+            if (dse->is_multiuser_case) {
+                int checked[SCHEDULE_MAX_DEVICES];
+                for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) checked[i] = 0;
+
+                for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
+                    if (dse->prioritize_rpool[i] != -1) {
+                        rpool_fetch_ninsts (dse->rpool_arr[dse->prioritize_rpool[i]], &dse->target, 1, 0);
+                        checked[dse->prioritize_rpool[i]] = 1;
+
+                        if (dse->target) {
+                            target_device = dse->prioritize_rpool[i];
+                            break;
+                        }
+                    }
+                    else {
+                        break;
+                    }
+                }
+
+                for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
+                    if (!dse->enabled_device[i]) continue;
+                    if (checked[i]) continue;
+
+                    rpool_fetch_ninsts (dse->rpool_arr[i], &dse->target, 1, 0);
+
+                    if (dse->target) {
+                        target_device = i;
+                        break;
+                    }
+
+                }
+
+                if (dse->target == NULL) continue;
+            }
+            else {
+                rpool_fetch_ninsts (dse->rpool, &dse->target, 1, 0);
+                if (dse->target == NULL)
+                    continue;
+            }
             // unsigned int fetch_num = 
             //     rpool_fetch_ninsts (dse->rpool, dse->scratchpad, dse_NINST_CACHE_BALLANCE - dse->ninst_cache->num_stored);
             // push_ninsts_to_queue (dse->ninst_cache, dse->scratchpad, fetch_num);
@@ -145,16 +182,29 @@ void *dse_thread_runtime (void* thread_info)
                     {
                         printf ("\t\tSignaling nasm completion...\n");
                         // All layers of the nasm is completed.
-                        rpool_queue_group_t *rpool_queue_group 
-                            = get_queue_group_from_nasm (dse->rpool, ninst->ldata->nasm);
-                        set_queue_group_weight (dse->rpool, rpool_queue_group, 0);
+                        rpool_queue_group_t *rpool_queue_group;
+                        if (dse->is_multiuser_case) {
+                            rpool_queue_group = get_queue_group_from_nasm (dse->rpool_arr[target_device], ninst->ldata->nasm);
+                            set_queue_group_weight (dse->rpool_arr[target_device], rpool_queue_group, 0);
+                        }
+                        else {
+                            rpool_queue_group = get_queue_group_from_nasm (dse->rpool, ninst->ldata->nasm);
+                            set_queue_group_weight (dse->rpool, rpool_queue_group, 0);
+                        }
                         pthread_mutex_lock (&nasm->nasm_mutex);
                         pthread_cond_signal (&nasm->nasm_cond);
                         pthread_mutex_unlock (&nasm->nasm_mutex);
                     }
                 }
             // update_children_to_cache (dse->ninst_cache, ninst);
-                update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
+                if (dse->is_multiuser_case) {
+                    update_children_but_prioritize_dse_target (dse->rpool_arr[target_device], ninst, dse);
+
+                }
+                else {
+                    update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
+
+                }
 
                 // check desiring devices for the computation output
                 for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
@@ -279,6 +329,39 @@ void dse_group_set_multiuser (dse_group_t *dse_group, int is_multiuser_case) {
     }
 }
 
+void dse_group_add_prioritize_rpool (dse_group_t *dse_group, int device_idx) {
+    for (int i=0; i<dse_group->num_ases; i++) {
+        for (int j=0; j<SCHEDULE_MAX_DEVICES; j++) {
+            if (dse_group->dse_arr[i].prioritize_rpool[j] == -1)
+                dse_group->dse_arr[i].prioritize_rpool[j] = device_idx;
+        }
+    }
+}
+
+void dse_group_init_enable_device(dse_group_t *dse_group) {
+    for (int i = 0; i < dse_group->num_ases; i++) {
+        for (int j=0; j < SCHEDULE_MAX_DEVICES; j++)
+        dse_group->dse_arr[i].enabled_device[j] = 0;
+    }
+}
+
+void dse_group_set_enable_device(dse_group_t *dse_group, int device_idx, int enable) {
+    for (int i = 0; i < dse_group->num_ases; i++) {
+        dse_group->dse_arr[i].enabled_device[device_idx] = enable;
+    }
+}
+
+void dse_group_add_rpool_arr(dse_group_t *dse_group, rpool_t *rpool, int device_idx) {
+    if (rpool == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_add_rpool_arr: rpool is NULL\n");
+        assert (0);
+    }
+    for (int i = 0; i < dse_group->num_ases; i++) {
+        dse_group->dse_arr[i].rpool_arr[device_idx] = rpool;
+    }
+}
+
 void dse_group_init_netengine_arr (dse_group_t *dse_group) {
     if (dse_group == NULL)
     {
@@ -300,6 +383,7 @@ void dse_group_add_netengine_arr (dse_group_t *dse_group, networking_engine *net
     }
     for (int i = 0; i < dse_group->num_ases; i++) {
         dse_group->dse_arr[i].net_engine_arr[device_idx] = net_engine;
+        dse_group->dse_arr[i].rpool_arr[device_idx] = net_engine->rpool;
     }
 }
 
@@ -338,6 +422,7 @@ void dse_init (dse_t *dse, int gpu_idx)
     dse->thread_mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
     dse->thread_cond = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
     dse->ninst_cache = calloc (1, sizeof (rpool_queue_t));
+    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) dse->prioritize_rpool[i] = -1;
     atomic_store (&dse->run, 0);
     atomic_store (&dse->kill, 0);
     rpool_init_queue (dse->ninst_cache);
