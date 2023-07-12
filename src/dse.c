@@ -201,34 +201,28 @@ void *dse_thread_runtime_mu (void* thread_info) {
                 }
                 else {
                     // PIPELINED - PRIORITY
-
-                    // make priority queue
-                    int pqueue_rpool[SCHEDULE_MAX_DEVICES];
-                    int pqueue_last = 0;
                     int checked[SCHEDULE_MAX_DEVICES];
-                    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
-                        pqueue_rpool[i] = -1;
-                        checked[i] = 0;
-                    }
+                    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) checked[i] = 0;
                     for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
                         if (dse->priority_rpool[i] == -1) break;
-                        if (dse->enable_rpool[i] == -1) continue;
+                        if (dse->enable_rpool[dse->priority_rpool[i]] == -1) continue;
                         
-                        pqueue_rpool[pqueue_last++] = dse->priority_rpool[i];
+                        rpool_fetch_ninsts (dse->rpool_arr[dse->priority_rpool[i]], &dse->target, 1, 0);
+                        if (dse->target != NULL) {
+                            target_idx = dse->priority_rpool[i];
+                            break;
+                        }
+                        checked[dse->priority_rpool[i]] = 1;
+                        
                     }
                     for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
                         if (!dse->enable_rpool[i]) continue;
-                        if (!checked[i]) pqueue_rpool[pqueue_last++] = i;
-                    }
+                        if (checked[i]) continue;
+                        if (dse->target != NULL) break;
 
-                    // watch through pqueue
-                    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
-                        if (pqueue_rpool[i] == -1) break;
-
-                        rpool_fetch_ninsts (dse->rpool_arr[pqueue_rpool[i]], &dse->target, 1, 0);
-
+                        rpool_fetch_ninsts (dse->rpool_arr[i], &dse->target, 1, 0);
                         if (dse->target != NULL) {
-                            target_idx = pqueue_rpool[i];
+                            target_idx = i;
                             break;
                         }
                     }
