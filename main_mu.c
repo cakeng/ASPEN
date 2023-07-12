@@ -5,6 +5,7 @@
 #include "apu.h"
 #include "networking.h"
 #include "scheduling.h"
+#include <time.h>
 
 int total_transferred = 0;
 
@@ -13,6 +14,7 @@ int main(int argc, char **argv)
     int device_idx = 0;
     int sequential = 0;
     int num_devices = SCHEDULE_MAX_DEVICES;
+    float offload_delay = 0;
 
     if (argc > 1) {
         if(!strcmp(argv[1], "PIP")) sequential = 0;
@@ -22,7 +24,9 @@ int main(int argc, char **argv)
         device_idx = atoi(argv[2]);
     }
     if (argc > 3) {
-        num_devices = atoi(argv[3]);
+        if (device_idx == 0) num_devices = atoi(argv[3]);
+        else offload_delay = atof(argv[3]);
+        
     }
     else {
         printf("Usage: %s [device_idx]\n", argv[0]);
@@ -148,6 +152,8 @@ int main(int argc, char **argv)
         printf("SYNC KEY: %f\n", sync_key);
     }
     
+    fracSleep(offload_delay);
+
     get_elapsed_time ("init");
     if (!sequential || device_idx != SOCK_RX) dse_group_run (dse_group);
     if (device_idx == SOCK_RX) {

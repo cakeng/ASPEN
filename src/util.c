@@ -820,3 +820,10 @@ int connect_server_sock(char *rx_ip, int rx_port) {
 
     return server_sock;
 }
+
+void fracSleep(float sec) {
+    struct timespec ts;
+    ts.tv_sec = (int) sec;
+    ts.tv_nsec = (sec - ((int) sec)) * 1000000000;
+    nanosleep(&ts,NULL);
+}

@@ -53,4 +53,5 @@ ssize_t write_n(int fd, const void *buf, size_t n);
 int create_server_sock(char *rx_ip, int rx_port);
 int accept_client_sock(int server_sock);
 int connect_server_sock(char *rx_ip, int rx_port);
+void fracSleep(float sec);
 #endif /* _UTIL_H_ */

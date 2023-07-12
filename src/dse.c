@@ -191,41 +191,14 @@ void *dse_thread_runtime_mu (void* thread_info) {
         if (dse->target == NULL) {
             if (dse->device_idx == 0) {
                 // RX: fetch ninst from one of the rpools with some policies
+                
                 if (dse->is_sequential) {
                     // SEQUENTIAL - EXCLUSIVE
-                    if (dse->priority_rpool[0] != -1) {
-                        rpool_fetch_ninsts (dse->rpool_arr[dse->priority_rpool[0]], &dse->target, 1, 0);
-                        
-                        if (dse->target != NULL) target_idx = dse->priority_rpool[0];
-                    }
+                    target_idx = dse_policy_exclusive_priority(dse);
                 }
                 else {
                     // PIPELINED - PRIORITY
-                    int checked[SCHEDULE_MAX_DEVICES];
-                    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) checked[i] = 0;
-                    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
-                        if (dse->priority_rpool[i] == -1) break;
-                        if (dse->enable_rpool[dse->priority_rpool[i]] == -1) continue;
-                        
-                        rpool_fetch_ninsts (dse->rpool_arr[dse->priority_rpool[i]], &dse->target, 1, 0);
-                        if (dse->target != NULL) {
-                            target_idx = dse->priority_rpool[i];
-                            break;
-                        }
-                        checked[dse->priority_rpool[i]] = 1;
-                        
-                    }
-                    for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
-                        if (!dse->enable_rpool[i]) continue;
-                        if (checked[i]) continue;
-                        if (dse->target != NULL) break;
-
-                        rpool_fetch_ninsts (dse->rpool_arr[i], &dse->target, 1, 0);
-                        if (dse->target != NULL) {
-                            target_idx = i;
-                            break;
-                        }
-                    }
+                    target_idx = dse_policy_priority(dse);
                 }
             }
             else {
@@ -315,6 +288,50 @@ void *dse_thread_runtime_mu (void* thread_info) {
         }
     }
     return NULL;
+}
+
+int dse_policy_exclusive_priority (dse_t *dse) {
+    int target_idx;
+
+    if (dse->priority_rpool[0] != -1) {
+        rpool_fetch_ninsts (dse->rpool_arr[dse->priority_rpool[0]], &dse->target, 1, 0);
+        
+        if (dse->target != NULL) target_idx = dse->priority_rpool[0];
+    }
+
+    return target_idx;
+}
+
+int dse_policy_priority (dse_t *dse) {
+    int target_idx;
+    int checked[SCHEDULE_MAX_DEVICES];
+
+    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) checked[i] = 0;
+    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
+        if (dse->priority_rpool[i] == -1) break;
+        if (dse->enable_rpool[dse->priority_rpool[i]] == -1) continue;
+        
+        rpool_fetch_ninsts (dse->rpool_arr[dse->priority_rpool[i]], &dse->target, 1, 0);
+        if (dse->target != NULL) {
+            target_idx = dse->priority_rpool[i];
+            break;
+        }
+        checked[dse->priority_rpool[i]] = 1;
+        
+    }
+    for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
+        if (!dse->enable_rpool[i]) continue;
+        if (checked[i]) continue;
+        if (dse->target != NULL) break;
+
+        rpool_fetch_ninsts (dse->rpool_arr[i], &dse->target, 1, 0);
+        if (dse->target != NULL) {
+            target_idx = i;
+            break;
+        }
+    }
+
+    return target_idx;
 }
 
 void dse_compute_ninst (ninst_t *ninst, dse_t *dse) {
