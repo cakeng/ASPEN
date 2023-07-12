@@ -437,7 +437,26 @@ void receive(networking_engine *net_engine) {
                     if(net_engine->sequential)
                     {
                         dse_group_run(net_engine->dse_group);
-                    } 
+                        dse_group_set_enable_rpool(net_engine->dse_group, net_engine->device_idx, 1);
+                        printf("enabled %d at %f\n", net_engine->device_idx, get_time_secs());
+                        dse_group_push_priority_rpool(net_engine->dse_group, net_engine->device_idx);
+                        printf("now pqueue: %d %d %d %d\n", 
+                            net_engine->dse_group->dse_arr[0].priority_rpool[0],
+                            net_engine->dse_group->dse_arr[0].priority_rpool[1],
+                            net_engine->dse_group->dse_arr[0].priority_rpool[2],
+                            net_engine->dse_group->dse_arr[0].priority_rpool[3]
+                        );
+                    }
+                    else {
+                        printf("dep. fulfilled %d at %f\n", net_engine->device_idx, get_time_secs());
+                        dse_group_push_priority_rpool(net_engine->dse_group, net_engine->device_idx);
+                        printf("now pqueue: %d %d %d %d\n", 
+                            net_engine->dse_group->dse_arr[0].priority_rpool[0],
+                            net_engine->dse_group->dse_arr[0].priority_rpool[1],
+                            net_engine->dse_group->dse_arr[0].priority_rpool[2],
+                            net_engine->dse_group->dse_arr[0].priority_rpool[3]
+                        );
+                    }
                     if (net_engine->sock_type == SOCK_TX)
                     {
                         if( target_ninst->ldata->layer->layer_idx == net_engine->nasm->num_ldata - 1) {

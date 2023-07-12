@@ -35,6 +35,9 @@ struct nasm_t
     cudaGraphExec_t cuda_graph_exec; 
     int cudagraph_instantiated;
     #endif
+
+    // for multiuser case
+    int finished;
 };
 
 struct nasm_ldata_t

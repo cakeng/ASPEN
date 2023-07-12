@@ -40,9 +40,15 @@ struct dse_t
     
     // for multi-user case
     int is_multiuser_case;
+    int is_sequential;
+    rpool_t *rpool_arr[SCHEDULE_MAX_DEVICES];
+    int enable_rpool[SCHEDULE_MAX_DEVICES];
+    int priority_rpool[SCHEDULE_MAX_DEVICES];
+    int exclusive_rpool;
     networking_engine *net_engine_arr[SCHEDULE_MAX_DEVICES];
 
     int device_idx;
+    dse_group_t *dse_group;
 
     int gpu_idx;
 
@@ -51,17 +57,26 @@ struct dse_t
 };
 
 void dse_init (dse_t *dse, int gpu_idx);
+void dse_init_mu (dse_t *dse, int gpu_idx);
 void dse_destroy (dse_t *dse);
 
 void dse_run (dse_t *dse);
 void dse_stop (dse_t *dse);
 
+void *dse_thread_runtime_mu (void* thread_info);
+
 void dse_group_set_net_engine (dse_group_t *dse_group, networking_engine *net_engine);
 void dse_group_set_device (dse_group_t *dse_group, int device_idx);
 void dse_group_set_profile (dse_group_t *dse_group, int profile_compute);
 void dse_group_set_multiuser (dse_group_t *dse_group, int is_multiuser_case);
+void dse_group_set_sequential (dse_group_t *dse_group, int is_sequential);
 void dse_group_init_netengine_arr (dse_group_t *dse_group);
 void dse_group_add_netengine_arr (dse_group_t *dse_group, networking_engine *net_engine, int device_idx);
+void dse_group_add_rpool (dse_group_t *dse_group, rpool_t *rpool, int device_idx);
+void dse_group_set_enable_rpool (dse_group_t *dse_group, int rpool_idx, int set_enable);
+void dse_group_init_priority_rpool (dse_group_t *dse_group);
+void dse_group_push_priority_rpool (dse_group_t *dse_group, int rpool_idx);
+int dse_group_pop_priority_rpool (dse_group_t *dse_group);
 
 void update_children_to_cache_but_prioritize_dse_target (rpool_queue_t *cache, ninst_t *ninst, ninst_t **dse_target);
 void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst);

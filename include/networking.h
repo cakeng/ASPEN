@@ -48,6 +48,9 @@ struct networking_engine
     rpool_t* rpool;
     networking_queue_t *net_queue;
     dse_group_t *dse_group;
+
+    // for multiuser case
+    int device_idx;
 };
 
 

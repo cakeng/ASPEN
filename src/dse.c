@@ -5,6 +5,7 @@ static _Atomic unsigned int dse_thread_id_counter = 0;
 void *dse_thread_runtime (void* thread_info)
 {
     dse_t *dse = (dse_t*) thread_info;
+
     pthread_mutex_lock(&dse->thread_mutex);
     while (dse->kill == 0)
     {
@@ -174,6 +175,198 @@ void *dse_thread_runtime (void* thread_info)
     return NULL;
 }
 
+void *dse_thread_runtime_mu (void* thread_info) {
+    dse_t *dse = (dse_t*) thread_info;
+    pthread_mutex_lock(&dse->thread_mutex);
+
+    while (dse->kill == 0) {
+        
+        int target_idx;
+
+        /** WAIT FOR RUN == 0 **/
+        if (dse->run == 0) pthread_cond_wait(&dse->thread_cond, &dse->thread_mutex);
+        if (dse->kill != 0) break;
+
+        /** FETCH TARGET NINST **/
+        if (dse->target == NULL) {
+            if (dse->device_idx == 0) {
+                // RX: fetch ninst from one of the rpools with some policies
+                if (dse->is_sequential) {
+                    // SEQUENTIAL - EXCLUSIVE
+                    if (dse->priority_rpool[0] != -1) {
+                        rpool_fetch_ninsts (dse->rpool_arr[dse->priority_rpool[0]], &dse->target, 1, 0);
+                        
+                        if (dse->target != NULL) target_idx = dse->priority_rpool[0];
+                    }
+                }
+                else {
+                    // PIPELINED - PRIORITY
+
+                    // make priority queue
+                    int pqueue_rpool[SCHEDULE_MAX_DEVICES];
+                    int pqueue_last = 0;
+                    int checked[SCHEDULE_MAX_DEVICES];
+                    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
+                        pqueue_rpool[i] = -1;
+                        checked[i] = 0;
+                    }
+                    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
+                        if (dse->priority_rpool[i] == -1) break;
+                        if (dse->enable_rpool[i] == -1) continue;
+                        
+                        pqueue_rpool[pqueue_last++] = dse->priority_rpool[i];
+                    }
+                    for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
+                        if (!dse->enable_rpool[i]) continue;
+                        if (!checked[i]) pqueue_rpool[pqueue_last++] = i;
+                    }
+
+                    // watch through pqueue
+                    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
+                        if (pqueue_rpool[i] == -1) break;
+
+                        rpool_fetch_ninsts (dse->rpool_arr[pqueue_rpool[i]], &dse->target, 1, 0);
+
+                        if (dse->target != NULL) {
+                            target_idx = pqueue_rpool[i];
+                            break;
+                        }
+                    }
+                }
+            }
+            else {
+                // TX: fetch ninst from rpool
+                rpool_fetch_ninsts (dse->rpool, &dse->target, 1, 0);
+            }
+
+            if (dse->target == NULL) continue;
+            
+        }
+        
+        ninst_t *ninst = dse->target;
+        dse->target = NULL;
+        
+        /** CHECK NINST AND COMPUTE **/
+
+        // printf("fetched ninst %d, offload: %d, compute: %d\n", ninst->ninst_idx, ninst->offload, ninst->compute);
+        if (is_ninst_mine(ninst, dse->device_idx) || dse->profile_compute)    // It's mine, so compute
+        {
+            // printf("compute ninst %d\n", ninst->ninst_idx);
+            if (dse->profile_compute) ninst->compute_start = get_time_secs();
+            
+            dse_compute_ninst(ninst, dse);
+            ninst->computed_time = get_time_secs();
+
+            if (dse->profile_compute) ninst->compute_end = ninst->computed_time;
+        
+            ninst->state = NINST_COMPLETED;
+
+            // Check if ninst completes ldata
+            unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
+            if (num_ninst_completed == ninst->ldata->num_ninst - 1)
+            {
+                nasm_t *nasm = ninst->ldata->nasm;
+                unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
+                
+                // Check if ldata completes model
+                if (nasm->ldata_arr[nasm->num_ldata-1].num_ninst_completed == nasm->ldata_arr[nasm->num_ldata-1].num_ninst)
+                {
+                    printf ("\t\tSignaling nasm completion...\n");
+                    // All layers of the nasm is completed.
+                    if (dse->device_idx == 0) {
+                        // RX
+                        rpool_queue_group_t *rpool_queue_group = get_queue_group_from_nasm (dse->rpool_arr[target_idx], ninst->ldata->nasm);
+                        set_queue_group_weight (dse->rpool_arr[target_idx], rpool_queue_group, 0);
+                        pthread_mutex_lock (&nasm->nasm_mutex);
+                        pthread_cond_signal (&nasm->nasm_cond);
+                        pthread_mutex_unlock (&nasm->nasm_mutex);
+                        // disable this
+
+                        dse_group_pop_priority_rpool(dse->dse_group);
+                        
+                    }
+                    else {
+                        // TX: 
+                        rpool_queue_group_t *rpool_queue_group = get_queue_group_from_nasm (dse->rpool, ninst->ldata->nasm);
+                        set_queue_group_weight (dse->rpool, rpool_queue_group, 0);
+                        pthread_mutex_lock (&nasm->nasm_mutex);
+                        pthread_cond_signal (&nasm->nasm_cond);
+                        pthread_mutex_unlock (&nasm->nasm_mutex);
+
+                    }
+                }
+            }
+
+            // Update children
+            if (dse->device_idx == 0) {
+                // RX:
+                update_children_but_prioritize_dse_target (dse->rpool_arr[target_idx], ninst, dse);
+            }
+            else {
+                // TX:
+                update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
+            }
+
+            // check desiring devices for the computation output
+            for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
+                if (i == dse->device_idx) continue;
+                if (ninst->desiring_devices[i]) // Should be offload
+                {
+                    networking_engine *net_engine = dse->net_engine_arr[i];
+                    pthread_mutex_lock(&net_engine->net_engine_mutex);
+                    push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
+                    pthread_mutex_unlock(&net_engine->net_engine_mutex);
+                }
+            }
+        }
+    }
+    return NULL;
+}
+
+void dse_compute_ninst (ninst_t *ninst, dse_t *dse) {
+    switch (ninst->ldata->layer->type)
+    {
+        case CONV_LAYER:
+            tiled_conv2d (ninst, dse);
+            break;
+        case MAXPOOL_LAYER:
+            tiled_maxpool2d (ninst, dse);
+            break;
+        case AVGPOOL_LAYER:
+            tiled_avgpool2d (ninst, dse);
+            break;
+        case FC_LAYER:
+            tiled_fully_connected (ninst, dse);
+            break;
+        case RESIDUAL_LAYER:
+            tiled_residual (ninst, dse);
+            break;
+        case SOFTMAX_LAYER:
+            tiled_softmax (ninst, dse);
+            break;
+        case YOLO_LAYER:
+            tiled_yolo (ninst, dse);
+            break;
+        case APPEND_LAYER:
+            tiled_append (ninst, dse);
+            break;
+        case MATMUL_LAYER:
+            tiled_matmul (ninst, dse);
+            break;
+        case LAYERNORM_LAYER:
+            tiled_layernorm (ninst, dse);
+            break;
+        case K_ATTENTION_LAYER:
+            tiled_k_attention (ninst, dse);
+            break;
+        case V_ATTENTION_LAYER:
+            tiled_v_attention (ninst, dse);
+            break;
+        default:
+            break;
+    }
+}
+
 dse_group_t *dse_group_init (unsigned int num_ase, int gpu_idx)
 {
     if (gpu_idx >= 0 && gpu_idx >= aspen_num_gpus)
@@ -196,6 +389,33 @@ dse_group_t *dse_group_init (unsigned int num_ase, int gpu_idx)
     {
         dse_init (&dse_group->dse_arr[i], dse_group->gpu_idx);
     }
+    return dse_group;
+}
+
+dse_group_t *dse_group_init_mu (unsigned int num_ase, int gpu_idx)
+{
+    if (gpu_idx >= 0 && gpu_idx >= aspen_num_gpus)
+    {
+        FPRT (stderr, "ERROR: dse_group_init: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);
+        gpu_idx = -1;
+    }
+    else if (gpu_idx >= 0 && gpu_idx < aspen_num_gpus)
+    {
+        num_ase = num_ase > GPU_RUN_STREAM_NUM ? GPU_RUN_STREAM_NUM : num_ase;
+    }
+    dse_group_t *dse_group = (dse_group_t *) calloc (1, sizeof (dse_group_t));
+    dse_group->num_ases = num_ase;
+    if (gpu_idx < 0)
+        dse_group->gpu_idx = -1;
+    else
+        dse_group->gpu_idx = gpu_idx;
+    dse_group->dse_arr = (dse_t *) calloc (num_ase, sizeof (dse_t));
+    for (int i = 0; i < num_ase; i++)
+    {
+        dse_init_mu (&dse_group->dse_arr[i], dse_group->gpu_idx);
+        dse_group->dse_arr[i].dse_group = dse_group;
+    }
+    dse_group_set_multiuser(dse_group, 1);
     return dse_group;
 }
 
@@ -279,6 +499,19 @@ void dse_group_set_multiuser (dse_group_t *dse_group, int is_multiuser_case) {
     }
 }
 
+void dse_group_set_sequential (dse_group_t *dse_group, int is_sequential) {
+    if (dse_group == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_set_sequential: dse_group is NULL\n");
+        assert (0);
+    }
+    for (int i = 0; i < dse_group->num_ases; i++)
+    {
+        dse_group->dse_arr[i].is_sequential = is_sequential;
+    }
+
+}
+
 void dse_group_init_netengine_arr (dse_group_t *dse_group) {
     if (dse_group == NULL)
     {
@@ -301,6 +534,77 @@ void dse_group_add_netengine_arr (dse_group_t *dse_group, networking_engine *net
     for (int i = 0; i < dse_group->num_ases; i++) {
         dse_group->dse_arr[i].net_engine_arr[device_idx] = net_engine;
     }
+}
+
+void dse_group_add_rpool (dse_group_t *dse_group, rpool_t *rpool, int device_idx) {
+    if (dse_group == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_add_rpool: dse_group is NULL\n");
+        assert (0);
+    }
+    for (int i = 0; i < dse_group->num_ases; i++) {
+        dse_group->dse_arr[i].rpool_arr[device_idx] = rpool;
+    }
+}
+
+void dse_group_set_enable_rpool (dse_group_t *dse_group, int rpool_idx, int set_enable) {
+    if (dse_group == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_add_rpool: dse_group is NULL\n");
+        assert (0);
+    }
+    for (int i = 0; i < dse_group->num_ases; i++) {
+        dse_group->dse_arr[i].enable_rpool[rpool_idx] = set_enable;
+    }
+}
+
+void dse_group_init_priority_rpool (dse_group_t *dse_group) {
+    if (dse_group == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_init_priority_rpool: dse_group is NULL\n");
+        assert (0);
+    }
+    for (int i = 0; i < dse_group->num_ases; i++) {
+        for (int j=0; j < SCHEDULE_MAX_DEVICES; j++) {
+            dse_group->dse_arr[i].priority_rpool[j] = -1;
+        }
+    }
+}
+
+void dse_group_push_priority_rpool (dse_group_t *dse_group, int rpool_idx) {
+    if (dse_group == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_add_rpool: dse_group is NULL\n");
+        assert (0);
+    }
+    for (int i = 0; i < dse_group->num_ases; i++) {
+        for (int j=0; j < SCHEDULE_MAX_DEVICES; j++) {
+            if (dse_group->dse_arr[i].priority_rpool[j] == -1) {
+                dse_group->dse_arr[i].priority_rpool[j] = rpool_idx;
+                break;
+            }
+        }
+    }
+}
+
+int dse_group_pop_priority_rpool (dse_group_t *dse_group) {
+    if (dse_group == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_add_rpool: dse_group is NULL\n");
+        assert (0);
+    }
+    int result = -1;
+    for (int i = 0; i < dse_group->num_ases; i++) {
+        dse_t *now_dse = &dse_group->dse_arr[i];
+        if (now_dse->priority_rpool[0] == -1) return -1;
+        
+        result = now_dse->priority_rpool[0];
+        for (int j=0; j<SCHEDULE_MAX_DEVICES-1; j++) {
+            now_dse->priority_rpool[j] = now_dse->priority_rpool[j+1];
+        }
+        now_dse->priority_rpool[SCHEDULE_MAX_DEVICES-1] = -1;
+    }
+    return result;
 }
 
 void dse_group_destroy (dse_group_t *dse_group)
@@ -343,6 +647,37 @@ void dse_init (dse_t *dse, int gpu_idx)
     rpool_init_queue (dse->ninst_cache);
     pthread_mutex_lock(&dse->thread_mutex);
     pthread_create (&dse->thread, NULL, dse_thread_runtime, (void*)dse);
+}
+
+void dse_init_mu (dse_t *dse, int gpu_idx)
+{
+    if (dse == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_init: dse is NULL\n");
+        assert (0);
+    }
+    if (gpu_idx >= 0 && gpu_idx >= aspen_num_gpus)
+    {
+        FPRT (stderr, "ERROR: dse_init: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);
+        gpu_idx = -1;
+    }
+    dse->thread_id = atomic_fetch_add (&dse_thread_id_counter, 1);
+    dse->rpool = NULL;
+    dse->gpu_idx = gpu_idx;
+    dse->scratchpad = aspen_calloc (dse_SCRATCHPAD_SIZE, 1);
+    if (gpu_idx >= 0)
+        dse->gpu_scratchpad = aspen_gpu_calloc (dse_SCRATCHPAD_SIZE, 1, gpu_idx);
+    dse->thread_mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
+    dse->thread_cond = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
+    dse->ninst_cache = calloc (1, sizeof (rpool_queue_t));
+
+    dse->exclusive_rpool = -1;
+
+    atomic_store (&dse->run, 0);
+    atomic_store (&dse->kill, 0);
+    rpool_init_queue (dse->ninst_cache);
+    pthread_mutex_lock(&dse->thread_mutex);
+    pthread_create (&dse->thread, NULL, dse_thread_runtime_mu, (void*)dse);
 }
 
 void dse_destroy (dse_t *dse)

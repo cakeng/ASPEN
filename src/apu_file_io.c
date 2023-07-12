@@ -1131,5 +1131,7 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn)
         return NULL;
     }
     fclose (fp);
+
+    nasm->finished = 0;
     return nasm;
 }

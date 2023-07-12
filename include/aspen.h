@@ -149,6 +149,7 @@ void rpool_queue_group_set_whitelist (rpool_queue_group_t *rpool_queue_group, vo
 void rpool_reset_nasm (rpool_t *rpool, nasm_t *nasm, float weight);
 
 dse_group_t *dse_group_init (unsigned int num_ase, int gpu_idx);
+dse_group_t *dse_group_init_mu (unsigned int num_ase, int gpu_idx);
 void dse_group_set_rpool (dse_group_t *dse_group, rpool_t *rpool);
 void dse_group_destroy (dse_group_t *dse_group);
 void dse_cudagraph_run (rpool_t *rpool, nasm_t *nasm);

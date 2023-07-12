@@ -729,6 +729,7 @@ nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned 
         new_nasm->total_flops += 
             ldata->flop_per_output*ldata->out_mat_dims[OUT_H]*ldata->out_mat_dims[OUT_W];
     }
+    new_nasm->finished = 0;
     return new_nasm;
 }
 

@@ -12,13 +12,17 @@ int main(int argc, char **argv)
 {
     int device_idx = 0;
     int sequential = 0;
+    int num_devices = SCHEDULE_MAX_DEVICES;
 
     if (argc > 1) {
-        if(strcmp(argv[1], "PIP")) sequential = 0;
-        else if (strcmp(argv[1], "SEQ")) sequential = 1;
+        if(!strcmp(argv[1], "PIP")) sequential = 0;
+        else if (!strcmp(argv[1], "SEQ")) sequential = 1;
     }
     if (argc > 2) {
         device_idx = atoi(argv[2]);
+    }
+    if (argc > 3) {
+        num_devices = atoi(argv[3]);
     }
     else {
         printf("Usage: %s [device_idx]\n", argv[0]);
@@ -41,7 +45,7 @@ int main(int argc, char **argv)
     // char *target_input = NULL;
 
     if (device_idx == 0) {
-        for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
+        for (int i=1; i<num_devices; i++) {
             target_dnn[i] = apu_create_dnn("data/cfg/resnet50_aspen.cfg", "data/resnet50/resnet50_data.bin");
             target_nasm[i] = apu_load_nasm_from_file ("data/resnet50_B1_aspen.nasm", target_dnn[i]);
             init_sequential_offload(target_nasm[i], 1, i, device_idx);
@@ -53,9 +57,10 @@ int main(int argc, char **argv)
         init_sequential_offload(target_nasm[device_idx], 1, device_idx, 0);
     }
 
-    rpool_t *rpool = rpool_init (gpu);
-    dse_group_t *dse_group = dse_group_init (8, gpu);
-    dse_group_set_rpool (dse_group, rpool);
+    rpool_t *tx_rpool;
+    rpool_t *rx_rpool_arr[SCHEDULE_MAX_DEVICES];
+    dse_group_t *dse_group = dse_group_init_mu (8, gpu);
+    dse_group_set_multiuser(dse_group, 1);
 
     networking_engine* net_engine = NULL;
     networking_engine *net_engine_arr[SCHEDULE_MAX_DEVICES];
@@ -68,20 +73,38 @@ int main(int argc, char **argv)
     }
 
     if (device_idx == 0) {
-        for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
-            net_engine_arr[i] = init_networking(target_nasm[i], rpool, SOCK_RX, rx_ip, rx_ports[i], 0, sequential);
+        // RX: add rpool to rpool_arr
+        dse_group_set_device(dse_group, 0);
+        for (int i=1; i<num_devices; i++) {
+            rx_rpool_arr[i] = rpool_init(gpu);
+            net_engine_arr[i] = init_networking(target_nasm[i], rx_rpool_arr[i], SOCK_RX, rx_ip, rx_ports[i], 0, sequential);
             dse_group_add_netengine_arr(dse_group, net_engine_arr[i], i);
-            dse_group_set_device(dse_group, device_idx);
+            dse_group_add_rpool(dse_group, rx_rpool_arr[i], i);
             net_engine_arr[i]->dse_group = dse_group;
+            net_engine_arr[i]->device_idx = i;
         
             atomic_store (&net_engine_arr[i]->run, 1);
+            
+            dse_group_init_priority_rpool(dse_group);
+            dse_group_set_sequential(dse_group, sequential);
+            if (sequential) {
+                dse_group_set_enable_rpool(dse_group, i, 0);
+            }
+            else {
+                dse_group_set_enable_rpool(dse_group, i, 1);
+            }
         }
+
     }
     else {
-        net_engine = init_networking(target_nasm[device_idx], rpool, SOCK_TX, rx_ip, rx_ports[device_idx], 0, sequential);
+        // TX: set rpool to rpool
+        tx_rpool = rpool_init (gpu);
+        dse_group_set_rpool (dse_group, tx_rpool);
+        net_engine = init_networking(target_nasm[device_idx], tx_rpool, SOCK_TX, rx_ip, rx_ports[device_idx], 0, sequential);
         dse_group_add_netengine_arr(dse_group, net_engine, 0);
         dse_group_set_device(dse_group, device_idx);
         net_engine->dse_group = dse_group;
+        net_engine->device_idx = device_idx;
         add_input_rpool (net_engine, target_nasm[device_idx], target_input);
         
         atomic_store (&net_engine->run, 1);
@@ -89,22 +112,28 @@ int main(int argc, char **argv)
 
     // SYNC HERE
     float sync_key;
+    float sync;
     int control_server_sock;
     int client_sock_arr[SCHEDULE_MAX_DEVICES];
 
     if (device_idx == 0) {
         control_server_sock = create_server_sock(rx_ip, rx_port_start);
-        for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
+        for (int i=1; i<num_devices; i++) {
             client_sock_arr[i] = accept_client_sock(control_server_sock);
         }
         for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
             sync_key = get_time_secs();
             printf("SYNC KEY SEND %d: %f\n", i, sync_key);
+            sync += sync_key/2;
             write_n(client_sock_arr[i], &sync_key, sizeof(float));
             read_n(client_sock_arr[i], &sync_key, sizeof(float));
             printf("SYNC KEY RECV %d: %f\n", i, sync_key);
+            sync -= sync_key;
             sync_key = get_time_secs();
             printf("SYNC KEY LAST %d: %f\n", i, sync_key);
+            sync += sync_key/2;
+            printf("SYNC %d: %f\n", i, sync);
+            
             close(client_sock_arr[i]);
         }
         close(control_server_sock);
@@ -116,13 +145,13 @@ int main(int argc, char **argv)
         sync_key = get_time_secs();
         write_n(control_server_sock, &sync_key, sizeof(float));
         close(control_server_sock);
-        printf("SYNC KEY: %d\n", sync_key);
+        printf("SYNC KEY: %f\n", sync_key);
     }
     
     get_elapsed_time ("init");
     if (!sequential || device_idx != SOCK_RX) dse_group_run (dse_group);
     if (device_idx == SOCK_RX) {
-        for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
+        for (int i=1; i<num_devices; i++) {
             dse_wait_for_nasm_completion (target_nasm[i]);
         }
     }
@@ -151,9 +180,10 @@ int main(int argc, char **argv)
     // WRAP UP
     char file_name[256];
     if (device_idx == 0) {
+        // RX
         FILE *log_fp;
         
-        for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
+        for (int i=1; i<num_devices; i++) {
             sprintf(file_name, "./logs/multiuser/%s_dev%d_RX.txt", (sequential ? "seq" : "pip"), i);
             log_fp = fopen(file_name, "w");
 
@@ -162,9 +192,11 @@ int main(int argc, char **argv)
             net_engine_destroy (net_engine_arr[i]);
             apu_destroy_nasm (target_nasm[i]);
             apu_destroy_dnn (target_dnn[i]);
+            rpool_destroy (rx_rpool_arr[i]);
         }
     }
     else {
+        // TX
         sprintf(file_name, "./logs/multiuser/%s_dev%d_TX.txt", (sequential ? "seq" : "pip"), device_idx);
         FILE *log_fp = fopen(file_name, "w");
 
@@ -173,9 +205,10 @@ int main(int argc, char **argv)
         net_engine_destroy (net_engine);
         apu_destroy_nasm (target_nasm[device_idx]);
         apu_destroy_dnn (target_dnn[device_idx]);
+        rpool_destroy (tx_rpool);
     }
     dse_group_destroy (dse_group);
-    rpool_destroy (rpool);
+    
 
     printf("total transferred: %d\n", total_transferred);
     return 0;
