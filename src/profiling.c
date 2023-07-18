@@ -12,7 +12,7 @@ ninst_profile_t *profile_computation(char *target_config, char *target_bin, char
         dse_group_set_rpool (dse_group, rpool);
         dse_group_set_profile (dse_group, 1);
 
-        rpool_add_nasm (rpool, target_nasm, 1.0, target_input); 
+        rpool_add_nasm (rpool, target_nasm, target_input); 
         
         dse_group_run (dse_group);
         dse_wait_for_nasm_completion (target_nasm);

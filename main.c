@@ -75,7 +75,7 @@ int main(int argc, char **argv)
         atomic_store (&net_engine->run, 1);
     }
     else { // Local run
-        rpool_add_nasm (rpool, target_nasm, 1.0, target_input); 
+        rpool_add_nasm (rpool, target_nasm, target_input); 
     }
     
     get_elapsed_time ("init");

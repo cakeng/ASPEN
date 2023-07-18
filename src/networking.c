@@ -73,7 +73,7 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock
     if (num_queues < 1)
         num_queues = 1;
     nasm->gpu_idx = rpool->gpu_idx;
-    rpool_add_queue_group (rpool, info_str, num_queues, 1.0, NULL, whitelist);
+    rpool_add_queue_group (rpool, info_str, num_queues, NULL, whitelist);
 
     size_t total_mem_req = 0;
     for (int i = 0; i < nasm->num_ldata; i++)

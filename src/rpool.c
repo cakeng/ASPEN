@@ -15,8 +15,8 @@ void rpool_init_queue (rpool_queue_t *rpool_queue)
     pthread_mutex_init (&rpool_queue->occupied_mutex, NULL);
     rpool_queue->idx_start = 0;
     rpool_queue->idx_end = 0;
-    rpool_queue->max_stored = INIT_QUEUE_SIZE;
-    rpool_queue->ninst_ptr_arr = calloc (INIT_QUEUE_SIZE, sizeof(ninst_t*));
+    rpool_queue->max_stored = RPOOL_INIT_QUEUE_SIZE;
+    rpool_queue->ninst_ptr_arr = calloc (RPOOL_INIT_QUEUE_SIZE, sizeof(ninst_t*));
 }
 void rpool_init_queue_group (rpool_queue_group_t *rpool_queue_group, char *queue_group_info, unsigned int num_queues)
 {

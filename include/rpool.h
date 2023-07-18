@@ -6,7 +6,7 @@
 #include "dse.h"
 #include <stdatomic.h>
 
-#define INIT_QUEUE_SIZE 1024
+#define RPOOL_INIT_QUEUE_SIZE 1024
 #define MAX_QUEUE_GROUPS 128
 #define MAX_NUM_QUEUES 1024*4
 #define NINST_PUSH_BATCH_SIZE 16

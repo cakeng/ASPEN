@@ -1,6 +1,6 @@
 TARGET=main
 SUBTARGET=main_scheduling
-ALIB=libasapen.a
+ALIB=libaspen.a
 OBJECTS=build_info.o apu.o apu_nasm.o apu_file_io.o input_parser.o darknet_parser.o util.o 
 OBJECTS+=rpool.o dse.o naive_kernels.o tiled_kernels.o avx2_kernels.o neon_kernels.o networking.o scheduling.o profiling.o #dse_cudagraph.o
 AVX2=1
