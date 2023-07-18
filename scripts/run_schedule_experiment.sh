@@ -1,0 +1,12 @@
+./main_scheduling \
+    --sock_type=0   \
+    --sequential=0  \
+    --dirname=temp  \
+    --target_config="data/cfg/resnet50_aspen.cfg"   \
+    --target_nasm_dir="data/resnet50_B1_aspen.nasm" \
+    --rx_ip="192.168.1.176" \
+    --rx_port=3786   \
+    --schedule_policy="sequential"  \
+    --sched_sequential_idx=1    \
+    --dse_num=16    \
+    --output_order="cnn"
