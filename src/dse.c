@@ -214,17 +214,31 @@ void *dse_thread_runtime (void* thread_info)
                 }
 
                 // check desiring devices for the computation output
-                for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
-                    if (i == dse->device_idx) continue;
-                    if (ninst->desiring_devices[i]) // Should be offload
-                    {
-                        networking_engine *net_engine = dse->net_engine_arr[i];
-                        pthread_mutex_lock(&net_engine->net_engine_mutex);
-                        push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
-                        pthread_mutex_unlock(&net_engine->net_engine_mutex);
+                if (dse->is_multiuser_case) {
+                    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
+                        if (i == dse->device_idx) continue;
+                        if (ninst->desiring_devices[i]) // Should be offload
+                        {
+                            networking_engine *net_engine = dse->net_engine_arr[i];
+                            pthread_mutex_lock(&net_engine->net_engine_mutex);
+                            push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
+                            pthread_mutex_unlock(&net_engine->net_engine_mutex);
+                        }
+                    }
+
+                }
+                else {
+                    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
+                        if (i == dse->device_idx) continue;
+                        else {
+                            networking_engine *net_engine = dse->net_engine;
+                            pthread_mutex_lock(&net_engine->net_engine_mutex);
+                            push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
+                            pthread_mutex_unlock(&net_engine->net_engine_mutex);
+                        }
                     }
                 }
-                }
+            }
                 
         // }
     }
