@@ -701,7 +701,7 @@ nasm_t *apu_generate_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned in
 
 nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int min_ninst_per_ldata, unsigned int batch_size)
 {
-    nasm_t *new_nasm = apu_create_nasm_without_finding_ninst_parents(dnn, flop_per_ninst, batch_size, min_ninst_per_ldata, 0);
+    nasm_t *new_nasm = apu_create_nasm_without_finding_ninst_parents(dnn, flop_per_ninst, batch_size, min_ninst_per_ldata, 128);
     for (int i = 0; i < new_nasm->num_ldata; i++)
     {
         #pragma omp parallel for

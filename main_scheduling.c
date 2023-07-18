@@ -125,6 +125,10 @@ int main(int argc, char **argv)
         apply_schedule_to_nasm(target_nasm, schedule, 2, sock_type);
     }
     else if (schedule_policy == SCHED_PARTIAL) {
+        target_dnn = apu_create_dnn(target_config, target_bin);
+        target_nasm = apu_create_nasm(target_dnn, 1e4, 8, 1);
+        apu_save_nasm_to_file(target_nasm, "data/bert_base_encoder_B1.nasm");
+
         init_partial_offload(target_nasm, 0.1);
     }
     
