@@ -7,6 +7,10 @@
 #include "scheduling.h"
 #include "profiling.h"
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 #define SCHED_HEFT      0
 #define SCHED_PARTIAL   1
 #define SCHED_DYNAMIC   2
@@ -15,7 +19,19 @@ int main(int argc, char **argv)
 {
     int sock_type = 999;
     int sequential = 0;
+    char *dirname = "temp";
+    char *prefix = "temp";
+    char *postfix = "0";
 
+    if (argc > 5) {
+        postfix = argv[5];
+    }
+    if (argc > 4) {
+        prefix = argv[4];
+    }
+    if (argc > 3) {
+        dirname = argv[3];
+    }
     if (argc > 2) {
         sequential = atoi(argv[2]);
     }
@@ -139,12 +155,6 @@ int main(int argc, char **argv)
 
     printf("STAGE: INFERENCE\n");
 
-    char* file_name;
-    if(sequential) file_name = sock_type == SOCK_RX ? "./logs/scheduled/sequential_ninst_time_logs_RX.csv" : "./logs/scheduled/sequential_ninst_time_logs_TX.csv";
-    else file_name = sock_type == SOCK_RX ? "./logs/scheduled/pipeline_ninst_time_logs_RX.csv" : "./logs/scheduled/pipeline_ninst_time_logs_TX.csv";
-    
-    FILE *log_fp = fopen(file_name, "w");    
-
     rpool_t *rpool = rpool_init (gpu);
     dse_group_t *dse_group = dse_group_init (8, gpu);
     dse_group_set_rpool (dse_group, rpool);
@@ -190,8 +200,24 @@ int main(int argc, char **argv)
     naive_softmax (layer_output, softmax_output, target_nasm->batch_size, 1000);
     for (int i = 0; i < target_nasm->batch_size; i++)
     {
-        // get_probability_results ("data/resnet50/imagenet_classes.txt", softmax_output + 1000*i, 1000);
+        get_probability_results ("data/resnet50/imagenet_classes.txt", softmax_output + 1000*i, 1000);
     }
+    
+    // For logging
+    char file_name[256];
+    char dir_path[256];
+    sprintf(dir_path, "./logs/%s", dirname);
+
+    struct stat st = {0};
+    if (stat(dir_path, &st) == -1) {
+        mkdir(dir_path, 0700);
+    }
+
+    sprintf(file_name, "./logs/%s/%s_dev%d_%s.csv", dirname, prefix, sock_type == SOCK_RX ? SOCK_RX : SOCK_TX, postfix);
+    
+    FILE *log_fp = fopen(file_name, "w");
+
+    // Wrap up
     
     free (layer_output);
     free (softmax_output);
