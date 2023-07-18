@@ -7,6 +7,10 @@
 #include "scheduling.h"
 #include "profiling.h"
 
+#define SCHED_HEFT      0
+#define SCHED_PARTIAL   1
+#define SCHED_DYNAMIC   2
+
 int main(int argc, char **argv)
 {
     int sock_type = 999;
@@ -33,10 +37,13 @@ int main(int argc, char **argv)
     // char *target_nasm_dir = "data/resnet50_B1_aspen.nasm";
     // char *target_nasm_dir = "data/resnet50_B32_fine_aspen.nasm";
     // char* target_input = "data/resnet50/batched_input_64.bin";
+    char *target_config = "data/cfg/bert_base_encoder.cfg";
+    char *target_bin = NULL;
 
-    char *target_config = "data/cfg/vgg16_aspen.cfg";
-    char *target_bin = "data/vgg16/vgg16_data.bin";
-    char *target_nasm_dir = "data/vgg16_B1_aspen.nasm";
+    // char *target_config = "data/cfg/vgg16_aspen.cfg";
+    // char *target_bin = "data/vgg16/vgg16_data.bin";
+    // char *target_nasm_dir = "data/vgg16_B1_aspen.nasm";
+    char *target_nasm_dir = NULL;
     char *target_input = NULL;
 
     int gpu = -1;
@@ -48,63 +55,79 @@ int main(int argc, char **argv)
     // apu_save_nasm_to_file(resnet50_nasm, "data/resnset50_B32_fine_aspen.nasm");
     // apu_save_nasm_to_file(vgg16_nasm, "data/vgg16_B1_aspen.nasm");
 
-    ninst_profile_t *ninst_profile[SCHEDULE_MAX_DEVICES];
-    network_profile_t *network_profile;
-
-    /** STAGE: PROFILING COMPUTATION **/
-
-    printf("STAGE: PROFILING COMPUTATION\n");
-    // ninst_profile[sock_type] = profile_computation(target_config, target_bin, target_nasm_dir, target_input, gpu, 1);
-    ninst_profile[sock_type] = load_computation_profile("./data/vgg16_B1_comp_profile.bin");
-    // save_computation_profile(ninst_profile[sock_type], "data/vgg16_B1_comp_profile.bin");
-
-    
-    /** STAGE: PROFILING NETWORK **/
-
-    printf("STAGE: PROFILING NETWORK\n");
-
     char *rx_ip = "192.168.1.176";
     int rx_port = 3786;
 
     int server_sock;
     int client_sock;
-    
-    if (sock_type == SOCK_RX) {
-        server_sock = create_server_sock(rx_ip, rx_port+1);
-        client_sock = accept_client_sock(server_sock);
-    }
-    else if (sock_type == SOCK_TX) {
-        server_sock = connect_server_sock(rx_ip, rx_port+1);
-    }
 
-    network_profile = profile_network(ninst_profile, sock_type, server_sock, client_sock);
+    ninst_profile_t *ninst_profile[SCHEDULE_MAX_DEVICES];
+    network_profile_t *network_profile;
 
-    int connection_key;
-    if (sock_type == SOCK_RX) {
-        connection_key = 12534;
-        write_n(client_sock, &connection_key, sizeof(int));
-        printf("connection key: %d\n", connection_key);
-    }
-    else if (sock_type == SOCK_TX) {
-        connection_key = -1;
-        read_n(server_sock, &connection_key, sizeof(int));
-        printf("connection key: %d\n", connection_key);
-    }
 
-    printf("sync: %f\n", network_profile->sync);
-    
-    
-    /** STAGE: SCHEDULING - HEFT **/
-
-    printf("STAGE: SCHEUDLING - HEFT\n");
-
+    int schedule_policy = SCHED_PARTIAL;
     sched_processor_t *schedule;
-    if (sock_type == SOCK_RX) {
-        schedule = init_heft(target_config, target_bin, target_nasm_dir, ninst_profile, network_profile, 2);
-        save_schedule(schedule, 2, "./temp_sched.txt");
+
+    aspen_dnn_t *target_dnn;
+    nasm_t *target_nasm;
+
+    if (schedule_policy == SCHED_HEFT) {
+        /** STAGE: PROFILING COMPUTATION **/
+
+        printf("STAGE: PROFILING COMPUTATION\n");
+        // ninst_profile[sock_type] = profile_computation(target_config, target_bin, target_nasm_dir, target_input, gpu, 1);
+        // ninst_profile[sock_type] = load_computation_profile("./data/vgg16_B1_comp_profile.bin");
+        // save_computation_profile(ninst_profile[sock_type], "data/bert_base_comp_profile.bin");
+
+        
+        /** STAGE: PROFILING NETWORK **/
+
+        printf("STAGE: PROFILING NETWORK\n");
+        
+        if (sock_type == SOCK_RX) {
+            server_sock = create_server_sock(rx_ip, rx_port+1);
+            client_sock = accept_client_sock(server_sock);
+        }
+        else if (sock_type == SOCK_TX) {
+            server_sock = connect_server_sock(rx_ip, rx_port+1);
+        }
+
+        network_profile = profile_network(ninst_profile, sock_type, server_sock, client_sock);
+
+        int connection_key;
+        if (sock_type == SOCK_RX) {
+            connection_key = 12534;
+            write_n(client_sock, &connection_key, sizeof(int));
+            printf("connection key: %d\n", connection_key);
+        }
+        else if (sock_type == SOCK_TX) {
+            connection_key = -1;
+            read_n(server_sock, &connection_key, sizeof(int));
+            printf("connection key: %d\n", connection_key);
+        }
+
+        printf("sync: %f\n", network_profile->sync);
+        
+        
+        /** STAGE: SCHEDULING - HEFT **/
+        printf("STAGE: SCHEUDLING - HEFT\n");
+
+        if (sock_type == SOCK_RX) {
+            schedule = init_heft(target_config, target_bin, target_nasm_dir, ninst_profile, network_profile, 2);
+            save_schedule(schedule, 2, "./temp_sched.txt");
+        }
+        
+        share_schedule(&schedule, 2, sock_type, server_sock, client_sock);
+
+        target_dnn = apu_create_dnn(target_config, target_bin);
+        target_nasm = apu_load_nasm_from_file (target_nasm_dir, target_dnn);
+
+        apply_schedule_to_nasm(target_nasm, schedule, 2, sock_type);
+    }
+    else if (schedule_policy == SCHED_PARTIAL) {
+        init_partial_offload(target_nasm, 0.1);
     }
     
-    share_schedule(&schedule, 2, sock_type, server_sock, client_sock);
 
 
     /** STAGE: INFERENCE **/
@@ -115,15 +138,7 @@ int main(int argc, char **argv)
     if(sequential) file_name = sock_type == SOCK_RX ? "./logs/scheduled/sequential_ninst_time_logs_RX.csv" : "./logs/scheduled/sequential_ninst_time_logs_TX.csv";
     else file_name = sock_type == SOCK_RX ? "./logs/scheduled/pipeline_ninst_time_logs_RX.csv" : "./logs/scheduled/pipeline_ninst_time_logs_TX.csv";
     
-    FILE *log_fp = fopen(file_name, "w");
-
-    aspen_dnn_t *vgg16_dnn = apu_create_dnn(target_config, target_bin);
-    nasm_t *vgg16_nasm = apu_load_nasm_from_file (target_nasm_dir, vgg16_dnn);
-
-    aspen_dnn_t *target_dnn = vgg16_dnn;
-    nasm_t *target_nasm = vgg16_nasm;
-
-    apply_schedule_to_nasm(target_nasm, schedule, 2, sock_type);
+    FILE *log_fp = fopen(file_name, "w");    
 
     rpool_t *rpool = rpool_init (gpu);
     dse_group_t *dse_group = dse_group_init (8, gpu);
