@@ -91,9 +91,9 @@ int main(int argc, char **argv)
         /** STAGE: PROFILING COMPUTATION **/
 
         printf("STAGE: PROFILING COMPUTATION\n");
-        // ninst_profile[sock_type] = profile_computation(target_config, target_bin, target_nasm_dir, target_input, gpu, 1);
-        // ninst_profile[sock_type] = load_computation_profile("./data/vgg16_B1_comp_profile.bin");
-        // save_computation_profile(ninst_profile[sock_type], "data/bert_base_comp_profile.bin");
+        ninst_profile[sock_type] = profile_computation(target_config, target_bin, target_nasm_dir, target_input, gpu, 1);
+        ninst_profile[sock_type] = load_computation_profile("./data/vgg16_B1_comp_profile.bin");
+        save_computation_profile(ninst_profile[sock_type], "data/bert_base_comp_profile.bin");
 
         
         /** STAGE: PROFILING NETWORK **/
@@ -141,16 +141,43 @@ int main(int argc, char **argv)
         apply_schedule_to_nasm(target_nasm, schedule, 2, sock_type);
     }
     else if (schedule_policy == SCHED_PARTIAL) {
+        /** STAGE: PROFILING NETWORK **/
+
+        printf("STAGE: PROFILING NETWORK\n");
+        
+        if (sock_type == SOCK_RX) {
+            server_sock = create_server_sock(rx_ip, rx_port+1);
+            client_sock = accept_client_sock(server_sock);
+        }
+        else if (sock_type == SOCK_TX) {
+            server_sock = connect_server_sock(rx_ip, rx_port+1);
+        }
+
+        network_profile = profile_network(ninst_profile, sock_type, server_sock, client_sock);
+
+        int connection_key;
+        if (sock_type == SOCK_RX) {
+            connection_key = 12534;
+            write_n(client_sock, &connection_key, sizeof(int));
+            printf("connection key: %d\n", connection_key);
+        }
+        else if (sock_type == SOCK_TX) {
+            connection_key = -1;
+            read_n(server_sock, &connection_key, sizeof(int));
+            printf("connection key: %d\n", connection_key);
+        }
+
+        printf("sync: %f\n", network_profile->sync);
+
+        /** STAGE: SCHEDULING - PARTIAL **/
         target_dnn = apu_create_dnn(target_config, target_bin);
         // target_nasm = apu_create_nasm(target_dnn, 1e4, 8, 1);
         // apu_save_nasm_to_file(target_nasm, "data/bert_base_encoder_B1_S128.nasm");
         target_nasm = apu_load_nasm_from_file("data/bert_base_encoder_B1_S128.nasm", target_dnn);
 
-        init_partial_offload(target_nasm, 0.1);
+        init_partial_offload(target_nasm, 0.0);
     }
     
-
-
     /** STAGE: INFERENCE **/
 
     printf("STAGE: INFERENCE\n");
@@ -182,16 +209,6 @@ int main(int argc, char **argv)
     dse_wait_for_nasm_completion (target_nasm);
     get_elapsed_time ("run_aspen");
     dse_group_stop (dse_group);
-
-    // if(sock_type == SOCK_RX) {
-    //     for(int i = 0; i < target_nasm->ldata_arr[target_nasm->num_ldata-1].num_ninst; i++)
-    //     {
-    //         ninst_t* ninst = &target_nasm->ldata_arr[target_nasm->num_ldata-1].ninst_arr_start[i];
-    //         pthread_mutex_lock(&net_engine->net_engine_mutex);
-    //         push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
-    //         pthread_mutex_unlock(&net_engine->net_engine_mutex);
-    //     }
-    // }
     
     // LAYER_PARAMS output_order[] = {BATCH, OUT_H, OUT_W, OUT_C};  // for CNN
     LAYER_PARAMS output_order[] = {BATCH, MAT_N, MAT_M};     // for Transformer
@@ -213,12 +230,12 @@ int main(int argc, char **argv)
         mkdir(dir_path, 0700);
     }
 
-    sprintf(file_name, "./logs/%s/%s_dev%d_%s.csv", dirname, prefix, sock_type == SOCK_RX ? SOCK_RX : SOCK_TX, postfix);
+    sprintf(file_name, "./logs/%s/%s_%s_dev%d_%s.csv", dirname, prefix, sequential ? "seq" : "pip", sock_type == SOCK_RX ? SOCK_RX : SOCK_TX, postfix);
     
     FILE *log_fp = fopen(file_name, "w");
 
     // Wrap up
-    
+
     free (layer_output);
     free (softmax_output);
 

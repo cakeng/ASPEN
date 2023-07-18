@@ -1,57 +1,84 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
+NUM_DEVICE=2
+
 ROW_FROM=0
 ROW_TO=8505
 
-sync = 8.615282e3
+VISUAL_ALPHA=0.008
+
+plt.subplot(2, 1, 1)
+
+sync = 0
 
 max_timestamp = 0
-min_timestamp = 25300
+min_timestamp = 0
 
-# plt.subplot(2, 1, 1)
+# pip_data_rx = [pd.read_csv(f'./logs/multiuser/pip_dev{i}_RX.txt') for i in range(1, NUM_DEVICE)]
+# pip_data_tx = [pd.read_csv(f'./logs/multiuser/pip_dev{i}_TX.txt') for i in range(1, NUM_DEVICE)]
+pip_data_rx = [pd.read_csv(f'./logs/temp/temp_pip_dev0_0.csv')]
+pip_data_tx = [pd.read_csv(f'./logs/temp/temp_pip_dev1_0.csv')]
 
-pip_data_rx = pd.read_csv('./logs/scheduled/pipeline_ninst_time_logs_RX.csv')
-pip_data_tx = pd.read_csv('./logs/scheduled/pipeline_ninst_time_logs_TX.csv')
+sync_arr = [8.118, 29.194, 59.601]
 
-input_pip_data_rx = pip_data_rx.iloc[ROW_FROM:ROW_TO]
-input_pip_data_tx = pip_data_tx.iloc[ROW_FROM:ROW_TO]
-compute_data_rx = pip_data_rx.iloc[ROW_FROM:ROW_TO]
-compute_data_tx = pip_data_tx.iloc[ROW_FROM:ROW_TO]
+transfer_count = 0
+for dev in range(1, NUM_DEVICE):
+    rx_log = pip_data_rx[dev-1]
+    tx_log = pip_data_tx[dev-1]
+    sync = -sync_arr[dev-1]
+    sync = 0
+    log_length = len(rx_log)
+    for i in range(log_length):
+        if tx_log["sent time (ms)"].iloc[i] != 0:
+            plt.plot([tx_log["sent time (ms)"].iloc[i] + sync, rx_log["received time (ms)"].iloc[i]], [transfer_count, transfer_count], linestyle='-', marker='.', color='dimgray')
+            transfer_count += 1
+        if tx_log["received time (ms)"].iloc[i] != 0:
+            plt.plot([tx_log["received time (ms)"].iloc[i] + sync, rx_log["sent time (ms)"].iloc[i]], [transfer_count, transfer_count], linestyle='-', marker='.', color='lightgray')
+            transfer_count += 1
+    
+    plt.scatter(rx_log["computed time (ms)"], [transfer_count for _ in range(len(rx_log))], alpha=VISUAL_ALPHA, linewidths=0)
+    plt.scatter(tx_log["computed time (ms)"] + sync, [transfer_count for _ in range(len(tx_log))], alpha=VISUAL_ALPHA, linewidths=0)
 
-max_timestamp = max(max_timestamp, *compute_data_rx['computed time (ms)'])
+    plt.scatter(rx_log["computed time (ms)"], [-5 for _ in range(len(rx_log))], alpha=VISUAL_ALPHA, linewidths=0, color='black')
+    transfer_count += 5
 
-for i in range(ROW_FROM, ROW_TO):
-    # print(input_pip_data_rx["sent time (ms)"].iloc[i])
-    plt.plot([input_pip_data_tx["sent time (ms)"].iloc[i] + sync, input_pip_data_rx["received time (ms)"].iloc[i]], [i, i], linestyle='-', marker='.', color='dimgray')
-    plt.plot([input_pip_data_rx["sent time (ms)"].iloc[i], input_pip_data_tx["received time (ms)"].iloc[i] + sync], [i, i], linestyle='-', marker='.', color='lightgray')
-    plt.xlabel('timestamp (ms)')
-    plt.ylabel('ninst idx')
+max_timestamp = max(max_timestamp, *pip_data_rx[0]['computed time (ms)'])
 
-plt.scatter(compute_data_rx["computed time (ms)"], [-100 for _ in range(len(compute_data_rx))])
-plt.scatter(compute_data_tx["computed time (ms)"] + sync, [-200 for _ in range(len(compute_data_tx))], color="orange")
+plt.subplot(2, 1, 2)
+# seq_data_rx = [pd.read_csv(f'./logs/multiuser/seq_dev{i}_RX.txt') for i in range(1, NUM_DEVICE)]
+# seq_data_tx = [pd.read_csv(f'./logs/multiuser/seq_dev{i}_TX.txt') for i in range(1, NUM_DEVICE)]
+seq_data_rx = [pd.read_csv(f'./logs/temp/temp_seq_dev0_0.csv')]
+seq_data_tx = [pd.read_csv(f'./logs/temp/temp_seq_dev1_0.csv')]
 
-plt.xlim([min_timestamp, max_timestamp+50])
+sync_arr = [0]
 
+transfer_count = 0
+for dev in range(1, NUM_DEVICE):
+    rx_log = seq_data_rx[dev-1]
+    tx_log = seq_data_tx[dev-1]
+    sync = -sync_arr[dev-1]
+    sync = 0
+    log_length = len(rx_log)
+    for i in range(log_length):
+        if tx_log["sent time (ms)"].iloc[i] != 0:
+            plt.plot([tx_log["sent time (ms)"].iloc[i] + sync, rx_log["received time (ms)"].iloc[i]], [transfer_count, transfer_count], linestyle='-', marker='.', color='dimgray')
+            transfer_count += 1
+        if tx_log["received time (ms)"].iloc[i] != 0:
+            plt.plot([tx_log["received time (ms)"].iloc[i] + sync, rx_log["sent time (ms)"].iloc[i]], [transfer_count, transfer_count], linestyle='-', marker='.', color='lightgray')
+            transfer_count += 1
+    
+    plt.scatter(rx_log["computed time (ms)"], [transfer_count for _ in range(len(rx_log))], alpha=VISUAL_ALPHA, linewidths=0)
+    plt.scatter(tx_log["computed time (ms)"] + sync, [transfer_count for _ in range(len(tx_log))], alpha=VISUAL_ALPHA, linewidths=0)
 
-# plt.subplot(2, 1, 2)
+    plt.scatter(rx_log["computed time (ms)"], [-5 for _ in range(len(rx_log))], alpha=VISUAL_ALPHA, linewidths=0, color='black')
+    transfer_count += 5
 
-# seq_data_rx = pd.read_csv('./logs/sequential_ninst_time_logs_RX.csv')
-# seq_data_tx = pd.read_csv('./logs/sequential_ninst_time_logs_TX.csv')
+max_timestamp = max(max_timestamp, *seq_data_rx[0]['computed time (ms)'])
 
-# input_seq_data_rx = seq_data_rx.iloc[ROW_FROM:ROW_TO]
-# input_seq_data_tx = seq_data_tx.iloc[ROW_FROM:ROW_TO]
-# compute_data_rx = seq_data_rx.iloc[ROW_TO:]
-
-# max_timestamp = max(max_timestamp, *compute_data_rx['computed time (ms)'])
-
-# for i in range(ROW_FROM, ROW_TO):
-#     plt.plot([input_seq_data_tx["sent time (ms)"].iloc[i], input_seq_data_rx["received time (ms)"].iloc[i]], [i, i], linestyle='-', marker='.', color='dimgray')
-#     plt.xlabel('timestamp (ms)')
-#     plt.ylabel('ninst idx')
-
-# plt.scatter(compute_data_rx["computed time (ms)"], [128 for _ in range(len(compute_data_rx))])
-
-# plt.xlim([0, max_timestamp+50])
+plt.subplot(2, 1, 1)
+plt.xlim([min_timestamp, max_timestamp+50+max(sync_arr)])
+plt.subplot(2, 1, 2)
+plt.xlim([min_timestamp, max_timestamp+50+max(sync_arr)])
 
 plt.show()
