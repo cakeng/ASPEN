@@ -6,6 +6,7 @@
 #include "networking.h"
 #include "scheduling.h"
 #include "profiling.h"
+#include "subcmdline.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -17,6 +18,13 @@
 
 int main(int argc, char **argv)
 {
+    struct gengetopt_args_info ai;
+    if (cmdline_parser(argc, argv, &ai) != 0) {
+        exit(1);
+    }
+
+
+
     int sock_type = 999;
     int sequential = 0;
     char *dirname = "temp";
@@ -48,18 +56,18 @@ int main(int argc, char **argv)
         exit(0);
     }
 
-    // char *target_config = "data/cfg/resnet50_aspen.cfg";
+    char *target_config = "data/cfg/resnet50_aspen.cfg";
     // char *target_bin = "data/resnet50/resnet50_data.bin";
-    // char *target_nasm_dir = "data/resnet50_B1_aspen.nasm";
+    char *target_nasm_dir = "data/resnet50_B1_aspen.nasm";
     // char *target_nasm_dir = "data/resnet50_B32_fine_aspen.nasm";
     // char* target_input = "data/resnet50/batched_input_64.bin";
-    char *target_config = "data/cfg/bert_base_encoder.cfg";
+    // char *target_config = "data/cfg/bert_base_encoder.cfg";
     char *target_bin = NULL;
 
     // char *target_config = "data/cfg/vgg16_aspen.cfg";
     // char *target_bin = "data/vgg16/vgg16_data.bin";
     // char *target_nasm_dir = "data/vgg16_B1_aspen.nasm";
-    char *target_nasm_dir = NULL;
+    // char *target_nasm_dir = NULL;
     char *target_input = NULL;
 
     int gpu = -1;
@@ -169,11 +177,19 @@ int main(int argc, char **argv)
 
         printf("sync: %f\n", sync);
 
+        if (sock_type == SOCK_RX) {
+            close(client_sock);
+            close(server_sock);
+        }
+        else if (sock_type == SOCK_TX) {
+            close(server_sock);
+        }
+
         /** STAGE: SCHEDULING - PARTIAL **/
         target_dnn = apu_create_dnn(target_config, target_bin);
-        // target_nasm = apu_create_nasm(target_dnn, 1e4, 8, 1);
-        // apu_save_nasm_to_file(target_nasm, "data/bert_base_encoder_B1_S128.nasm");
-        target_nasm = apu_load_nasm_from_file("data/bert_base_encoder_B1_S128.nasm", target_dnn);
+        // target_nasm = apu_create_nasm(target_dnn, 1e4, 8, 32);
+        // apu_save_nasm_to_file(target_nasm, "data/bert_base_encoder_B32_S128.nasm");
+        target_nasm = apu_load_nasm_from_file(target_nasm_dir, target_dnn);
 
         init_partial_offload(target_nasm, 0.0);
     }
@@ -250,13 +266,6 @@ int main(int argc, char **argv)
 
 
     /** STAGE: FINISH **/
-    if (sock_type == SOCK_RX) {
-        close(client_sock);
-        close(server_sock);
-    }
-    else if (sock_type == SOCK_TX) {
-        close(server_sock);
-    }
 
     
 

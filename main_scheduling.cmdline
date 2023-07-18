@@ -1,0 +1,23 @@
+version "0.1"
+package "main_scheduling"
+purpose "Experiment with multiple scheduling choices."
+
+# Options
+option "sock_type" - "" int required
+option "sequential" - "" int required
+option "dirname" - "" string required
+option "prefix" - "" string optional
+option "postfix" - "" string optional
+option "log_idx_start" - "" int optional
+option "inference_repeat_num" - "" int optional
+option "target_config" - "" string required
+option "target_nasm_dir" - "" string required
+option "target_bin" - "" string optional
+option "target_input" - "" string optional
+option "rx_ip" - "" string required
+option "rx_port" - "" int required
+option "schedule_policy" - "" string required values="partial","sequential"
+option "sched_partial_ratio" - "" float optional
+option "sched_sequential_idx" - "" int optional
+option "dse_num" - "" int required
+option "output_order" - "" string required values="cnn","transformer"
