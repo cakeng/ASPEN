@@ -230,7 +230,7 @@ void *dse_thread_runtime (void* thread_info)
                 else {
                     for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
                         if (i == dse->device_idx) continue;
-                        else {
+                        if (ninst->desiring_devices[i]) {
                             networking_engine *net_engine = dse->net_engine;
                             pthread_mutex_lock(&net_engine->net_engine_mutex);
                             push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
