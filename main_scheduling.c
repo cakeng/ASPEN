@@ -183,13 +183,14 @@ int main(int argc, char **argv)
         }
     }
     
-    LAYER_PARAMS output_order[] = {BATCH, OUT_H, OUT_W, OUT_C};
+    // LAYER_PARAMS output_order[] = {BATCH, OUT_H, OUT_W, OUT_C};  // for CNN
+    LAYER_PARAMS output_order[] = {BATCH, MAT_N, MAT_M};     // for Transformer
     float *layer_output = dse_get_nasm_result (target_nasm, output_order);
     float *softmax_output = calloc (1000*target_nasm->batch_size, sizeof(float));
     naive_softmax (layer_output, softmax_output, target_nasm->batch_size, 1000);
     for (int i = 0; i < target_nasm->batch_size; i++)
     {
-        get_probability_results ("data/resnet50/imagenet_classes.txt", softmax_output + 1000*i, 1000);
+        // get_probability_results ("data/resnet50/imagenet_classes.txt", softmax_output + 1000*i, 1000);
     }
     
     free (layer_output);
