@@ -120,6 +120,52 @@ network_profile_t *profile_network(ninst_profile_t **ninst_profile, int sock_typ
     return network_profile;
 }
 
+float profile_network_sync(int sock_type, int server_sock, int client_sock) {
+    const int num_repeat = 4;
+    float sync = 0;
+
+    if (sock_type == SOCK_RX) {
+        printf("\tprofiling as RX...\n");
+
+        // echo shortmessage
+        for (int i=0; i<num_repeat; i++) {
+            float buf;
+            read_n(client_sock, &buf, sizeof(float));
+            buf = get_time_secs();
+            write_n(client_sock, &buf, sizeof(float));
+        }
+
+        return 0;
+    }
+    else {
+        printf("\tprofiling as TX...\n");
+
+        // send shortmessage
+        float send_timestamp[num_repeat];
+        float server_timestamp[num_repeat];
+        float recv_timestamp[num_repeat];
+
+        float sync = 0;
+        float rtt = 0;
+
+        for (int i=0; i<num_repeat; i++) {
+            send_timestamp[i] = get_time_secs();
+            write_n(server_sock, &send_timestamp[i], sizeof(float));
+            read_n(server_sock, &server_timestamp[i], sizeof(float));
+            recv_timestamp[i] = get_time_secs();
+
+            sync += server_timestamp[i] - (recv_timestamp[i] + send_timestamp[i]) / 2;
+            rtt += recv_timestamp[i] - send_timestamp[i];
+
+        }
+
+        sync /= num_repeat;
+        rtt /= num_repeat;
+
+        return sync;
+    }
+}
+
 ninst_profile_t *extract_profile_from_ninsts(nasm_t *nasm) {
     ninst_profile_t *result = calloc(nasm->num_ninst, sizeof(ninst_profile_t));
     for (int i=0; i<nasm->num_ninst; i++) {

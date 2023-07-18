@@ -153,7 +153,7 @@ int main(int argc, char **argv)
             server_sock = connect_server_sock(rx_ip, rx_port+1);
         }
 
-        network_profile = profile_network(ninst_profile, sock_type, server_sock, client_sock);
+        float sync = profile_network_sync(sock_type, server_sock, client_sock);
 
         int connection_key;
         if (sock_type == SOCK_RX) {
@@ -167,7 +167,7 @@ int main(int argc, char **argv)
             printf("connection key: %d\n", connection_key);
         }
 
-        printf("sync: %f\n", network_profile->sync);
+        printf("sync: %f\n", sync);
 
         /** STAGE: SCHEDULING - PARTIAL **/
         target_dnn = apu_create_dnn(target_config, target_bin);
