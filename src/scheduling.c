@@ -94,10 +94,12 @@ void init_partial_offload(nasm_t *nasm, float compute_ratio) {
         }
         else {  // final layer is for TX -> main.c has its own logic handling final layer
             // ninst->alloc_devices[0] = SOCK_TX;
+            // alloc_device_to_ninst(ninst, SOCK_TX);
             alloc_device_to_ninst(ninst, SOCK_RX);
         }
     }
     set_desiring_through_alloc(nasm);
+    set_last_layer_desiring(nasm, SOCK_TX);
 }
 
 void init_sequential_offload(nasm_t *nasm, int split_layer, int from_dev, int to_dev) {

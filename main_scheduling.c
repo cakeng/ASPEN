@@ -173,15 +173,15 @@ int main(int argc, char **argv)
     get_elapsed_time ("run_aspen");
     dse_group_stop (dse_group);
 
-    if(sock_type == SOCK_RX) {
-        for(int i = 0; i < target_nasm->ldata_arr[target_nasm->num_ldata-1].num_ninst; i++)
-        {
-            ninst_t* ninst = &target_nasm->ldata_arr[target_nasm->num_ldata-1].ninst_arr_start[i];
-            pthread_mutex_lock(&net_engine->net_engine_mutex);
-            push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
-            pthread_mutex_unlock(&net_engine->net_engine_mutex);
-        }
-    }
+    // if(sock_type == SOCK_RX) {
+    //     for(int i = 0; i < target_nasm->ldata_arr[target_nasm->num_ldata-1].num_ninst; i++)
+    //     {
+    //         ninst_t* ninst = &target_nasm->ldata_arr[target_nasm->num_ldata-1].ninst_arr_start[i];
+    //         pthread_mutex_lock(&net_engine->net_engine_mutex);
+    //         push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
+    //         pthread_mutex_unlock(&net_engine->net_engine_mutex);
+    //     }
+    // }
     
     // LAYER_PARAMS output_order[] = {BATCH, OUT_H, OUT_W, OUT_C};  // for CNN
     LAYER_PARAMS output_order[] = {BATCH, MAT_N, MAT_M};     // for Transformer
