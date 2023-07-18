@@ -2,7 +2,10 @@
 #define _NASM_H_
 
 #include "aspen.h"
+#include "scheduling.h"
+#include "profiling.h"
 #include <stdatomic.h>
+#include <netinet/in.h>
 
 struct nasm_t
 {
@@ -62,6 +65,8 @@ struct ninst_t
     unsigned int ninst_idx;
     unsigned int out_mat_pos [2];
     unsigned int tile_dims [2];
+    int alloc_devices [SCHEDULE_MAX_DEVICES];       // who will compute this ninst?
+    int desiring_devices [SCHEDULE_MAX_DEVICES];    // who wants the result of this ninst? TODO: manage this
 
     unsigned int *parent_ninst_idx_arr;
     unsigned int num_parent_ninsts;
@@ -76,6 +81,20 @@ struct ninst_t
     void *out_mat;
     rpool_t *affinity_pool;
 
+    //For logging
+    float computed_time;
+    float recved_time;
+    float sent_time;
+
+    // For Scheduling
+    float compute_start;
+    float compute_end;
+    float send_from_here;
+    float recv_from_other;
+
+    float rank_upward;
+    float rank_downward;
+
     // #ifdef GPU
     // cudaGraphNode_t cudagraph_node;
     // #endif
@@ -88,6 +107,7 @@ struct aspen_dnn_t
     aspen_layer_t *layers;
     unsigned int num_layers;
     _Atomic unsigned int ref_nasms;
+    
 };
 
 struct aspen_tensor_t

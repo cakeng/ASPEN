@@ -725,3 +725,98 @@ void print_float_tensor (float *input, int n, int c, int h, int w)
     }
     printf ("\n");
 }
+
+void save_ninst_log(FILE* log_fp, nasm_t* nasm)
+{
+    fprintf(log_fp,"idx,computed time (ms),received time (ms),sent time (ms)\n");
+    for(int i = 0; i < nasm->num_ninst; i++)
+    {
+        ninst_t* ninst = &nasm->ninst_arr[i];
+        fprintf(log_fp, "%d,%f,%f,%f\n",ninst->ninst_idx, ninst->computed_time*1000.0, ninst->recved_time*1000.0, ninst->sent_time*1000.0);
+    }
+}
+
+ssize_t read_n(int fd, const void *buf, size_t n) {
+    size_t bytes_read = 0;
+    while(bytes_read < n) {
+        bytes_read += read(fd, buf+bytes_read, n-bytes_read);
+    }
+
+    return n;
+}
+
+ssize_t write_n(int fd, const void *buf, size_t n) {
+    size_t bytes_written = 0;
+    while(bytes_written < n) {
+        bytes_written += write(fd, buf+bytes_written, n-bytes_written);
+    }
+
+    return n;
+}
+
+int create_server_sock(char *rx_ip, int rx_port) {
+    int server_sock;
+    struct sockaddr_in server_addr;
+
+    // open server
+    server_sock = socket(PF_INET, SOCK_STREAM, 0);
+    if (server_sock == -1) {
+        printf("Error: socket() returned -1\n");
+        assert(0);
+    }
+
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    server_addr.sin_port = htons(rx_port);
+
+    if (bind(server_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
+        printf("Error: bind() returned -1\n");
+        assert(0);
+    }
+
+    if (listen(server_sock, 5) == -1) {
+        printf("Error: listen() returned -1\n");
+        assert(0);
+    }
+
+    return server_sock;
+}
+
+int accept_client_sock(int server_sock) {
+    int client_sock;
+    struct sockaddr_in client_addr;
+    
+    int client_addr_size = sizeof(client_addr);
+    client_sock = accept(server_sock, (struct sockaddr*)&client_addr, &client_addr_size);
+    if (client_sock == -1) {
+        printf("Error: accept() returned -1\n");
+        assert(0);
+    }
+
+    return client_sock;
+}
+
+int connect_server_sock(char *rx_ip, int rx_port) {
+    int server_sock;
+    struct sockaddr_in server_addr;
+
+    // connect to server
+    server_sock = socket(PF_INET, SOCK_STREAM, 0);
+    if (server_sock == -1) {
+        printf("Error: socket() returned -1\n");
+        assert(0);
+    }
+
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = inet_addr(rx_ip);
+    server_addr.sin_port = htons(rx_port);
+
+    if (connect(server_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
+        printf("Error: socket() returned -1\n");
+        assert(0);
+    }
+
+    return server_sock;
+}

@@ -7,6 +7,7 @@
 #include "kernels.h"
 #include "rpool.h"
 #include "cuda_kernels.h"
+#include "profiling.h"
 
 #define APU_GENERATION_COEFF ((double)0.8)
 #define APU_GENERATION_NUM_NINST 512

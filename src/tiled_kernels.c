@@ -188,10 +188,19 @@ void tiled_conv2d (ninst_t *ninst, dse_t *dse)
         // <M, N, K> = <M, _TILE_SIZE_N, K>
         for (; n < N - rem_n; n += _TILE_SIZE_N)
         {
-            for (int nn = 0; nn < _TILE_SIZE_N; nn++)
-            {
-                memset ((float*)C + (ldc * (n + nn)), 0, M * sizeof(float));
-            }
+            // for (unsigned int i = input_pos_per_n * n; i < input_pos_per_n * (n + _TILE_SIZE_N); i++)
+            // {
+            //     void *input_ptr = ninst->input_pos_idx_arr[i]*p_ldata->out_mat_stride + (float *) p_ldata->out_mat;
+            //     if (ninst->input_pos_idx_arr[i] == -1)
+            //     {
+            //         memset (input, 0, input_col_size * layer->dnn->element_size);
+            //     }
+            //     else
+            //     {
+            //         memcpy (input, input_ptr, input_col_size * layer->dnn->element_size);
+            //     }
+            //     input += input_col_size * layer->dnn->element_size;
+            // }
             unsigned int k = 0;
             // <M, N, K> = <M, _TILE_SIZE_N, _TILE_SIZE_K>
             for (; k < K - rem_k; k += _TILE_SIZE_K)
@@ -202,6 +211,7 @@ void tiled_conv2d (ninst_t *ninst, dse_t *dse)
                     _TILE_SIZE_N, input_pos_per_n, input_col_size, 
                     k, k + _TILE_SIZE_K);
                 unsigned int m = 0;
+                
                 // <M, N, K> = <_TILE_SIZE_M, _TILE_SIZE_N, _TILE_SIZE_K>
                 for (; m < M - rem_m; m += _TILE_SIZE_M)
                 {
@@ -304,6 +314,7 @@ void tiled_conv2d (ninst_t *ninst, dse_t *dse)
                     for (unsigned int m = 0; m < M; m++)
                     {
                         out_vec[m] += bias[m];
+                        
                     }
                 }
                 naive_activate (out_vec, M, layer->activation);

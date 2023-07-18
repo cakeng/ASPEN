@@ -83,6 +83,8 @@ typedef enum {PARENT_NONE, PARENT_0, PARENT_1, PARENT_WEIGHT, NUM_PARENT_ELEMENT
 typedef enum {NO_ACTIVATION, SIGMOID, LINEAR, TANH, RELU, LEAKY_RELU, ELU, SELU, GELU, GELU_ACCURATE, NUM_ACTIVATIONS} LAYER_ACT;
 typedef enum {RPOOL_DNN, RPOOL_LAYER_TYPE, RPOOL_LAYER_IDX, RPOOL_NASM, RPOOL_ASE, NUM_RPOOL_CONDS} RPOOL_CONDS;
 
+typedef enum {SOCK_RX, SOCK_TX} SOCK_TYPE;
+
 extern char *ninst_state_str [NUM_NINST_STATES];
 extern char *layer_type_str [NUM_LAYER_ELEMENTS];
 extern char *param_type_str[NUM_PARAM_ELEMENTS];
@@ -105,6 +107,15 @@ typedef struct rpool_queue_group_t rpool_queue_group_t;
 
 typedef struct dse_t dse_t;     // Distributed scheduling engine
 typedef struct dse_group_t dse_group_t;
+
+typedef struct networking_engine networking_engine; // Offloading
+typedef struct networking_queue_t networking_queue_t; 
+
+typedef struct ninst_profile_t ninst_profile_t;
+typedef struct network_profile_t network_profile_t;
+
+typedef struct sched_task_t sched_task_t;
+typedef struct sched_processor_t sched_processor_t;
 
 aspen_dnn_t *apu_create_dnn(char *input_path, char *data_path);
 void apu_destroy_dnn(aspen_dnn_t *dnn);

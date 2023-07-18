@@ -5,6 +5,7 @@ static _Atomic unsigned int dse_thread_id_counter = 0;
 void *dse_thread_runtime (void* thread_info)
 {
     dse_t *dse = (dse_t*) thread_info;
+    int target_device;
     pthread_mutex_lock(&dse->thread_mutex);
     while (dse->kill == 0)
     {
@@ -18,9 +19,50 @@ void *dse_thread_runtime (void* thread_info)
         //     dse->ninst_cache->num_stored == 0)
         if (dse->target == NULL)
         {
-            rpool_fetch_ninsts (dse->rpool, &dse->target, 1, 0);
-            if (dse->target == NULL)
-                continue;
+            if (dse->device_idx != 0 && dse->is_multiuser_case) {
+                rpool_fetch_ninsts (dse->rpool_arr[0], &dse->target, 1, 0);
+
+                if (dse->target == NULL) continue;
+            }
+            if (dse->device_idx == 0 && dse->is_multiuser_case) {
+                int checked[SCHEDULE_MAX_DEVICES];
+                for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) checked[i] = 0;
+
+                for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
+                    if (dse->prioritize_rpool[i] != -1) {
+                        rpool_fetch_ninsts (dse->rpool_arr[dse->prioritize_rpool[i]], &dse->target, 1, 0);
+                        checked[dse->prioritize_rpool[i]] = 1;
+
+                        if (dse->target) {
+                            target_device = dse->prioritize_rpool[i];
+                            break;
+                        }
+                    }
+                    else {
+                        break;
+                    }
+                }
+
+                for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
+                    if (!dse->enabled_device[i]) continue;
+                    if (checked[i]) continue;
+
+                    rpool_fetch_ninsts (dse->rpool_arr[i], &dse->target, 1, 0);
+
+                    if (dse->target) {
+                        target_device = i;
+                        break;
+                    }
+
+                }
+
+                if (dse->target == NULL) continue;
+            }
+            else {
+                rpool_fetch_ninsts (dse->rpool, &dse->target, 1, 0);
+                if (dse->target == NULL)
+                    continue;
+            }
             // unsigned int fetch_num = 
             //     rpool_fetch_ninsts (dse->rpool, dse->scratchpad, dse_NINST_CACHE_BALLANCE - dse->ninst_cache->num_stored);
             // push_ninsts_to_queue (dse->ninst_cache, dse->scratchpad, fetch_num);
@@ -75,76 +117,129 @@ void *dse_thread_runtime (void* thread_info)
             ninst_t *ninst = dse->target;
             dse->target = NULL;
             #ifdef DEBUG 
-            if (ninst->state != NINST_READY)
+            if (ninst->state != NINST_READY && ninst->state != NINST_COMPLETED)
             {
                 FPRT (stderr, "Error: ninst->state != NINST_READY in dse_thread_runtime()\n");
                 assert (0);
             }
             #endif
-            switch (ninst->ldata->layer->type)
+            // printf("fetched ninst %d, offload: %d, compute: %d\n", ninst->ninst_idx, ninst->offload, ninst->compute);
+            if (is_ninst_mine(ninst, dse->device_idx) || dse->profile_compute)    // It's mine, so compute
             {
-                case CONV_LAYER:
-                    tiled_conv2d (ninst, dse);
-                    break;
-                case MAXPOOL_LAYER:
-                    tiled_maxpool2d (ninst, dse);
-                    break;
-                case AVGPOOL_LAYER:
-                    tiled_avgpool2d (ninst, dse);
-                    break;
-                case FC_LAYER:
-                    tiled_fully_connected (ninst, dse);
-                    break;
-                case RESIDUAL_LAYER:
-                    tiled_residual (ninst, dse);
-                    break;
-                case SOFTMAX_LAYER:
-                    tiled_softmax (ninst, dse);
-                    break;
-                case YOLO_LAYER:
-                    tiled_yolo (ninst, dse);
-                    break;
-                case APPEND_LAYER:
-                    tiled_append (ninst, dse);
-                    break;
-                case MATMUL_LAYER:
-                    tiled_matmul (ninst, dse);
-                    break;
-                case LAYERNORM_LAYER:
-                    tiled_layernorm (ninst, dse);
-                    break;
-                case K_ATTENTION_LAYER:
-                    tiled_k_attention (ninst, dse);
-                    break;
-                case V_ATTENTION_LAYER:
-                    tiled_v_attention (ninst, dse);
-                    break;
-                default:
-                    // FPRT (stderr, "ERROR: dse_thread_runtime: layer type %s is not supported\n", layer_type_str[ninst->ldata->layer->type]);
-                    break;
-            }
-            ninst->state = NINST_COMPLETED;
-            unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
-            if (num_ninst_completed == ninst->ldata->num_ninst - 1)
-            {
-                // printf ("\t\tThread %d completed layer %d of nasm %d\n", 
-                //     dse->thread_id, ninst->ldata->layer->layer_idx, ninst->ldata->nasm->nasm_id);
-                nasm_t *nasm = ninst->ldata->nasm;
-                unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
-                if (num_ldata_completed == nasm->num_ldata - 1)
+                // printf("compute ninst %d\n", ninst->ninst_idx);
+                if (dse->profile_compute) ninst->compute_start = get_time_secs();
+                switch (ninst->ldata->layer->type)
                 {
-                    // printf ("\t\tSignaling nasm completion for %d (%s)...\n", nasm->nasm_id, nasm->dnn->name);
-                    // All layers of the nasm is completed.
-                    // rpool_queue_group_t *rpool_queue_group 
-                    //     = get_queue_group_from_nasm (dse->rpool, ninst->ldata->nasm);
-                    // set_queue_group_weight (dse->rpool, rpool_queue_group, 0);
-                    pthread_mutex_lock (&nasm->nasm_mutex);
-                    pthread_cond_signal (&nasm->nasm_cond);
-                    pthread_mutex_unlock (&nasm->nasm_mutex);
+                    case CONV_LAYER:
+                        tiled_conv2d (ninst, dse);
+                        break;
+                    case MAXPOOL_LAYER:
+                        tiled_maxpool2d (ninst, dse);
+                        break;
+                    case AVGPOOL_LAYER:
+                        tiled_avgpool2d (ninst, dse);
+                        break;
+                    case FC_LAYER:
+                        tiled_fully_connected (ninst, dse);
+                        break;
+                    case RESIDUAL_LAYER:
+                        tiled_residual (ninst, dse);
+                        break;
+                    case SOFTMAX_LAYER:
+                        tiled_softmax (ninst, dse);
+                        break;
+                    case YOLO_LAYER:
+                        tiled_yolo (ninst, dse);
+                        break;
+                    case APPEND_LAYER:
+                        tiled_append (ninst, dse);
+                        break;
+                    case MATMUL_LAYER:
+                        tiled_matmul (ninst, dse);
+                        break;
+                    case LAYERNORM_LAYER:
+                        tiled_layernorm (ninst, dse);
+                        break;
+                    case K_ATTENTION_LAYER:
+                        tiled_k_attention (ninst, dse);
+                        break;
+                    case V_ATTENTION_LAYER:
+                        tiled_v_attention (ninst, dse);
+                        break;
+                    default:
+                        // FPRT (stderr, "ERROR: dse_thread_runtime: layer type %s is not supported\n", layer_type_str[ninst->ldata->layer->type]);
+                        break;
+                }
+
+                ninst->computed_time = get_time_secs();
+                if (dse->profile_compute) ninst->compute_end = ninst->computed_time;
+            
+                ninst->state = NINST_COMPLETED;
+                unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
+                if (num_ninst_completed == ninst->ldata->num_ninst - 1)
+                {
+                    // printf ("\t\tThread %d completed layer %d of nasm %d\n", 
+                    //     dse->thread_id, ninst->ldata->layer->layer_idx, ninst->ldata->nasm->nasm_id);
+                    nasm_t *nasm = ninst->ldata->nasm;
+                    unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
+                    // if (num_ldata_completed == nasm->num_ldata - 1)
+                    if (nasm->ldata_arr[nasm->num_ldata-1].num_ninst_completed == nasm->ldata_arr[nasm->num_ldata-1].num_ninst)
+                    {
+                        printf ("\t\tSignaling nasm completion...\n");
+                        // All layers of the nasm is completed.
+                        rpool_queue_group_t *rpool_queue_group;
+                        if (dse->is_multiuser_case) {
+                            rpool_queue_group = get_queue_group_from_nasm (dse->rpool_arr[target_device], ninst->ldata->nasm);
+                            set_queue_group_weight (dse->rpool_arr[target_device], rpool_queue_group, 0);
+                        }
+                        else {
+                            rpool_queue_group = get_queue_group_from_nasm (dse->rpool, ninst->ldata->nasm);
+                            set_queue_group_weight (dse->rpool, rpool_queue_group, 0);
+                        }
+                        pthread_mutex_lock (&nasm->nasm_mutex);
+                        pthread_cond_signal (&nasm->nasm_cond);
+                        pthread_mutex_unlock (&nasm->nasm_mutex);
+                    }
+                }
+            // update_children_to_cache (dse->ninst_cache, ninst);
+                if (dse->is_multiuser_case && dse->device_idx == 0) {
+                    update_children_but_prioritize_dse_target (dse->rpool_arr[target_device], ninst, dse);
+                }
+                else if (dse->is_multiuser_case && dse->device_idx != 0) {
+                    update_children_but_prioritize_dse_target (dse->rpool_arr[0], ninst, dse);
+                }
+                else {
+                    update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
+
+                }
+
+                // check desiring devices for the computation output
+                if (dse->is_multiuser_case) {
+                    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
+                        if (i == dse->device_idx) continue;
+                        if (ninst->desiring_devices[i]) // Should be offload
+                        {
+                            networking_engine *net_engine = dse->net_engine_arr[i];
+                            pthread_mutex_lock(&net_engine->net_engine_mutex);
+                            push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
+                            pthread_mutex_unlock(&net_engine->net_engine_mutex);
+                        }
+                    }
+
+                }
+                else {
+                    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
+                        if (i == dse->device_idx) continue;
+                        if (ninst->desiring_devices[i]) {
+                            networking_engine *net_engine = dse->net_engine;
+                            pthread_mutex_lock(&net_engine->net_engine_mutex);
+                            push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
+                            pthread_mutex_unlock(&net_engine->net_engine_mutex);
+                        }
+                    }
                 }
             }
-            // update_children_to_cache (dse->ninst_cache, ninst);
-            update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
+                
         // }
     }
     return NULL;
@@ -199,6 +294,120 @@ void dse_group_set_rpool (dse_group_t *dse_group, rpool_t *rpool)
     add_ref_ases (rpool, dse_group->num_ases);
 }
 
+void dse_group_set_net_engine (dse_group_t *dse_group, networking_engine *net_engine)
+{
+    if (dse_group == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_set_net_engine: dse_group is NULL\n");
+        assert (0);
+    }
+    if (net_engine == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_set_net_engine: net_engine is NULL\n");
+        assert (0);
+    }
+    for (int i = 0; i < dse_group->num_ases; i++)
+    {
+        dse_group->dse_arr[i].net_engine = net_engine;
+    }
+}
+
+void dse_group_set_device (dse_group_t *dse_group, int device_idx)
+{
+    if (dse_group == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_set_device: dse_group is NULL\n");
+        assert (0);
+    }
+    for (int i = 0; i < dse_group->num_ases; i++)
+    {
+        dse_group->dse_arr[i].device_idx = device_idx;
+    }
+}
+
+void dse_group_set_profile (dse_group_t *dse_group, int profile_compute)
+{
+    if (dse_group == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_set_device: dse_group is NULL\n");
+        assert (0);
+    }
+    for (int i = 0; i < dse_group->num_ases; i++)
+    {
+        dse_group->dse_arr[i].profile_compute = profile_compute;
+    }
+}
+
+void dse_group_set_multiuser (dse_group_t *dse_group, int is_multiuser_case) {
+    if (dse_group == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_set_multiuser: dse_group is NULL\n");
+        assert (0);
+    }
+    for (int i = 0; i < dse_group->num_ases; i++)
+    {
+        dse_group->dse_arr[i].is_multiuser_case = is_multiuser_case;
+    }
+}
+
+void dse_group_add_prioritize_rpool (dse_group_t *dse_group, int device_idx) {
+    for (int i=0; i<dse_group->num_ases; i++) {
+        for (int j=0; j<SCHEDULE_MAX_DEVICES; j++) {
+            if (dse_group->dse_arr[i].prioritize_rpool[j] == -1)
+                dse_group->dse_arr[i].prioritize_rpool[j] = device_idx;
+        }
+    }
+}
+
+void dse_group_init_enable_device(dse_group_t *dse_group) {
+    for (int i = 0; i < dse_group->num_ases; i++) {
+        for (int j=0; j < SCHEDULE_MAX_DEVICES; j++)
+        dse_group->dse_arr[i].enabled_device[j] = 0;
+    }
+}
+
+void dse_group_set_enable_device(dse_group_t *dse_group, int device_idx, int enable) {
+    for (int i = 0; i < dse_group->num_ases; i++) {
+        dse_group->dse_arr[i].enabled_device[device_idx] = enable;
+    }
+}
+
+void dse_group_add_rpool_arr(dse_group_t *dse_group, rpool_t *rpool, int device_idx) {
+    if (rpool == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_add_rpool_arr: rpool is NULL\n");
+        assert (0);
+    }
+    for (int i = 0; i < dse_group->num_ases; i++) {
+        dse_group->dse_arr[i].rpool_arr[device_idx] = rpool;
+    }
+}
+
+void dse_group_init_netengine_arr (dse_group_t *dse_group) {
+    if (dse_group == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_init_netengine_arr: dse_group is NULL\n");
+        assert (0);
+    }
+    for (int i = 0; i < dse_group->num_ases; i++) {
+        for (int j=0; j<SCHEDULE_MAX_DEVICES; j++) {
+            dse_group->dse_arr[i].net_engine_arr[j] = NULL;
+        }
+    }
+}
+
+void dse_group_add_netengine_arr (dse_group_t *dse_group, networking_engine *net_engine, int device_idx) {
+    if (dse_group == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_add_netengine_arr: dse_group is NULL\n");
+        assert (0);
+    }
+    for (int i = 0; i < dse_group->num_ases; i++) {
+        dse_group->dse_arr[i].net_engine_arr[device_idx] = net_engine;
+        dse_group->dse_arr[i].rpool_arr[device_idx] = net_engine->rpool;
+    }
+}
+
 void dse_group_destroy (dse_group_t *dse_group)
 {
     if (dse_group == NULL)
@@ -234,6 +443,7 @@ void dse_init (dse_t *dse, int gpu_idx)
     dse->thread_mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
     dse->thread_cond = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
     dse->ninst_cache = calloc (1, sizeof (rpool_queue_t));
+    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) dse->prioritize_rpool[i] = -1;
     atomic_store (&dse->run, 0);
     atomic_store (&dse->kill, 0);
     rpool_init_queue (dse->ninst_cache);
@@ -300,6 +510,7 @@ unsigned int dse_check_nasm_completion (nasm_t *nasm)
     #endif
     if (atomic_load(&nasm->num_ldata_completed) == nasm->num_ldata)
         return 1;
+        
     return 0;
 }
 
@@ -392,18 +603,21 @@ void update_children (rpool_t *rpool, ninst_t *ninst, unsigned int dse_idx)
     for (int i = 0; i < ninst->num_child_ninsts; i++)
     {
         ninst_t *child_ninst = ninst->child_ninst_arr[i];
-        unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
-        if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
-        {
-            #ifdef DEBUG
-            if (child_ninst->state != NINST_NOT_READY)
+        if (child_ninst->state == NINST_NOT_READY) {
+            unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
+            if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
             {
-                FPRT (stderr, "Error: child_ninst->state != NINST_NOT_READY in dse_update_children()\n");
-                assert (0);
+                #ifdef DEBUG_
+                if (child_ninst->state != NINST_NOT_READY)
+                {
+                    FPRT (stderr, "Error: child_ninst->state != NINST_NOT_READY in dse_update_children()\n");
+                    assert (0);
+                }
+                #endif
+                
+                child_ninst->state = NINST_READY;
+                rpool_push_ninsts (rpool, &child_ninst, 1, 0);
             }
-            #endif
-            child_ninst->state = NINST_READY;
-            rpool_push_ninsts (rpool, &child_ninst, 1, 0);
         }
     }
 }

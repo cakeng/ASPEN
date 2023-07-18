@@ -53,4 +53,13 @@ void get_elapsed_time (char *name);
 
 void print_float_array (float *input, int num, int newline_num);
 void print_float_tensor (float *input, int n, int c, int h, int w);
+
+void save_ninst_log(FILE* log_fp, nasm_t* nasm);
+
+ssize_t read_n(int fd, const void *buf, size_t n);
+ssize_t write_n(int fd, const void *buf, size_t n);
+
+int create_server_sock(char *rx_ip, int rx_port);
+int accept_client_sock(int server_sock);
+int connect_server_sock(char *rx_ip, int rx_port);
 #endif /* _UTIL_H_ */
