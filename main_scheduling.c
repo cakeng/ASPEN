@@ -232,13 +232,54 @@ int main(int argc, char **argv)
             close(server_sock);
         }
 
-        /** STAGE: SCHEDULING - PARTIAL **/
+        /** STAGE: SCHEDULING - SEQUENTIAL **/
         target_dnn = apu_create_dnn(target_config, target_bin);
-        // target_nasm = apu_create_nasm(target_dnn, 1e4, 8, 32);
-        // apu_save_nasm_to_file(target_nasm, "data/bert_base_encoder_B32_S128.nasm");
         target_nasm = apu_load_nasm_from_file(target_nasm_dir, target_dnn);
 
         init_sequential_offload(target_nasm, sched_sequential_idx, SOCK_TX, SOCK_RX);
+    }
+    else if (!strcmp(schedule_policy, "dynamic")) {
+        /** STAGE: PROFILING NETWORK **/
+
+        printf("STAGE: PROFILING NETWORK\n");
+        
+        if (sock_type == SOCK_RX) {
+            server_sock = create_server_sock(rx_ip, rx_port+1);
+            client_sock = accept_client_sock(server_sock);
+        }
+        else if (sock_type == SOCK_TX) {
+            server_sock = connect_server_sock(rx_ip, rx_port+1);
+        }
+
+        float sync = profile_network_sync(sock_type, server_sock, client_sock);
+
+        int connection_key;
+        if (sock_type == SOCK_RX) {
+            connection_key = 12534;
+            write_n(client_sock, &connection_key, sizeof(int));
+            printf("connection key: %d\n", connection_key);
+        }
+        else if (sock_type == SOCK_TX) {
+            connection_key = -1;
+            read_n(server_sock, &connection_key, sizeof(int));
+            printf("connection key: %d\n", connection_key);
+        }
+
+        printf("sync: %f\n", sync);
+
+        if (sock_type == SOCK_RX) {
+            close(client_sock);
+            close(server_sock);
+        }
+        else if (sock_type == SOCK_TX) {
+            close(server_sock);
+        }
+
+        /** STAGE: SCHEDULING - DYNAMIC **/
+        target_dnn = apu_create_dnn(target_config, target_bin);
+        target_nasm = apu_load_nasm_from_file(target_nasm_dir, target_dnn);
+
+        init_dynamic_offload(target_nasm);
     }
     
     /** STAGE: INFERENCE **/
@@ -262,7 +303,12 @@ int main(int argc, char **argv)
         target_nasm->nasm_cond = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
 
         if(sock_type == SOCK_TX) {
-            add_input_rpool (net_engine, target_nasm, target_input);
+            if (!strcmp(schedule_policy, "dynamic")) {
+                add_input_rpool_reverse (net_engine, target_nasm, target_input);
+            }
+            else {
+                add_input_rpool (net_engine, target_nasm, target_input);
+            }
         }
 
         atomic_store (&net_engine->run, 1);

@@ -9,7 +9,7 @@
     --prefix="vgg16_B1" \
     --rx_ip="192.168.1.176" \
     --rx_port=3786   \
-    --schedule_policy="sequential"  \
+    --schedule_policy="dynamic"  \
     --sched_sequential_idx=1    \
     --dse_num=16    \
     --output_order="cnn"    \

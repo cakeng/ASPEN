@@ -33,6 +33,14 @@ void set_desiring_through_alloc(nasm_t *nasm) {
     }
 }
 
+void set_desiring_full_device(nasm_t *nasm, int device_idx) {
+    for (int i=0; i<nasm->num_ninst; i++) {
+        ninst_t *ninst = nasm->ninst_arr + i;
+        clear_device_desiring(ninst);
+        ninst->desiring_devices[device_idx] = 1;
+    }
+}
+
 void set_last_layer_desiring(nasm_t *nasm, int device_idx) {
     nasm_ldata_t *last_ldata = &(nasm->ldata_arr[nasm->num_ldata-1]);
     ninst_t *last_ldata_ninst_arr = last_ldata->ninst_arr_start;
@@ -121,6 +129,19 @@ void init_sequential_offload(nasm_t *nasm, int split_layer, int from_dev, int to
     
     set_desiring_through_alloc(nasm);
     set_last_layer_desiring(nasm, from_dev);
+}
+
+void init_dynamic_offload(nasm_t *nasm) {
+    for (int i=0; i<nasm->num_ldata; i++) {
+        for (int j=0; j<nasm->ldata_arr[i].num_ninst; j++) {
+            clear_device_alloc(&(nasm->ldata_arr[i].ninst_arr_start[j]));
+            alloc_device_to_ninst(&(nasm->ldata_arr[i].ninst_arr_start[j]), SOCK_RX);
+            alloc_device_to_ninst(&(nasm->ldata_arr[i].ninst_arr_start[j]), SOCK_TX);
+        }
+    }
+    
+    set_desiring_full_device(nasm, SOCK_RX);
+    set_last_layer_desiring(nasm, SOCK_TX);
 }
 
 sched_processor_t *init_heft(char *target_config, char *target_bin, char *target_nasm_dir, ninst_profile_t **ninst_profile, network_profile_t *network_profile, int num_device) {

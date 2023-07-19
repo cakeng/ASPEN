@@ -515,6 +515,66 @@ void add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_f
     aspen_free (data); 
 }
 
+void add_input_rpool_reverse (networking_engine *net_engine, nasm_t* nasm, char *input_filename)
+{
+    aspen_dnn_t *dnn = nasm->dnn;
+    aspen_layer_t *first_layer = &dnn->layers[0];
+    void *data = NULL;
+    unsigned int input_params[NUM_PARAM_ELEMENTS] = {0};
+    input_params[BATCH] = nasm->batch_size;
+    if (first_layer->params[OUT_C] != 0 && first_layer->params[OUT_H] != 0 && first_layer->params[OUT_W] != 0)
+    {
+        input_params[OUT_C] = first_layer->params[OUT_C];
+        input_params[OUT_H] = first_layer->params[OUT_H];
+        input_params[OUT_W] = first_layer->params[OUT_W];
+        data = aspen_load_input_NHWC (input_filename, input_params, sizeof(float));
+    }
+    else if (first_layer->params[MAT_M] != 0)
+    {
+        input_params[MAT_M] = first_layer->params[MAT_M];
+        input_params[MAT_N] = nasm->tr_seq_len;
+        data = aspen_load_input (input_filename, input_params, sizeof(float));
+    }
+    else
+    {
+        FPRT (stderr, "ERROR: rpool_add_nasm: first layer of dnn \"%s\" does not have output dimensions. Cannot add nasm \"%s_nasm_%d\".\n", 
+            dnn->name, dnn->name, nasm->nasm_id);
+        return;
+    }
+
+    if (data != NULL)
+    {
+        nasm_ldata_t *ldata = &nasm->ldata_arr[0];
+        aspen_layer_t *layer = ldata->layer;
+        size_t num_cols = 0;
+        if (layer->params[OUT_H] != 0 && layer->params[OUT_W] != 0)
+            num_cols = nasm->batch_size * layer->params[OUT_H] * layer->params[OUT_W];
+        else if (layer->params[MAT_M] != 0)
+            num_cols = nasm->batch_size * nasm->tr_seq_len;
+        for (int i = 0; i < num_cols; i++)
+            memcpy 
+                ((char*)nasm->data + i * ldata->out_mat_stride * nasm->dnn->element_size, 
+                (char*)data + i * ldata->out_mat_dims[OUT_H] * nasm->dnn->element_size, 
+                ldata->out_mat_dims[OUT_H] * nasm->dnn->element_size);
+    }
+    if (nasm->data == NULL)
+    {
+        FPRT (stderr, "Error: nasm->data == NULL in add_ninst_net_queue()\n");
+        assert (0);
+    }
+
+    nasm_ldata_t *ldata = &nasm->ldata_arr[0];
+    for (int i = 0; i < ldata->num_ninst; i++)
+    {
+        ninst_t *ninst = &ldata->ninst_arr_start[ldata->num_ninst - i - 1];
+        // push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
+        ninst->state = NINST_READY;
+        rpool_push_ninsts(net_engine->rpool, &ninst, 1, 0);
+    }
+    
+    aspen_free (data); 
+}
+
 void net_queue_destory(networking_queue_t* net_queue)
 {
     if(net_queue == NULL) return;
