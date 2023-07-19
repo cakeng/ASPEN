@@ -89,6 +89,14 @@ int main(int argc, char **argv)
     int server_sock;
     int client_sock;
 
+    if (sock_type == SOCK_RX) {
+        server_sock = create_server_sock(rx_ip, rx_port+1);
+        client_sock = accept_client_sock(server_sock);
+    }
+    else if (sock_type == SOCK_TX) {
+        server_sock = connect_server_sock(rx_ip, rx_port+1);
+    }
+
     ninst_profile_t *ninst_profile[SCHEDULE_MAX_DEVICES];
     network_profile_t *network_profile;
 
@@ -109,14 +117,6 @@ int main(int argc, char **argv)
         /** STAGE: PROFILING NETWORK **/
 
         printf("STAGE: PROFILING NETWORK\n");
-        
-        if (sock_type == SOCK_RX) {
-            server_sock = create_server_sock(rx_ip, rx_port+1);
-            client_sock = accept_client_sock(server_sock);
-        }
-        else if (sock_type == SOCK_TX) {
-            server_sock = connect_server_sock(rx_ip, rx_port+1);
-        }
 
         network_profile = profile_network(ninst_profile, sock_type, server_sock, client_sock);
 
@@ -154,14 +154,6 @@ int main(int argc, char **argv)
         /** STAGE: PROFILING NETWORK **/
 
         printf("STAGE: PROFILING NETWORK\n");
-        
-        if (sock_type == SOCK_RX) {
-            server_sock = create_server_sock(rx_ip, rx_port+1);
-            client_sock = accept_client_sock(server_sock);
-        }
-        else if (sock_type == SOCK_TX) {
-            server_sock = connect_server_sock(rx_ip, rx_port+1);
-        }
 
         float sync = profile_network_sync(sock_type, server_sock, client_sock);
 
@@ -178,14 +170,6 @@ int main(int argc, char **argv)
         }
 
         printf("sync: %f\n", sync);
-
-        if (sock_type == SOCK_RX) {
-            close(client_sock);
-            close(server_sock);
-        }
-        else if (sock_type == SOCK_TX) {
-            close(server_sock);
-        }
 
         /** STAGE: SCHEDULING - PARTIAL **/
         target_dnn = apu_create_dnn(target_config, target_bin);
@@ -199,14 +183,6 @@ int main(int argc, char **argv)
         /** STAGE: PROFILING NETWORK **/
 
         printf("STAGE: PROFILING NETWORK\n");
-        
-        if (sock_type == SOCK_RX) {
-            server_sock = create_server_sock(rx_ip, rx_port+1);
-            client_sock = accept_client_sock(server_sock);
-        }
-        else if (sock_type == SOCK_TX) {
-            server_sock = connect_server_sock(rx_ip, rx_port+1);
-        }
 
         float sync = profile_network_sync(sock_type, server_sock, client_sock);
 
@@ -223,14 +199,6 @@ int main(int argc, char **argv)
         }
 
         printf("sync: %f\n", sync);
-
-        if (sock_type == SOCK_RX) {
-            close(client_sock);
-            close(server_sock);
-        }
-        else if (sock_type == SOCK_TX) {
-            close(server_sock);
-        }
 
         /** STAGE: SCHEDULING - SEQUENTIAL **/
         target_dnn = apu_create_dnn(target_config, target_bin);
@@ -242,14 +210,6 @@ int main(int argc, char **argv)
         /** STAGE: PROFILING NETWORK **/
 
         printf("STAGE: PROFILING NETWORK\n");
-        
-        if (sock_type == SOCK_RX) {
-            server_sock = create_server_sock(rx_ip, rx_port+1);
-            client_sock = accept_client_sock(server_sock);
-        }
-        else if (sock_type == SOCK_TX) {
-            server_sock = connect_server_sock(rx_ip, rx_port+1);
-        }
 
         float sync = profile_network_sync(sock_type, server_sock, client_sock);
 
@@ -266,14 +226,6 @@ int main(int argc, char **argv)
         }
 
         printf("sync: %f\n", sync);
-
-        if (sock_type == SOCK_RX) {
-            close(client_sock);
-            close(server_sock);
-        }
-        else if (sock_type == SOCK_TX) {
-            close(server_sock);
-        }
 
         /** STAGE: SCHEDULING - DYNAMIC **/
         target_dnn = apu_create_dnn(target_config, target_bin);
@@ -349,6 +301,27 @@ int main(int argc, char **argv)
         free (layer_output);
         free (softmax_output);
 
+        // synchronize
+        /** STAGE: PROFILING NETWORK **/
+
+        printf("Sync between inference...\n");
+
+        float sync = profile_network_sync(sock_type, server_sock, client_sock);
+
+        int connection_key;
+        if (sock_type == SOCK_RX) {
+            connection_key = 12534;
+            write_n(client_sock, &connection_key, sizeof(int));
+            printf("connection key: %d\n", connection_key);
+        }
+        else if (sock_type == SOCK_TX) {
+            connection_key = -1;
+            read_n(server_sock, &connection_key, sizeof(int));
+            printf("connection key: %d\n", connection_key);
+        }
+
+        printf("sync: %f\n", sync);
+
         // reset: dse, net_engine, nasm, rpool
         rpool_reset(rpool);
         apu_reset_nasm(target_nasm);
@@ -362,6 +335,14 @@ int main(int argc, char **argv)
     rpool_destroy (rpool);
     apu_destroy_nasm (target_nasm);
     apu_destroy_dnn (target_dnn);
+
+    if (sock_type == SOCK_RX) {
+        close(client_sock);
+        close(server_sock);
+    }
+    else if (sock_type == SOCK_TX) {
+        close(server_sock);
+    }
 
 
 
