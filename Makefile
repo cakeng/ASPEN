@@ -109,5 +109,5 @@ test:
 	$(CC) test_transfer_tx.c -o test_transfer_tx.out
 
 clean:
-	rm -rf $(TARGET) $(OBJS)
+	rm -rf $(TARGET) $(SUBCMDOBJ) $(SUBTARGET) $(ALIB) $(EXEOBJS) $(SUBEXEOBJS) $(OBJS)
 

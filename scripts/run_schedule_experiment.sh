@@ -1,16 +1,16 @@
 ./main_scheduling \
-    --sock_type=0   \
+    --sock_type=1   \
     --sequential=0  \
     --dirname=temp  \
     --target_config="data/cfg/vgg16_aspen.cfg"   \
-    --target_nasm_dir="data/vgg16_B1_aspen.nasm" \
-    --target_bin="data/vgg16/vgg16_data.bin" \
-    --target_input="data/resnet50/batched_input_64.bin" \
+    --target_nasm_dir="data/vgg16_B1.nasm" \
+    --target_bin="data/vgg16_data.bin" \
+    --target_input="data/batched_input_128.bin" \
     --prefix="vgg16_B1" \
-    --rx_ip="192.168.1.176" \
+    --rx_ip="127.0.0.1" \
     --rx_port=3786   \
     --schedule_policy="sequential"  \
-    --sched_sequential_idx=1    \
+    --sched_sequential_idx=999    \
     --dse_num=16    \
     --output_order="cnn"    \
     --inference_repeat_num=10
