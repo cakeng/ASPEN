@@ -185,7 +185,7 @@ void *dse_thread_runtime (void* thread_info)
                     // if (num_ldata_completed == nasm->num_ldata - 1)
                     if (nasm->ldata_arr[nasm->num_ldata-1].num_ninst_completed == nasm->ldata_arr[nasm->num_ldata-1].num_ninst)
                     {
-                        printf ("\t\tSignaling nasm completion...\n");
+                        // printf ("\t\tSignaling nasm completion...\n");
                         // All layers of the nasm is completed.
                         rpool_queue_group_t *rpool_queue_group;
                         if (dse->is_multiuser_case) {

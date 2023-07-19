@@ -6,7 +6,8 @@ OBJECTS+=rpool.o dse.o naive_kernels.o tiled_kernels.o avx2_kernels.o neon_kerne
 AVX2=1
 NEON=0
 GPU=0
-DEBUG=1
+ANDROID=0
+DEBUG=0
 SUPPRESS_OUTPUT=1
 
 CC=gcc
@@ -45,9 +46,25 @@ endif
 ifeq ($(NEON), 1)
 OPTS+=-DNEON
 endif
+
+ifeq ($(ANDROID), 1) 
+#NDK Config
+TOOLCHAIN=$(NDK)/toolchains/llvm/prebuilt/linux-x86_64
+CC_TARGET=aarch64-linux-android
+API=29
+
+CC=$(TOOLCHAIN)/bin/$(CC_TARGET)$(API)-clang
+AR=$(TOOLCHAIN)/bin/llvm-ar
+OPTS=-Ofast -funroll-loops -DNEON
+LDFLAGS=-lm -fopenmp -pthread -landroid -llog --sysroot=$(TOOLCHAIN)/sysroot
+CFLAGS=-Wall -fPIC -fopenmp -static-openmp
+BUILD_INFO_GCC = $(shell $(CC) --version | tr '\n' ' ' | grep -Eio "Android .+ posix")
+endif
+
 ifeq ($(SUPPRESS_OUTPUT), 1) 
 OPTS+=-D_SUPPRESS_OUTPUT
 endif
+
 INFO_FLAGS= -DBUILD_INFO_TIME="\"$(BUILD_INFO_TIME)"\" -DBUILD_INFO_GCC="\"$(BUILD_INFO_GCC)\"" -DBUILD_INFO_UNAME="\"$(BUILD_INFO_UNAME)\"" -DBUILD_INFO_BRANCH="\"$(BUILD_INFO_BRANCH)\""
 INFO_FLAGS+= -DBUILD_INFO_FLAGS="\"$(COMMON) $(LDFLAGS) $(CFLAGS) $(OPTS)"\"
 INFO_FLAGS+= -DBUILD_INFO_NVCC="\"$(BUILD_INFO_NVCC)\""

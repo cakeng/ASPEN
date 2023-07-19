@@ -15,7 +15,7 @@ void print_aspen_build_info(void)
     printf ("1. Time of Build:\t%s\n", time_info);
     printf ("2. Build Commit:\t%s\n", branch_info);
     printf ("3. Build System:\t%s\n", uname_info);
-    printf ("4. GCC Version:\t\t%s\n", gcc_info);
+    printf ("4. Compiler Version:\t\t%s\n", gcc_info);
     printf ("5. NVCC Version:\t%s\n", nvcc_info);
     printf ("6. GPU ARCH:\t\t%s\n", gpu_arch_info);
     printf ("7. Build Flags:\t\t%s\n", flag_info);
