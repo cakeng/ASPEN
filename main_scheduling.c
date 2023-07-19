@@ -105,6 +105,11 @@ int main(int argc, char **argv)
     aspen_dnn_t *target_dnn;
     nasm_t *target_nasm;
 
+    rpool_t *rpool = rpool_init (gpu);
+    dse_group_t *dse_group = dse_group_init (dse_num, gpu);
+    dse_group_set_rpool (dse_group, rpool);
+    networking_engine* net_engine = NULL;
+
     if (!strcmp(schedule_policy, "heft")) {
         /** STAGE: PROFILING COMPUTATION **/
 
@@ -230,19 +235,19 @@ int main(int argc, char **argv)
         /** STAGE: SCHEDULING - DYNAMIC **/
         target_dnn = apu_create_dnn(target_config, target_bin);
         target_nasm = apu_load_nasm_from_file(target_nasm_dir, target_dnn);
+        for (int i=0; i<dse_group->num_ases; i++) {
+            dse_group->dse_arr[i].is_dynamic_scheduling = 1;
+        }
 
         init_dynamic_offload(target_nasm);
+    }
+    else if (!strcmp(schedule_policy, "local")) {
+        // TODO
     }
     
     /** STAGE: INFERENCE **/
 
     printf("STAGE: INFERENCE\n");
-
-    rpool_t *rpool = rpool_init (gpu);
-    dse_group_t *dse_group = dse_group_init (dse_num, gpu);
-    dse_group_set_rpool (dse_group, rpool);
-    networking_engine* net_engine = NULL;
-
     
     net_engine = init_networking(target_nasm, rpool, sock_type, rx_ip, rx_port, 0, sequential);
     dse_group_set_net_engine(dse_group, net_engine);
@@ -325,6 +330,7 @@ int main(int argc, char **argv)
         // reset: dse, net_engine, nasm, rpool
         rpool_reset(rpool);
         apu_reset_nasm(target_nasm);
+
 
     }
 

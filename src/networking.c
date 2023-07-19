@@ -422,6 +422,11 @@ void receive(networking_engine *net_engine) {
                 target_ninst->recved_time = get_time_secs();
                 // printf("recv ninst: %d, %f\n", target_ninst->ninst_idx, target_ninst->recved_time * 1000.0);
                 
+                if (target_ninst->state == NINST_COMPLETED) {
+                    free(buffer);
+                    return;
+                }
+
                 for(int w = 0; w < W; w++) {
                     memcpy(out_mat + w * stride * sizeof(float), buffer + w * H * sizeof(float), H * sizeof(float));
                 }
@@ -450,6 +455,7 @@ void receive(networking_engine *net_engine) {
                         }
                     }
                 }
+                free(buffer);
             }
         }
     }
