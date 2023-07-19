@@ -1,5 +1,5 @@
 ./main_scheduling \
-    --sock_type=1   \
+    --sock_type=0   \
     --sequential=0  \
     --dirname=temp  \
     --target_config="data/cfg/vgg16_aspen.cfg"   \
