@@ -17,3 +17,5 @@ logs
 .out
 .vscode/*
 main_mu
+subcmdline.c
+subcmdline.h

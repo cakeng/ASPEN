@@ -74,14 +74,20 @@ EXEOBJSA= $(addsuffix .o, $(TARGET))
 EXEOBJS= $(addprefix $(OBJDIR), $(EXEOBJSA))
 SUBEXEOBJSA= $(addsuffix .o, $(SUBTARGET))
 SUBEXEOBJS= $(addprefix $(OBJDIR), $(SUBEXEOBJSA))
+SUBCMDLINE= $(addsuffix .cmdline, $(SUBTARGET))
+SUBCMDOBJ = $(addsuffix .o, $(SUBCMDLINE))
 
-all: obj $(TARGET) $(SUBTARGET)
+all: obj $(TARGET) $(SUBCMDOBJ) $(SUBTARGET)
 
 $(TARGET): $(EXEOBJS) $(ALIB) 
 	$(CC) $(COMMON) $(CFLAGS) $(OPTS) $^ -o $@ $(LDFLAGS) $(ALIB)
 
-$(SUBTARGET): $(SUBEXEOBJS) $(ALIB) 
+$(SUBTARGET): $(SUBEXEOBJS) $(ALIB) $(OBJDIR)$(SUBCMDOBJ)
 	$(CC) $(COMMON) $(CFLAGS) $(OPTS) $^ -o $@ $(LDFLAGS) $(ALIB)
+
+$(SUBCMDOBJ):
+	gengetopt --input=$(SUBCMDLINE) --file-name=subcmdline
+	$(CC) -c subcmdline.c -o $(OBJDIR)$(SUBCMDOBJ)
 
 $(ALIB): $(OBJS)
 	$(AR) $(ARFLAGS) $@ $^

@@ -201,7 +201,7 @@ void *dse_thread_runtime (void* thread_info)
                         pthread_mutex_unlock (&nasm->nasm_mutex);
                     }
                 }
-            // update_children_to_cache (dse->ninst_cache, ninst);
+                // update_children_to_cache (dse->ninst_cache, ninst);
                 if (dse->is_multiuser_case && dse->device_idx == 0) {
                     update_children_but_prioritize_dse_target (dse->rpool_arr[target_device], ninst, dse);
                 }

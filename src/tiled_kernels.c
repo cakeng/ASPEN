@@ -201,7 +201,7 @@ void tiled_conv2d (ninst_t *ninst, dse_t *dse)
             //     }
             //     input += input_col_size * layer->dnn->element_size;
             // }
-            for (int nn = 0; nn < rem_n; nn++)
+            for (int nn = 0; nn < _TILE_SIZE_N; nn++)
             {
                 memset ((float*)C + (ldc * (n + nn)), 0, M * sizeof(float));
             }
