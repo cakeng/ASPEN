@@ -8,7 +8,7 @@ option "sequential" - "" int required
 option "dirname" - "" string required
 option "prefix" - "" string optional
 option "postfix" - "" string optional
-option "log_idx_start" - "" int optional
+option "log_idx_start" - "" int optional default="0"
 option "inference_repeat_num" - "" int optional
 option "target_config" - "" string required
 option "target_nasm_dir" - "" string required
