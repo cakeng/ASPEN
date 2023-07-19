@@ -6,7 +6,7 @@ OBJECTS+=rpool.o dse.o naive_kernels.o tiled_kernels.o avx2_kernels.o neon_kerne
 AVX2=1
 NEON=0
 GPU=0
-DEBUG=1
+DEBUG=0
 SUPPRESS_OUTPUT=1
 
 CC=gcc
@@ -57,14 +57,20 @@ EXEOBJSA= $(addsuffix .o, $(TARGET))
 EXEOBJS= $(addprefix $(OBJDIR), $(EXEOBJSA))
 SUBEXEOBJSA= $(addsuffix .o, $(SUBTARGET))
 SUBEXEOBJS= $(addprefix $(OBJDIR), $(SUBEXEOBJSA))
+SUBCMDLINE= $(addsuffix .cmdline, $(SUBTARGET))
+SUBCMDOBJ = $(addsuffix .o, $(SUBCMDLINE))
 
-all: obj $(TARGET) $(SUBTARGET)
+all: obj $(TARGET) $(SUBCMDOBJ) $(SUBTARGET)
 
 $(TARGET): $(EXEOBJS) $(ALIB) 
 	$(CC) $(COMMON) $(CFLAGS) $(OPTS) $^ -o $@ $(LDFLAGS) $(ALIB)
 
-$(SUBTARGET): $(SUBEXEOBJS) $(ALIB) 
+$(SUBTARGET): $(SUBEXEOBJS) $(ALIB) $(OBJDIR)$(SUBCMDOBJ)
 	$(CC) $(COMMON) $(CFLAGS) $(OPTS) $^ -o $@ $(LDFLAGS) $(ALIB)
+
+$(SUBCMDOBJ):
+	gengetopt --input=$(SUBCMDLINE) --file-name=subcmdline
+	$(CC) -c subcmdline.c -o $(OBJDIR)$(SUBCMDOBJ)
 
 $(ALIB): $(OBJS)
 	$(AR) $(ARFLAGS) $@ $^

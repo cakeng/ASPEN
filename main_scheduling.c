@@ -6,6 +6,7 @@
 #include "networking.h"
 #include "scheduling.h"
 #include "profiling.h"
+#include "subcmdline.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -15,52 +16,66 @@
 #define SCHED_PARTIAL   1
 #define SCHED_DYNAMIC   2
 
+// OPTIONS
+// option "sock_type" - "" int required
+// option "sequential" - "" int required
+// option "dirname" - "" string required
+// option "prefix" - "" string optional
+// option "postfix" - "" string optional
+// option "log_idx_start" - "" int optional
+// option "inference_repeat_num" - "" int optional
+// option "target_config" - "" string required
+// option "target_nasm_dir" - "" string required
+// option "target_bin" - "" string optional
+// option "target_input" - "" string optional
+// option "rx_ip" - "" string required
+// option "rx_port" - "" int required
+// option "schedule_policy" - "" string required values="partial","sequential"
+// option "sched_partial_ratio" - "" float optional
+// option "sched_sequential_idx" - "" int optional
+// option "dse_num" - "" int required
+// option "output_order" - "" string required values="cnn","transformer"
+
 int main(int argc, char **argv)
 {
-    int sock_type = 999;
-    int sequential = 0;
-    char *dirname = "temp";
-    char *prefix = "temp";
-    char *postfix = "0";
+    struct gengetopt_args_info ai;
+    if (cmdline_parser(argc, argv, &ai) != 0) {
+        exit(1);
+    }
 
-    if (argc > 5) {
-        postfix = argv[5];
-    }
-    if (argc > 4) {
-        prefix = argv[4];
-    }
-    if (argc > 3) {
-        dirname = argv[3];
-    }
-    if (argc > 2) {
-        sequential = atoi(argv[2]);
-    }
-    if (argc > 1) 
-    {
-        if(!strcmp(argv[1], "RX")) {
-            sock_type = SOCK_RX;
-        } else if(!strcmp(argv[1], "TX")) {
-            sock_type = SOCK_TX;
-        }
-    }
-    else {
-        printf("usage: %s [RX/TX]\n", argv[0]);
-        exit(0);
-    }
+    int sock_type = ai.sock_type_arg;
+    int sequential = ai.sequential_arg;
+    char *dirname = ai.dirname_arg;
+    char *prefix = ai.prefix_arg ? ai.prefix_arg : "temp";
+    char *postfix = ai.postfix_arg ? ai.postfix_arg : "0";
+    int log_idx_start = ai.log_idx_start_arg;
+    int inference_repeat_num = ai.inference_repeat_num_arg;
+    char *target_config = ai.target_config_arg;
+    char *target_nasm_dir = ai.target_nasm_dir_arg;
+    char *target_bin = ai.target_bin_arg;
+    char *target_input = ai.target_input_arg;
+    char *rx_ip = ai.rx_ip_arg;
+    int rx_port = ai.rx_port_arg;
+    char *schedule_policy = ai.schedule_policy_arg;
+    float sched_partial_ratio = ai.sched_partial_ratio_arg;
+    int sched_sequential_idx = ai.sched_sequential_idx_arg;
+    int dse_num = ai.dse_num_arg;
+    char *output_order = ai.output_order_arg;
+
 
     // char *target_config = "data/cfg/resnet50_aspen.cfg";
     // char *target_bin = "data/resnet50/resnet50_data.bin";
     // char *target_nasm_dir = "data/resnet50_B1_aspen.nasm";
     // char *target_nasm_dir = "data/resnet50_B32_fine_aspen.nasm";
     // char* target_input = "data/resnet50/batched_input_64.bin";
-    char *target_config = "data/cfg/bert_base_encoder.cfg";
-    char *target_bin = NULL;
+    // char *target_config = "data/cfg/bert_base_encoder.cfg";
+    // char *target_bin = NULL;
 
     // char *target_config = "data/cfg/vgg16_aspen.cfg";
     // char *target_bin = "data/vgg16/vgg16_data.bin";
     // char *target_nasm_dir = "data/vgg16_B1_aspen.nasm";
-    char *target_nasm_dir = NULL;
-    char *target_input = NULL;
+    // char *target_nasm_dir = NULL;
+    // char *target_input = NULL;
 
     int gpu = -1;
 
@@ -71,23 +86,18 @@ int main(int argc, char **argv)
     // apu_save_nasm_to_file(resnet50_nasm, "data/resnset50_B32_fine_aspen.nasm");
     // apu_save_nasm_to_file(vgg16_nasm, "data/vgg16_B1_aspen.nasm");
 
-    char *rx_ip = "192.168.1.176";
-    int rx_port = 3786;
-
     int server_sock;
     int client_sock;
 
     ninst_profile_t *ninst_profile[SCHEDULE_MAX_DEVICES];
     network_profile_t *network_profile;
 
-
-    int schedule_policy = SCHED_PARTIAL;
     sched_processor_t *schedule;
 
     aspen_dnn_t *target_dnn;
     nasm_t *target_nasm;
 
-    if (schedule_policy == SCHED_HEFT) {
+    if (!strcmp(schedule_policy, "heft")) {
         /** STAGE: PROFILING COMPUTATION **/
 
         printf("STAGE: PROFILING COMPUTATION\n");
@@ -140,7 +150,7 @@ int main(int argc, char **argv)
 
         apply_schedule_to_nasm(target_nasm, schedule, 2, sock_type);
     }
-    else if (schedule_policy == SCHED_PARTIAL) {
+    else if (!strcmp(schedule_policy, "partial")) {
         /** STAGE: PROFILING NETWORK **/
 
         printf("STAGE: PROFILING NETWORK\n");
@@ -169,13 +179,66 @@ int main(int argc, char **argv)
 
         printf("sync: %f\n", sync);
 
+        if (sock_type == SOCK_RX) {
+            close(client_sock);
+            close(server_sock);
+        }
+        else if (sock_type == SOCK_TX) {
+            close(server_sock);
+        }
+
         /** STAGE: SCHEDULING - PARTIAL **/
         target_dnn = apu_create_dnn(target_config, target_bin);
-        // target_nasm = apu_create_nasm(target_dnn, 1e4, 8, 1);
-        // apu_save_nasm_to_file(target_nasm, "data/bert_base_encoder_B1_S128.nasm");
-        target_nasm = apu_load_nasm_from_file("data/bert_base_encoder_B1_S128.nasm", target_dnn);
+        // target_nasm = apu_create_nasm(target_dnn, 1e4, 8, 32);
+        // apu_save_nasm_to_file(target_nasm, "data/bert_base_encoder_B32_S128.nasm");
+        target_nasm = apu_load_nasm_from_file(target_nasm_dir, target_dnn);
 
         init_partial_offload(target_nasm, 0.0);
+    }
+    else if (!strcmp(schedule_policy, "sequential")) {
+        /** STAGE: PROFILING NETWORK **/
+
+        printf("STAGE: PROFILING NETWORK\n");
+        
+        if (sock_type == SOCK_RX) {
+            server_sock = create_server_sock(rx_ip, rx_port+1);
+            client_sock = accept_client_sock(server_sock);
+        }
+        else if (sock_type == SOCK_TX) {
+            server_sock = connect_server_sock(rx_ip, rx_port+1);
+        }
+
+        float sync = profile_network_sync(sock_type, server_sock, client_sock);
+
+        int connection_key;
+        if (sock_type == SOCK_RX) {
+            connection_key = 12534;
+            write_n(client_sock, &connection_key, sizeof(int));
+            printf("connection key: %d\n", connection_key);
+        }
+        else if (sock_type == SOCK_TX) {
+            connection_key = -1;
+            read_n(server_sock, &connection_key, sizeof(int));
+            printf("connection key: %d\n", connection_key);
+        }
+
+        printf("sync: %f\n", sync);
+
+        if (sock_type == SOCK_RX) {
+            close(client_sock);
+            close(server_sock);
+        }
+        else if (sock_type == SOCK_TX) {
+            close(server_sock);
+        }
+
+        /** STAGE: SCHEDULING - PARTIAL **/
+        target_dnn = apu_create_dnn(target_config, target_bin);
+        // target_nasm = apu_create_nasm(target_dnn, 1e4, 8, 32);
+        // apu_save_nasm_to_file(target_nasm, "data/bert_base_encoder_B32_S128.nasm");
+        target_nasm = apu_load_nasm_from_file(target_nasm_dir, target_dnn);
+
+        init_sequential_offload(target_nasm, sched_sequential_idx, SOCK_TX, SOCK_RX);
     }
     
     /** STAGE: INFERENCE **/
@@ -183,64 +246,71 @@ int main(int argc, char **argv)
     printf("STAGE: INFERENCE\n");
 
     rpool_t *rpool = rpool_init (gpu);
-    dse_group_t *dse_group = dse_group_init (8, gpu);
+    dse_group_t *dse_group = dse_group_init (dse_num, gpu);
     dse_group_set_rpool (dse_group, rpool);
     networking_engine* net_engine = NULL;
 
-    if(sock_type == SOCK_RX || sock_type == SOCK_TX) 
-    {
-        net_engine = init_networking(target_nasm, rpool, sock_type, rx_ip, rx_port, 0, sequential);
-        dse_group_set_net_engine(dse_group, net_engine);
-        dse_group_set_device(dse_group, sock_type);
-        net_engine->dse_group = dse_group;
-        
+    
+    net_engine = init_networking(target_nasm, rpool, sock_type, rx_ip, rx_port, 0, sequential);
+    dse_group_set_net_engine(dse_group, net_engine);
+    dse_group_set_device(dse_group, sock_type);
+    net_engine->dse_group = dse_group;
+
+    for (int i=0; i<inference_repeat_num; i++) {
+        printf("inference: %d/%d\n", i+1, inference_repeat_num);
+
+        target_nasm->nasm_cond = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
+
         if(sock_type == SOCK_TX) {
             add_input_rpool (net_engine, target_nasm, target_input);
         }
 
         atomic_store (&net_engine->run, 1);
-    }
-    else { // Local run
-        rpool_add_nasm (rpool, target_nasm, target_input); 
-    }
-    
-    get_elapsed_time ("init");
-    if (!sequential || sock_type == SOCK_TX) dse_group_run (dse_group);
-    dse_wait_for_nasm_completion (target_nasm);
-    get_elapsed_time ("run_aspen");
-    dse_group_stop (dse_group);
-    
-    // LAYER_PARAMS output_order[] = {BATCH, OUT_H, OUT_W, OUT_C};  // for CNN
-    LAYER_PARAMS output_order[] = {BATCH, MAT_N, MAT_M};     // for Transformer
-    float *layer_output = dse_get_nasm_result (target_nasm, output_order);
-    float *softmax_output = calloc (1000*target_nasm->batch_size, sizeof(float));
-    naive_softmax (layer_output, softmax_output, target_nasm->batch_size, 1000);
-    for (int i = 0; i < target_nasm->batch_size; i++)
-    {
-        get_probability_results ("data/resnet50/imagenet_classes.txt", softmax_output + 1000*i, 1000);
-    }
-    
-    // For logging
-    char file_name[256];
-    char dir_path[256];
-    sprintf(dir_path, "./logs/%s", dirname);
+        
+        
+        get_elapsed_time ("init");
+        if (!sequential || sock_type == SOCK_TX) dse_group_run (dse_group);
+        dse_wait_for_nasm_completion (target_nasm);
+        get_elapsed_time ("run_aspen");
+        dse_group_stop (dse_group);
+        
+        LAYER_PARAMS output_order_cnn[] = {BATCH, OUT_H, OUT_W, OUT_C};  // for CNN
+        LAYER_PARAMS output_order_transformer[] = {BATCH, MAT_N, MAT_M};    // for Transformer
 
-    struct stat st = {0};
-    if (stat(dir_path, &st) == -1) {
-        mkdir(dir_path, 0700);
-    }
+        LAYER_PARAMS *output_order_param = !strcmp(output_order, "cnn") ? output_order_cnn : output_order_transformer;
+        float *layer_output = dse_get_nasm_result (target_nasm, output_order_param);
+        float *softmax_output = calloc (1000*target_nasm->batch_size, sizeof(float));
+        naive_softmax (layer_output, softmax_output, target_nasm->batch_size, 1000);
+        for (int i = 0; i < target_nasm->batch_size; i++)
+        {
+            get_probability_results ("data/resnet50/imagenet_classes.txt", softmax_output + 1000*i, 1000);
+        }
+        
+        // For logging
+        char file_name[256];
+        char dir_path[256];
+        sprintf(dir_path, "./logs/%s", dirname);
 
-    sprintf(file_name, "./logs/%s/%s_%s_dev%d_%s.csv", dirname, prefix, sequential ? "seq" : "pip", sock_type == SOCK_RX ? SOCK_RX : SOCK_TX, postfix);
-    
-    FILE *log_fp = fopen(file_name, "w");
+        struct stat st = {0};
+        if (stat(dir_path, &st) == -1) {
+            mkdir(dir_path, 0700);
+        }
+
+        sprintf(file_name, "./logs/%s/%s_%s_dev%d_%s_%d.csv", dirname, prefix, sequential ? "seq" : "pip", sock_type == SOCK_RX ? SOCK_RX : SOCK_TX, postfix, log_idx_start+i);
+        
+        FILE *log_fp = fopen(file_name, "w");
+        save_ninst_log(log_fp, target_nasm);
+        free (layer_output);
+        free (softmax_output);
+
+        // reset: dse, net_engine, nasm, rpool
+        rpool_reset(rpool);
+        apu_reset_nasm(target_nasm);
+
+    }
 
     // Wrap up
-
-    free (layer_output);
-    free (softmax_output);
-
     close_connection (net_engine);
-    save_ninst_log(log_fp, target_nasm);
     net_engine_destroy (net_engine);
     dse_group_destroy (dse_group);
     rpool_destroy (rpool);
@@ -250,13 +320,6 @@ int main(int argc, char **argv)
 
 
     /** STAGE: FINISH **/
-    if (sock_type == SOCK_RX) {
-        close(client_sock);
-        close(server_sock);
-    }
-    else if (sock_type == SOCK_TX) {
-        close(server_sock);
-    }
 
     
 
