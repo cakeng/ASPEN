@@ -44,7 +44,7 @@ int main(int argc, char **argv)
     }
 
     int sock_type = ai.sock_type_arg;
-    int sequential = ai.sequential_arg;
+    int sequential = !ai.pipelined_arg;
     char *dirname = ai.dirname_arg;
     char *prefix = ai.prefix_arg ? ai.prefix_arg : "temp";
     char *postfix = ai.postfix_arg ? ai.postfix_arg : "0";
@@ -105,9 +105,8 @@ int main(int argc, char **argv)
     aspen_dnn_t *target_dnn;
     nasm_t *target_nasm;
 
-    rpool_t *rpool = rpool_init (gpu);
+    rpool_t *rpool;
     dse_group_t *dse_group = dse_group_init (dse_num, gpu);
-    dse_group_set_rpool (dse_group, rpool);
     networking_engine* net_engine = NULL;
 
     if (!strcmp(schedule_policy, "heft")) {
@@ -154,6 +153,9 @@ int main(int argc, char **argv)
         target_nasm = apu_load_nasm_from_file (target_nasm_dir, target_dnn);
 
         apply_schedule_to_nasm(target_nasm, schedule, 2, sock_type);
+
+        rpool = rpool_init (gpu);
+        dse_group_set_rpool (dse_group, rpool);
     }
     else if (!strcmp(schedule_policy, "partial")) {
         /** STAGE: PROFILING NETWORK **/
@@ -183,6 +185,9 @@ int main(int argc, char **argv)
         target_nasm = apu_load_nasm_from_file(target_nasm_dir, target_dnn);
 
         init_partial_offload(target_nasm, 0.0);
+
+        rpool = rpool_init (gpu);
+        dse_group_set_rpool (dse_group, rpool);
     }
     else if (!strcmp(schedule_policy, "sequential")) {
         /** STAGE: PROFILING NETWORK **/
@@ -210,6 +215,9 @@ int main(int argc, char **argv)
         target_nasm = apu_load_nasm_from_file(target_nasm_dir, target_dnn);
 
         init_sequential_offload(target_nasm, sched_sequential_idx, SOCK_TX, SOCK_RX);
+
+        rpool = rpool_init (gpu);
+        dse_group_set_rpool (dse_group, rpool);
     }
     else if (!strcmp(schedule_policy, "dynamic")) {
         /** STAGE: PROFILING NETWORK **/
@@ -240,6 +248,11 @@ int main(int argc, char **argv)
         }
 
         init_dynamic_offload(target_nasm);
+
+        for (int i=0; i<SCHEDULE_MAX_HIERARCHY; i++) {
+            rpool = rpool_init (gpu);
+            dse_group_set_rpool_hierarchy (dse_group, rpool, i);
+        }
     }
     else if (!strcmp(schedule_policy, "local")) {
         // TODO

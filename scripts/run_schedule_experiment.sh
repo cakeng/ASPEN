@@ -1,6 +1,6 @@
 ./main_scheduling \
     --sock_type=0   \
-    --sequential=0  \
+    --pipelined=1  \
     --dirname=temp  \
     --target_config="data/cfg/vgg16_aspen.cfg"   \
     --target_nasm_dir="data/vgg16_B1_aspen.nasm" \
@@ -13,4 +13,4 @@
     --sched_sequential_idx=1    \
     --dse_num=16    \
     --output_order="cnn"    \
-    --inference_repeat_num=10
+    --inference_repeat_num=2
