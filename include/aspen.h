@@ -140,7 +140,6 @@ void rpool_reset_nasm (rpool_t *rpool, nasm_t *nasm);
 
 dse_group_t *dse_group_init (unsigned int num_ase, int gpu_idx);
 void dse_group_set_rpool (dse_group_t *dse_group, rpool_t *rpool);
-void dse_group_set_rpool_hierarchy (dse_group_t *dse_group, rpool_t *rpool, int hierarchy);
 void dse_group_destroy (dse_group_t *dse_group);
 void dse_group_run (dse_group_t *dse_group);
 void dse_group_stop (dse_group_t *dse_group);

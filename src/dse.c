@@ -24,7 +24,7 @@ void *dse_thread_runtime (void* thread_info)
 
                 if (dse->target == NULL) continue;
             }
-            else if (dse->device_idx == 0 && dse->is_multiuser_case) {
+            if (dse->device_idx == 0 && dse->is_multiuser_case) {
                 int checked[SCHEDULE_MAX_DEVICES];
                 for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) checked[i] = 0;
 
@@ -56,14 +56,6 @@ void *dse_thread_runtime (void* thread_info)
 
                 }
 
-                if (dse->target == NULL) continue;
-            }
-            else if (dse->is_dynamic_scheduling) {
-                for (int i=0; i<SCHEDULE_MAX_HIERARCHY; i++) {
-                    rpool_fetch_ninsts (dse->rpool_hierarchy[i], &dse->target, 1, 0);
-                    if (dse->target != NULL) break;
-                }
-                
                 if (dse->target == NULL) continue;
             }
             else {
@@ -217,7 +209,6 @@ void *dse_thread_runtime (void* thread_info)
                     update_children_but_prioritize_dse_target (dse->rpool_arr[0], ninst, dse);
                 }
                 else if (!dse->is_multiuser_case && dse->is_dynamic_scheduling && ninst->ldata->layer->layer_idx == 0) {
-                    printf("letsgo\n");
                     update_children (dse->rpool, ninst, NULL);
                 }
                 else {
@@ -302,30 +293,6 @@ void dse_group_set_rpool (dse_group_t *dse_group, rpool_t *rpool)
     for (int i = 0; i < dse_group->num_ases; i++)
     {
         dse_group->dse_arr[i].rpool = rpool;
-    }
-    add_ref_ases (rpool, dse_group->num_ases);
-}
-
-void dse_group_set_rpool_hierarchy (dse_group_t *dse_group, rpool_t *rpool, int hierarchy)
-{
-    if (dse_group == NULL)
-    {
-        FPRT (stderr, "ERROR: dse_group_set_rpool: dse_group is NULL\n");
-        assert (0);
-    }
-    if (rpool == NULL)
-    {
-        FPRT (stderr, "ERROR: dse_group_set_rpool: rpool is NULL\n");
-        assert (0);
-    }
-    if (dse_group->gpu_idx != rpool->gpu_idx)
-    {
-        FPRT (stderr, "ERROR: dse_group_set_rpool: dse_group->gpu_idx %d != rpool->gpu_idx %d\n", dse_group->gpu_idx, rpool->gpu_idx);
-        assert (0);
-    }
-    for (int i = 0; i < dse_group->num_ases; i++)
-    {
-        dse_group->dse_arr[i].rpool_hierarchy[hierarchy] = rpool;
     }
     add_ref_ases (rpool, dse_group->num_ases);
 }

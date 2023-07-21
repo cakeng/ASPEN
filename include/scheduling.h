@@ -5,7 +5,6 @@
 #define PROFILE_REPEAT              4
 #define PROFILE_LONG_MESSAGE_SIZE   (1024 * 64)
 #define SCHEDULE_MAX_DEVICES        4
-#define SCHEDULE_MAX_HIERARCHY      2
 
 #include "nasm.h"
 #include "profiling.h"

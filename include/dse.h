@@ -51,7 +51,6 @@ struct dse_t
 
     // for dynamic scheduling
     int is_dynamic_scheduling;
-    rpool_t *rpool_hierarchy[SCHEDULE_MAX_HIERARCHY];
 
     // for profiling stage
     int profile_compute;
