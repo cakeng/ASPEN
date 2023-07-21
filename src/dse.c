@@ -220,6 +220,9 @@ void *dse_thread_runtime (void* thread_info)
                     printf("letsgo\n");
                     update_children (dse->rpool, ninst, NULL);
                 }
+                else if (dse->is_dynamic_scheduling) {
+                    update_children (dse->rpool_hierarchy[1], ninst, NULL);
+                }
                 else {
                     update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
 
