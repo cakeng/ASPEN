@@ -208,6 +208,9 @@ void *dse_thread_runtime (void* thread_info)
                 else if (dse->is_multiuser_case && dse->device_idx != 0) {
                     update_children_but_prioritize_dse_target (dse->rpool_arr[0], ninst, dse);
                 }
+                else if (!dse->is_multiuser_case && dse->is_dynamic_scheduling && ninst->ldata->layer->layer_idx == 0) {
+                    update_children (dse->rpool, ninst, NULL);
+                }
                 else {
                     update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
 

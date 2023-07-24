@@ -49,6 +49,9 @@ struct dse_t
 
     int gpu_idx;
 
+    // for dynamic scheduling
+    int is_dynamic_scheduling;
+
     // for profiling stage
     int profile_compute;
 };

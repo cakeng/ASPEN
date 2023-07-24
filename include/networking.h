@@ -64,6 +64,7 @@ void transmission(networking_engine *net_engine);
 void receive(networking_engine *net_engine);
 void push_ninsts_to_net_queue (networking_queue_t *networking_queue, ninst_t *ninst_ptr, unsigned int num_ninsts);
 void add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_filename);
+void add_input_rpool_reverse (networking_engine *net_engine, nasm_t* nasm, char *input_filename);
 void net_engine_destroy(networking_engine* net_engine);
 void close_connection(networking_engine* net_engine);
 
