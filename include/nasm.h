@@ -24,7 +24,6 @@ struct nasm_t
     
     int gpu_idx;
     void *data;
-    
 
     pthread_mutex_t nasm_mutex;
     pthread_cond_t nasm_cond;
@@ -61,7 +60,7 @@ struct nasm_ldata_t
 struct ninst_t 
 {
     nasm_ldata_t *ldata;
-    NINST_STATE state;
+    _Atomic NINST_STATE state;
     unsigned int ninst_idx;
     unsigned int out_mat_pos [2];
     unsigned int tile_dims [2];

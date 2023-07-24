@@ -421,17 +421,14 @@ void receive(networking_engine *net_engine) {
 
                 target_ninst->recved_time = get_time_secs();
                 // printf("recv ninst: %d, %f\n", target_ninst->ninst_idx, target_ninst->recved_time * 1000.0);
-                
-                if (target_ninst->state == NINST_COMPLETED) {
+
+                if (atomic_exchange (&target_ninst->state, NINST_COMPLETED) == NINST_COMPLETED) 
+                {
                     free(buffer);
                     return;
                 }
+                copy_buffer_to_ninst_data (target_ninst, buffer);
 
-                for(int w = 0; w < W; w++) {
-                    memcpy(out_mat + w * stride * sizeof(float), buffer + w * H * sizeof(float), H * sizeof(float));
-                }
-
-                target_ninst->state = NINST_COMPLETED;
                 unsigned int num_ninst_completed = atomic_fetch_add (&target_ninst->ldata->num_ninst_completed , 1);
                 int num_ase = net_engine->rpool->ref_ases > 0 ? net_engine->rpool->ref_ases : 1;
                 update_children (net_engine->rpool, target_ninst, i/(net_engine->nasm->ldata_arr[0].num_ninst/num_ase));
@@ -455,7 +452,7 @@ void receive(networking_engine *net_engine) {
                         }
                     }
                 }
-                free(buffer);
+
             }
         }
     }

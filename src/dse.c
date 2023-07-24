@@ -116,13 +116,10 @@ void *dse_thread_runtime (void* thread_info)
             // Execute.
             ninst_t *ninst = dse->target;
             dse->target = NULL;
-            #ifdef DEBUG 
-            if (ninst->state != NINST_READY && ninst->state != NINST_COMPLETED)
+            if (atomic_exchange (&ninst->state, NINST_COMPLETED) == NINST_COMPLETED)
             {
-                FPRT (stderr, "Error: ninst->state != NINST_READY in dse_thread_runtime()\n");
-                assert (0);
+                continue;
             }
-            #endif
             // printf("fetched ninst %d, offload: %d, compute: %d\n", ninst->ninst_idx, ninst->offload, ninst->compute);
             if (is_ninst_mine(ninst, dse->device_idx) || dse->profile_compute)    // It's mine, so compute
             {
@@ -174,7 +171,7 @@ void *dse_thread_runtime (void* thread_info)
                 ninst->computed_time = get_time_secs();
                 if (dse->profile_compute) ninst->compute_end = ninst->computed_time;
             
-                ninst->state = NINST_COMPLETED;
+                
                 unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
                 if (num_ninst_completed == ninst->ldata->num_ninst - 1)
                 {
@@ -221,7 +218,6 @@ void *dse_thread_runtime (void* thread_info)
                 }
                 else {
                     update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
-
                 }
 
                 // check desiring devices for the computation output

@@ -59,6 +59,9 @@ void set_nasm_to_finished (nasm_t *nasm);
 void copy_tensor_data_to_nasm_data (aspen_tensor_t *tensor, nasm_ldata_t *ldata);
 void copy_nasm_data_to_tensor_data (nasm_ldata_t *ldata, aspen_tensor_t *tensor);
 
+void copy_ninst_data_to_buffer (ninst_t *ninst, void *buffer);
+void copy_buffer_to_ninst_data (ninst_t *ninst, void *buffer);
+
 unsigned int get_tensor_idx_from_pos (aspen_tensor_t *tensor, unsigned int *pos);
 void get_tensor_pos_from_idx (aspen_tensor_t *tensor, unsigned int idx, unsigned int *pos);
 ninst_t *get_ninst_from_tensor_pos (nasm_ldata_t *ldata, unsigned int *tensor_pos);

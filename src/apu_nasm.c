@@ -530,7 +530,7 @@ void ninst_find_parent (ninst_t *ninst)
 void init_ninst (nasm_ldata_t *ldata, ninst_t *ninst_ptr, int ninst_idx)
 {
     ninst_ptr->ldata = ldata;
-    ninst_ptr->state = NINST_NOT_READY;
+    atomic_store (&ninst_ptr->state, NINST_NOT_READY);
     ninst_ptr->ninst_idx = ninst_idx;
     get_out_mat_pos_from_nist (ldata, ninst_ptr, ninst_ptr->out_mat_pos);
     ninst_ptr->tile_dims[OUT_W] = ninst_ptr->out_mat_pos[OUT_W] + ldata->ninst_tile_dims[OUT_W] > ldata->out_mat_dims[OUT_W]?
@@ -840,7 +840,7 @@ void apu_reset_nasm (nasm_t *nasm)
         for (int j = 0; j < ldata->num_ninst; j++)
         {
             ninst_t *ninst = &ldata->ninst_arr_start[j];
-            ninst->state = NINST_NOT_READY;
+            atomic_store (&ninst->state, NINST_NOT_READY);
             atomic_store (&ninst->num_parent_ninsts_completed, 0);
         }
     }
@@ -862,6 +862,45 @@ void set_nasm_to_finished (nasm_t *nasm)
         }
     }
 }
+
+void copy_ninst_data_to_buffer (ninst_t *ninst, void *buffer)
+{
+    #ifdef DEBUG
+    if (ninst == NULL || buffer == NULL)
+    {
+        PRT ("ERROR: ninst or buffer is NULL.\n");
+        exit (1);
+    }
+    #endif
+    char* out_mat = ninst->out_mat;
+    const unsigned int W = ninst->tile_dims[OUT_W];
+    const unsigned int H = ninst->tile_dims[OUT_H];
+    const unsigned int stride = ninst->ldata->out_mat_stride;
+    for(int w = 0; w < W; w++) 
+    {
+        memcpy(buffer + w * H * sizeof(float), out_mat + w * stride * sizeof(float), H * sizeof(float));
+    }
+}
+
+void copy_buffer_to_ninst_data (ninst_t *ninst, void *buffer)
+{
+    #ifdef DEBUG
+    if (ninst == NULL || buffer == NULL)
+    {
+        PRT ("ERROR: ninst or buffer is NULL.\n");
+        exit (1);
+    }
+    #endif
+    char* out_mat = ninst->out_mat;
+    const unsigned int W = ninst->tile_dims[OUT_W];
+    const unsigned int H = ninst->tile_dims[OUT_H];
+    const unsigned int stride = ninst->ldata->out_mat_stride;
+    for(int w = 0; w < W; w++) 
+    {
+        memcpy(out_mat + w * stride * sizeof(float), buffer + w * H * sizeof(float), H * sizeof(float));
+    }
+}
+
 
 void destroy_nasm_ldata (nasm_ldata_t *ldata)
 {
