@@ -100,13 +100,12 @@ int main (int argc, char **argv)
 
     aspen_dnn_t *resnet50_dnn = apu_load_dnn_from_file ("data/resnet50_base.aspen");
     nasm_t *resnet50_nasm;
-    if (batch_size == 4)
-        resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_B4.nasm", resnet50_dnn);
-    else if (batch_size == 1)
-        resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_B1.nasm", resnet50_dnn);
-    else
+    char nasm_file_name[1024] = {0};
+    sprintf (nasm_file_name, "data/resnet50_B%d.nasm", batch_size);
+    resnet50_nasm = apu_load_nasm_from_file (nasm_file_name, resnet50_dnn);
+    if (resnet50_nasm == NULL)
     {
-        printf ("Batch size %d not supported\n", batch_size);
+        printf ("Unable to load nasm file\n");
         exit (0);
     }
   

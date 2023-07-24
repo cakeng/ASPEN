@@ -1,10 +1,10 @@
 #include "profiling.h"
 
-ninst_profile_t *profile_computation(char *target_config, char *target_bin, char *target_nasm_dir, char *target_input, int gpu, int num_repeat) {
+ninst_profile_t *profile_computation(char *target_dnn_dir, char *target_nasm_dir, char *target_input, int gpu, int num_repeat) {
     ninst_profile_t **ninst_profiles = calloc(num_repeat, sizeof(ninst_profile_t *));
 
     for (int i=0; i<num_repeat; i++) {
-        aspen_dnn_t *target_dnn = apu_create_dnn(target_config, target_bin);
+        aspen_dnn_t *target_dnn = apu_load_dnn_from_file(target_dnn_dir);
         nasm_t *target_nasm = apu_load_nasm_from_file (target_nasm_dir, target_dnn);
 
         rpool_t *rpool = rpool_init (gpu);

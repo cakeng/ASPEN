@@ -50,7 +50,7 @@ void init_full_offload(nasm_t *nasm);
 void init_partial_offload(nasm_t *nasm, float compute_ratio);
 void init_sequential_offload(nasm_t *nasm, int split_layer, int from_dev, int to_dev);
 void init_dynamic_offload(nasm_t *nasm);
-sched_processor_t *init_heft(char *target_config, char *target_bin, char *target_nasm_dir, ninst_profile_t **ninst_profile, network_profile_t *network_profile, int num_device);
+sched_processor_t *init_heft(char *target_dnn_dir, char *target_nasm_dir, ninst_profile_t **ninst_profile, network_profile_t *network_profile, int num_device);
 
 void heft_gen_dependency(nasm_t *nasm, int **dependency);
 void heft_gen_data(nasm_t *nasm, ninst_profile_t **ninst_profile, int **dependency, float **data);

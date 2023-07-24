@@ -18,7 +18,7 @@ struct network_profile_t {
     float transmit_rate;
 };
 
-ninst_profile_t *profile_computation(char *target_config, char *target_bin, char *target_nasm_dir, char *target_input, int gpu, int num_repeat);
+ninst_profile_t *profile_computation(char *target_dnn_dir, char *target_nasm_dir, char *target_input, int gpu, int num_repeat);
 network_profile_t *profile_network(ninst_profile_t **ninst_profile, int sock_type, int server_sock, int client_sock);
 float profile_network_sync(int sock_type, int server_sock, int client_sock);
 

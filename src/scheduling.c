@@ -152,8 +152,8 @@ void init_dynamic_offload(nasm_t *nasm) {
     set_last_layer_desiring(nasm, SOCK_TX);
 }
 
-sched_processor_t *init_heft(char *target_config, char *target_bin, char *target_nasm_dir, ninst_profile_t **ninst_profile, network_profile_t *network_profile, int num_device) {
-    aspen_dnn_t *target_dnn = apu_create_dnn(target_config, target_bin);
+sched_processor_t *init_heft(char *target_dnn_dir, char *target_nasm_dir, ninst_profile_t **ninst_profile, network_profile_t *network_profile, int num_device) {
+    aspen_dnn_t *target_dnn = apu_load_dnn_from_file(target_dnn_dir);
     nasm_t *nasm = apu_load_nasm_from_file (target_nasm_dir, target_dnn);
 
     int num_ninst = nasm->num_ninst;

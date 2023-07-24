@@ -10,9 +10,10 @@ option "prefix" - "" string optional
 option "postfix" - "" string optional
 option "log_idx_start" - "" int optional default="0"
 option "inference_repeat_num" - "" int optional
-option "target_config" - "" string required
-option "target_nasm_dir" - "" string required
+option "target_config" - "" string optional
 option "target_bin" - "" string optional
+option "target_dnn_dir" - "" string optional
+option "target_nasm_dir" - "" string required
 option "target_input" - "" string optional
 option "rx_ip" - "" string required
 option "rx_port" - "" int required
