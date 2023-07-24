@@ -133,10 +133,18 @@ void init_sequential_offload(nasm_t *nasm, int split_layer, int from_dev, int to
 
 void init_dynamic_offload(nasm_t *nasm) {
     for (int i=0; i<nasm->num_ldata; i++) {
-        for (int j=0; j<nasm->ldata_arr[i].num_ninst; j++) {
-            clear_device_alloc(&(nasm->ldata_arr[i].ninst_arr_start[j]));
-            alloc_device_to_ninst(&(nasm->ldata_arr[i].ninst_arr_start[j]), SOCK_RX);
-            alloc_device_to_ninst(&(nasm->ldata_arr[i].ninst_arr_start[j]), SOCK_TX);
+        if (i == 1) {
+            for (int j=0; j<nasm->ldata_arr[i].num_ninst; j++) {
+                clear_device_alloc(&(nasm->ldata_arr[i].ninst_arr_start[j]));
+                alloc_device_to_ninst(&(nasm->ldata_arr[i].ninst_arr_start[j]), SOCK_RX);
+            }
+        }
+        else {
+            for (int j=0; j<nasm->ldata_arr[i].num_ninst; j++) {
+                clear_device_alloc(&(nasm->ldata_arr[i].ninst_arr_start[j]));
+                alloc_device_to_ninst(&(nasm->ldata_arr[i].ninst_arr_start[j]), SOCK_RX);
+                alloc_device_to_ninst(&(nasm->ldata_arr[i].ninst_arr_start[j]), SOCK_TX);
+            }
         }
     }
     

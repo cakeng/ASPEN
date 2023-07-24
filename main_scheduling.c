@@ -44,7 +44,7 @@ int main(int argc, char **argv)
     }
 
     int sock_type = ai.sock_type_arg;
-    int sequential = ai.sequential_arg;
+    int sequential = !ai.pipelined_arg;
     char *dirname = ai.dirname_arg;
     char *prefix = ai.prefix_arg ? ai.prefix_arg : "temp";
     char *postfix = ai.postfix_arg ? ai.postfix_arg : "0";
