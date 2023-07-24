@@ -183,6 +183,14 @@ void *dse_thread_runtime (void* thread_info)
                     nasm_t *nasm = ninst->ldata->nasm;
                     unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
                     // if (num_ldata_completed == nasm->num_ldata - 1)
+
+                    if (ninst->ldata->layer->layer_idx == 0) {
+                        for (int i=0; i<nasm->ldata_arr[1].num_ninst; i++) {
+                            ninst_t *target_ninst = nasm->ldata_arr[1].ninst_arr_start + nasm->ldata_arr[1].num_ninst - 1 - i;
+                            target_ninst->alloc_devices[dse->device_idx] = 1;
+                            rpool_push_ninsts(dse->rpool, &target_ninst, 1, 0);    
+                        }
+                    }
                     if (nasm->ldata_arr[nasm->num_ldata-1].num_ninst_completed == nasm->ldata_arr[nasm->num_ldata-1].num_ninst)
                     {
                         printf ("\t\tSignaling nasm completion...\n");

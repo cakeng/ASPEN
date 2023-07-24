@@ -275,6 +275,7 @@ int main(int argc, char **argv)
         }
 
         atomic_store (&net_engine->run, 1);
+        printf("netqueue remaining: %d\n", net_engine->net_queue->num_stored);
         
         
         get_elapsed_time ("init");
@@ -334,8 +335,19 @@ int main(int argc, char **argv)
         printf("sync: %f\n", sync);
 
         // reset: dse, net_engine, nasm, rpool
+        // atomic_store (&net_engine->run, 0);
         rpool_reset(rpool);
         apu_reset_nasm(target_nasm);
+
+        ninst_t **temp_list = calloc(net_engine->net_queue->num_stored, sizeof(ninst_t *));
+        char *temp_buffer = malloc(NETQUEUE_BUFFER_SIZE);
+        while (net_engine->net_queue->num_stored > 0) {
+            pthread_mutex_lock(&net_engine->net_engine_mutex);
+            pop_ninsts_from_net_queue (net_engine->net_queue, temp_list, temp_buffer, net_engine->net_queue->num_stored);
+            pthread_mutex_unlock(&net_engine->net_engine_mutex);
+        }
+
+        printf("net_engine left: %d\n", net_engine->net_queue->num_stored);
 
 
     }
