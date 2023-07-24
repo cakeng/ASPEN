@@ -16,7 +16,7 @@ option "target_bin" - "" string optional
 option "target_input" - "" string optional
 option "rx_ip" - "" string required
 option "rx_port" - "" int required
-option "schedule_policy" - "" string required values="partial","sequential","dynamic"
+option "schedule_policy" - "" string required values="partial","sequential","dynamic","local"
 option "sched_partial_ratio" - "" float optional
 option "sched_sequential_idx" - "" int optional
 option "dse_num" - "" int required

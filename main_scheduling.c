@@ -242,7 +242,13 @@ int main(int argc, char **argv)
         init_dynamic_offload(target_nasm);
     }
     else if (!strcmp(schedule_policy, "local")) {
-        // TODO
+        target_dnn = apu_create_dnn(target_config, target_bin);
+        target_nasm = apu_load_nasm_from_file(target_nasm_dir, target_dnn);
+        init_full_local(target_nasm);
+        if (sock_type == SOCK_RX) {
+            ninst_t *last_layer_start = target_nasm->ldata_arr[target_nasm->num_ldata - 1].ninst_arr_start;
+            int num_last_layer_ninst = target_nasm->ldata_arr[target_nasm->num_ldata - 1].num_ninst;
+        }
     }
     
     /** STAGE: INFERENCE **/
@@ -273,7 +279,7 @@ int main(int argc, char **argv)
         
         get_elapsed_time ("init");
         if (!sequential || sock_type == SOCK_TX) dse_group_run (dse_group);
-        dse_wait_for_nasm_completion (target_nasm);
+        if (!(!strcmp(schedule_policy, "local") && sock_type == SOCK_RX)) dse_wait_for_nasm_completion (target_nasm);
         get_elapsed_time ("run_aspen");
         dse_group_stop (dse_group);
         
@@ -299,7 +305,7 @@ int main(int argc, char **argv)
             mkdir(dir_path, 0700);
         }
 
-        sprintf(file_name, "./logs/%s/%s_%s_dev%d_%s_%d.csv", dirname, prefix, sequential ? "seq" : "pip", sock_type == SOCK_RX ? SOCK_RX : SOCK_TX, postfix, log_idx_start+i);
+        sprintf(file_name, "./logs/%s/%s_%s_%s_dev%d_%s_%d.csv", dirname, prefix, sequential ? "seq" : "pip", schedule_policy, sock_type == SOCK_RX ? SOCK_RX : SOCK_TX, postfix, log_idx_start+i);
         
         FILE *log_fp = fopen(file_name, "w");
         save_ninst_log(log_fp, target_nasm);
