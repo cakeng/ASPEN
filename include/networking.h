@@ -4,6 +4,7 @@
 #include "aspen.h"
 #include "nasm.h"
 #include "apu.h"
+#include "scheduling.h"
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -51,6 +52,7 @@ struct networking_engine
 
     // for multiuser case
     int device_idx;
+    unsigned int inference_whitelist[SCHEDULE_MAX_DEVICES];
 };
 
 
@@ -59,6 +61,9 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock
 void init_networking_queue (networking_queue_t *networking_queue);
 void init_rx(networking_engine* net_engine, int port,int is_UDP);
 void init_tx(networking_engine* net_engine, char* ip, int port, int is_UDP);
+void add_inference_whitelist (networking_engine *net_engine, unsigned int inference_id);
+void remove_inference_whitelist (networking_engine *net_engine, unsigned int inference_id);
+int is_inference_whitelist (networking_engine *net_engine, unsigned int inference_id);
 void net_engine_wait(networking_engine* net_engine);
 void transmission(networking_engine *net_engine);
 void receive(networking_engine *net_engine);

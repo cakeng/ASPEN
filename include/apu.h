@@ -53,6 +53,7 @@ double test_nasm_time_sec (nasm_t *nasm, unsigned int num_iter, int gpu_idx);
 nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size,  unsigned int min_ninst_per_ldata, unsigned int transformer_seq_len);
 
 void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata, aspen_layer_t *layer);
+void set_nasm_inference_id (nasm_t *nasm, int inference_id);
 void destroy_nasm_ldata_arr (nasm_ldata_t *ldata_arr, int num_ldata);
 void set_nasm_to_finished (nasm_t *nasm);
 

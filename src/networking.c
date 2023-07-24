@@ -49,6 +49,9 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock
     net_engine->nasm = nasm;
     net_engine->rpool = rpool;
     net_engine->sequential = sequential;
+    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
+        net_engine->inference_whitelist[i] = -1;
+    }
 
     switch (sock_type)
     {
@@ -185,6 +188,33 @@ void init_tx(networking_engine* net_engine, char* ip, int port, int is_UDP) {
     net_engine->isUDP = 0;
 
     init_socket(net_engine);
+}
+
+void add_inference_whitelist (networking_engine *net_engine, unsigned int inference_id) {
+    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
+        if (net_engine->inference_whitelist[i] == -1) {
+            net_engine->inference_whitelist[i] = inference_id;
+            return;
+        }
+    }
+}
+
+void remove_inference_whitelist (networking_engine *net_engine, unsigned int inference_id) {
+    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
+        if (net_engine->inference_whitelist[i] == inference_id) {
+            net_engine->inference_whitelist[i] = -1;
+            return;
+        }
+    }
+}
+
+int is_inference_whitelist (networking_engine *net_engine, unsigned int inference_id) {
+    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
+        if (net_engine->inference_whitelist[i] == inference_id) {
+            return 1;
+        }
+    }
+    return 0;
 }
 
 
@@ -363,6 +393,7 @@ void transmission(networking_engine *net_engine)
             unsigned int sent_bytes = 0;
 
             send(net_engine->tx_sock, (char*)&target_ninst->ninst_idx, sizeof(int), 0);
+            send(net_engine->tx_sock, (char*)&target_ninst->ldata->nasm->inference_id, sizeof(int), 0);
 
             // printf("send ninst %d\n", target_ninst->ninst_idx);
             
@@ -379,6 +410,7 @@ void transmission(networking_engine *net_engine)
 
 void receive(networking_engine *net_engine) {
     int recv_ninst_idx;
+    int inference_id;
     ninst_t* target_ninst;
 
     if(recv(net_engine->tx_sock, (char*)&recv_ninst_idx, sizeof(int), 0)) {
@@ -410,9 +442,10 @@ void receive(networking_engine *net_engine) {
                 int total_bytes = W * H * sizeof(float);
                 unsigned int recv_bytes = 0;
 
+                recv(net_engine->tx_sock, (char*)&inference_id, sizeof(int), 0);
+
                 char* buffer = malloc(total_bytes);
                 bzero(buffer, total_bytes);
-
 
                 while(total_bytes - recv_bytes)
                 {
@@ -422,7 +455,7 @@ void receive(networking_engine *net_engine) {
                 target_ninst->recved_time = get_time_secs();
                 // printf("recv ninst: %d, %f\n", target_ninst->ninst_idx, target_ninst->recved_time * 1000.0);
 
-                if (atomic_exchange (&target_ninst->state, NINST_COMPLETED) == NINST_COMPLETED) 
+                if (atomic_exchange (&target_ninst->state, NINST_COMPLETED) == NINST_COMPLETED || !is_inference_whitelist(net_engine, inference_id)) 
                 {
                     free(buffer);
                     return;

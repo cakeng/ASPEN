@@ -683,13 +683,6 @@ void update_children_but_prioritize_dse_target (rpool_t *rpool, ninst_t *ninst, 
         unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
         if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
         {
-            #ifdef DEBUG 
-            if (child_ninst->state != NINST_NOT_READY)
-            {
-                FPRT (stderr, "Error: child_ninst->state != NINST_NOT_READY in dse_update_children_to_cache()\n");
-                assert (0);
-            }
-            #endif
             child_ninst->state = NINST_READY;
             if (dse->target != NULL)
             {

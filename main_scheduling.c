@@ -260,18 +260,17 @@ int main(int argc, char **argv)
     dse_group_set_device(dse_group, sock_type);
     net_engine->dse_group = dse_group;
 
+    set_nasm_inference_id(target_nasm, 0);
+    add_inference_whitelist(net_engine, 0);
+
     for (int i=0; i<inference_repeat_num; i++) {
         printf("inference: %d/%d\n", i+1, inference_repeat_num);
+        printf("inference id: %d\n", target_nasm->inference_id);
 
         target_nasm->nasm_cond = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
 
         if(sock_type == SOCK_TX) {
-            if (!strcmp(schedule_policy, "dynamic")) {
-                add_input_rpool_reverse (net_engine, target_nasm, target_input);
-            }
-            else {
-                add_input_rpool (net_engine, target_nasm, target_input);
-            }
+            add_input_rpool (net_engine, target_nasm, target_input);
         }
 
         atomic_store (&net_engine->run, 1);
@@ -322,7 +321,7 @@ int main(int argc, char **argv)
 
         int connection_key;
         if (sock_type == SOCK_RX) {
-            connection_key = 12534;
+            connection_key = 12534+i;
             write_n(client_sock, &connection_key, sizeof(int));
             printf("connection key: %d\n", connection_key);
         }
@@ -334,21 +333,13 @@ int main(int argc, char **argv)
 
         printf("sync: %f\n", sync);
 
-        // reset: dse, net_engine, nasm, rpool
-        // atomic_store (&net_engine->run, 0);
         rpool_reset(rpool);
         apu_reset_nasm(target_nasm);
+        if (!strcmp(schedule_policy, "dynamic")) init_dynamic_offload(target_nasm);
 
-        ninst_t **temp_list = calloc(net_engine->net_queue->num_stored, sizeof(ninst_t *));
-        char *temp_buffer = malloc(NETQUEUE_BUFFER_SIZE);
-        while (net_engine->net_queue->num_stored > 0) {
-            pthread_mutex_lock(&net_engine->net_engine_mutex);
-            pop_ninsts_from_net_queue (net_engine->net_queue, temp_list, temp_buffer, net_engine->net_queue->num_stored);
-            pthread_mutex_unlock(&net_engine->net_engine_mutex);
-        }
-
-        printf("net_engine left: %d\n", net_engine->net_queue->num_stored);
-
+        remove_inference_whitelist(net_engine, target_nasm->inference_id);
+        set_nasm_inference_id(target_nasm, connection_key);
+        add_inference_whitelist(net_engine, target_nasm->inference_id);
 
     }
 
