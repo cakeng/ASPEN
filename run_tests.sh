@@ -1,12 +1,6 @@
-#! /bin/bash
 # Take the first argument as the sleep time
 # Take the second argument as the executable name
 # Check if the sleep time is a number
-re='^[0-9]+([.][0-9]+)?$'
-if ! [[ $1 =~ $re ]] ; then
-    echo "error: Sleep time is not a number" >&2; exit 1
-fi
-# Check if the executable exists
 if [ ! -f "$2" ]; then
     echo "Executable $2 does not exist"
     exit 1
