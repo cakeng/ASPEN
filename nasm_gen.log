@@ -6102,3 +6102,79 @@ APU: Graphing ninsts...
 division ninst idx: 0
 Time taken: 0.586360 seconds
 
+./nasm_gen_linux_x86 resnet50 1 100 50 32
+////////////    PRINTING ASPEN BUILD INFO    ////////////
+
+1. Time of Build:	Tue Jul 25 21:06:41 KST 2023
+2. Build Commit:	commit acbb149f3adb453aa904de9d5c689c3b36aa1df5
+3. Build System:	Linux 5.15.0-76-generic #83-Ubuntu SMP Thu Jun 15 19:16:32 UTC 2023 x86_64 x86_64 x86_64
+4. Compiler Version:		gcc (Ubuntu 11.3.0-1ubuntu1~22.04.1) 11.3.0
+5. NVCC Version:	
+6. GPU ARCH:		
+7. Build Flags:		-Iinclude/ -lm -lgomp -Wall -fopenmp -Ofast -march=native -funroll-loops -mavx2 -mfma -DAVX2 -D_SUPPRESS_OUTPUT
+
+////////////////////////////////////////////////////////
+
+Parsing Darknet CFG file: data/cfg/resnet50_aspen.cfg
+Config file has 73 sections 
+	APU: Graphing layer 1/73 (1.37%).	APU: Graphing layer 2/73 (2.74%).	APU: Graphing layer 3/73 (4.11%).	APU: Graphing layer 4/73 (5.48%).	APU: Graphing layer 5/73 (6.85%).	APU: Graphing layer 6/73 (8.22%).	APU: Graphing layer 7/73 (9.59%).	APU: Graphing layer 8/73 (10.96%).	APU: Graphing layer 9/73 (12.33%).	APU: Graphing layer 10/73 (13.70%).	APU: Graphing layer 11/73 (15.07%).	APU: Graphing layer 12/73 (16.44%).	APU: Graphing layer 13/73 (17.81%).	APU: Graphing layer 14/73 (19.18%).	APU: Graphing layer 15/73 (20.55%).	APU: Graphing layer 16/73 (21.92%).	APU: Graphing layer 17/73 (23.29%).	APU: Graphing layer 18/73 (24.66%).	APU: Graphing layer 19/73 (26.03%).	APU: Graphing layer 20/73 (27.40%).	APU: Graphing layer 21/73 (28.77%).	APU: Graphing layer 22/73 (30.14%).	APU: Graphing layer 23/73 (31.51%).	APU: Graphing layer 24/73 (32.88%).	APU: Graphing layer 25/73 (34.25%).	APU: Graphing layer 26/73 (35.62%).	APU: Graphing layer 27/73 (36.99%).	APU: Graphing layer 28/73 (38.36%).	APU: Graphing layer 29/73 (39.73%).	APU: Graphing layer 30/73 (41.10%).	APU: Graphing layer 31/73 (42.47%).	APU: Graphing layer 32/73 (43.84%).	APU: Graphing layer 33/73 (45.21%).	APU: Graphing layer 34/73 (46.58%).	APU: Graphing layer 35/73 (47.95%).	APU: Graphing layer 36/73 (49.32%).	APU: Graphing layer 37/73 (50.68%).	APU: Graphing layer 38/73 (52.05%).	APU: Graphing layer 39/73 (53.42%).	APU: Graphing layer 40/73 (54.79%).	APU: Graphing layer 41/73 (56.16%).	APU: Graphing layer 42/73 (57.53%).	APU: Graphing layer 43/73 (58.90%).	APU: Graphing layer 44/73 (60.27%).	APU: Graphing layer 45/73 (61.64%).	APU: Graphing layer 46/73 (63.01%).	APU: Graphing layer 47/73 (64.38%).	APU: Graphing layer 48/73 (65.75%).	APU: Graphing layer 49/73 (67.12%).	APU: Graphing layer 50/73 (68.49%).	APU: Graphing layer 51/73 (69.86%).	APU: Graphing layer 52/73 (71.23%).	APU: Graphing layer 53/73 (72.60%).	APU: Graphing layer 54/73 (73.97%).	APU: Graphing layer 55/73 (75.34%).	APU: Graphing layer 56/73 (76.71%).	APU: Graphing layer 57/73 (78.08%).	APU: Graphing layer 58/73 (79.45%).	APU: Graphing layer 59/73 (80.82%).	APU: Graphing layer 60/73 (82.19%).	APU: Graphing layer 61/73 (83.56%).	APU: Graphing layer 62/73 (84.93%).	APU: Graphing layer 63/73 (86.30%).	APU: Graphing layer 64/73 (87.67%).	APU: Graphing layer 65/73 (89.04%).	APU: Graphing layer 66/73 (90.41%).	APU: Graphing layer 67/73 (91.78%).	APU: Graphing layer 68/73 (93.15%).	APU: Graphing layer 69/73 (94.52%).	APU: Graphing layer 70/73 (95.89%).	APU: Graphing layer 71/73 (97.26%).	APU: Graphing layer 72/73 (98.63%).	APU: Graphing layer 73/73 (100.00%).
+division ninst idx: 0
+Time taken: 0.014788 seconds
+Results:
+1: Samoyed - 87.33%
+2: Pomeranian - 3.03%
+3: white wolf - 1.97%
+4: keeshond - 1.11%
+5: Eskimo dog - 0.92%
+
+./nasm_gen_linux_x86 vgg16 1 100 50 32
+////////////    PRINTING ASPEN BUILD INFO    ////////////
+
+1. Time of Build:	Tue Jul 25 21:06:41 KST 2023
+2. Build Commit:	commit acbb149f3adb453aa904de9d5c689c3b36aa1df5
+3. Build System:	Linux 5.15.0-76-generic #83-Ubuntu SMP Thu Jun 15 19:16:32 UTC 2023 x86_64 x86_64 x86_64
+4. Compiler Version:		gcc (Ubuntu 11.3.0-1ubuntu1~22.04.1) 11.3.0
+5. NVCC Version:	
+6. GPU ARCH:		
+7. Build Flags:		-Iinclude/ -lm -lgomp -Wall -fopenmp -Ofast -march=native -funroll-loops -mavx2 -mfma -DAVX2 -D_SUPPRESS_OUTPUT
+
+////////////////////////////////////////////////////////
+
+Parsing Darknet CFG file: data/cfg/vgg16_aspen.cfg
+Config file has 22 sections 
+	APU: Graphing layer 1/22 (4.55%).	APU: Graphing layer 2/22 (9.09%).	APU: Graphing layer 3/22 (13.64%).	APU: Graphing layer 4/22 (18.18%).	APU: Graphing layer 5/22 (22.73%).	APU: Graphing layer 6/22 (27.27%).	APU: Graphing layer 7/22 (31.82%).	APU: Graphing layer 8/22 (36.36%).	APU: Graphing layer 9/22 (40.91%).	APU: Graphing layer 10/22 (45.45%).	APU: Graphing layer 11/22 (50.00%).	APU: Graphing layer 12/22 (54.55%).	APU: Graphing layer 13/22 (59.09%).	APU: Graphing layer 14/22 (63.64%).	APU: Graphing layer 15/22 (68.18%).	APU: Graphing layer 16/22 (72.73%).	APU: Graphing layer 17/22 (77.27%).	APU: Graphing layer 18/22 (81.82%).	APU: Graphing layer 19/22 (86.36%).	APU: Graphing layer 20/22 (90.91%).	APU: Graphing layer 21/22 (95.45%).	APU: Graphing layer 22/22 (100.00%).
+division ninst idx: 0
+Time taken: 0.027393 seconds
+Results:
+1: Samoyed - 83.95%
+2: Pomeranian - 3.30%
+3: Eskimo dog - 1.68%
+4: white wolf - 1.60%
+5: Great Pyrenees - 1.22%
+
+./nasm_gen_linux_x86 yolov3 1 100 50 32
+////////////    PRINTING ASPEN BUILD INFO    ////////////
+
+1. Time of Build:	Tue Jul 25 21:06:41 KST 2023
+2. Build Commit:	commit acbb149f3adb453aa904de9d5c689c3b36aa1df5
+3. Build System:	Linux 5.15.0-76-generic #83-Ubuntu SMP Thu Jun 15 19:16:32 UTC 2023 x86_64 x86_64 x86_64
+4. Compiler Version:		gcc (Ubuntu 11.3.0-1ubuntu1~22.04.1) 11.3.0
+5. NVCC Version:	
+6. GPU ARCH:		
+7. Build Flags:		-Iinclude/ -lm -lgomp -Wall -fopenmp -Ofast -march=native -funroll-loops -mavx2 -mfma -DAVX2 -D_SUPPRESS_OUTPUT
+
+////////////////////////////////////////////////////////
+
+Parsing Darknet CFG file: data/cfg/yolov3_aspen.cfg
+Config file has 104 sections 
+	APU: Graphing layer 1/104 (0.96%).	APU: Graphing layer 2/104 (1.92%).	APU: Graphing layer 3/104 (2.88%).	APU: Graphing layer 4/104 (3.85%).	APU: Graphing layer 5/104 (4.81%).	APU: Graphing layer 6/104 (5.77%).	APU: Graphing layer 7/104 (6.73%).	APU: Graphing layer 8/104 (7.69%).	APU: Graphing layer 9/104 (8.65%).	APU: Graphing layer 10/104 (9.62%).	APU: Graphing layer 11/104 (10.58%).	APU: Graphing layer 12/104 (11.54%).	APU: Graphing layer 13/104 (12.50%).	APU: Graphing layer 14/104 (13.46%).	APU: Graphing layer 15/104 (14.42%).	APU: Graphing layer 16/104 (15.38%).	APU: Graphing layer 17/104 (16.35%).	APU: Graphing layer 18/104 (17.31%).	APU: Graphing layer 19/104 (18.27%).	APU: Graphing layer 20/104 (19.23%).	APU: Graphing layer 21/104 (20.19%).	APU: Graphing layer 22/104 (21.15%).	APU: Graphing layer 23/104 (22.12%).	APU: Graphing layer 24/104 (23.08%).	APU: Graphing layer 25/104 (24.04%).	APU: Graphing layer 26/104 (25.00%).	APU: Graphing layer 27/104 (25.96%).	APU: Graphing layer 28/104 (26.92%).	APU: Graphing layer 29/104 (27.88%).	APU: Graphing layer 30/104 (28.85%).	APU: Graphing layer 31/104 (29.81%).	APU: Graphing layer 32/104 (30.77%).	APU: Graphing layer 33/104 (31.73%).	APU: Graphing layer 34/104 (32.69%).	APU: Graphing layer 35/104 (33.65%).	APU: Graphing layer 36/104 (34.62%).	APU: Graphing layer 37/104 (35.58%).	APU: Graphing layer 38/104 (36.54%).	APU: Graphing layer 39/104 (37.50%).	APU: Graphing layer 40/104 (38.46%).	APU: Graphing layer 41/104 (39.42%).	APU: Graphing layer 42/104 (40.38%).	APU: Graphing layer 43/104 (41.35%).	APU: Graphing layer 44/104 (42.31%).	APU: Graphing layer 45/104 (43.27%).	APU: Graphing layer 46/104 (44.23%).	APU: Graphing layer 47/104 (45.19%).	APU: Graphing layer 48/104 (46.15%).	APU: Graphing layer 49/104 (47.12%).	APU: Graphing layer 50/104 (48.08%).	APU: Graphing layer 51/104 (49.04%).	APU: Graphing layer 52/104 (50.00%).	APU: Graphing layer 53/104 (50.96%).	APU: Graphing layer 54/104 (51.92%).	APU: Graphing layer 55/104 (52.88%).	APU: Graphing layer 56/104 (53.85%).	APU: Graphing layer 57/104 (54.81%).	APU: Graphing layer 58/104 (55.77%).	APU: Graphing layer 59/104 (56.73%).	APU: Graphing layer 60/104 (57.69%).	APU: Graphing layer 61/104 (58.65%).	APU: Graphing layer 62/104 (59.62%).	APU: Graphing layer 63/104 (60.58%).	APU: Graphing layer 64/104 (61.54%).	APU: Graphing layer 65/104 (62.50%).	APU: Graphing layer 66/104 (63.46%).	APU: Graphing layer 67/104 (64.42%).	APU: Graphing layer 68/104 (65.38%).	APU: Graphing layer 69/104 (66.35%).	APU: Graphing layer 70/104 (67.31%).	APU: Graphing layer 71/104 (68.27%).	APU: Graphing layer 72/104 (69.23%).	APU: Graphing layer 73/104 (70.19%).	APU: Graphing layer 74/104 (71.15%).	APU: Graphing layer 75/104 (72.12%).	APU: Graphing layer 76/104 (73.08%).	APU: Graphing layer 77/104 (74.04%).	APU: Graphing layer 78/104 (75.00%).	APU: Graphing layer 79/104 (75.96%).	APU: Graphing layer 80/104 (76.92%).	APU: Graphing layer 81/104 (77.88%).	APU: Graphing layer 82/104 (78.85%).	APU: Graphing layer 83/104 (79.81%).	APU: Graphing layer 84/104 (80.77%).	APU: Graphing layer 85/104 (81.73%).	APU: Graphing layer 86/104 (82.69%).	APU: Graphing layer 87/104 (83.65%).	APU: Graphing layer 88/104 (84.62%).	APU: Graphing layer 89/104 (85.58%).	APU: Graphing layer 90/104 (86.54%).	APU: Graphing layer 91/104 (87.50%).	APU: Graphing layer 92/104 (88.46%).	APU: Graphing layer 93/104 (89.42%).	APU: Graphing layer 94/104 (90.38%).	APU: Graphing layer 95/104 (91.35%).	APU: Graphing layer 96/104 (92.31%).	APU: Graphing layer 97/104 (93.27%).	APU: Graphing layer 98/104 (94.23%).	APU: Graphing layer 99/104 (95.19%).	APU: Graphing layer 100/104 (96.15%).	APU: Graphing layer 101/104 (97.12%).	APU: Graphing layer 102/104 (98.08%).	APU: Graphing layer 103/104 (99.04%).	APU: Graphing layer 104/104 (100.00%).
+division ninst idx: 0
+Time taken: 0.056421 seconds
+Results:
+1: bakery - 21.70%
+2: barrow - 18.81%
+3: barracouta - 13.27%
+4: acoustic guitar - 10.46%
+5: cash machine - 7.40%
+
+./nasm_gen_linux_x86 bert_base 1 100 50 32
