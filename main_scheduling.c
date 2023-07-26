@@ -302,57 +302,62 @@ int main(int argc, char **argv)
         dse_group_set_device(dse_group, sock_type);
         net_engine->dse_group = dse_group;
 
-        for (int i=0; i<inference_repeat_num; i++) {
-            printf("inference: %d/%d\n", i+1, inference_repeat_num);
+    set_nasm_inference_id(target_nasm, 0);
+    add_inference_whitelist(net_engine, 0);
+
+    for (int i=0; i<inference_repeat_num; i++) {
+        printf("inference: %d/%d\n", i+1, inference_repeat_num);
+        printf("inference id: %d\n", target_nasm->inference_id);
 
             target_nasm->nasm_cond = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
 
-            if(sock_type == SOCK_TX) {
-                if (!strcmp(schedule_policy, "dynamic")) {
-                    add_input_rpool_reverse (net_engine, target_nasm, target_input);
-                }
-                else {
-                    add_input_rpool (net_engine, target_nasm, target_input);
-                }
-            }
+        if(sock_type == SOCK_TX) {
+            add_input_rpool (net_engine, target_nasm, target_input);
+        }
 
-            atomic_store (&net_engine->run, 1);
-            
-            
-            get_elapsed_time ("init");
-            if (!sequential || sock_type == SOCK_TX) dse_group_run (dse_group);
-            if (!(!strcmp(schedule_policy, "local") && sock_type == SOCK_RX)) dse_wait_for_nasm_completion (target_nasm);
-            get_elapsed_time ("run_aspen");
-            dse_group_stop (dse_group);
-            
-            LAYER_PARAMS output_order_cnn[] = {BATCH, OUT_H, OUT_W, OUT_C};  // for CNN
-            LAYER_PARAMS output_order_transformer[] = {BATCH, MAT_N, MAT_M};    // for Transformer
+        atomic_store (&net_engine->run, 1);
+        printf("netqueue remaining: %d\n", net_engine->net_queue->num_stored);
+        
+        
+        get_elapsed_time ("init");
+        if (!sequential || sock_type == SOCK_TX) dse_group_run (dse_group);
+        if (!(!strcmp(schedule_policy, "local") && sock_type == SOCK_RX)) dse_wait_for_nasm_completion (target_nasm);
+        get_elapsed_time ("run_aspen");
+        dse_group_stop (dse_group);
 
-            LAYER_PARAMS *output_order_param = !strcmp(output_order, "cnn") ? output_order_cnn : output_order_transformer;
-            float *layer_output = dse_get_nasm_result (target_nasm, output_order_param);
+        LAYER_PARAMS output_order_cnn[] = {BATCH, OUT_H, OUT_W, OUT_C};  // for CNN
+        LAYER_PARAMS output_order_transformer[] = {BATCH, MAT_N, MAT_M};    // for Transformer
+        LAYER_PARAMS *output_order_param = !strcmp(output_order, "cnn") ? output_order_cnn : output_order_transformer;
+        float *layer_output = dse_get_nasm_result (target_nasm, output_order_param);
+
+        if (!strcmp(output_order, "cnn"))
+        {
             float *softmax_output = calloc (1000*target_nasm->batch_size, sizeof(float));
             naive_softmax (layer_output, softmax_output, target_nasm->batch_size, 1000);
             for (int i = 0; i < target_nasm->batch_size; i++)
             {
                 get_probability_results ("data/resnet50/imagenet_classes.txt", softmax_output + 1000*i, 1000);
             }
+            free (softmax_output);
+        }
+        save_arr (layer_output, dse_get_nasm_result_size(target_nasm) , "aspen_output.tmp");
+        free (layer_output);
             
-            // For logging
-            char file_name[256];
-            char dir_path[256];
-            sprintf(dir_path, "./logs/%s", dirname);
+        
+        // For logging
+        char file_name[256];
+        char dir_path[256];
+        sprintf(dir_path, "./logs/%s", dirname);
 
             struct stat st = {0};
             if (stat(dir_path, &st) == -1) {
                 mkdir(dir_path, 0700);
             }
 
-            sprintf(file_name, "./logs/%s/%s_%s_%s_dev%d_%s_%d.csv", dirname, prefix, sequential ? "seq" : "pip", schedule_policy, sock_type == SOCK_RX ? SOCK_RX : SOCK_TX, postfix, log_idx_start+i);
-            
-            FILE *log_fp = fopen(file_name, "w");
-            save_ninst_log(log_fp, target_nasm);
-            free (layer_output);
-            free (softmax_output);
+        sprintf(file_name, "./logs/%s/%s_%s_%s_dev%d_%s_%d.csv", dirname, prefix, sequential ? "seq" : "pip", schedule_policy, sock_type == SOCK_RX ? SOCK_RX : SOCK_TX, postfix, log_idx_start+i);
+        
+        FILE *log_fp = fopen(file_name, "w");
+        save_ninst_log(log_fp, target_nasm);
 
             // synchronize
             /** STAGE: PROFILING NETWORK **/
@@ -361,24 +366,28 @@ int main(int argc, char **argv)
 
             float sync = profile_network_sync(sock_type, server_sock, client_sock);
 
-            int connection_key;
-            if (sock_type == SOCK_RX) {
-                connection_key = 12534;
-                write_n(client_sock, &connection_key, sizeof(int));
-                printf("connection key: %d\n", connection_key);
-            }
-            else if (sock_type == SOCK_TX) {
-                connection_key = -1;
-                read_n(server_sock, &connection_key, sizeof(int));
-                printf("connection key: %d\n", connection_key);
-            }
+        int connection_key;
+        if (sock_type == SOCK_RX) {
+            connection_key = 12534+i;
+            write_n(client_sock, &connection_key, sizeof(int));
+            printf("connection key: %d\n", connection_key);
+        }
+        else if (sock_type == SOCK_TX) {
+            connection_key = -1;
+            read_n(server_sock, &connection_key, sizeof(int));
+            printf("connection key: %d\n", connection_key);
+        }
 
             printf("sync: %f\n", sync);
 
-            // reset: dse, net_engine, nasm, rpool
-            rpool_reset(rpool);
-            apu_reset_nasm(target_nasm);
-        }
+        rpool_reset(rpool);
+        apu_reset_nasm(target_nasm);
+        if (!strcmp(schedule_policy, "dynamic")) init_dynamic_offload(target_nasm);
+
+        remove_inference_whitelist(net_engine, target_nasm->inference_id);
+        set_nasm_inference_id(target_nasm, connection_key);
+        add_inference_whitelist(net_engine, target_nasm->inference_id);
+
     }
 
     // Wrap up
@@ -397,11 +406,7 @@ int main(int argc, char **argv)
         close(server_sock);
     }
 
-
-
     /** STAGE: FINISH **/
-
-    
 
     return 0;
 }

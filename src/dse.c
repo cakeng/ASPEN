@@ -116,13 +116,10 @@ void *dse_thread_runtime (void* thread_info)
             // Execute.
             ninst_t *ninst = dse->target;
             dse->target = NULL;
-            #ifdef DEBUG 
-            if (ninst->state != NINST_READY && ninst->state != NINST_COMPLETED)
+            if (atomic_exchange (&ninst->state, NINST_COMPLETED) == NINST_COMPLETED)
             {
-                FPRT (stderr, "Error: ninst->state != NINST_READY in dse_thread_runtime()\n");
-                assert (0);
+                continue;
             }
-            #endif
             // printf("fetched ninst %d, offload: %d, compute: %d\n", ninst->ninst_idx, ninst->offload, ninst->compute);
             if (is_ninst_mine(ninst, dse->device_idx) || dse->profile_compute)    // It's mine, so compute
             {
@@ -174,7 +171,7 @@ void *dse_thread_runtime (void* thread_info)
                 ninst->computed_time = get_time_secs();
                 if (dse->profile_compute) ninst->compute_end = ninst->computed_time;
             
-                ninst->state = NINST_COMPLETED;
+                
                 unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
                 if (num_ninst_completed == ninst->ldata->num_ninst - 1)
                 {
@@ -183,6 +180,14 @@ void *dse_thread_runtime (void* thread_info)
                     nasm_t *nasm = ninst->ldata->nasm;
                     unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
                     // if (num_ldata_completed == nasm->num_ldata - 1)
+
+                    if (ninst->ldata->layer->layer_idx == 0) {
+                        for (int i=0; i<nasm->ldata_arr[1].num_ninst; i++) {
+                            ninst_t *target_ninst = nasm->ldata_arr[1].ninst_arr_start + nasm->ldata_arr[1].num_ninst - 1 - i;
+                            target_ninst->alloc_devices[dse->device_idx] = 1;
+                            rpool_push_ninsts(dse->rpool, &target_ninst, 1, 0);    
+                        }
+                    }
                     if (nasm->ldata_arr[nasm->num_ldata-1].num_ninst_completed == nasm->ldata_arr[nasm->num_ldata-1].num_ninst)
                     {
                         // printf ("\t\tSignaling nasm completion...\n");
@@ -213,7 +218,6 @@ void *dse_thread_runtime (void* thread_info)
                 }
                 else {
                     update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
-
                 }
 
                 // check desiring devices for the computation output
@@ -679,13 +683,6 @@ void update_children_but_prioritize_dse_target (rpool_t *rpool, ninst_t *ninst, 
         unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
         if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
         {
-            #ifdef DEBUG 
-            if (child_ninst->state != NINST_NOT_READY)
-            {
-                FPRT (stderr, "Error: child_ninst->state != NINST_NOT_READY in dse_update_children_to_cache()\n");
-                assert (0);
-            }
-            #endif
             child_ninst->state = NINST_READY;
             if (dse->target != NULL)
             {
@@ -928,7 +925,7 @@ void set_ninst_out_mat_mem_pos (ninst_t *ninst)
     
 }
 
-void *dse_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS *order)
+size_t dse_get_ldata_size (nasm_t *nasm, unsigned int ldata_idx)
 {
     if (nasm->data == NULL)
     {
@@ -950,6 +947,24 @@ void *dse_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS *
                 output_size += data_size;
             }
         }
+        return output_size;
+    }
+    size_t elem_size = ldata->layer->dnn->element_size;
+    return ldata->out_mat_dims[OUT_H] * ldata->out_mat_dims[OUT_W] * elem_size;
+}
+
+void *dse_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS *order)
+{
+    if (nasm->data == NULL)
+    {
+        FPRT (stderr, "Error: nasm->data == NULL in dse_get_ldata_result()\n");
+        assert (0);
+    }
+    nasm_ldata_t *ldata = &nasm->ldata_arr[ldata_idx];
+    if (ldata->layer->type == YOLO_LAYER)
+    {
+        void *output = NULL;
+        size_t output_size = dse_get_ldata_size (nasm, ldata_idx);
         output = calloc (output_size, 1);
         size_t offset = 0;
         size_t batch_num = nasm->batch_size;
@@ -977,4 +992,9 @@ void *dse_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS *
 void *dse_get_nasm_result (nasm_t *nasm, LAYER_PARAMS *order)
 {
     return dse_get_ldata_result (nasm, nasm->num_ldata - 1, order);
+}
+
+size_t dse_get_nasm_result_size (nasm_t *nasm)
+{
+    return dse_get_ldata_size (nasm, nasm->num_ldata - 1);
 }
