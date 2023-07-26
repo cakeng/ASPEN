@@ -13,6 +13,8 @@ main_scheduling
 baselines
 logs
 .out
+*.outputs
+*.csv
 .vscode/*
 main_mu
 subcmdline.c
