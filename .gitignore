@@ -9,7 +9,6 @@
 main
 main_scheduling
 *.aspen
-*.nasm
 *.tar
 *.gz
 baselines
