@@ -24,7 +24,6 @@ struct nasm_t
     
     int gpu_idx;
     void *data;
-    
 
     pthread_mutex_t nasm_mutex;
     pthread_cond_t nasm_cond;
@@ -35,6 +34,8 @@ struct nasm_t
     // cudaGraphExec_t cuda_graph_exec; 
     // int cudagraph_instantiated;
     // #endif
+
+    int inference_id;
 };
 
 struct nasm_ldata_t
@@ -61,12 +62,12 @@ struct nasm_ldata_t
 struct ninst_t 
 {
     nasm_ldata_t *ldata;
-    NINST_STATE state;
+    _Atomic NINST_STATE state;
     unsigned int ninst_idx;
     unsigned int out_mat_pos [2];
     unsigned int tile_dims [2];
     int alloc_devices [SCHEDULE_MAX_DEVICES];       // who will compute this ninst?
-    int desiring_devices [SCHEDULE_MAX_DEVICES];    // who wants the result of this ninst? TODO: manage this
+    int desiring_devices [SCHEDULE_MAX_DEVICES];    // who wants the result of this ninst?
 
     unsigned int *parent_ninst_idx_arr;
     unsigned int num_parent_ninsts;

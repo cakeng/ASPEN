@@ -116,13 +116,10 @@ void *dse_thread_runtime (void* thread_info)
             // Execute.
             ninst_t *ninst = dse->target;
             dse->target = NULL;
-            #ifdef DEBUG 
-            if (ninst->state != NINST_READY && ninst->state != NINST_COMPLETED)
+            if (atomic_exchange (&ninst->state, NINST_COMPLETED) == NINST_COMPLETED)
             {
-                FPRT (stderr, "Error: ninst->state != NINST_READY in dse_thread_runtime()\n");
-                assert (0);
+                continue;
             }
-            #endif
             // printf("fetched ninst %d, offload: %d, compute: %d\n", ninst->ninst_idx, ninst->offload, ninst->compute);
             if (is_ninst_mine(ninst, dse->device_idx) || dse->profile_compute)    // It's mine, so compute
             {
@@ -174,7 +171,7 @@ void *dse_thread_runtime (void* thread_info)
                 ninst->computed_time = get_time_secs();
                 if (dse->profile_compute) ninst->compute_end = ninst->computed_time;
             
-                ninst->state = NINST_COMPLETED;
+                
                 unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
                 if (num_ninst_completed == ninst->ldata->num_ninst - 1)
                 {
@@ -183,6 +180,14 @@ void *dse_thread_runtime (void* thread_info)
                     nasm_t *nasm = ninst->ldata->nasm;
                     unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
                     // if (num_ldata_completed == nasm->num_ldata - 1)
+
+                    if (ninst->ldata->layer->layer_idx == 0) {
+                        for (int i=0; i<nasm->ldata_arr[1].num_ninst; i++) {
+                            ninst_t *target_ninst = nasm->ldata_arr[1].ninst_arr_start + nasm->ldata_arr[1].num_ninst - 1 - i;
+                            target_ninst->alloc_devices[dse->device_idx] = 1;
+                            rpool_push_ninsts(dse->rpool, &target_ninst, 1, 0);    
+                        }
+                    }
                     if (nasm->ldata_arr[nasm->num_ldata-1].num_ninst_completed == nasm->ldata_arr[nasm->num_ldata-1].num_ninst)
                     {
                         printf ("\t\tSignaling nasm completion...\n");
@@ -201,16 +206,18 @@ void *dse_thread_runtime (void* thread_info)
                         pthread_mutex_unlock (&nasm->nasm_mutex);
                     }
                 }
-            // update_children_to_cache (dse->ninst_cache, ninst);
+                // update_children_to_cache (dse->ninst_cache, ninst);
                 if (dse->is_multiuser_case && dse->device_idx == 0) {
                     update_children_but_prioritize_dse_target (dse->rpool_arr[target_device], ninst, dse);
                 }
                 else if (dse->is_multiuser_case && dse->device_idx != 0) {
                     update_children_but_prioritize_dse_target (dse->rpool_arr[0], ninst, dse);
                 }
+                else if (!dse->is_multiuser_case && dse->is_dynamic_scheduling && ninst->ldata->layer->layer_idx == 0) {
+                    update_children (dse->rpool, ninst, NULL);
+                }
                 else {
                     update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
-
                 }
 
                 // check desiring devices for the computation output
@@ -676,13 +683,6 @@ void update_children_but_prioritize_dse_target (rpool_t *rpool, ninst_t *ninst, 
         unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
         if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
         {
-            #ifdef DEBUG 
-            if (child_ninst->state != NINST_NOT_READY)
-            {
-                FPRT (stderr, "Error: child_ninst->state != NINST_NOT_READY in dse_update_children_to_cache()\n");
-                assert (0);
-            }
-            #endif
             child_ninst->state = NINST_READY;
             if (dse->target != NULL)
             {

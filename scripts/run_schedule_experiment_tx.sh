@@ -1,7 +1,7 @@
 source ./scripts/param_dynamic.sh
 
 ./main_scheduling \
-    --sock_type=0   \
+    --sock_type=1   \
     --pipelined=${PIPELINED}  \
     --dirname=${DIRNAME}  \
     --target_config=${TARGET_CONFIG}   \

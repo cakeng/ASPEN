@@ -49,6 +49,9 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock
     net_engine->nasm = nasm;
     net_engine->rpool = rpool;
     net_engine->sequential = sequential;
+    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
+        net_engine->inference_whitelist[i] = -1;
+    }
 
     switch (sock_type)
     {
@@ -185,6 +188,33 @@ void init_tx(networking_engine* net_engine, char* ip, int port, int is_UDP) {
     net_engine->isUDP = 0;
 
     init_socket(net_engine);
+}
+
+void add_inference_whitelist (networking_engine *net_engine, unsigned int inference_id) {
+    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
+        if (net_engine->inference_whitelist[i] == -1) {
+            net_engine->inference_whitelist[i] = inference_id;
+            return;
+        }
+    }
+}
+
+void remove_inference_whitelist (networking_engine *net_engine, unsigned int inference_id) {
+    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
+        if (net_engine->inference_whitelist[i] == inference_id) {
+            net_engine->inference_whitelist[i] = -1;
+            return;
+        }
+    }
+}
+
+int is_inference_whitelist (networking_engine *net_engine, unsigned int inference_id) {
+    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
+        if (net_engine->inference_whitelist[i] == inference_id) {
+            return 1;
+        }
+    }
+    return 0;
 }
 
 
@@ -363,6 +393,7 @@ void transmission(networking_engine *net_engine)
             unsigned int sent_bytes = 0;
 
             send(net_engine->tx_sock, (char*)&target_ninst->ninst_idx, sizeof(int), 0);
+            send(net_engine->tx_sock, (char*)&target_ninst->ldata->nasm->inference_id, sizeof(int), 0);
 
             // printf("send ninst %d\n", target_ninst->ninst_idx);
             
@@ -379,6 +410,7 @@ void transmission(networking_engine *net_engine)
 
 void receive(networking_engine *net_engine) {
     int recv_ninst_idx;
+    int inference_id;
     ninst_t* target_ninst;
 
     if(recv(net_engine->tx_sock, (char*)&recv_ninst_idx, sizeof(int), 0)) {
@@ -410,9 +442,10 @@ void receive(networking_engine *net_engine) {
                 int total_bytes = W * H * sizeof(float);
                 unsigned int recv_bytes = 0;
 
+                recv(net_engine->tx_sock, (char*)&inference_id, sizeof(int), 0);
+
                 char* buffer = malloc(total_bytes);
                 bzero(buffer, total_bytes);
-
 
                 while(total_bytes - recv_bytes)
                 {
@@ -421,12 +454,14 @@ void receive(networking_engine *net_engine) {
 
                 target_ninst->recved_time = get_time_secs();
                 // printf("recv ninst: %d, %f\n", target_ninst->ninst_idx, target_ninst->recved_time * 1000.0);
-                
-                for(int w = 0; w < W; w++) {
-                    memcpy(out_mat + w * stride * sizeof(float), buffer + w * H * sizeof(float), H * sizeof(float));
-                }
 
-                target_ninst->state = NINST_COMPLETED;
+                if (atomic_exchange (&target_ninst->state, NINST_COMPLETED) == NINST_COMPLETED || !is_inference_whitelist(net_engine, inference_id)) 
+                {
+                    free(buffer);
+                    return;
+                }
+                copy_buffer_to_ninst_data (target_ninst, buffer);
+
                 unsigned int num_ninst_completed = atomic_fetch_add (&target_ninst->ldata->num_ninst_completed , 1);
                 int num_ase = net_engine->rpool->ref_ases > 0 ? net_engine->rpool->ref_ases : 1;
                 update_children (net_engine->rpool, target_ninst, i/(net_engine->nasm->ldata_arr[0].num_ninst/num_ase));
@@ -450,6 +485,7 @@ void receive(networking_engine *net_engine) {
                         }
                     }
                 }
+
             }
         }
     }
@@ -507,6 +543,66 @@ void add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_f
     for (int i = 0; i < ldata->num_ninst; i++)
     {
         ninst_t *ninst = &ldata->ninst_arr_start[i];
+        // push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
+        ninst->state = NINST_READY;
+        rpool_push_ninsts(net_engine->rpool, &ninst, 1, 0);
+    }
+    
+    aspen_free (data); 
+}
+
+void add_input_rpool_reverse (networking_engine *net_engine, nasm_t* nasm, char *input_filename)
+{
+    aspen_dnn_t *dnn = nasm->dnn;
+    aspen_layer_t *first_layer = &dnn->layers[0];
+    void *data = NULL;
+    unsigned int input_params[NUM_PARAM_ELEMENTS] = {0};
+    input_params[BATCH] = nasm->batch_size;
+    if (first_layer->params[OUT_C] != 0 && first_layer->params[OUT_H] != 0 && first_layer->params[OUT_W] != 0)
+    {
+        input_params[OUT_C] = first_layer->params[OUT_C];
+        input_params[OUT_H] = first_layer->params[OUT_H];
+        input_params[OUT_W] = first_layer->params[OUT_W];
+        data = aspen_load_input_NHWC (input_filename, input_params, sizeof(float));
+    }
+    else if (first_layer->params[MAT_M] != 0)
+    {
+        input_params[MAT_M] = first_layer->params[MAT_M];
+        input_params[MAT_N] = nasm->tr_seq_len;
+        data = aspen_load_input (input_filename, input_params, sizeof(float));
+    }
+    else
+    {
+        FPRT (stderr, "ERROR: rpool_add_nasm: first layer of dnn \"%s\" does not have output dimensions. Cannot add nasm \"%s_nasm_%d\".\n", 
+            dnn->name, dnn->name, nasm->nasm_id);
+        return;
+    }
+
+    if (data != NULL)
+    {
+        nasm_ldata_t *ldata = &nasm->ldata_arr[0];
+        aspen_layer_t *layer = ldata->layer;
+        size_t num_cols = 0;
+        if (layer->params[OUT_H] != 0 && layer->params[OUT_W] != 0)
+            num_cols = nasm->batch_size * layer->params[OUT_H] * layer->params[OUT_W];
+        else if (layer->params[MAT_M] != 0)
+            num_cols = nasm->batch_size * nasm->tr_seq_len;
+        for (int i = 0; i < num_cols; i++)
+            memcpy 
+                ((char*)nasm->data + i * ldata->out_mat_stride * nasm->dnn->element_size, 
+                (char*)data + i * ldata->out_mat_dims[OUT_H] * nasm->dnn->element_size, 
+                ldata->out_mat_dims[OUT_H] * nasm->dnn->element_size);
+    }
+    if (nasm->data == NULL)
+    {
+        FPRT (stderr, "Error: nasm->data == NULL in add_ninst_net_queue()\n");
+        assert (0);
+    }
+
+    nasm_ldata_t *ldata = &nasm->ldata_arr[0];
+    for (int i = 0; i < ldata->num_ninst; i++)
+    {
+        ninst_t *ninst = &ldata->ninst_arr_start[ldata->num_ninst - i - 1];
         // push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
         ninst->state = NINST_READY;
         rpool_push_ninsts(net_engine->rpool, &ninst, 1, 0);
