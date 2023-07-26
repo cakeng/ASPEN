@@ -1,18 +1,16 @@
-source ./scripts/param_dynamic.sh
-
 ./main_scheduling \
     --sock_type=0   \
-    --pipelined=${PIPELINED}  \
-    --dirname=${DIRNAME}  \
-    --target_config=${TARGET_CONFIG}   \
-    --target_nasm_dir=${TARGET_NASM_DIR} \
-    --target_bin=${TARGET_BIN} \
-    --target_input=${TARGET_INPUT} \
-    --prefix=${PREFIX} \
-    --rx_ip=${RX_IP} \
-    --rx_port=${RX_PORT}   \
-    --schedule_policy=${SCHEDULE_POLICY}  \
-    --sched_sequential_idx=${SCHED_SEQUENTIAL_IDX}    \
-    --dse_num=${DSE_NUM}    \
-    --output_order=${OUTPUT_ORDER}    \
-    --inference_repeat_num=${INFERENCE_REPEAT_NUM}
+    --pipelined=1  \
+    --dirname=temp  \
+    --target_config="data/cfg/vgg16_aspen.cfg"   \
+    --target_nasm_dir="data/vgg16_B1_aspen.nasm" \
+    --target_bin="data/vgg16/vgg16_data.bin" \
+    --target_input="data/resnet50/batched_input_64.bin" \
+    --prefix="vgg16_B1" \
+    --rx_ip="192.168.1.176" \
+    --rx_port=3786   \
+    --schedule_policy="dynamic"  \
+    --sched_sequential_idx=1    \
+    --dse_num=16    \
+    --output_order="cnn"    \
+    --inference_repeat_num=10
