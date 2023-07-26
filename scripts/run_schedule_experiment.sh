@@ -4,9 +4,8 @@ source ./scripts/param_dynamic.sh
     --sock_type=0   \
     --pipelined=${PIPELINED}  \
     --dirname=${DIRNAME}  \
-    --target_config=${TARGET_CONFIG}   \
+    --target_dnn_dir=${TARGET_DNN_DIR} \
     --target_nasm_dir=${TARGET_NASM_DIR} \
-    --target_bin=${TARGET_BIN} \
     --target_input=${TARGET_INPUT} \
     --prefix=${PREFIX} \
     --rx_ip=${RX_IP} \

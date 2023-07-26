@@ -285,23 +285,23 @@ int main(int argc, char **argv)
     }
     else
     {
+        /** STAGE: INFERENCE **/
         net_engine = init_networking(target_nasm, rpool, sock_type, rx_ip, rx_port, 0, sequential);
         dse_group_set_net_engine(dse_group, net_engine);
         dse_group_set_device(dse_group, sock_type);
         net_engine->dse_group = dse_group;
 
+        set_nasm_inference_id(target_nasm, 0);
+        add_inference_whitelist(net_engine, 0);
+
         for (int i=0; i<inference_repeat_num; i++) {
             printf("inference: %d/%d\n", i+1, inference_repeat_num);
+            printf("inference id: %d\n", target_nasm->inference_id);
 
             target_nasm->nasm_cond = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
 
             if(sock_type == SOCK_TX) {
-                if (!strcmp(schedule_policy, "dynamic")) {
-                    add_input_rpool_reverse (net_engine, target_nasm, target_input);
-                }
-                else {
-                    add_input_rpool (net_engine, target_nasm, target_input);
-                }
+                add_input_rpool (net_engine, target_nasm, target_input);
             }
 
             atomic_store (&net_engine->run, 1);
@@ -314,22 +314,18 @@ int main(int argc, char **argv)
             get_elapsed_time ("run_aspen");
             dse_group_stop (dse_group);
             
-
             LAYER_PARAMS output_order_cnn[] = {BATCH, OUT_H, OUT_W, OUT_C};  // for CNN
             LAYER_PARAMS output_order_transformer[] = {BATCH, MAT_N, MAT_M};    // for Transformer
             LAYER_PARAMS *output_order_param = !strcmp(output_order, "cnn") ? output_order_cnn : output_order_transformer;
             float *layer_output = dse_get_nasm_result (target_nasm, output_order_param);
-            if (!strcmp(output_order, "cnn"))
+            float *softmax_output = calloc (1000*target_nasm->batch_size, sizeof(float));
+            naive_softmax (layer_output, softmax_output, target_nasm->batch_size, 1000);
+            for (int i = 0; i < target_nasm->batch_size; i++)
             {
-                float *softmax_output = calloc (1000*target_nasm->batch_size, sizeof(float));
-                naive_softmax (layer_output, softmax_output, target_nasm->batch_size, 1000);
-                for (int i = 0; i < target_nasm->batch_size; i++)
-                {
-                    get_probability_results ("data/resnet50/imagenet_classes.txt", softmax_output + 1000*i, 1000);
-                }
-                free (softmax_output);
+                get_probability_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
             }
             free (layer_output);
+            free (softmax_output);
             
             // For logging
             char file_name[256];
@@ -346,7 +342,6 @@ int main(int argc, char **argv)
             FILE *log_fp = fopen(file_name, "w");
             save_ninst_log(log_fp, target_nasm);
             
-            
 
             // synchronize
             /** STAGE: PROFILING NETWORK **/
@@ -357,7 +352,7 @@ int main(int argc, char **argv)
 
             int connection_key;
             if (sock_type == SOCK_RX) {
-                connection_key = 12534;
+                connection_key = 12534+i;
                 write_n(client_sock, &connection_key, sizeof(int));
                 printf("connection key: %d\n", connection_key);
             }
@@ -369,20 +364,14 @@ int main(int argc, char **argv)
 
             printf("sync: %f\n", sync);
 
-            // reset: dse, net_engine, nasm, rpool
-            // atomic_store (&net_engine->run, 0);
             rpool_reset(rpool);
             apu_reset_nasm(target_nasm);
+            if (!strcmp(schedule_policy, "dynamic")) init_dynamic_offload(target_nasm);
 
-            ninst_t **temp_list = calloc(net_engine->net_queue->num_stored, sizeof(ninst_t *));
-            char *temp_buffer = malloc(NETQUEUE_BUFFER_SIZE);
-            while (net_engine->net_queue->num_stored > 0) {
-                pthread_mutex_lock(&net_engine->net_engine_mutex);
-                pop_ninsts_from_net_queue (net_engine->net_queue, temp_list, temp_buffer, net_engine->net_queue->num_stored);
-                pthread_mutex_unlock(&net_engine->net_engine_mutex);
-            }
+            remove_inference_whitelist(net_engine, target_nasm->inference_id);
+            set_nasm_inference_id(target_nasm, connection_key);
+            add_inference_whitelist(net_engine, target_nasm->inference_id);
 
-            printf("net_engine left: %d\n", net_engine->net_queue->num_stored);
         }
     }
 
@@ -391,16 +380,13 @@ int main(int argc, char **argv)
     LAYER_PARAMS output_order_transformer[] = {BATCH, MAT_N, MAT_M};    // for Transformer
     LAYER_PARAMS *output_order_param = !strcmp(output_order, "cnn") ? output_order_cnn : output_order_transformer;
     float *layer_output = dse_get_nasm_result (target_nasm, output_order_param);
-    if (!strcmp(output_order, "cnn"))
+    float *softmax_output = calloc (1000*target_nasm->batch_size, sizeof(float));
+    naive_softmax (layer_output, softmax_output, target_nasm->batch_size, 1000);
+    for (int i = 0; i < target_nasm->batch_size; i++)
     {
-        float *softmax_output = calloc (1000*target_nasm->batch_size, sizeof(float));
-        naive_softmax (layer_output, softmax_output, target_nasm->batch_size, 1000);
-        for (int i = 0; i < target_nasm->batch_size; i++)
-        {
-            get_probability_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
-        }
-        free (softmax_output);
+        get_probability_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
     }
+    free (softmax_output);
     save_arr (layer_output, "aspen_output.tmp", dse_get_nasm_result_size(target_nasm));
     free (layer_output);
 
