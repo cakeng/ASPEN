@@ -925,7 +925,7 @@ void set_ninst_out_mat_mem_pos (ninst_t *ninst)
     
 }
 
-void *dse_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS *order)
+size_t dse_get_ldata_size (nasm_t *nasm, unsigned int ldata_idx)
 {
     if (nasm->data == NULL)
     {
@@ -947,6 +947,24 @@ void *dse_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS *
                 output_size += data_size;
             }
         }
+        return output_size;
+    }
+    size_t elem_size = ldata->layer->dnn->element_size;
+    return ldata->out_mat_dims[OUT_H] * ldata->out_mat_dims[OUT_W] * elem_size;
+}
+
+void *dse_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS *order)
+{
+    if (nasm->data == NULL)
+    {
+        FPRT (stderr, "Error: nasm->data == NULL in dse_get_ldata_result()\n");
+        assert (0);
+    }
+    nasm_ldata_t *ldata = &nasm->ldata_arr[ldata_idx];
+    if (ldata->layer->type == YOLO_LAYER)
+    {
+        void *output = NULL;
+        size_t output_size = dse_get_ldata_size (nasm, ldata_idx);
         output = calloc (output_size, 1);
         size_t offset = 0;
         size_t batch_num = nasm->batch_size;
@@ -974,4 +992,9 @@ void *dse_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS *
 void *dse_get_nasm_result (nasm_t *nasm, LAYER_PARAMS *order)
 {
     return dse_get_ldata_result (nasm, nasm->num_ldata - 1, order);
+}
+
+size_t dse_get_nasm_result_size (nasm_t *nasm)
+{
+    return dse_get_ldata_size (nasm, nasm->num_ldata - 1);
 }

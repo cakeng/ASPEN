@@ -273,17 +273,25 @@ int main(int argc, char **argv)
     get_elapsed_time ("run_aspen");
     dse_group_stop (dse_group);
     
+
     LAYER_PARAMS output_order_cnn[] = {BATCH, OUT_H, OUT_W, OUT_C};  // for CNN
     LAYER_PARAMS output_order_transformer[] = {BATCH, MAT_N, MAT_M};    // for Transformer
-
     LAYER_PARAMS *output_order_param = !strcmp(output_order, "cnn") ? output_order_cnn : output_order_transformer;
     float *layer_output = dse_get_nasm_result (target_nasm, output_order_param);
-    float *softmax_output = calloc (1000*target_nasm->batch_size, sizeof(float));
-    naive_softmax (layer_output, softmax_output, target_nasm->batch_size, 1000);
-    for (int i = 0; i < target_nasm->batch_size; i++)
+
+    if (!strcmp(output_order, "cnn"))
     {
-        get_probability_results ("data/resnet50/imagenet_classes.txt", softmax_output + 1000*i, 1000);
+        float *softmax_output = calloc (1000*target_nasm->batch_size, sizeof(float));
+        naive_softmax (layer_output, softmax_output, target_nasm->batch_size, 1000);
+        for (int i = 0; i < target_nasm->batch_size; i++)
+        {
+            get_probability_results ("data/resnet50/imagenet_classes.txt", softmax_output + 1000*i, 1000);
+        }
+        free (softmax_output);
     }
+    save_arr (layer_output, dse_get_nasm_result_size(target_nasm) , "aspen_output.tmp");
+    free (layer_output);
+    
     
     // For logging
     char file_name[256];
@@ -301,8 +309,7 @@ int main(int argc, char **argv)
 
     // Wrap up
 
-    free (layer_output);
-    free (softmax_output);
+    
 
     close_connection (net_engine);
     save_ninst_log(log_fp, target_nasm);

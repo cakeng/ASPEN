@@ -148,6 +148,8 @@ void dse_wait_for_nasm_completion (nasm_t *nasm);
 unsigned int dse_check_nasm_completion (nasm_t *nasm);
 void *dse_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS *order);
 void *dse_get_nasm_result (nasm_t *nasm, LAYER_PARAMS *order);
+size_t dse_get_ldata_size (nasm_t *nasm, unsigned int ldata_idx);
+size_t dse_get_nasm_result_size (nasm_t *nasm);
 
 void print_aspen_build_info(void);
 void print_dnn_info (aspen_dnn_t *dnn, int print_data);
