@@ -362,11 +362,16 @@ int main(int argc, char **argv)
             sprintf(dir_path, "./logs/%s", dirname);
 
             struct stat st = {0};
-            if (stat(dir_path, &st) == -1) {
+            if (stat("./logs/", &st) == -1) 
+            {
+                mkdir("./logs/", 0700);
+            }
+            if (stat(dir_path, &st) == -1) 
+            {
                 mkdir(dir_path, 0700);
             }
 
-            sprintf(file_name, "./logs/%s/%s_%s_%s_dev%d_%s_%d.csv", dirname, prefix, sequential ? "seq" : "pip", schedule_policy, sock_type == SOCK_RX ? SOCK_RX : SOCK_TX, postfix, log_idx_start+i);
+            sprintf(file_name, "./logs/%s/%s_%s_%s_%s_%s_%d.csv", dirname, prefix, sequential ? "seq" : "pip", schedule_policy, sock_type == SOCK_RX ? "RX" : "TX", postfix, log_idx_start+i);
             
             FILE *log_fp = fopen(file_name, "w");
             save_ninst_log(log_fp, target_nasm);

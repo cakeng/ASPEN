@@ -1,6 +1,6 @@
 source ./scripts/param_dynamic.sh
 
-./main_scheduling \
+cmd="./main_scheduling \
     --sock_type=1   \
     --pipelined=${PIPELINED}  \
     --dirname=${DIRNAME}  \
@@ -14,4 +14,7 @@ source ./scripts/param_dynamic.sh
     --sched_sequential_idx=${SCHED_SEQUENTIAL_IDX}    \
     --dse_num=${DSE_NUM}    \
     --output_order=${OUTPUT_ORDER}    \
-    --inference_repeat_num=${INFERENCE_REPEAT_NUM}
+    --inference_repeat_num=${INFERENCE_REPEAT_NUM}"
+
+echo $cmd
+eval $cmd
