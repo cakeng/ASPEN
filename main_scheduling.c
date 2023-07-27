@@ -269,7 +269,7 @@ int main(int argc, char **argv)
     
     if (!strcmp(schedule_policy, "local"))
     {
-        rpool_add_nasm (rpool, target_nasm, "data/batched_input_128.bin");
+        rpool_add_nasm (rpool, target_nasm, target_input);
 
         double start_time = get_sec();
         for (int i = 0; i < inference_repeat_num; i++)
@@ -286,16 +286,43 @@ int main(int argc, char **argv)
     }
     else
     {
-        /** STAGE: INFERENCE **/
+        
         net_engine = init_networking(target_nasm, rpool, sock_type, rx_ip, rx_port, 0, sequential);
         dse_group_set_net_engine(dse_group, net_engine);
         dse_group_set_device(dse_group, sock_type);
         net_engine->dse_group = dse_group;
 
-        set_nasm_inference_id(target_nasm, 0);
-        add_inference_whitelist(net_engine, 0);
-
         for (int i=0; i<inference_repeat_num; i++) {
+
+            // synchronize
+            remove_inference_whitelist(net_engine, target_nasm->inference_id);
+            printf("Sync between inference...\n");
+
+            float sync = profile_network_sync(sock_type, server_sock, client_sock);
+
+            int connection_key;
+            if (sock_type == SOCK_RX) {
+                connection_key = 12534+i;
+                write_n(client_sock, &connection_key, sizeof(int));
+                printf("connection key: %d\n", connection_key);
+            }
+            else if (sock_type == SOCK_TX) {
+                connection_key = -1;
+                read_n(server_sock, &connection_key, sizeof(int));
+                printf("connection key: %d\n", connection_key);
+            }
+
+            printf("sync: %f\n", sync);
+
+            rpool_reset(rpool);
+            apu_reset_nasm(target_nasm);
+            
+            if (!strcmp(schedule_policy, "dynamic")) init_dynamic_offload(target_nasm);
+
+            
+            set_nasm_inference_id(target_nasm, connection_key);
+            add_inference_whitelist(net_engine, target_nasm->inference_id);
+
             printf("inference: %d/%d\n", i+1, inference_repeat_num);
             printf("inference id: %d\n", target_nasm->inference_id);
 
@@ -343,36 +370,6 @@ int main(int argc, char **argv)
             
             FILE *log_fp = fopen(file_name, "w");
             save_ninst_log(log_fp, target_nasm);
-            
-
-            // synchronize
-            /** STAGE: PROFILING NETWORK **/
-            remove_inference_whitelist(net_engine, target_nasm->inference_id);
-            printf("Sync between inference...\n");
-
-            float sync = profile_network_sync(sock_type, server_sock, client_sock);
-
-            int connection_key;
-            if (sock_type == SOCK_RX) {
-                connection_key = 12534+i;
-                write_n(client_sock, &connection_key, sizeof(int));
-                printf("connection key: %d\n", connection_key);
-            }
-            else if (sock_type == SOCK_TX) {
-                connection_key = -1;
-                read_n(server_sock, &connection_key, sizeof(int));
-                printf("connection key: %d\n", connection_key);
-            }
-
-            printf("sync: %f\n", sync);
-
-            rpool_reset(rpool);
-            apu_reset_nasm(target_nasm);
-            if (!strcmp(schedule_policy, "dynamic")) init_dynamic_offload(target_nasm);
-
-            
-            set_nasm_inference_id(target_nasm, connection_key);
-            add_inference_whitelist(net_engine, target_nasm->inference_id);
 
         }
     }
