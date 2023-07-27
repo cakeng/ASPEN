@@ -840,6 +840,11 @@ void apu_reset_nasm (nasm_t *nasm)
         for (int j = 0; j < ldata->num_ninst; j++)
         {
             ninst_t *ninst = &ldata->ninst_arr_start[j];
+            ninst->compute_end = 0;
+            ninst->compute_start = 0;
+            ninst->computed_time = 0;
+            ninst->recved_time = 0;
+            ninst->sent_time = 0;
             atomic_store (&ninst->state, NINST_NOT_READY);
             atomic_store (&ninst->num_parent_ninsts_completed, 0);
         }

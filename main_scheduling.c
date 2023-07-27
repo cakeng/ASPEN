@@ -67,6 +67,7 @@ int main(int argc, char **argv)
     int dse_num = ai.dse_num_arg;
     char *output_order = ai.output_order_arg;
 
+    int dnn_dir_exist = !target_dnn_dir && strlen(target_dnn_dir) > 0;
 
     // char *target_config = "data/cfg/resnet50_aspen.cfg";
     // char *target_bin = "data/resnet50/resnet50_data.bin";
@@ -306,6 +307,7 @@ int main(int argc, char **argv)
 
             atomic_store (&net_engine->run, 1);
             printf("netqueue remaining: %d\n", net_engine->net_queue->num_stored);
+            while (net_engine->net_queue->num_stored) {}
             
             
             get_elapsed_time ("init");
@@ -345,7 +347,7 @@ int main(int argc, char **argv)
 
             // synchronize
             /** STAGE: PROFILING NETWORK **/
-
+            remove_inference_whitelist(net_engine, target_nasm->inference_id);
             printf("Sync between inference...\n");
 
             float sync = profile_network_sync(sock_type, server_sock, client_sock);
@@ -368,7 +370,7 @@ int main(int argc, char **argv)
             apu_reset_nasm(target_nasm);
             if (!strcmp(schedule_policy, "dynamic")) init_dynamic_offload(target_nasm);
 
-            remove_inference_whitelist(net_engine, target_nasm->inference_id);
+            
             set_nasm_inference_id(target_nasm, connection_key);
             add_inference_whitelist(net_engine, target_nasm->inference_id);
 
