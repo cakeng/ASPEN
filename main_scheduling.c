@@ -44,6 +44,7 @@ double get_sec()
 
 int main(int argc, char **argv)
 {
+    print_aspen_build_info();
     struct gengetopt_args_info ai;
     if (cmdline_parser(argc, argv, &ai) != 0) {
         exit(1);

@@ -921,6 +921,7 @@ void destroy_nasm_ldata (nasm_ldata_t *ldata)
 
 void set_nasm_inference_id (nasm_t *nasm, int inference_id) {
     nasm->inference_id = inference_id;
+    printf ("APU: NASM inference id set to %d\n", inference_id);
 }
 
 void destroy_nasm_ldata_arr (nasm_ldata_t *ldata_arr, int num_ldata)
