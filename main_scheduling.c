@@ -299,7 +299,7 @@ int main(int argc, char **argv)
             }
             free (softmax_output);
         }
-        save_arr (layer_output, dse_get_nasm_result_size(target_nasm) , "aspen_output.tmp");
+        save_arr (layer_output, "aspen_output.tmp", dse_get_nasm_result_size(target_nasm));
         free (layer_output);
             
         
