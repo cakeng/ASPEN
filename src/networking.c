@@ -399,8 +399,9 @@ void transmission(networking_engine *net_engine)
             while(total_bytes - sent_bytes) {
                 sent_bytes += send(net_engine->tx_sock, buffer_start_ptr, total_bytes, 0);
             }
-            printf("sent ninst %d (L%d), time taken %f, netqueue remaining %d,\n", 
+            printf("sent ninst %d (L%d Id%d), time taken %f, netqueue remaining %d,\n", 
                 target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx,
+                target_ninst->ldata->nasm->inference_id,
                 get_time_secs() - time_sent,
                 net_engine->net_queue->num_stored
                 );

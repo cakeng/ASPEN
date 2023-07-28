@@ -306,6 +306,7 @@ int main(int argc, char **argv)
                     old_val = net_engine->net_queue->num_stored;
                 }
             }
+            atomic_store (&net_engine->run, 0);
 
             // synchronize
             remove_inference_whitelist(net_engine, target_nasm->inference_id);
@@ -345,12 +346,12 @@ int main(int argc, char **argv)
                 add_input_rpool (net_engine, target_nasm, target_input);
             }
 
-            
-            
             get_elapsed_time ("init");
+            atomic_store (&net_engine->run, 1);
             if (!sequential || sock_type == SOCK_TX) dse_group_run (dse_group);
             if (!(!strcmp(schedule_policy, "local") && sock_type == SOCK_RX)) dse_wait_for_nasm_completion (target_nasm);
             get_elapsed_time ("run_aspen");
+            atomic_store (&net_engine->run, 0);
             dse_group_stop (dse_group);
             
             LAYER_PARAMS output_order_cnn[] = {BATCH, OUT_H, OUT_W, OUT_C};  // for CNN
