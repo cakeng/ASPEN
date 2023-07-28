@@ -227,9 +227,9 @@ void *dse_thread_runtime (void* thread_info)
                         if (ninst->desiring_devices[i]) // Should be offload
                         {
                             networking_engine *net_engine = dse->net_engine_arr[i];
-                            pthread_mutex_lock(&net_engine->net_engine_mutex);
-                            push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
-                            pthread_mutex_unlock(&net_engine->net_engine_mutex);
+                            pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
+                            push_ninsts_to_net_queue(net_engine->tx_queue, ninst, 1);
+                            pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
                         }
                     }
 
@@ -239,9 +239,9 @@ void *dse_thread_runtime (void* thread_info)
                         if (i == dse->device_idx) continue;
                         if (ninst->desiring_devices[i]) {
                             networking_engine *net_engine = dse->net_engine;
-                            pthread_mutex_lock(&net_engine->net_engine_mutex);
-                            push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
-                            pthread_mutex_unlock(&net_engine->net_engine_mutex);
+                            pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
+                            push_ninsts_to_net_queue(net_engine->tx_queue, ninst, 1);
+                            pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
                         }
                     }
                 }

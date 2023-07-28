@@ -17,19 +17,18 @@ struct networking_queue_t
 {
     unsigned int idx_start;
     unsigned int idx_end;
-    unsigned int num_stored;
+    _Atomic unsigned int num_stored;
     unsigned int max_stored;
 
     ninst_t **ninst_ptr_arr;
     void **ninst_buf_arr;
+
+    pthread_mutex_t queue_mutex;
+    pthread_cond_t queue_cond;
 };
 
 struct networking_engine
 {
-    pthread_mutex_t net_engine_mutex;
-    pthread_mutex_t net_engine_shutdown_mutex;
-    pthread_cond_t net_engine_shutdown_cond;
-    
     struct sockaddr_in rx_addr;
     struct sockaddr_in tx_addr;
     int sock_id;
@@ -45,9 +44,14 @@ struct networking_engine
     pthread_t rx_thread;
     pthread_t tx_thread;
 
+    pthread_mutex_t rx_thread_mutex;
+    pthread_cond_t rx_thread_cond;
+    pthread_mutex_t tx_thread_mutex;
+    pthread_cond_t tx_thread_cond;
+
     nasm_t* nasm;
     rpool_t* rpool;
-    networking_queue_t *net_queue;
+    networking_queue_t *tx_queue;
     dse_group_t *dse_group;
 
     // for multiuser case
@@ -72,6 +76,7 @@ void net_queue_reset (networking_queue_t *networking_queue);
 void net_engine_reset (networking_engine *net_engine);
 void net_engine_stop (networking_engine *net_engine);
 void net_engine_run (networking_engine *net_engine);
+void net_engine_wait_for_tx_completion (networking_engine *net_engine);
 
 unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ninst_t **ninst_ptr_list, char* buffer, unsigned int max_ninsts_to_get);
 void push_ninsts_to_net_queue (networking_queue_t *networking_queue, ninst_t *ninst_ptr, unsigned int num_ninsts);

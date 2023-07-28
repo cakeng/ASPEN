@@ -3,41 +3,17 @@
 
 void* transmission_buffer = NULL;
 
-void net_queue_reset (networking_queue_t *networking_queue)
-{
-    networking_queue->idx_start = 0;
-    networking_queue->idx_end = 0;
-    networking_queue->num_stored = 0;
-    for (int i = 0; i < INIT_QUEUE_SIZE; i++)
-    {
-        if (networking_queue->ninst_buf_arr[i] != NULL)
-        {
-            free(networking_queue->ninst_buf_arr[i]);
-            networking_queue->ninst_buf_arr[i] = NULL;
-        }
-    }
-}
-void net_engine_reset (networking_engine *net_engine)
-{
-    net_queue_reset(net_engine->net_queue);
-}
-void net_engine_stop (networking_engine *net_engine)
-{
-    atomic_store (&net_engine->run, 0);
-}
-void net_engine_run (networking_engine *net_engine)
-{
-    atomic_store (&net_engine->run, 1);
-}
-
 void *net_tx_thread_runtime (void* thread_info) 
 {
     networking_engine *net_engine = (networking_engine*) thread_info;
     while (!net_engine->kill)
     {
-        if(net_engine->run) {
-            transmission(net_engine);
-        }
+        if(net_engine->run == 0)
+        {
+            pthread_cond_wait (&net_engine->tx_thread_cond, &net_engine->tx_thread_mutex);
+        } 
+        transmission(net_engine);
+        
     }
 }
 
@@ -61,6 +37,9 @@ void init_networking_queue (networking_queue_t *networking_queue)
     
     networking_queue->ninst_ptr_arr = (ninst_t**) calloc (INIT_QUEUE_SIZE, sizeof(ninst_t*));
     networking_queue->ninst_buf_arr = (void**) calloc(INIT_QUEUE_SIZE, sizeof(void*));
+
+    networking_queue->queue_cond = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
+    networking_queue->queue_mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
 }
 
 networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock_type, char* ip, int port, int is_UDP, int sequential) 
@@ -70,10 +49,11 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock
     networking_queue_t *networking_queue = calloc (1, sizeof(networking_queue_t));
     init_networking_queue(networking_queue);
 
-    net_engine->net_queue = networking_queue;
+    net_engine->tx_queue = networking_queue;
     atomic_store (&net_engine->run, 0);
     atomic_store (&net_engine->kill, 0);
     atomic_store (&net_engine->shutdown, 0);
+
     net_engine->nasm = nasm;
     net_engine->rpool = rpool;
     net_engine->sequential = sequential;
@@ -136,9 +116,82 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock
         }
     }
 
+    net_engine->rx_thread_cond = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
+    net_engine->rx_thread_mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
+    net_engine->tx_thread_cond = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
+    net_engine->tx_thread_mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_lock (&net_engine->rx_thread_mutex);
+    pthread_mutex_lock (&net_engine->tx_thread_mutex);
     pthread_create (&net_engine->tx_thread, NULL, net_tx_thread_runtime, (void*)net_engine);
     pthread_create (&net_engine->rx_thread, NULL, net_rx_thread_runtime, (void*)net_engine);
     return net_engine;
+}
+
+void net_queue_reset (networking_queue_t *networking_queue)
+{
+    networking_queue->idx_start = 0;
+    networking_queue->idx_end = 0;
+    networking_queue->num_stored = 0;
+    for (int i = 0; i < INIT_QUEUE_SIZE; i++)
+    {
+        if (networking_queue->ninst_buf_arr[i] != NULL)
+        {
+            free(networking_queue->ninst_buf_arr[i]);
+            networking_queue->ninst_buf_arr[i] = NULL;
+        }
+    }
+}
+void net_engine_reset (networking_engine *net_engine)
+{
+    net_queue_reset(net_engine->tx_queue);
+}
+void net_engine_stop (networking_engine *net_engine)
+{
+    if (net_engine == NULL)
+    {
+        FPRT (stderr, "ERROR: net_engine_stop: net_engine is NULL\n");
+        return;
+    }
+    unsigned int state = atomic_exchange (&net_engine->run, 0);
+    if (state == 0)
+    {
+        return;
+    }
+    else 
+    {
+        pthread_mutex_lock (&net_engine->rx_thread_mutex);
+        pthread_mutex_lock (&net_engine->tx_thread_mutex);
+    }
+}
+void net_engine_run (networking_engine *net_engine)
+{
+    if (net_engine == NULL)
+    {
+        FPRT (stderr, "ERROR: net_engine_run: net_engine is NULL\n");
+        return;
+    }
+    unsigned int state = atomic_exchange (&net_engine->run, 1);
+    if (state == 1)
+    {
+        return;
+    }
+    else 
+    {
+        pthread_cond_signal (&net_engine->rx_thread_cond);
+        pthread_cond_signal (&net_engine->tx_thread_cond);
+        pthread_mutex_unlock (&net_engine->rx_thread_mutex);
+        pthread_mutex_unlock (&net_engine->tx_thread_mutex);
+    }
+}
+
+void net_engine_wait_for_tx_queue_completion (networking_engine *net_engine)
+{
+    pthread_mutex_lock (&net_engine->tx_queue->queue_mutex);
+    if (net_engine->tx_queue->num_stored > 0)
+    {
+        pthread_cond_wait (&net_engine->tx_queue->queue_cond, &net_engine->tx_queue->queue_mutex);
+    }
+    pthread_mutex_unlock (&net_engine->tx_queue->queue_mutex);
 }
 
 void init_socket (networking_engine* net_engine)
@@ -334,9 +387,12 @@ unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ni
             if (i == networking_queue->max_stored)
                 i = 0;
         }
-
         networking_queue->idx_start = i;
         networking_queue->num_stored -= num_ninsts;
+        if (networking_queue->num_stored == 0)
+        {
+            pthread_cond_signal (&networking_queue->queue_cond);
+        }
     }
     
     return num_ninsts;
@@ -407,9 +463,9 @@ void transmission(networking_engine *net_engine)
         transmission_buffer = malloc(NETQUEUE_BUFFER_SIZE);
     void* buffer_start_ptr = transmission_buffer;
 
-    pthread_mutex_lock(&net_engine->net_engine_mutex);
-    num_ninsts = pop_ninsts_from_net_queue(net_engine->net_queue, target_ninst_list, (char*)transmission_buffer, 1);
-    pthread_mutex_unlock(&net_engine->net_engine_mutex);
+    pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
+    num_ninsts = pop_ninsts_from_net_queue(net_engine->tx_queue, target_ninst_list, (char*)transmission_buffer, 1);
+    pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
 
     if(num_ninsts > 0) {
         for(int i = 0; i < num_ninsts; i++)
@@ -431,7 +487,7 @@ void transmission(networking_engine *net_engine)
                 target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx,
                 target_ninst->ldata->nasm->inference_id,
                 get_time_secs() - time_sent,
-                net_engine->net_queue->num_stored
+                net_engine->tx_queue->num_stored
                 );
             
             buffer_start_ptr += W * H * sizeof(float);
@@ -568,7 +624,7 @@ void add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_f
     }
     if (nasm->data == NULL)
     {
-        FPRT (stderr, "Error: nasm->data == NULL in add_ninst_net_queue()\n");
+        FPRT (stderr, "Error: nasm->data == NULL in add_input_rpool()\n");
         assert (0);
     }
 
@@ -576,7 +632,9 @@ void add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_f
     for (int i = 0; i < ldata->num_ninst; i++)
     {
         ninst_t *ninst = &ldata->ninst_arr_start[i];
-        // push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
+        // pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
+        // push_ninsts_to_net_queue(net_engine->tx_queue, ninst, 1);
+        // pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
         ninst->state = NINST_READY;
         rpool_push_ninsts(net_engine->rpool, &ninst, 1, 0);
     }
@@ -628,7 +686,7 @@ void add_input_rpool_reverse (networking_engine *net_engine, nasm_t* nasm, char 
     }
     if (nasm->data == NULL)
     {
-        FPRT (stderr, "Error: nasm->data == NULL in add_ninst_net_queue()\n");
+        FPRT (stderr, "Error: nasm->data == NULL in add_input_rpool_reverse()\n");
         assert (0);
     }
 
@@ -636,7 +694,9 @@ void add_input_rpool_reverse (networking_engine *net_engine, nasm_t* nasm, char 
     for (int i = 0; i < ldata->num_ninst; i++)
     {
         ninst_t *ninst = &ldata->ninst_arr_start[ldata->num_ninst - i - 1];
-        // push_ninsts_to_net_queue(net_engine->net_queue, ninst, 1);
+        // pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
+        // push_ninsts_to_net_queue(net_engine->tx_queue, ninst, 1);
+        // pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
         ninst->state = NINST_READY;
         rpool_push_ninsts(net_engine->rpool, &ninst, 1, 0);
     }
@@ -644,11 +704,25 @@ void add_input_rpool_reverse (networking_engine *net_engine, nasm_t* nasm, char 
     aspen_free (data); 
 }
 
-void net_queue_destory(networking_queue_t* net_queue)
+void net_queue_destroy(networking_queue_t* net_queue)
 {
     if(net_queue == NULL) return;
-    if(net_queue->ninst_ptr_arr != NULL) free(net_queue->ninst_ptr_arr);
-    if(net_queue->ninst_buf_arr != NULL) free(net_queue->ninst_buf_arr);
+    if(net_queue->ninst_ptr_arr != NULL) 
+        free(net_queue->ninst_ptr_arr);
+    if(net_queue->ninst_buf_arr != NULL)
+    {
+        for (int i = 0; i < INIT_QUEUE_SIZE; i++)
+        {
+            if (net_queue->ninst_buf_arr[i] != NULL)
+            {
+                free(net_queue->ninst_buf_arr[i]);
+                net_queue->ninst_buf_arr[i] = NULL;
+            }
+        }
+        free(net_queue->ninst_buf_arr);
+    }
+    pthread_mutex_destroy(&net_queue->queue_mutex);
+    pthread_cond_destroy(&net_queue->queue_cond);
 }
 
 void close_connection(networking_engine* net_engine)
@@ -672,9 +746,13 @@ void net_engine_destroy(networking_engine* net_engine)
 {
     if(net_engine == NULL) return;
     net_engine->kill = 1;
-    net_queue_destory(net_engine->net_queue);
+    net_queue_destroy(net_engine->tx_queue);
+    free (net_engine->tx_queue);
     close(net_engine->rx_sock);
     close(net_engine->tx_sock);
-    pthread_mutex_destroy(&net_engine->net_engine_mutex);
+    pthread_mutex_destroy(&net_engine->rx_thread_mutex);
+    pthread_mutex_destroy(&net_engine->tx_thread_mutex);
+    pthread_cond_destroy(&net_engine->tx_thread_cond);
+    pthread_cond_destroy(&net_engine->rx_thread_cond);
     free(net_engine);
 }
