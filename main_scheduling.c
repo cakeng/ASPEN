@@ -335,7 +335,7 @@ int main(int argc, char **argv)
 
             atomic_store (&net_engine->run, 1);
             printf("netqueue remaining: %d\n", net_engine->net_queue->num_stored);
-            while (net_engine->net_queue->num_stored) {}
+            while (net_engine->net_queue->num_stored) {printf("\tnetqueue remaining: %d\n", net_engine->net_queue->num_stored);}
             
             
             get_elapsed_time ("init");

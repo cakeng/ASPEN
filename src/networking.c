@@ -1,6 +1,7 @@
 #include "networking.h"
 #include <errno.h>
 
+void* transmission_buffer = NULL;
 
 void *net_tx_thread_runtime (void* thread_info) 
 {
@@ -375,11 +376,12 @@ void transmission(networking_engine *net_engine)
 {
     ninst_t *target_ninst_list[4];
     unsigned int num_ninsts = 0;
-    void* buffer = malloc(NETQUEUE_BUFFER_SIZE);
-    void* buffer_start_ptr = buffer;
+    if (transmission_buffer == NULL)
+        transmission_buffer = malloc(NETQUEUE_BUFFER_SIZE);
+    void* buffer_start_ptr = transmission_buffer;
 
     pthread_mutex_lock(&net_engine->net_engine_mutex);
-    num_ninsts = pop_ninsts_from_net_queue(net_engine->net_queue, target_ninst_list, (char*)buffer, 1);
+    num_ninsts = pop_ninsts_from_net_queue(net_engine->net_queue, target_ninst_list, (char*)transmission_buffer, 1);
     pthread_mutex_unlock(&net_engine->net_engine_mutex);
 
     if(num_ninsts > 0) {
@@ -405,7 +407,6 @@ void transmission(networking_engine *net_engine)
             target_ninst->sent_time = get_time_secs();
         }
     }
-    free(buffer);
 }
 
 void receive(networking_engine *net_engine) {
