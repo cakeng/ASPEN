@@ -67,10 +67,12 @@ int is_inference_whitelist (networking_engine *net_engine, unsigned int inferenc
 void net_engine_wait(networking_engine* net_engine);
 void transmission(networking_engine *net_engine);
 void receive(networking_engine *net_engine);
+
 void net_queue_reset (networking_queue_t *networking_queue);
 void net_engine_reset (networking_engine *net_engine);
 void net_engine_stop (networking_engine *net_engine);
 void net_engine_run (networking_engine *net_engine);
+
 unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ninst_t **ninst_ptr_list, char* buffer, unsigned int max_ninsts_to_get);
 void push_ninsts_to_net_queue (networking_queue_t *networking_queue, ninst_t *ninst_ptr, unsigned int num_ninsts);
 void add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_filename);

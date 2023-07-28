@@ -25,7 +25,7 @@ void net_engine_stop (networking_engine *net_engine)
 {
     atomic_store (&net_engine->run, 0);
 }
-void net_engine_start (networking_engine *net_engine)
+void net_engine_run (networking_engine *net_engine)
 {
     atomic_store (&net_engine->run, 1);
 }
