@@ -3,6 +3,33 @@
 
 void* transmission_buffer = NULL;
 
+void net_queue_reset (networking_queue_t *networking_queue)
+{
+    networking_queue->idx_start = 0;
+    networking_queue->idx_end = 0;
+    networking_queue->num_stored = 0;
+    for (int i = 0; i < INIT_QUEUE_SIZE; i++)
+    {
+        if (networking_queue->ninst_buf_arr[i] != NULL)
+        {
+            free(networking_queue->ninst_buf_arr[i]);
+            networking_queue->ninst_buf_arr[i] = NULL;
+        }
+    }
+}
+void net_engine_reset (networking_engine *net_engine)
+{
+    net_queue_reset(net_engine->net_queue);
+}
+void net_engine_stop (networking_engine *net_engine)
+{
+    atomic_store (&net_engine->run, 0);
+}
+void net_engine_start (networking_engine *net_engine)
+{
+    atomic_store (&net_engine->run, 1);
+}
+
 void *net_tx_thread_runtime (void* thread_info) 
 {
     networking_engine *net_engine = (networking_engine*) thread_info;
@@ -299,6 +326,7 @@ unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ni
             ninst_ptr_list[num_ninsts] = networking_queue->ninst_ptr_arr[i];
             memcpy(buffer, networking_queue->ninst_buf_arr[i], W * H * sizeof(float));
             free(networking_queue->ninst_buf_arr[i]);
+            networking_queue->ninst_buf_arr[i] = NULL;
             i++;
             buffer += W * H * sizeof(float);
             buffer_usage += W * H * sizeof(float);

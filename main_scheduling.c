@@ -293,21 +293,8 @@ int main(int argc, char **argv)
         dse_group_set_device(dse_group, sock_type);
         net_engine->dse_group = dse_group;
 
-        for (int i=0; i<inference_repeat_num; i++) {
-
-            atomic_store (&net_engine->run, 1);
-            printf("netqueue remaining: %d\n", net_engine->net_queue->num_stored);
-            size_t old_val = 0;
-            while (net_engine->net_queue->num_stored) 
-            {
-                if (old_val != net_engine->net_queue->num_stored) 
-                {
-                    printf("\tnetqueue remaining: %d\n", net_engine->net_queue->num_stored);
-                    old_val = net_engine->net_queue->num_stored;
-                }
-            }
-            atomic_store (&net_engine->run, 0);
-
+        for (int i=0; i<inference_repeat_num; i++) 
+        {
             // synchronize
             remove_inference_whitelist(net_engine, target_nasm->inference_id);
             printf("Sync between inference...\n");
@@ -328,6 +315,7 @@ int main(int argc, char **argv)
 
             printf("sync: %f\n", sync);
 
+            net_engine_reset(net_engine);
             rpool_reset(rpool);
             apu_reset_nasm(target_nasm);
             
@@ -342,16 +330,17 @@ int main(int argc, char **argv)
 
             target_nasm->nasm_cond = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
 
-            if(sock_type == SOCK_TX) {
+            if(sock_type == SOCK_TX) 
+            {
                 add_input_rpool (net_engine, target_nasm, target_input);
             }
 
             get_elapsed_time ("init");
-            atomic_store (&net_engine->run, 1);
+            net_engine_run (net_engine);
             if (!sequential || sock_type == SOCK_TX) dse_group_run (dse_group);
             if (!(!strcmp(schedule_policy, "local") && sock_type == SOCK_RX)) dse_wait_for_nasm_completion (target_nasm);
             get_elapsed_time ("run_aspen");
-            atomic_store (&net_engine->run, 0);
+            net_engine_stop (net_engine);
             dse_group_stop (dse_group);
             
             LAYER_PARAMS output_order_cnn[] = {BATCH, OUT_H, OUT_W, OUT_C};  // for CNN
