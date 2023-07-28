@@ -295,6 +295,18 @@ int main(int argc, char **argv)
 
         for (int i=0; i<inference_repeat_num; i++) {
 
+            atomic_store (&net_engine->run, 1);
+            printf("netqueue remaining: %d\n", net_engine->net_queue->num_stored);
+            size_t old_val = 0;
+            while (net_engine->net_queue->num_stored) 
+            {
+                if (old_val != net_engine->net_queue->num_stored) 
+                {
+                    printf("\tnetqueue remaining: %d\n", net_engine->net_queue->num_stored);
+                    old_val = net_engine->net_queue->num_stored;
+                }
+            }
+
             // synchronize
             remove_inference_whitelist(net_engine, target_nasm->inference_id);
             printf("Sync between inference...\n");
@@ -333,9 +345,6 @@ int main(int argc, char **argv)
                 add_input_rpool (net_engine, target_nasm, target_input);
             }
 
-            atomic_store (&net_engine->run, 1);
-            printf("netqueue remaining: %d\n", net_engine->net_queue->num_stored);
-            while (net_engine->net_queue->num_stored) {printf("\tnetqueue remaining: %d\n", net_engine->net_queue->num_stored);}
             
             
             get_elapsed_time ("init");

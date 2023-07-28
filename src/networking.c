@@ -371,7 +371,6 @@ void push_ninsts_to_net_queue_front (networking_queue_t *networking_queue, ninst
     //     atomic_fetch_add (&networking_queue->queue_group->num_ninsts, num_ninsts);
 }
 
-
 void transmission(networking_engine *net_engine) 
 {
     ninst_t *target_ninst_list[4];
@@ -394,14 +393,18 @@ void transmission(networking_engine *net_engine)
             const unsigned int total_bytes = W * H * sizeof(float);
             unsigned int sent_bytes = 0;
 
+            double time_sent = get_time_secs();
             send(net_engine->tx_sock, (char*)&target_ninst->ninst_idx, sizeof(int), 0);
             send(net_engine->tx_sock, (char*)&target_ninst->ldata->nasm->inference_id, sizeof(int), 0);
-
-            // printf("send ninst %d\n", target_ninst->ninst_idx);
-            
             while(total_bytes - sent_bytes) {
                 sent_bytes += send(net_engine->tx_sock, buffer_start_ptr, total_bytes, 0);
             }
+            printf("sent ninst %d (L%d), time taken %f, netqueue remaining %d,\n", 
+                target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx,
+                get_time_secs() - time_sent,
+                net_engine->net_queue->num_stored
+                );
+            
             buffer_start_ptr += W * H * sizeof(float);
 
             target_ninst->sent_time = get_time_secs();
