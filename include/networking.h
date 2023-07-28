@@ -76,7 +76,7 @@ void net_queue_reset (networking_queue_t *networking_queue);
 void net_engine_reset (networking_engine *net_engine);
 void net_engine_stop (networking_engine *net_engine);
 void net_engine_run (networking_engine *net_engine);
-void net_engine_wait_for_tx_completion (networking_engine *net_engine);
+void net_engine_wait_for_tx_queue_completion (networking_engine *net_engine);
 
 unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ninst_t **ninst_ptr_list, char* buffer, unsigned int max_ninsts_to_get);
 void push_ninsts_to_net_queue (networking_queue_t *networking_queue, ninst_t *ninst_ptr, unsigned int num_ninsts);

@@ -340,8 +340,10 @@ int main(int argc, char **argv)
             if (!sequential || sock_type == SOCK_TX) dse_group_run (dse_group);
             if (!(!strcmp(schedule_policy, "local") && sock_type == SOCK_RX)) dse_wait_for_nasm_completion (target_nasm);
             get_elapsed_time ("run_aspen");
-            net_engine_stop (net_engine);
             dse_group_stop (dse_group);
+            if (sock_type == SOCK_RX)
+                net_engine_wait_for_tx_queue_completion (net_engine);
+            net_engine_stop (net_engine);
             
             LAYER_PARAMS output_order_cnn[] = {BATCH, OUT_H, OUT_W, OUT_C};  // for CNN
             LAYER_PARAMS output_order_transformer[] = {BATCH, MAT_N, MAT_M};    // for Transformer
