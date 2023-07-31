@@ -1,31 +1,29 @@
 #include "networking.h"
-#include <errno.h>
-
-void* transmission_buffer = NULL;
 
 void *net_tx_thread_runtime (void* thread_info) 
 {
     networking_engine *net_engine = (networking_engine*) thread_info;
-    while (!net_engine->kill)
+    pthread_mutex_lock (&net_engine->tx_thread_mutex);
+    while (!net_engine->tx_kill)
     {
-        if(net_engine->run == 0)
-        {
-            pthread_cond_wait (&net_engine->tx_thread_cond, &net_engine->tx_thread_mutex);
-        } 
         transmission(net_engine);
-        
+        if(!net_engine->tx_run)
+            pthread_cond_wait (&net_engine->tx_thread_cond, &net_engine->tx_thread_mutex);
     }
+    PRT ("Networking: TX thread exiting...\n");
 }
 
 void *net_rx_thread_runtime (void* thread_info) 
 {
     networking_engine *net_engine = (networking_engine*) thread_info;
-    while (!net_engine->kill)
+    pthread_mutex_lock (&net_engine->rx_thread_mutex);
+    while (!net_engine->rx_kill)
     {
-        if(net_engine->run) {
-            receive(net_engine);
-        }
+        receive(net_engine);
+        if(!net_engine->rx_run) 
+            pthread_cond_wait (&net_engine->rx_thread_cond, &net_engine->rx_thread_mutex);
     }
+    PRT ("Networking: RX thread exiting...\n");
 }
 
 void init_networking_queue (networking_queue_t *networking_queue)
@@ -33,26 +31,136 @@ void init_networking_queue (networking_queue_t *networking_queue)
     networking_queue->idx_start = 0;
     networking_queue->idx_end = 0;
     networking_queue->num_stored = 0;
-    networking_queue->max_stored = INIT_QUEUE_SIZE;
+    networking_queue->max_stored = NET_INIT_QUEUE_SIZE;
     
-    networking_queue->ninst_ptr_arr = (ninst_t**) calloc (INIT_QUEUE_SIZE, sizeof(ninst_t*));
-    networking_queue->ninst_buf_arr = (void**) calloc(INIT_QUEUE_SIZE, sizeof(void*));
+    networking_queue->ninst_ptr_arr = (ninst_t**) calloc (NET_INIT_QUEUE_SIZE, sizeof(ninst_t*));
 
     networking_queue->queue_cond = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
     networking_queue->queue_mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
 }
 
-networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock_type, char* ip, int port, int is_UDP, int sequential) 
+void init_server(networking_engine* net_engine, int port,int is_UDP) {
+
+    if (is_UDP != 0) {
+        net_engine->rx_sock = socket (PF_INET, SOCK_DGRAM, 0);
+    }
+    else {
+        net_engine->rx_sock = socket (PF_INET, SOCK_STREAM, 0);
+    }
+    if (net_engine->rx_sock == -1) 
+    {
+        FPRT (stderr, "Error: socket() returned -1\n");
+        assert(0);
+    }
+    int option = 1;
+    setsockopt(net_engine->rx_sock, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
+    net_engine->device_mode = DEV_SERVER;
+    net_engine->tx_sock = 0;
+    net_engine->rx_addr.sin_family = AF_INET;
+    net_engine->rx_addr.sin_addr.s_addr = htonl (INADDR_ANY);
+    net_engine->rx_addr.sin_port = htons (port);
+    net_engine->isUDP = is_UDP;
+
+    if(bind(net_engine->rx_sock,(struct sockaddr*)&net_engine->rx_addr, sizeof(net_engine->rx_addr)) == -1)
+        FPRT (stderr, "ERROR! socket bind error\n");
+
+    init_socket(net_engine);
+}
+
+void init_edge(networking_engine* net_engine, char* ip, int port, int is_UDP) {
+
+    bzero (&net_engine->rx_addr, sizeof(net_engine->rx_addr));
+    bzero (&net_engine->tx_addr, sizeof(net_engine->tx_addr));
+
+    net_engine->device_mode = DEV_EDGE;
+    net_engine->tx_sock = socket (PF_INET, SOCK_STREAM, 0);
+    if (net_engine->tx_sock == -1) 
+    {
+        FPRT (stderr, "Error: socket() returned -1\n");
+        assert(0);
+    }
+    net_engine->rx_addr.sin_family = AF_INET;
+    net_engine->rx_addr.sin_addr.s_addr = inet_addr (ip);
+    net_engine->rx_addr.sin_port = htons (port);
+    net_engine->isUDP = 0;
+
+    init_socket(net_engine);
+}
+
+void init_socket (networking_engine* net_engine)
 {
-    printf("Initializing Networking Engine...\n");
+    int server_ip = net_engine->rx_addr.sin_addr.s_addr;
+    // Set socket to non-blocking
+    int flags = fcntl(net_engine->rx_sock, F_GETFL, 0);
+    if (fcntl(net_engine->rx_sock, F_SETFL, flags | O_NONBLOCK) < 0)
+    {
+        FPRT (stderr, "Error - Socket non-blocking error... SERVER ip: %d.%d.%d.%d, SERVER Port: %d\n", 
+            (server_ip>>0)&0xff, (server_ip>>8)&0xff, (server_ip>>16)&0xff, (server_ip>>24)&0xff, net_engine->rx_addr.sin_port);
+        assert (0);
+    }
+    
+    if (net_engine->device_mode = DEV_EDGE)
+    {
+        size_t num_tries = 0;
+        PRT ("Networking: EDGE connecting to SERVER ip: %d.%d.%d.%d, SERVER Port: %d\n", 
+                (server_ip>>0)&0xff, (server_ip>>8)&0xff, (server_ip>>16)&0xff, (server_ip>>24)&0xff, net_engine->rx_addr.sin_port);
+        while (connect(net_engine->tx_sock,(struct sockaddr*)&net_engine->rx_addr, sizeof(net_engine->rx_addr)) == -1)
+        {
+            if (num_tries > 120000) 
+            {
+                FPRT (stderr, "Error - EDGE Socket connection error... SERVER ip: %d.%d.%d.%d, SERVER Port: %d\n", 
+                    (server_ip>>0)&0xff, (server_ip>>8)&0xff, (server_ip>>16)&0xff, (server_ip>>24)&0xff, net_engine->rx_addr.sin_port);
+                assert (0);
+            }
+            if (num_tries % 100 == 99)
+            {
+                PRT ("\tEDGE retrying connection");
+                if (num_tries % 300 > 200) PRT (".");
+                if (num_tries % 300 > 100) PRT (".");
+                PRT (".\r");
+            }
+            usleep (5000);
+            num_tries++;
+        }
+    }
+    else if (net_engine->device_mode = DEV_SERVER)
+    {
+        PRT ("Networking: SERVER Waiting for connection... SERVER ip: %d.%d.%d.%d, SERVER Port: %d\n", 
+                (server_ip>>0)&0xff, (server_ip>>8)&0xff, (server_ip>>16)&0xff, (server_ip>>24)&0xff, net_engine->rx_addr.sin_port);
+        if(listen(net_engine->rx_sock, 99) == -1)
+        {
+            FPRT (stderr, "Error - Socket listen error... SERVER ip: %d.%d.%d.%d, SERVER Port: %d\n", 
+                (server_ip>>0)&0xff, (server_ip>>8)&0xff, (server_ip>>16)&0xff, (server_ip>>24)&0xff, net_engine->rx_addr.sin_port);
+            assert(0);
+        }
+        socklen_t rx_addr_size = sizeof(net_engine->rx_addr);
+        net_engine->tx_sock = accept(net_engine->rx_sock, (struct sockaddr*)&net_engine->rx_addr, &rx_addr_size);
+        if(net_engine->tx_sock == -1)
+            FPRT (stderr, "Error! - Socket accept error.\n");
+        else
+            PRT("Networking: Connected to IP: %d.%d.%d.%d\n", (server_ip>>0)&0xff, (server_ip>>8)&0xff, (server_ip>>16)&0xff, (server_ip>>24)&0xff);
+    
+    }
+    else
+    {
+        FPRT (stderr, "Error - Unsupported device mode. Mode: %d\n", net_engine->device_mode);
+        assert(0);
+    }
+}
+
+networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE device_mode, char* ip, int port, int is_UDP, int sequential) 
+{
+    PRT("Initializing Networking Engine...\n");
     networking_engine *net_engine = calloc (1, sizeof(networking_engine));
     networking_queue_t *networking_queue = calloc (1, sizeof(networking_queue_t));
     init_networking_queue(networking_queue);
 
     net_engine->tx_queue = networking_queue;
-    atomic_store (&net_engine->run, 0);
-    atomic_store (&net_engine->kill, 0);
-    atomic_store (&net_engine->shutdown, 0);
+    atomic_store (&net_engine->tx_run, 0);
+    atomic_store (&net_engine->rx_run, 0);
+    atomic_store (&net_engine->tx_kill, 0);
+    atomic_store (&net_engine->rx_kill, 0);
+
 
     net_engine->nasm = nasm;
     net_engine->rpool = rpool;
@@ -61,19 +169,22 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock
         net_engine->inference_whitelist[i] = -1;
     }
 
-    switch (sock_type)
+    switch (device_mode)
     {
-    case SOCK_TX:
-        init_tx(net_engine, ip, port, is_UDP);
+    case DEV_EDGE:
+        init_edge(net_engine, ip, port, is_UDP);
         break;
-    case SOCK_RX:
-        init_rx(net_engine, port, is_UDP);
+    case DEV_SERVER:
+        init_server(net_engine, port, is_UDP);
         break;
     default:
-        printf("Error - Unsupported socket type. Type: %d\n", net_engine->sock_type);
+        FPRT (stderr, "Error - Unsupported socket type. Type: %d\n", net_engine->device_mode);
         assert(0);
         break;
     }
+
+    net_engine->tx_buffer = calloc(NETQUEUE_BUFFER_SIZE, sizeof(char));
+    net_engine->rx_buffer = calloc(NETQUEUE_BUFFER_SIZE, sizeof(char));
 
     char info_str[MAX_STRING_LEN*2];
     void *whitelist[NUM_RPOOL_CONDS] = {NULL};
@@ -127,42 +238,202 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock
     return net_engine;
 }
 
+void transmission(networking_engine *net_engine) 
+{
+    ninst_t *target_ninst_list[32];
+    unsigned int num_ninsts = 0;
+    int32_t payload_size = 0;
+    char* buffer_ptr = (char*)net_engine->tx_buffer + sizeof(int32_t);
+
+    pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
+    num_ninsts = pop_ninsts_from_net_queue(net_engine->tx_queue, target_ninst_list, 1);
+    pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
+    if (num_ninsts == 0)
+        return;
+    double time_sent = get_time_secs();
+    for (int i = 0; i < num_ninsts; i++)
+    {
+        ninst_t* target_ninst = target_ninst_list[i];
+        *(unsigned int*)buffer_ptr = target_ninst_list[i]->ninst_idx;
+        buffer_ptr += sizeof(unsigned int);
+        *(int*)buffer_ptr = target_ninst_list[i]->ldata->nasm->inference_id;
+        buffer_ptr += sizeof(int);
+        unsigned int data_size = target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float);
+        *(unsigned int*)buffer_ptr = data_size;
+        buffer_ptr += sizeof(unsigned int);
+        memcpy(buffer_ptr, target_ninst->network_buf, data_size);
+        free (target_ninst->network_buf);
+        target_ninst->network_buf = NULL;
+        target_ninst->sent_time = time_sent;
+        buffer_ptr += data_size;
+    }
+    payload_size = buffer_ptr - (char*)net_engine->tx_buffer - sizeof(int32_t);
+    *(int32_t*)net_engine->tx_buffer = payload_size;
+    payload_size += sizeof(int32_t);
+
+    #ifdef DEBUG
+    PRT("Networking: Sending total %d ninsts, %d bytes - ", num_ninsts, payload_size);
+    for (int i = 0; i < num_ninsts; i++)
+    {
+        ninst_t* target_ninst = target_ninst_list[i];
+        PRT(" (N%d L%d I%d %ldB)", 
+            target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->inference_id, 
+            target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float));
+    }
+    #endif
+    int32_t bytes_sent = 0;
+    while (bytes_sent < payload_size)
+    {
+        int ret = send(net_engine->tx_sock
+            , (char*)net_engine->tx_buffer + bytes_sent, payload_size - bytes_sent, 0);
+        if (ret < 0)
+        {
+            FPRT(stderr, "Error: send() failed. ret: %d\n", ret);
+            assert(0);
+        }
+        bytes_sent += ret;
+    }
+    #ifdef DEBUG
+    PRT(" - Time taken %fs, %d tx queue remains.", (get_time_secs() - time_sent), net_engine->tx_queue->num_stored);
+    #endif
+}
+
+void receive(networking_engine *net_engine) 
+{
+    int status;
+    int32_t payload_size;
+    ioctl(net_engine->rx_sock, FIONREAD, &status);
+    if (status <= 0)
+        return;
+
+    int ret = recv(net_engine->rx_sock, (char*)&payload_size, sizeof(int32_t), 0);
+    if (ret == -1)
+    {
+        return;
+    }
+    else if (ret == RX_STOP_SIGNAL)
+    {
+        PRT("Networking: Network engine rx thread stop signal received\n");
+        atomic_store (&net_engine->rx_run, 0);
+        return;
+    }
+    else if (ret < 0)
+    {
+        FPRT(stderr, "Error: recv() failed. ret: %d\n", ret);
+        assert(0);
+    }
+    else
+    {
+        int32_t bytes_received = 0;
+        while (bytes_received < payload_size)
+        {
+            ret = recv(net_engine->rx_sock
+                , (char*)net_engine->rx_buffer + bytes_received, payload_size - bytes_received, 0);
+            if (ret < 0)
+            {
+                FPRT(stderr, "Error: recv() failed. ret: %d\n", ret);
+                assert(0);
+            }
+            bytes_received += ret;
+        }
+        #ifdef DEBUG
+        PRT("Networking: Received payload of %d bytes\n", bytes_received);
+        #endif
+        char* buffer_ptr = (char*)net_engine->rx_buffer;
+        while (buffer_ptr < (char*)net_engine->rx_buffer + bytes_received)
+        {
+            unsigned int ninst_idx = *(unsigned int*)buffer_ptr;
+            buffer_ptr += sizeof(unsigned int);
+            int inference_id = *(int*)buffer_ptr;
+            buffer_ptr += sizeof(int);
+            unsigned int data_size = *(unsigned int*)buffer_ptr;
+            buffer_ptr += sizeof(unsigned int);
+            #ifdef DEBUG
+            if (net_engine->nasm->inference_id != inference_id)
+            {
+                PRT("Warning: Received inference_id %d is not matched with ninst_idx %d\n", inference_id, ninst_idx);
+                continue;
+            }
+            if (ninst_idx >= net_engine->nasm->num_ninst)
+            {
+                PRT("Warning: Received ninst_idx %d is not found in nasm\n", ninst_idx);
+                continue;
+            }
+            #endif
+            ninst_t* target_ninst = &net_engine->nasm->ninst_arr[ninst_idx];
+            if (atomic_exchange (&target_ninst->state, NINST_COMPLETED) == NINST_COMPLETED || !is_inference_whitelist(net_engine, inference_id)) 
+                return;
+            #ifdef DEBUG
+            if (data_size != target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float))
+            {
+                FPRT(stderr, "Error: Received data size %d is not matched with ninst_idx %d\n", data_size, ninst_idx);
+                assert(0);
+            }
+            #endif
+            copy_buffer_to_ninst_data (target_ninst, buffer_ptr);
+            buffer_ptr += data_size;
+            target_ninst->received_time = get_time_secs();
+            #ifdef DEBUG
+            PRT("Networking:\tReceived N%d L%d I%d %ldB at %f\n", 
+                target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->inference_id, 
+                target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float), target_ninst->received_time);
+            #endif
+            unsigned int num_ninst_completed = atomic_fetch_add (&target_ninst->ldata->num_ninst_completed , 1);
+            int num_ase = net_engine->rpool->ref_ases > 0 ? net_engine->rpool->ref_ases : 1;
+            update_children (net_engine->rpool, target_ninst, ninst_idx/(net_engine->nasm->ldata_arr[0].num_ninst/num_ase));
+            
+            if (num_ninst_completed == target_ninst->ldata->num_ninst - 1)
+            {
+                atomic_fetch_add (&net_engine->nasm->num_ldata_completed, 1);
+                if(net_engine->sequential)
+                {
+                    dse_group_run(net_engine->dse_group);
+                    dse_group_set_enable_device(net_engine->dse_group, net_engine->device_idx, 1);
+                    dse_group_add_prioritize_rpool(net_engine->dse_group, net_engine->device_idx);
+                } 
+                if (net_engine->device_mode == DEV_EDGE)
+                {
+                    if( target_ninst->ldata->layer->layer_idx == net_engine->nasm->num_ldata - 1) {
+                        atomic_store(&net_engine->nasm->num_ldata_completed, net_engine->nasm->num_ldata);
+                        pthread_mutex_lock (&net_engine->nasm->nasm_mutex);
+                        pthread_cond_signal (&net_engine->nasm->nasm_cond);
+                        pthread_mutex_unlock (&net_engine->nasm->nasm_mutex);
+                    }
+                }
+            }
+        }
+            
+    }
+}
+
 void net_queue_reset (networking_queue_t *networking_queue)
 {
+    unsigned int queue_idx = networking_queue->idx_start;
+    while (queue_idx != networking_queue->idx_end)
+    {
+        if (networking_queue->ninst_ptr_arr [queue_idx] != NULL)
+        {
+            ninst_t *target_ninst = networking_queue->ninst_ptr_arr [queue_idx];
+            if (target_ninst->network_buf)
+            {
+                free (target_ninst->network_buf);
+                target_ninst->network_buf = NULL;
+            }
+        }
+        queue_idx++;
+        if (queue_idx >= networking_queue->max_stored)
+            queue_idx = 0;
+    }
     networking_queue->idx_start = 0;
     networking_queue->idx_end = 0;
     networking_queue->num_stored = 0;
-    for (int i = 0; i < INIT_QUEUE_SIZE; i++)
-    {
-        if (networking_queue->ninst_buf_arr[i] != NULL)
-        {
-            free(networking_queue->ninst_buf_arr[i]);
-            networking_queue->ninst_buf_arr[i] = NULL;
-        }
-    }
 }
+
 void net_engine_reset (networking_engine *net_engine)
 {
     net_queue_reset(net_engine->tx_queue);
 }
-void net_engine_stop (networking_engine *net_engine)
-{
-    if (net_engine == NULL)
-    {
-        FPRT (stderr, "ERROR: net_engine_stop: net_engine is NULL\n");
-        return;
-    }
-    unsigned int state = atomic_exchange (&net_engine->run, 0);
-    if (state == 0)
-    {
-        return;
-    }
-    else 
-    {
-        pthread_mutex_lock (&net_engine->rx_thread_mutex);
-        pthread_mutex_lock (&net_engine->tx_thread_mutex);
-    }
-}
+
 void net_engine_run (networking_engine *net_engine)
 {
     if (net_engine == NULL)
@@ -170,19 +441,98 @@ void net_engine_run (networking_engine *net_engine)
         FPRT (stderr, "ERROR: net_engine_run: net_engine is NULL\n");
         return;
     }
-    unsigned int state = atomic_exchange (&net_engine->run, 1);
-    if (state == 1)
-    {
-        return;
-    }
-    else 
+    unsigned int state = atomic_exchange (&net_engine->rx_run, 1);
+    if (state != 1)
     {
         pthread_cond_signal (&net_engine->rx_thread_cond);
-        pthread_cond_signal (&net_engine->tx_thread_cond);
         pthread_mutex_unlock (&net_engine->rx_thread_mutex);
+    }
+    state = atomic_exchange (&net_engine->tx_run, 1);
+    if (state != 1)
+    {
+        pthread_cond_signal (&net_engine->tx_thread_cond);
         pthread_mutex_unlock (&net_engine->tx_thread_mutex);
     }
 }
+
+void net_queue_destroy(networking_queue_t* net_queue)
+{
+    if(net_queue == NULL) return;
+    net_queue_reset (net_queue);
+    if(net_queue->ninst_ptr_arr != NULL) 
+        free(net_queue->ninst_ptr_arr);
+    pthread_mutex_destroy(&net_queue->queue_mutex);
+    pthread_cond_destroy(&net_queue->queue_cond);
+}
+
+void net_engine_stop (networking_engine* net_engine)
+{
+    if (net_engine == NULL)
+    {
+        FPRT (stderr, "ERROR: net_engine_stop: net_engine is NULL\n");
+        return;
+    }
+    #ifdef DEBUG
+    PRT ("Networking: Stopping network engine tx thread...\n");
+    #endif
+    int is_running = atomic_exchange (&net_engine->tx_run, 0);
+    if (is_running == 0)
+        return;
+    pthread_mutex_lock (&net_engine->tx_thread_mutex);
+    #ifdef DEBUG
+    PRT("Networking: Sending network engine rx thread stop signal...\n");
+    #endif
+    int32_t command = RX_STOP_SIGNAL;
+    int ret = send(net_engine->tx_sock, (char*)&command, sizeof(command), 0);
+    if (ret < 0)
+    {
+        FPRT(stderr, "ERROR: net_engine_sto: send() failed.\n");
+        assert(0);
+    }
+    #ifdef DEBUG
+    PRT("Networking: Waiting for network engine rx thread to stop...\n");
+    #endif
+    pthread_mutex_lock (&net_engine->rx_thread_mutex);
+    #ifdef DEBUG
+    PRT("Networking: Network engine stopped.\n");
+    #endif
+}
+
+void net_engine_destroy (networking_engine* net_engine)
+{
+    if(net_engine == NULL) 
+        return;
+    
+    if (atomic_load(&net_engine->tx_run) == 1 && atomic_load(&net_engine->rx_run))
+    {
+        FPRT (stderr, "WARNING: net_engine_destroy: net_engine is still running\n");
+        net_engine_stop(net_engine);
+    }
+    // Thread cleanup
+    atomic_store (&net_engine->tx_kill, 1);
+    atomic_store (&net_engine->rx_kill, 1);
+    atomic_store (&net_engine->tx_run, 1);
+    atomic_store (&net_engine->rx_run, 1);
+    pthread_cond_signal (&net_engine->tx_thread_cond);
+    pthread_cond_signal (&net_engine->rx_thread_cond);
+    pthread_mutex_unlock (&net_engine->tx_thread_mutex);
+    pthread_mutex_unlock (&net_engine->rx_thread_mutex);
+    pthread_join (net_engine->tx_thread, NULL);
+    pthread_join (net_engine->rx_thread, NULL);
+
+    net_queue_destroy(net_engine->tx_queue);
+    free (net_engine->tx_queue);
+    close(net_engine->rx_sock);
+    close(net_engine->tx_sock);
+    pthread_mutex_destroy(&net_engine->rx_thread_mutex);
+    pthread_mutex_destroy(&net_engine->tx_thread_mutex);
+    pthread_cond_destroy(&net_engine->tx_thread_cond);
+    pthread_cond_destroy(&net_engine->rx_thread_cond);
+    free(net_engine);
+}
+
+
+
 
 void net_engine_wait_for_tx_queue_completion (networking_engine *net_engine)
 {
@@ -194,84 +544,7 @@ void net_engine_wait_for_tx_queue_completion (networking_engine *net_engine)
     pthread_mutex_unlock (&net_engine->tx_queue->queue_mutex);
 }
 
-void init_socket (networking_engine* net_engine)
-{
-    switch (net_engine->sock_type)
-    {
-    case SOCK_TX:
-        if(connect(net_engine->tx_sock,(struct sockaddr*)&net_engine->rx_addr, sizeof(net_engine->rx_addr)) == -1)
-        {
-            int rx_ip = net_engine->rx_addr.sin_addr.s_addr;
-            printf("Error - Socket connection error... Rx ip: %d.%d.%d.%d, Rx Port: %d\n", 
-                (rx_ip>>0)&0xff, (rx_ip>>8)&0xff, (rx_ip>>16)&0xff, (rx_ip>>24)&0xff, net_engine->rx_addr.sin_port);
-            assert (0);
-        }
-        break;
-    case SOCK_RX:
-        if(listen(net_engine->rx_sock, 99) == -1)
-        {
-            int rx_ip = net_engine->rx_addr.sin_addr.s_addr;
-            printf("Error - Socket listen error... Rx ip: %d.%d.%d.%d, Rx Port: %d\n", 
-                (rx_ip>>0)&0xff, (rx_ip>>8)&0xff, (rx_ip>>16)&0xff, (rx_ip>>24)&0xff, net_engine->rx_addr.sin_port);
-            assert(0);
-        }
-        socklen_t rx_addr_size = sizeof(net_engine->rx_addr);
-        net_engine->tx_sock = accept(net_engine->rx_sock, (struct sockaddr*)&net_engine->rx_addr, &rx_addr_size);
-        if(net_engine->tx_sock == -1)
-        {
-            printf("Error! - Socket accept error.\n");
-        } else {
-            int rx_ip = net_engine->rx_addr.sin_addr.s_addr;
-            printf("Connect to IP: %d.%d.%d.%d\n", (rx_ip>>0)&0xff, (rx_ip>>8)&0xff, (rx_ip>>16)&0xff, (rx_ip>>24)&0xff);
-        }
-        break;
-    default:
-        printf("Error - Unsupported socket type. Type: %d\n", net_engine->sock_type);
-        assert(0);
-        break;
-    }
-}
-
-void init_rx(networking_engine* net_engine, int port,int is_UDP) {
-
-    if (is_UDP != 0) {
-        net_engine->rx_sock = socket (PF_INET, SOCK_DGRAM, 0);
-    }
-    else {
-        net_engine->rx_sock = socket (PF_INET, SOCK_STREAM, 0);
-    }
-
-    int option = 1;
-    setsockopt(net_engine->rx_sock, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
-    net_engine->sock_type = SOCK_RX;
-    net_engine->tx_sock = 0;
-    net_engine->rx_addr.sin_family = AF_INET;
-    net_engine->rx_addr.sin_addr.s_addr = htonl (INADDR_ANY);
-    net_engine->rx_addr.sin_port = htons (port);
-    net_engine->isUDP = is_UDP;
-
-    if(bind(net_engine->rx_sock,(struct sockaddr*)&net_engine->rx_addr, sizeof(net_engine->rx_addr)) == -1)
-        printf("ERROR! socket bind error\n");
-
-    init_socket(net_engine);
-}
-
-void init_tx(networking_engine* net_engine, char* ip, int port, int is_UDP) {
-
-    bzero (&net_engine->rx_addr, sizeof(net_engine->rx_addr));
-    bzero (&net_engine->tx_addr, sizeof(net_engine->tx_addr));
-
-    net_engine->sock_type = SOCK_TX;
-    net_engine->tx_sock = socket (PF_INET, SOCK_STREAM, 0);
-    net_engine->rx_addr.sin_family = AF_INET;
-    net_engine->rx_addr.sin_addr.s_addr = inet_addr (ip);
-    net_engine->rx_addr.sin_port = htons (port);
-    net_engine->isUDP = 0;
-
-    init_socket(net_engine);
-}
-
-void add_inference_whitelist (networking_engine *net_engine, unsigned int inference_id) {
+void add_inference_whitelist (networking_engine *net_engine, int inference_id) {
     for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
         if (net_engine->inference_whitelist[i] == -1) {
             net_engine->inference_whitelist[i] = inference_id;
@@ -280,7 +553,7 @@ void add_inference_whitelist (networking_engine *net_engine, unsigned int infere
     }
 }
 
-void remove_inference_whitelist (networking_engine *net_engine, unsigned int inference_id) {
+void remove_inference_whitelist (networking_engine *net_engine, int inference_id) {
     for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
         if (net_engine->inference_whitelist[i] == inference_id) {
             net_engine->inference_whitelist[i] = -1;
@@ -289,7 +562,7 @@ void remove_inference_whitelist (networking_engine *net_engine, unsigned int inf
     }
 }
 
-int is_inference_whitelist (networking_engine *net_engine, unsigned int inference_id) {
+int is_inference_whitelist (networking_engine *net_engine, int inference_id) {
     for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
         if (net_engine->inference_whitelist[i] == inference_id) {
             return 1;
@@ -298,6 +571,15 @@ int is_inference_whitelist (networking_engine *net_engine, unsigned int inferenc
     return 0;
 }
 
+void create_network_buffer_for_ninst (ninst_t *target_ninst)
+{
+    const unsigned int W = target_ninst->tile_dims[OUT_W];
+    const unsigned int H = target_ninst->tile_dims[OUT_H];
+    if (target_ninst->network_buf)
+        free (target_ninst->network_buf);
+    target_ninst->network_buf = calloc (W * H, sizeof (float));
+    copy_ninst_data_to_buffer (target_ninst, target_ninst->network_buf);
+}
 
 void check_and_update_net_queue_size (networking_queue_t *networking_queue, unsigned int num_to_add)
 {
@@ -324,6 +606,7 @@ void check_and_update_net_queue_size (networking_queue_t *networking_queue, unsi
         networking_queue->max_stored *= 2;
     }
 }
+
 void update_net_queue_size (networking_queue_t *networking_queue, unsigned int num_to_add)
 {
     ninst_t **new_ninst_ptr_arr = (ninst_t **) calloc 
@@ -347,7 +630,7 @@ void update_net_queue_size (networking_queue_t *networking_queue, unsigned int n
     networking_queue->max_stored *= 2;
 }
 
-unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ninst_t **ninst_ptr_list, char* buffer, unsigned int max_ninsts_to_get)
+unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ninst_t **ninst_ptr_list, unsigned int max_ninsts_to_get)
 {
     #ifdef DEBUG
     if (networking_queue == NULL)
@@ -367,23 +650,17 @@ unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ni
     
     if(networking_queue->num_stored > 0) 
     {
-        const unsigned int W = networking_queue->ninst_ptr_arr[i]->tile_dims[OUT_W];
-        const unsigned int H = networking_queue->ninst_ptr_arr[i]->tile_dims[OUT_H];
-        
         for (; num_ninsts < networking_queue->num_stored; num_ninsts++)
         {
             if (num_ninsts >= max_ninsts_to_get)
                 break;
-            if (buffer_usage + W * H * sizeof(float) > NETQUEUE_BUFFER_SIZE)
-                break;
             ninst_ptr_list[num_ninsts] = networking_queue->ninst_ptr_arr[i];
-            memcpy(buffer, networking_queue->ninst_buf_arr[i], W * H * sizeof(float));
-            free(networking_queue->ninst_buf_arr[i]);
-            networking_queue->ninst_buf_arr[i] = NULL;
+            const unsigned int W = networking_queue->ninst_ptr_arr[i]->tile_dims[OUT_W];
+            const unsigned int H = networking_queue->ninst_ptr_arr[i]->tile_dims[OUT_H];
+            if (buffer_usage + W * H * sizeof(float) + sizeof (unsigned int) * 2 + sizeof (int) > NETQUEUE_BUFFER_SIZE)
+                break;
+            buffer_usage += W * H * sizeof(float) + sizeof (unsigned int) * 2 + sizeof (int);
             i++;
-            buffer += W * H * sizeof(float);
-            buffer_usage += W * H * sizeof(float);
-
             if (i == networking_queue->max_stored)
                 i = 0;
         }
@@ -394,29 +671,32 @@ unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ni
             pthread_cond_signal (&networking_queue->queue_cond);
         }
     }
-    
     return num_ninsts;
 }
 
-void push_ninsts_to_net_queue (networking_queue_t *networking_queue, ninst_t *ninst_ptr, unsigned int num_ninsts)
+void push_ninsts_to_net_queue (networking_queue_t *networking_queue, ninst_t **ninst_ptr_list, unsigned int num_ninsts)
 {
+    #ifdef DEBUG
+    if (networking_queue == NULL)
+    {
+        FPRT (stderr, "ERROR: push_ninsts_to_net_queue_back: networking_queue is NULL.\n");
+        return;
+    }
+    if (ninst_ptr_list == NULL)
+    {
+        FPRT (stderr, "ERROR: push_ninsts_to_net_queue_back: ninst_ptr_list is NULL.\n");
+        return;
+    }
+    #endif
 
     if (networking_queue->num_stored + num_ninsts > networking_queue->max_stored)
         update_net_queue_size (networking_queue, num_ninsts);
-    float* out_mat = (float*)ninst_ptr->out_mat;
-    const unsigned int W = ninst_ptr->tile_dims[OUT_W];
-    const unsigned int H = ninst_ptr->tile_dims[OUT_H];
-    const unsigned int stride = ninst_ptr->ldata->out_mat_stride;
-
     unsigned i = networking_queue->idx_end;
-    
+
     for (int j = 0; j < num_ninsts; j++)
     {
-        networking_queue->ninst_buf_arr[i] = malloc(W * H * sizeof(float));
+        ninst_t *ninst_ptr = ninst_ptr_list[j];
         *(networking_queue->ninst_ptr_arr + i) = ninst_ptr;
-        for(int w = 0; w < W; w++) {
-            memcpy((char*)networking_queue->ninst_buf_arr[i] + w * H * sizeof(float), (char*)out_mat + w * stride * sizeof(float), H * sizeof(float));
-        }
         i++;
         if (i == networking_queue->max_stored)
             i = 0;
@@ -431,12 +711,12 @@ void push_ninsts_to_net_queue_front (networking_queue_t *networking_queue, ninst
     #ifdef DEBUG
     if (networking_queue == NULL)
     {
-        FPRT (stderr, "ERROR: push_ninsts_to_queue_back: networking_queue is NULL.\n");
+        FPRT (stderr, "ERROR: push_ninsts_to_net_queue_back: networking_queue is NULL.\n");
         return;
     }
     if (ninst_ptr_list == NULL)
     {
-        FPRT (stderr, "ERROR: push_ninsts_to_queue_back: ninst_ptr_list is NULL.\n");
+        FPRT (stderr, "ERROR: push_ninsts_to_net_queue_back: ninst_ptr_list is NULL.\n");
         return;
     }
     #endif
@@ -453,131 +733,6 @@ void push_ninsts_to_net_queue_front (networking_queue_t *networking_queue, ninst
     networking_queue->num_stored += num_ninsts;
     // if (networking_queue->queue_group != NULL)
     //     atomic_fetch_add (&networking_queue->queue_group->num_ninsts, num_ninsts);
-}
-
-void transmission(networking_engine *net_engine) 
-{
-    ninst_t *target_ninst_list[4];
-    unsigned int num_ninsts = 0;
-    if (transmission_buffer == NULL)
-        transmission_buffer = malloc(NETQUEUE_BUFFER_SIZE);
-    void* buffer_start_ptr = transmission_buffer;
-
-    pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
-    num_ninsts = pop_ninsts_from_net_queue(net_engine->tx_queue, target_ninst_list, (char*)transmission_buffer, 1);
-    pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
-
-    if(num_ninsts > 0) {
-        for(int i = 0; i < num_ninsts; i++)
-        {
-            ninst_t* target_ninst = target_ninst_list[i];
-            const unsigned int W = target_ninst->tile_dims[OUT_W];
-            const unsigned int H = target_ninst->tile_dims[OUT_H];
-            
-            const unsigned int total_bytes = W * H * sizeof(float);
-            unsigned int sent_bytes = 0;
-
-            double time_sent = get_time_secs();
-            send(net_engine->tx_sock, (char*)&target_ninst->ninst_idx, sizeof(int), 0);
-            send(net_engine->tx_sock, (char*)&target_ninst->ldata->nasm->inference_id, sizeof(int), 0);
-            while(total_bytes - sent_bytes) {
-                sent_bytes += send(net_engine->tx_sock, buffer_start_ptr, total_bytes, 0);
-            }
-            printf("sent ninst %d (L%d Id%d), time taken %f, netqueue remaining %d,\n", 
-                target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx,
-                target_ninst->ldata->nasm->inference_id,
-                get_time_secs() - time_sent,
-                net_engine->tx_queue->num_stored
-                );
-            
-            buffer_start_ptr += W * H * sizeof(float);
-
-            target_ninst->sent_time = get_time_secs();
-        }
-    }
-}
-
-void receive(networking_engine *net_engine) {
-    int recv_ninst_idx;
-    int inference_id;
-    ninst_t* target_ninst;
-
-    if(recv(net_engine->tx_sock, (char*)&recv_ninst_idx, sizeof(int), 0)) {
-        // For shutdown process
-        if(recv_ninst_idx == -1)
-        {
-            int close_idx = -1;
-            if(net_engine->sock_type == SOCK_RX)
-            {
-                printf("close_connection recv shutdown in RX\n");
-                send(net_engine->tx_sock, (char*)&close_idx, sizeof(int), 0);
-                printf("close_connection send shutdown in RX\n");
-                atomic_store (&net_engine->shutdown, 1);
-            }
-            else if(net_engine->sock_type == SOCK_TX)
-            {
-                printf("close_connection recv shutdown in TX\n");
-                atomic_store (&net_engine->shutdown, 1);
-            }
-        }
-        for(int i = 0; i < net_engine->nasm->num_ninst; i++) {
-            if(i == recv_ninst_idx) {
-                // printf("recv ninst %d\n", recv_ninst_idx);
-                target_ninst = &net_engine->nasm->ninst_arr[i];
-                char* out_mat = target_ninst->out_mat;
-                const unsigned int W = target_ninst->tile_dims[OUT_W];
-                const unsigned int H = target_ninst->tile_dims[OUT_H];
-                const unsigned int stride = target_ninst->ldata->out_mat_stride;
-                int total_bytes = W * H * sizeof(float);
-                unsigned int recv_bytes = 0;
-
-                recv(net_engine->tx_sock, (char*)&inference_id, sizeof(int), 0);
-
-                char* buffer = malloc(total_bytes);
-                bzero(buffer, total_bytes);
-
-                while(total_bytes - recv_bytes)
-                {
-                    recv_bytes += recv(net_engine->tx_sock, buffer, total_bytes, MSG_WAITALL);
-                }
-
-                target_ninst->recved_time = get_time_secs();
-                // printf("recv ninst: %d, %f\n", target_ninst->ninst_idx, target_ninst->recved_time * 1000.0);
-
-                if (atomic_exchange (&target_ninst->state, NINST_COMPLETED) == NINST_COMPLETED || !is_inference_whitelist(net_engine, inference_id)) 
-                {
-                    free(buffer);
-                    return;
-                }
-                copy_buffer_to_ninst_data (target_ninst, buffer);
-
-                unsigned int num_ninst_completed = atomic_fetch_add (&target_ninst->ldata->num_ninst_completed , 1);
-                int num_ase = net_engine->rpool->ref_ases > 0 ? net_engine->rpool->ref_ases : 1;
-                update_children (net_engine->rpool, target_ninst, i/(net_engine->nasm->ldata_arr[0].num_ninst/num_ase));
-                
-                if (num_ninst_completed == target_ninst->ldata->num_ninst - 1)
-                {
-                    atomic_fetch_add (&net_engine->nasm->num_ldata_completed, 1);
-                    if(net_engine->sequential)
-                    {
-                        dse_group_run(net_engine->dse_group);
-                        dse_group_set_enable_device(net_engine->dse_group, net_engine->device_idx, 1);
-                        dse_group_add_prioritize_rpool(net_engine->dse_group, net_engine->device_idx);
-                    } 
-                    if (net_engine->sock_type == SOCK_TX)
-                    {
-                        if( target_ninst->ldata->layer->layer_idx == net_engine->nasm->num_ldata - 1) {
-                            atomic_store(&net_engine->nasm->num_ldata_completed, net_engine->nasm->num_ldata);
-                            pthread_mutex_lock (&net_engine->nasm->nasm_mutex);
-                            pthread_cond_signal (&net_engine->nasm->nasm_cond);
-                            pthread_mutex_unlock (&net_engine->nasm->nasm_mutex);
-                        }
-                    }
-                }
-
-            }
-        }
-    }
 }
 
 void add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_filename)
@@ -704,55 +859,3 @@ void add_input_rpool_reverse (networking_engine *net_engine, nasm_t* nasm, char 
     aspen_free (data); 
 }
 
-void net_queue_destroy(networking_queue_t* net_queue)
-{
-    if(net_queue == NULL) return;
-    if(net_queue->ninst_ptr_arr != NULL) 
-        free(net_queue->ninst_ptr_arr);
-    if(net_queue->ninst_buf_arr != NULL)
-    {
-        for (int i = 0; i < INIT_QUEUE_SIZE; i++)
-        {
-            if (net_queue->ninst_buf_arr[i] != NULL)
-            {
-                free(net_queue->ninst_buf_arr[i]);
-                net_queue->ninst_buf_arr[i] = NULL;
-            }
-        }
-        free(net_queue->ninst_buf_arr);
-    }
-    pthread_mutex_destroy(&net_queue->queue_mutex);
-    pthread_cond_destroy(&net_queue->queue_cond);
-}
-
-void close_connection(networking_engine* net_engine)
-{
-    if(net_engine == NULL) return;
-    int close_idx = -1;
-    int shutdown = 0;
-    if(net_engine->sock_type == SOCK_TX)
-    {
-        send(net_engine->tx_sock, (char*)&close_idx, sizeof(int), 0);
-        printf("close_connection send shutdown in TX\n");
-    } 
-
-    while(!shutdown)
-    {
-        shutdown = atomic_load(&net_engine->shutdown);
-    }
-}
-
-void net_engine_destroy(networking_engine* net_engine)
-{
-    if(net_engine == NULL) return;
-    net_engine->kill = 1;
-    net_queue_destroy(net_engine->tx_queue);
-    free (net_engine->tx_queue);
-    close(net_engine->rx_sock);
-    close(net_engine->tx_sock);
-    pthread_mutex_destroy(&net_engine->rx_thread_mutex);
-    pthread_mutex_destroy(&net_engine->tx_thread_mutex);
-    pthread_cond_destroy(&net_engine->tx_thread_cond);
-    pthread_cond_destroy(&net_engine->rx_thread_cond);
-    free(net_engine);
-}

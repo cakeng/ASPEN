@@ -178,7 +178,8 @@ void *dse_thread_runtime (void* thread_info)
                     // printf ("\t\tThread %d completed layer %d of nasm %d\n", 
                     //     dse->thread_id, ninst->ldata->layer->layer_idx, ninst->ldata->nasm->nasm_id);
                     nasm_t *nasm = ninst->ldata->nasm;
-                    unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
+                    // unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
+                    atomic_fetch_add (&nasm->num_ldata_completed, 1);
                     // if (num_ldata_completed == nasm->num_ldata - 1)
 
                     if (ninst->ldata->layer->layer_idx == 0) {
@@ -214,7 +215,7 @@ void *dse_thread_runtime (void* thread_info)
                     update_children_but_prioritize_dse_target (dse->rpool_arr[0], ninst, dse);
                 }
                 else if (!dse->is_multiuser_case && dse->is_dynamic_scheduling && ninst->ldata->layer->layer_idx == 0) {
-                    update_children (dse->rpool, ninst, NULL);
+                    update_children (dse->rpool, ninst, 0);
                 }
                 else {
                     update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
@@ -227,8 +228,9 @@ void *dse_thread_runtime (void* thread_info)
                         if (ninst->desiring_devices[i]) // Should be offload
                         {
                             networking_engine *net_engine = dse->net_engine_arr[i];
+                            create_network_buffer_for_ninst (ninst);   
                             pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
-                            push_ninsts_to_net_queue(net_engine->tx_queue, ninst, 1);
+                            push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
                             pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
                         }
                     }
@@ -239,8 +241,9 @@ void *dse_thread_runtime (void* thread_info)
                         if (i == dse->device_idx) continue;
                         if (ninst->desiring_devices[i]) {
                             networking_engine *net_engine = dse->net_engine;
+                            create_network_buffer_for_ninst (ninst);
                             pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
-                            push_ninsts_to_net_queue(net_engine->tx_queue, ninst, 1);
+                            push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
                             pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
                         }
                     }

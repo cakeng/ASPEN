@@ -74,7 +74,7 @@ int main (int argc, char **argv)
 {
     print_aspen_build_info();
     
-    char dnn[1024] = {0};
+    char dnn[256] = {0};
     int batch_size = 4;
     int number_of_iterations = 1;
     int num_cores = 1;

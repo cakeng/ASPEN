@@ -45,13 +45,13 @@ ninst_profile_t *profile_computation(char *target_dnn_dir, char *target_nasm_dir
     return result;
 }
 
-network_profile_t *profile_network(ninst_profile_t **ninst_profile, int sock_type, int server_sock, int client_sock) {
+network_profile_t *profile_network(ninst_profile_t **ninst_profile, DEVICE_MODE device_mode, int server_sock, int client_sock) {
     network_profile_t *network_profile = malloc(sizeof(network_profile_t));
     
     const int num_repeat = 4;
-    int num_ninst = ninst_profile[sock_type]->total;
+    int num_ninst = ninst_profile[device_mode]->total;
 
-    if (sock_type == SOCK_RX) { // echo
+    if (device_mode == DEV_SERVER) { // echo
         printf("\tprofiling as RX...\n");
 
         // echo shortmessage
@@ -63,9 +63,9 @@ network_profile_t *profile_network(ninst_profile_t **ninst_profile, int sock_typ
         }
 
         // receive & send ninst_profile
-        ninst_profile[!sock_type] = malloc(num_ninst * sizeof(ninst_profile_t));
-        read_n(client_sock, ninst_profile[!sock_type], num_ninst * sizeof(ninst_profile_t));
-        write_n(client_sock, ninst_profile[sock_type], num_ninst * sizeof(ninst_profile_t));
+        ninst_profile[!device_mode] = malloc(num_ninst * sizeof(ninst_profile_t));
+        read_n(client_sock, ninst_profile[!device_mode], num_ninst * sizeof(ninst_profile_t));
+        write_n(client_sock, ninst_profile[device_mode], num_ninst * sizeof(ninst_profile_t));
         
         // receive network_profile
         read_n(client_sock, network_profile, sizeof(network_profile_t));
@@ -100,10 +100,10 @@ network_profile_t *profile_network(ninst_profile_t **ninst_profile, int sock_typ
         float long_recv_timestamp;
         float transmit_rate;
 
-        ninst_profile[!sock_type] = malloc(num_ninst * sizeof(ninst_profile_t));
+        ninst_profile[!device_mode] = malloc(num_ninst * sizeof(ninst_profile_t));
         long_send_timestamp = get_time_secs();
-        write_n(server_sock, ninst_profile[sock_type], num_ninst * sizeof(ninst_profile_t));
-        read_n(server_sock, ninst_profile[!sock_type], num_ninst * sizeof(ninst_profile_t));
+        write_n(server_sock, ninst_profile[device_mode], num_ninst * sizeof(ninst_profile_t));
+        read_n(server_sock, ninst_profile[!device_mode], num_ninst * sizeof(ninst_profile_t));
         long_recv_timestamp = get_time_secs();
 
         transmit_rate = num_ninst * sizeof(ninst_profile_t) / ((long_recv_timestamp - long_send_timestamp) / 2);
@@ -120,11 +120,11 @@ network_profile_t *profile_network(ninst_profile_t **ninst_profile, int sock_typ
     return network_profile;
 }
 
-float profile_network_sync(int sock_type, int server_sock, int client_sock) {
+float profile_network_sync(DEVICE_MODE device_mode, int server_sock, int client_sock) {
     const int num_repeat = 4;
     float sync = 0;
 
-    if (sock_type == SOCK_RX) {
+    if (device_mode == DEV_SERVER) {
         printf("\tprofiling as RX...\n");
 
         // echo shortmessage

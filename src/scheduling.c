@@ -54,7 +54,7 @@ void init_full_local(nasm_t *nasm) {
     for (int i = 0; i < nasm->num_ninst; i++) {
         ninst_t *ninst = nasm->ninst_arr + i;
         clear_device_alloc(ninst);
-        alloc_device_to_ninst(ninst, SOCK_TX);
+        alloc_device_to_ninst(ninst, DEV_EDGE);
     }
     set_desiring_through_alloc(nasm);
 }
@@ -64,10 +64,10 @@ void init_full_offload(nasm_t *nasm) {
         ninst_t *ninst = nasm->ninst_arr + i;
         clear_device_alloc(ninst);
         if (ninst->ldata->layer->layer_idx != nasm->num_ldata - 1) {
-            alloc_device_to_ninst(ninst, SOCK_RX);
+            alloc_device_to_ninst(ninst, DEV_SERVER);
         }
         else {
-            alloc_device_to_ninst(ninst, SOCK_TX);
+            alloc_device_to_ninst(ninst, DEV_EDGE);
         }
     }
     set_desiring_through_alloc(nasm);
@@ -83,31 +83,31 @@ void init_partial_offload(nasm_t *nasm, float compute_ratio) {
         ninst_t *ninst = nasm->ninst_arr + i;
         clear_device_alloc(ninst);
         if (ninst->ldata->layer->layer_idx == 0) {  // for the input data,
-            alloc_device_to_ninst(ninst, SOCK_TX);  // all inputs are generated from TX
+            alloc_device_to_ninst(ninst, DEV_EDGE);  // all inputs are generated from TX
         }
         else if (ninst->ldata->layer->layer_idx == 1) { // for the first computation layer,
             if (ninst->ninst_idx < division_idx) {  // front ninsts are for RX
-                alloc_device_to_ninst(ninst, SOCK_RX);
+                alloc_device_to_ninst(ninst, DEV_SERVER);
             }
             else if (ninst->ninst_idx > division_idx) { // behind ninsts are for TX
-                alloc_device_to_ninst(ninst, SOCK_TX);
+                alloc_device_to_ninst(ninst, DEV_EDGE);
             }
             else {  // division ninst is for the both
-                alloc_device_to_ninst(ninst, SOCK_RX);
-                alloc_device_to_ninst(ninst, SOCK_TX);
+                alloc_device_to_ninst(ninst, DEV_SERVER);
+                alloc_device_to_ninst(ninst, DEV_EDGE);
             }
         }
         else if (ninst->ldata->layer->layer_idx != nasm->num_ldata - 1) {   // intermediate layers are for RX
-            alloc_device_to_ninst(ninst, SOCK_RX);
+            alloc_device_to_ninst(ninst, DEV_SERVER);
         }
         else {  // final layer is for TX -> main.c has its own logic handling final layer
-            // ninst->alloc_devices[0] = SOCK_TX;
-            // alloc_device_to_ninst(ninst, SOCK_TX);
-            alloc_device_to_ninst(ninst, SOCK_RX);
+            // ninst->alloc_devices[0] = DEV_EDGE;
+            // alloc_device_to_ninst(ninst, DEV_EDGE);
+            alloc_device_to_ninst(ninst, DEV_SERVER);
         }
     }
     set_desiring_through_alloc(nasm);
-    set_last_layer_desiring(nasm, SOCK_TX);
+    set_last_layer_desiring(nasm, DEV_EDGE);
 }
 
 void init_sequential_offload(nasm_t *nasm, int split_layer, int from_dev, int to_dev) {
@@ -136,20 +136,20 @@ void init_dynamic_offload(nasm_t *nasm) {
         if (i == 1 || i == nasm->num_ldata - 1) {
             for (int j=0; j<nasm->ldata_arr[i].num_ninst; j++) {
                 clear_device_alloc(&(nasm->ldata_arr[i].ninst_arr_start[j]));
-                alloc_device_to_ninst(&(nasm->ldata_arr[i].ninst_arr_start[j]), SOCK_RX);
+                alloc_device_to_ninst(&(nasm->ldata_arr[i].ninst_arr_start[j]), DEV_SERVER);
             }
         }
         else {
             for (int j=0; j<nasm->ldata_arr[i].num_ninst; j++) {
                 clear_device_alloc(&(nasm->ldata_arr[i].ninst_arr_start[j]));
-                alloc_device_to_ninst(&(nasm->ldata_arr[i].ninst_arr_start[j]), SOCK_RX);
-                alloc_device_to_ninst(&(nasm->ldata_arr[i].ninst_arr_start[j]), SOCK_TX);
+                alloc_device_to_ninst(&(nasm->ldata_arr[i].ninst_arr_start[j]), DEV_SERVER);
+                alloc_device_to_ninst(&(nasm->ldata_arr[i].ninst_arr_start[j]), DEV_EDGE);
             }
         }
     }
     
-    set_desiring_full_device(nasm, SOCK_RX);
-    set_last_layer_desiring(nasm, SOCK_TX);
+    set_desiring_full_device(nasm, DEV_SERVER);
+    set_last_layer_desiring(nasm, DEV_EDGE);
 }
 
 sched_processor_t *init_heft(char *target_dnn_dir, char *target_nasm_dir, ninst_profile_t **ninst_profile, network_profile_t *network_profile, int num_device) {
@@ -214,12 +214,12 @@ sched_processor_t *init_heft(char *target_dnn_dir, char *target_nasm_dir, ninst_
             const unsigned int total_bytes = target_ninst->tile_dims[OUT_W] * target_ninst->tile_dims[OUT_H] * sizeof(float);
 
 
-            EST[SOCK_TX] = heft_earliest_idle(&(sched_processor_arr[SOCK_TX]), 0, W[i][SOCK_TX]);
-            EFT[SOCK_TX] = EST[SOCK_TX] + W[i][SOCK_TX];
+            EST[DEV_EDGE] = heft_earliest_idle(&(sched_processor_arr[DEV_EDGE]), 0, W[i][DEV_EDGE]);
+            EFT[DEV_EDGE] = EST[DEV_EDGE] + W[i][DEV_EDGE];
             
-            float avail_RX = heft_earliest_idle(&(sched_processor_arr[SOCK_RX]), 0, W[i][SOCK_RX]);
-            EST[SOCK_RX] = total_bytes / network_profile->transmit_rate > avail_RX ? total_bytes / network_profile->transmit_rate : avail_RX;
-            EFT[SOCK_RX] = EST[SOCK_RX] + W[i][SOCK_RX];
+            float avail_RX = heft_earliest_idle(&(sched_processor_arr[DEV_SERVER]), 0, W[i][DEV_SERVER]);
+            EST[DEV_SERVER] = total_bytes / network_profile->transmit_rate > avail_RX ? total_bytes / network_profile->transmit_rate : avail_RX;
+            EFT[DEV_SERVER] = EST[DEV_SERVER] + W[i][DEV_SERVER];
 
             // find best processor
             float min_EFT = FLT_MAX;
@@ -537,9 +537,9 @@ sched_processor_t *load_schedule(char *file_path) {
 
 }
 
-void share_schedule(sched_processor_t **sched_processor_arr, int num_device, int sock_type, int server_sock, int client_sock) {
+void share_schedule(sched_processor_t **sched_processor_arr, int num_device, DEVICE_MODE device_mode, int server_sock, int client_sock) {
     
-    if (sock_type == SOCK_RX) {
+    if (device_mode == DEV_SERVER) {
 
         for (int i=0; i<num_device; i++) {
             printf("send %dth device schedule\n", i);
@@ -554,7 +554,7 @@ void share_schedule(sched_processor_t **sched_processor_arr, int num_device, int
             }
         }
     }
-    else if (sock_type == SOCK_TX) {
+    else if (device_mode == DEV_EDGE) {
         *sched_processor_arr = heft_init_processor(num_device);
 
         for (int i=0; i<num_device; i++) {
@@ -581,7 +581,7 @@ void share_schedule(sched_processor_t **sched_processor_arr, int num_device, int
     }
 }
 
-void apply_schedule_to_nasm(nasm_t *nasm, sched_processor_t *sched_processor, int num_device, int sock_type) {
+void apply_schedule_to_nasm(nasm_t *nasm, sched_processor_t *sched_processor, int num_device, DEVICE_MODE device_mode) {
     ninst_t *ninst_arr = nasm->ninst_arr;
     int num_ninst = nasm->num_ninst;
 
@@ -596,7 +596,7 @@ void apply_schedule_to_nasm(nasm_t *nasm, sched_processor_t *sched_processor, in
     // last array is always for RX
     nasm_ldata_t *last_layer = &(nasm->ldata_arr[nasm->num_ldata-1]);
     for (int i=0; i<last_layer->num_ninst; i++) {
-        last_layer->ninst_arr_start[i].alloc_devices[SOCK_RX] = 1;
+        last_layer->ninst_arr_start[i].alloc_devices[DEV_SERVER] = 1;
     }
 
     set_desiring_through_alloc(nasm);

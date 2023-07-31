@@ -8,10 +8,13 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
 
-
-#define INIT_QUEUE_SIZE 1024 * 128 * 4
-#define NETQUEUE_BUFFER_SIZE 1024 * 1024 * 32
+#define RX_STOP_SIGNAL (-19960930)
+#define NET_INIT_QUEUE_SIZE (1024 * 32)
+#define NETQUEUE_BUFFER_SIZE (1024 * 1024 * 32) // 32MiB
 
 struct networking_queue_t
 {
@@ -21,7 +24,6 @@ struct networking_queue_t
     unsigned int max_stored;
 
     ninst_t **ninst_ptr_arr;
-    void **ninst_buf_arr;
 
     pthread_mutex_t queue_mutex;
     pthread_cond_t queue_cond;
@@ -35,11 +37,12 @@ struct networking_engine
     int rx_sock, tx_sock;
     int isUDP;
     int sequential;
-    SOCK_TYPE sock_type;
+    DEVICE_MODE device_mode;
 
-    _Atomic int run;
-    _Atomic int kill;
-    _Atomic int shutdown;
+    _Atomic int tx_run;
+    _Atomic int rx_run;
+    _Atomic int tx_kill;
+    _Atomic int rx_kill;
 
     pthread_t rx_thread;
     pthread_t tx_thread;
@@ -54,6 +57,9 @@ struct networking_engine
     networking_queue_t *tx_queue;
     dse_group_t *dse_group;
 
+    void* rx_buffer;
+    void* tx_buffer;
+
     // for multiuser case
     int device_idx;
     unsigned int inference_whitelist[SCHEDULE_MAX_DEVICES];
@@ -61,13 +67,13 @@ struct networking_engine
 
 
 
-networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, SOCK_TYPE sock_type, char* ip, int port, int is_UDP, int sequential);
+networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE device_mode, char* ip, int port, int is_UDP, int sequential);
 void init_networking_queue (networking_queue_t *networking_queue);
-void init_rx(networking_engine* net_engine, int port,int is_UDP);
-void init_tx(networking_engine* net_engine, char* ip, int port, int is_UDP);
-void add_inference_whitelist (networking_engine *net_engine, unsigned int inference_id);
-void remove_inference_whitelist (networking_engine *net_engine, unsigned int inference_id);
-int is_inference_whitelist (networking_engine *net_engine, unsigned int inference_id);
+void init_server(networking_engine* net_engine, int port,int is_UDP);
+void init_edge(networking_engine* net_engine, char* ip, int port, int is_UDP);
+void add_inference_whitelist (networking_engine *net_engine, int inference_id);
+void remove_inference_whitelist (networking_engine *net_engine, int inference_id);
+int is_inference_whitelist (networking_engine *net_engine, int inference_id);
 void net_engine_wait(networking_engine* net_engine);
 void transmission(networking_engine *net_engine);
 void receive(networking_engine *net_engine);
@@ -78,11 +84,11 @@ void net_engine_stop (networking_engine *net_engine);
 void net_engine_run (networking_engine *net_engine);
 void net_engine_wait_for_tx_queue_completion (networking_engine *net_engine);
 
-unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ninst_t **ninst_ptr_list, char* buffer, unsigned int max_ninsts_to_get);
-void push_ninsts_to_net_queue (networking_queue_t *networking_queue, ninst_t *ninst_ptr, unsigned int num_ninsts);
+void create_network_buffer_for_ninst (ninst_t *target_ninst);
+unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ninst_t **ninst_ptr_list, unsigned int max_ninsts_to_get);
+void push_ninsts_to_net_queue (networking_queue_t *networking_queue, ninst_t **ninst_ptr_list, unsigned int num_ninsts);
 void add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_filename);
 void add_input_rpool_reverse (networking_engine *net_engine, nasm_t* nasm, char *input_filename);
 void net_engine_destroy(networking_engine* net_engine);
-void close_connection(networking_engine* net_engine);
 
 #endif /* _NETWORKING_ */

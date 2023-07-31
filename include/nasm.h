@@ -80,11 +80,12 @@ struct ninst_t
     void **input_pos_ptr_arr_gpu;
     unsigned int num_input_pos;
     void *out_mat;
+    void *network_buf;
     rpool_t *affinity_pool;
 
     //For logging
     float computed_time;
-    float recved_time;
+    float received_time;
     float sent_time;
 
     // For Scheduling

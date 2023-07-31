@@ -63,11 +63,11 @@ int main(int argc, char **argv)
     networking_engine* net_engine = NULL;
     networking_engine *net_engine_arr[SCHEDULE_MAX_DEVICES];
 
-    char* rx_ip = "192.168.1.176";
-    int rx_port_start = 3786;
-    int rx_ports[SCHEDULE_MAX_DEVICES];
+    char* server_ip = "192.168.1.176";
+    int server_port_start = 3786;
+    int server_ports[SCHEDULE_MAX_DEVICES];
     for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
-        rx_ports[i] = rx_port_start + i;
+        server_ports[i] = server_port_start + i;
     }
 
     if (device_idx == 0) {
@@ -81,7 +81,7 @@ int main(int argc, char **argv)
                 }
             }
 
-            net_engine_arr[i] = init_networking(target_nasm[i], rpool_arr[i], SOCK_RX, rx_ip, rx_ports[i], 0, sequential);
+            net_engine_arr[i] = init_networking(target_nasm[i], rpool_arr[i], DEV_SERVER, server_ip, server_ports[i], 0, sequential);
             dse_group_add_netengine_arr(dse_group, net_engine_arr[i], i);
             dse_group_set_device(dse_group, device_idx);
             net_engine_arr[i]->dse_group = dse_group;
@@ -91,7 +91,7 @@ int main(int argc, char **argv)
         }
     }
     else {
-        net_engine = init_networking(target_nasm[device_idx], rpool, SOCK_TX, rx_ip, rx_ports[device_idx], 0, sequential);
+        net_engine = init_networking(target_nasm[device_idx], rpool, DEV_EDGE, server_ip, server_ports[device_idx], 0, sequential);
         dse_group_add_netengine_arr(dse_group, net_engine, 0);
         dse_group_set_device(dse_group, device_idx);
         net_engine->dse_group = dse_group;
@@ -107,7 +107,7 @@ int main(int argc, char **argv)
     int client_sock_arr[SCHEDULE_MAX_DEVICES];
 
     if (device_idx == 0) {
-        control_server_sock = create_server_sock(rx_ip, rx_port_start);
+        control_server_sock = create_server_sock(server_ip, server_port_start);
         for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
             client_sock_arr[i] = accept_client_sock(control_server_sock);
         }
@@ -130,7 +130,7 @@ int main(int argc, char **argv)
     }
     else {
         sleep(5 + device_idx);
-        control_server_sock = connect_server_sock(rx_ip, rx_port_start);
+        control_server_sock = connect_server_sock(server_ip, server_port_start);
         read_n(control_server_sock, &sync_key, sizeof(float));
         sync_key = get_time_secs();
         write_n(control_server_sock, &sync_key, sizeof(float));
@@ -139,8 +139,8 @@ int main(int argc, char **argv)
     }
     
     get_elapsed_time ("init");
-    if (!sequential || device_idx != SOCK_RX) dse_group_run (dse_group);
-    if (device_idx == SOCK_RX) {
+    if (!sequential || device_idx != DEV_SERVER) dse_group_run (dse_group);
+    if (device_idx == DEV_SERVER) {
         for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
             dse_wait_for_nasm_completion (target_nasm[i]);
         }
@@ -176,7 +176,6 @@ int main(int argc, char **argv)
             sprintf(file_name, "./logs/multiuser/%s_dev%d_RX.txt", (sequential ? "seq" : "pip"), i);
             log_fp = fopen(file_name, "w");
 
-            close_connection(net_engine_arr[i]);
             save_ninst_log(log_fp, target_nasm[i]);
             net_engine_destroy (net_engine_arr[i]);
             apu_destroy_nasm (target_nasm[i]);
@@ -187,7 +186,6 @@ int main(int argc, char **argv)
         sprintf(file_name, "./logs/multiuser/%s_dev%d_TX.txt", (sequential ? "seq" : "pip"), device_idx);
         FILE *log_fp = fopen(file_name, "w");
 
-        close_connection (net_engine);
         save_ninst_log(log_fp, target_nasm[device_idx]);
         net_engine_destroy (net_engine);
         apu_destroy_nasm (target_nasm[device_idx]);

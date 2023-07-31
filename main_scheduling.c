@@ -24,18 +24,17 @@ double get_sec()
 }
 
 // OPTIONS
-// option "sock_type" - "" int required
+// option "device_mode" - "" int required
 // option "sequential" - "" int required
 // option "dirname" - "" string required
 // option "prefix" - "" string optional
-// option "postfix" - "" string optional
 // option "log_idx_start" - "" int optional
 // option "inference_repeat_num" - "" int optional
 // option "target_dnn_dir" - "" string required
 // option "target_nasm_dir" - "" string required
-// option "target_input" - "" string optional
-// option "rx_ip" - "" string required
-// option "rx_port" - "" int required
+// option "target_input" - "" string required
+// option "server_ip" - "" string required
+// option "server_port" - "" int required
 // option "schedule_policy" - "" string required values="partial","sequential"
 // option "sched_partial_ratio" - "" float optional
 // option "sched_sequential_idx" - "" int optional
@@ -50,25 +49,38 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    int sock_type = ai.sock_type_arg;
+    DEVICE_MODE device_mode = ai.device_mode_arg; // 0: SERVER, 1: EDGE
     int sequential = !ai.pipelined_arg;
     char *dirname = ai.dirname_arg;
     char *prefix = ai.prefix_arg ? ai.prefix_arg : "temp";
-    char *postfix = ai.postfix_arg ? ai.postfix_arg : "0";
     int log_idx_start = ai.log_idx_start_arg;
     int inference_repeat_num = ai.inference_repeat_num_arg;
     char *target_dnn_dir = ai.target_dnn_dir_arg;
     char *target_nasm_dir = ai.target_nasm_dir_arg;
     char *target_input = ai.target_input_arg;
-    char *rx_ip = ai.rx_ip_arg;
-    int rx_port = ai.rx_port_arg;
+    char *server_ip = ai.server_ip_arg;
+    int server_port = ai.server_port_arg;
     char *schedule_policy = ai.schedule_policy_arg;
     float sched_partial_ratio = ai.sched_partial_ratio_arg;
     int sched_sequential_idx = ai.sched_sequential_idx_arg;
     int dse_num = ai.dse_num_arg;
     char *output_order = ai.output_order_arg;
-
-    int dnn_dir_exist = !target_dnn_dir && strlen(target_dnn_dir) > 0;
+    char nasm_name[256] = {0};
+    // Get only the name of the target nasm file without the path and extension
+    if (target_nasm_dir && strlen(target_nasm_dir) > 0) 
+    {
+        char *nasm_name_with_ext = strrchr(target_nasm_dir, '/');
+        if (nasm_name_with_ext) 
+            nasm_name_with_ext++;
+        else 
+            nasm_name_with_ext = nasm_name;
+        char *nasm_name_ext_end = strrchr(nasm_name_with_ext, '.');
+        if (nasm_name_ext_end) 
+            strncpy(nasm_name, nasm_name_with_ext, nasm_name_ext_end - nasm_name_with_ext);
+        else 
+            strcpy(nasm_name, nasm_name_with_ext);
+        printf ("nasm_name: %s\n", nasm_name);
+    }
 
     // char *target_config = "data/cfg/resnet50_aspen.cfg";
     // char *target_bin = "data/resnet50/resnet50_data.bin";
@@ -96,16 +108,12 @@ int main(int argc, char **argv)
     int server_sock;
     int client_sock;
 
-    if (!strcmp(schedule_policy, "local"))
-    {
-        sock_type = SOCK_LOCAL;
-    }
-    if (sock_type == SOCK_RX) {
-        server_sock = create_server_sock(rx_ip, rx_port+1);
+   if (device_mode == DEV_SERVER) {
+        server_sock = create_server_sock(server_ip, server_port+1);
         client_sock = accept_client_sock(server_sock);
     }
-    else if (sock_type == SOCK_TX) {
-        server_sock = connect_server_sock(rx_ip, rx_port+1);
+    else if (device_mode == DEV_EDGE) {
+        server_sock = connect_server_sock(server_ip, server_port+1);
     }
     else
     {
@@ -130,24 +138,24 @@ int main(int argc, char **argv)
         /** STAGE: PROFILING COMPUTATION **/
 
         printf("STAGE: PROFILING COMPUTATION\n");
-        ninst_profile[sock_type] = profile_computation(target_dnn_dir, target_nasm_dir, target_input, gpu, 1);
-        ninst_profile[sock_type] = load_computation_profile("./data/vgg16_B1_comp_profile.bin");
-        save_computation_profile(ninst_profile[sock_type], "data/bert_base_comp_profile.bin");
+        ninst_profile[device_mode] = profile_computation(target_dnn_dir, target_nasm_dir, target_input, gpu, 1);
+        ninst_profile[device_mode] = load_computation_profile("./data/vgg16_B1_comp_profile.bin");
+        save_computation_profile(ninst_profile[device_mode], "data/bert_base_comp_profile.bin");
 
         
         /** STAGE: PROFILING NETWORK **/
 
         printf("STAGE: PROFILING NETWORK\n");
 
-        network_profile = profile_network(ninst_profile, sock_type, server_sock, client_sock);
+        network_profile = profile_network(ninst_profile, device_mode, server_sock, client_sock);
 
         int connection_key;
-        if (sock_type == SOCK_RX) {
+        if (device_mode == DEV_SERVER) {
             connection_key = 12534;
             write_n(client_sock, &connection_key, sizeof(int));
             printf("connection key: %d\n", connection_key);
         }
-        else if (sock_type == SOCK_TX) {
+        else if (device_mode == DEV_EDGE) {
             connection_key = -1;
             read_n(server_sock, &connection_key, sizeof(int));
             printf("connection key: %d\n", connection_key);
@@ -159,32 +167,32 @@ int main(int argc, char **argv)
         /** STAGE: SCHEDULING - HEFT **/
         printf("STAGE: SCHEUDLING - HEFT\n");
 
-        if (sock_type == SOCK_RX) {
+        if (device_mode == DEV_SERVER) {
             schedule = init_heft(target_dnn_dir, target_nasm_dir, ninst_profile, network_profile, 2);
             save_schedule(schedule, 2, "./temp_sched.txt");
         }
         
-        share_schedule(&schedule, 2, sock_type, server_sock, client_sock);
+        share_schedule(&schedule, 2, device_mode, server_sock, client_sock);
 
         target_dnn = apu_load_dnn_from_file(target_dnn_dir);
         target_nasm = apu_load_nasm_from_file (target_nasm_dir, target_dnn);
 
-        apply_schedule_to_nasm(target_nasm, schedule, 2, sock_type);
+        apply_schedule_to_nasm(target_nasm, schedule, 2, device_mode);
     }
     else if (!strcmp(schedule_policy, "partial")) {
         /** STAGE: PROFILING NETWORK **/
 
         printf("STAGE: PROFILING NETWORK\n");
 
-        float sync = profile_network_sync(sock_type, server_sock, client_sock);
+        float sync = profile_network_sync(device_mode, server_sock, client_sock);
 
         int connection_key;
-        if (sock_type == SOCK_RX) {
+        if (device_mode == DEV_SERVER) {
             connection_key = 12534;
             write_n(client_sock, &connection_key, sizeof(int));
             printf("connection key: %d\n", connection_key);
         }
-        else if (sock_type == SOCK_TX) {
+        else if (device_mode == DEV_EDGE) {
             connection_key = -1;
             read_n(server_sock, &connection_key, sizeof(int));
             printf("connection key: %d\n", connection_key);
@@ -205,15 +213,15 @@ int main(int argc, char **argv)
 
         printf("STAGE: PROFILING NETWORK\n");
 
-        float sync = profile_network_sync(sock_type, server_sock, client_sock);
+        float sync = profile_network_sync(device_mode, server_sock, client_sock);
 
         int connection_key;
-        if (sock_type == SOCK_RX) {
+        if (device_mode == DEV_SERVER) {
             connection_key = 12534;
             write_n(client_sock, &connection_key, sizeof(int));
             printf("connection key: %d\n", connection_key);
         }
-        else if (sock_type == SOCK_TX) {
+        else if (device_mode == DEV_EDGE) {
             connection_key = -1;
             read_n(server_sock, &connection_key, sizeof(int));
             printf("connection key: %d\n", connection_key);
@@ -225,22 +233,22 @@ int main(int argc, char **argv)
         target_dnn = apu_load_dnn_from_file(target_dnn_dir);
         target_nasm = apu_load_nasm_from_file(target_nasm_dir, target_dnn);
 
-        init_sequential_offload(target_nasm, sched_sequential_idx, SOCK_TX, SOCK_RX);
+        init_sequential_offload(target_nasm, sched_sequential_idx, DEV_EDGE, DEV_SERVER);
     }
     else if (!strcmp(schedule_policy, "dynamic")) {
         /** STAGE: PROFILING NETWORK **/
 
         printf("STAGE: PROFILING NETWORK\n");
 
-        float sync = profile_network_sync(sock_type, server_sock, client_sock);
+        float sync = profile_network_sync(device_mode, server_sock, client_sock);
 
         int connection_key;
-        if (sock_type == SOCK_RX) {
+        if (device_mode == DEV_SERVER) {
             connection_key = 12534;
             write_n(client_sock, &connection_key, sizeof(int));
             printf("connection key: %d\n", connection_key);
         }
-        else if (sock_type == SOCK_TX) {
+        else if (device_mode == DEV_EDGE) {
             connection_key = -1;
             read_n(server_sock, &connection_key, sizeof(int));
             printf("connection key: %d\n", connection_key);
@@ -288,9 +296,9 @@ int main(int argc, char **argv)
     else
     {
         
-        net_engine = init_networking(target_nasm, rpool, sock_type, rx_ip, rx_port, 0, sequential);
+        net_engine = init_networking(target_nasm, rpool, device_mode, server_ip, server_port, 0, sequential);
         dse_group_set_net_engine(dse_group, net_engine);
-        dse_group_set_device(dse_group, sock_type);
+        dse_group_set_device(dse_group, device_mode);
         net_engine->dse_group = dse_group;
 
         for (int i=0; i<inference_repeat_num; i++) 
@@ -299,15 +307,15 @@ int main(int argc, char **argv)
             remove_inference_whitelist(net_engine, target_nasm->inference_id);
             printf("Sync between inference...\n");
 
-            float sync = profile_network_sync(sock_type, server_sock, client_sock);
+            float sync = profile_network_sync(device_mode, server_sock, client_sock);
 
             int connection_key;
-            if (sock_type == SOCK_RX) {
+            if (device_mode == DEV_SERVER) {
                 connection_key = 12534+i;
                 write_n(client_sock, &connection_key, sizeof(int));
                 printf("connection key: %d\n", connection_key);
             }
-            else if (sock_type == SOCK_TX) {
+            else if (device_mode == DEV_EDGE) {
                 connection_key = -1;
                 read_n(server_sock, &connection_key, sizeof(int));
                 printf("connection key: %d\n", connection_key);
@@ -330,18 +338,18 @@ int main(int argc, char **argv)
 
             target_nasm->nasm_cond = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
 
-            if(sock_type == SOCK_TX) 
+            if(device_mode == DEV_EDGE) 
             {
                 add_input_rpool (net_engine, target_nasm, target_input);
             }
 
             get_elapsed_time ("init");
             net_engine_run (net_engine);
-            if (!sequential || sock_type == SOCK_TX) dse_group_run (dse_group);
-            if (!(!strcmp(schedule_policy, "local") && sock_type == SOCK_RX)) dse_wait_for_nasm_completion (target_nasm);
+            if (!sequential || device_mode == DEV_EDGE) dse_group_run (dse_group);
+            if (!(!strcmp(schedule_policy, "local") && device_mode == DEV_SERVER)) dse_wait_for_nasm_completion (target_nasm);
             get_elapsed_time ("run_aspen");
             dse_group_stop (dse_group);
-            if (sock_type == SOCK_RX)
+            if (device_mode == DEV_SERVER)
                 net_engine_wait_for_tx_queue_completion (net_engine);
             net_engine_stop (net_engine);
             
@@ -359,8 +367,8 @@ int main(int argc, char **argv)
             free (softmax_output);
             
             // For logging
-            char file_name[256];
-            char dir_path[256];
+            char file_name[1024];
+            char dir_path[1024];
             sprintf(dir_path, "./logs/%s", dirname);
 
             struct stat st = {0};
@@ -373,7 +381,9 @@ int main(int argc, char **argv)
                 mkdir(dir_path, 0700);
             }
 
-            sprintf(file_name, "./logs/%s/%s_%s_%s_%s_%s_%d.csv", dirname, prefix, sequential ? "seq" : "pip", schedule_policy, sock_type == SOCK_RX ? "RX" : "TX", postfix, log_idx_start+i);
+            sprintf(file_name, "./logs/%s/%s_%s_%s_%s_%s_Iter%d.csv", dirname, prefix, 
+                sequential ? "seq" : "pipe", schedule_policy, device_mode == DEV_SERVER ? "SERVER" : "EDGE", 
+                nasm_name, log_idx_start+i);
             
             FILE *log_fp = fopen(file_name, "w");
             save_ninst_log(log_fp, target_nasm);
@@ -397,18 +407,17 @@ int main(int argc, char **argv)
     free (layer_output);
 
     // Wrap up
-    close_connection (net_engine);
     net_engine_destroy (net_engine);
     dse_group_destroy (dse_group);
     rpool_destroy (rpool);
     apu_destroy_nasm (target_nasm);
     apu_destroy_dnn (target_dnn);
 
-    if (sock_type == SOCK_RX) {
+    if (device_mode == DEV_SERVER) {
         close(client_sock);
         close(server_sock);
     }
-    else if (sock_type == SOCK_TX) {
+    else if (device_mode == DEV_EDGE) {
         close(server_sock);
     }
 

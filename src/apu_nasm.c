@@ -551,6 +551,8 @@ void destroy_ninst (ninst_t *ninst)
         free (ninst->input_pos_idx_arr);
     if (ninst->input_pos_ptr_arr_gpu != NULL && ninst->ldata->nasm->gpu_idx >= 0)
         aspen_gpu_free (ninst->input_pos_ptr_arr_gpu, ninst->ldata->nasm->gpu_idx);
+    if (ninst->network_buf)
+        free (ninst->network_buf);
 }
 
 nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size,  unsigned int min_ninst_per_ldata, unsigned int transformer_seq_len)
@@ -843,10 +845,15 @@ void apu_reset_nasm (nasm_t *nasm)
             ninst->compute_end = 0;
             ninst->compute_start = 0;
             ninst->computed_time = 0;
-            ninst->recved_time = 0;
+            ninst->received_time = 0;
             ninst->sent_time = 0;
             atomic_store (&ninst->state, NINST_NOT_READY);
             atomic_store (&ninst->num_parent_ninsts_completed, 0);
+            if (ninst->network_buf)
+            {
+                free (ninst->network_buf);
+                ninst->network_buf = NULL;
+            }
         }
     }
 }

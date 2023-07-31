@@ -732,7 +732,7 @@ void save_ninst_log(FILE* log_fp, nasm_t* nasm)
     for(int i = 0; i < nasm->num_ninst; i++)
     {
         ninst_t* ninst = &nasm->ninst_arr[i];
-        fprintf(log_fp, "%d,%f,%f,%f\n",ninst->ninst_idx, ninst->computed_time*1000.0, ninst->recved_time*1000.0, ninst->sent_time*1000.0);
+        fprintf(log_fp, "%d,%f,%f,%f\n",ninst->ninst_idx, ninst->computed_time*1000.0, ninst->received_time*1000.0, ninst->sent_time*1000.0);
     }
     fflush(log_fp);
 }
@@ -755,12 +755,14 @@ ssize_t write_n(int fd, const void *buf, size_t n) {
     return n;
 }
 
-int create_server_sock(char *rx_ip, int rx_port) {
+int create_server_sock(char *server_ip, int server_port) {
     int server_sock;
     struct sockaddr_in server_addr;
 
     // open server
     server_sock = socket(PF_INET, SOCK_STREAM, 0);
+    int option = 1;
+    setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
     if (server_sock == -1) {
         printf("Error: socket() returned -1\n");
         assert(0);
@@ -769,7 +771,7 @@ int create_server_sock(char *rx_ip, int rx_port) {
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    server_addr.sin_port = htons(rx_port);
+    server_addr.sin_port = htons(server_port);
 
     if (bind(server_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
         printf("Error: bind() returned -1\n");
@@ -788,7 +790,7 @@ int accept_client_sock(int server_sock) {
     int client_sock;
     struct sockaddr_in client_addr;
     
-    int client_addr_size = sizeof(client_addr);
+    socklen_t client_addr_size = sizeof(client_addr);
     client_sock = accept(server_sock, (struct sockaddr*)&client_addr, &client_addr_size);
     if (client_sock == -1) {
         printf("Error: accept() returned -1\n");
@@ -798,7 +800,7 @@ int accept_client_sock(int server_sock) {
     return client_sock;
 }
 
-int connect_server_sock(char *rx_ip, int rx_port) {
+int connect_server_sock(char *server_ip, int server_port) {
     int server_sock;
     struct sockaddr_in server_addr;
 
@@ -811,8 +813,8 @@ int connect_server_sock(char *rx_ip, int rx_port) {
 
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = inet_addr(rx_ip);
-    server_addr.sin_port = htons(rx_port);
+    server_addr.sin_addr.s_addr = inet_addr(server_ip);
+    server_addr.sin_port = htons(server_port);
 
     if (connect(server_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
         printf("Error: socket() returned -1\n");
