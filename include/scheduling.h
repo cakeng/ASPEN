@@ -43,7 +43,7 @@ struct sched_processor_t {
     sched_task_t *task_list;
 };
 
-int is_ninst_mine(ninst_t *ninst, int device_idx);
+int is_device_compute_dev(ninst_t *ninst, int device_idx);
 
 void init_full_local(nasm_t *nasm);
 void init_full_offload(nasm_t *nasm);

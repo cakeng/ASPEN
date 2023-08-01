@@ -54,7 +54,7 @@ rpool_t *rpool_init (int gpu_idx)
         gpu_idx = -1;
     }
     rpool_t *rpool = calloc (1, sizeof(rpool_t));
-    rpool->ref_ases = 0;
+    rpool->ref_dses = 0;
     rpool->num_groups = 0;
     rpool->queue_group_weight_sum = 0;
     bzero (rpool->queue_group_weight_arr, sizeof(float)*MAX_QUEUE_GROUPS);
@@ -63,7 +63,7 @@ rpool_t *rpool_init (int gpu_idx)
         rpool->gpu_idx = -1;
     else
         rpool->gpu_idx = gpu_idx;
-    // unsigned int num_queues = rpool->ref_ases * NUM_LAYERQUEUE_PER_ASE * 100 *  NUM_QUEUE_PER_LAYER;
+    // unsigned int num_queues = rpool->ref_dses * NUM_LAYERQUEUE_PER_ASE * 100 *  NUM_QUEUE_PER_LAYER;
     // if (num_queues < 1)
     //     num_queues = 1;
     // rpool_add_queue_group (rpool, "default group", num_queues, NULL, NULL);
@@ -74,9 +74,9 @@ void rpool_destroy (rpool_t *rpool)
 {
     if (rpool == NULL)
         return;
-    if (atomic_load(&rpool->ref_ases) > 0)
+    if (atomic_load(&rpool->ref_dses) > 0)
     {
-        FPRT (stderr, "ERROR: rpool_destroy: rpool is still referenced by %d ases.\n", atomic_load(&rpool->ref_ases));
+        FPRT (stderr, "ERROR: rpool_destroy: rpool is still referenced by %d ases.\n", atomic_load(&rpool->ref_dses));
         return;
     }
     for (int i = 0; i < atomic_load (&rpool->num_groups); i++)
@@ -167,20 +167,20 @@ void queue_group_add_queues (rpool_queue_group_t *rpool_queue_group, unsigned in
     atomic_fetch_add (&rpool_queue_group->num_queues, num_queues);
 }
 
-void add_ref_ases (rpool_t *rpool, unsigned int num_ases)
+void add_ref_dses (rpool_t *rpool, unsigned int num_ases)
 {
     if (rpool == NULL)
     {
-        FPRT (stderr, "ERROR: add_ref_ases: rpool is NULL.\n");
+        FPRT (stderr, "ERROR: add_ref_dses: rpool is NULL.\n");
         return;
     }
-    atomic_fetch_add (&rpool->ref_ases, num_ases);
+    atomic_fetch_add (&rpool->ref_dses, num_ases);
     for (int i = 0; i < rpool->num_groups; i++)
     {
         // if (rpool->queue_group_arr[i].whitelist_conds[RPOOL_NASM] != NULL)
         // {
         //     nasm_t *nasm = rpool->queue_group_arr[i].whitelist_conds[RPOOL_NASM];
-            unsigned int num_queues = rpool->ref_ases * NUM_LAYERQUEUE_PER_ASE * 100  * NUM_QUEUE_PER_LAYER;
+            unsigned int num_queues = rpool->ref_dses * NUM_LAYERQUEUE_PER_ASE * 100  * NUM_QUEUE_PER_LAYER;
             if (num_queues < 1)
                 num_queues = 1;
             if (num_queues > atomic_load (&rpool->queue_group_arr[i].num_queues))
@@ -210,7 +210,7 @@ void rpool_add_nasm_raw_input (rpool_t *rpool, nasm_t* nasm, void* input_data)
     nasm->gpu_idx = rpool->gpu_idx;
     if (rpool->num_groups == 0)
     {
-        unsigned int num_queues = rpool->ref_ases * NUM_LAYERQUEUE_PER_ASE * 150 *  NUM_QUEUE_PER_LAYER;
+        unsigned int num_queues = rpool->ref_dses * NUM_LAYERQUEUE_PER_ASE * 150 *  NUM_QUEUE_PER_LAYER;
         if (num_queues < 1)
             num_queues = 1;
         rpool_add_queue_group (rpool, "default", num_queues, NULL, NULL);
@@ -658,7 +658,7 @@ rpool_queue_t *get_queue_for_fetching (rpool_t *rpool, void **input_cond, unsign
     // }
     // atomic_fetch_add (&rpool_queue_group->num_fetched, 1);
     unsigned int num_queues = atomic_load (&rpool_queue_group->num_queues);
-    unsigned int num_ase = rpool->ref_ases > 0 ? rpool->ref_ases : 1;
+    unsigned int num_ase = rpool->ref_dses > 0 ? rpool->ref_dses : 1;
     unsigned int queue_idx = num_queues * dse_idx / num_ase;
     for (int i = 0; i < num_queues; i++)
     {
@@ -870,9 +870,9 @@ void print_rpool_info (rpool_t *rpool)
         return;
     }
     unsigned int num_groups = atomic_load (&rpool->num_groups);
-    unsigned int ref_ases = atomic_load (&rpool->ref_ases);
+    unsigned int ref_dses = atomic_load (&rpool->ref_dses);
     printf("//////// Printing Ready Pool Info ////////\n");
-    printf("Number of referencing ASEs: %d\n", ref_ases);
+    printf("Number of referencing ASEs: %d\n", ref_dses);
     printf("Number of Queue Groups: %d\n", num_groups);
     printf("GPU index: %d\n", rpool->gpu_idx);
     printf("Sum of Queue Weight: %4.4f\nWeights: ", rpool->queue_group_weight_sum);

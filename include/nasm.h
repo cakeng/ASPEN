@@ -66,9 +66,7 @@ struct ninst_t
     unsigned int ninst_idx;
     unsigned int out_mat_pos [2];
     unsigned int tile_dims [2];
-    int alloc_devices [SCHEDULE_MAX_DEVICES];       // who will compute this ninst?
-    int desiring_devices [SCHEDULE_MAX_DEVICES];    // who wants the result of this ninst?
-
+    
     unsigned int *parent_ninst_idx_arr;
     unsigned int num_parent_ninsts;
     _Atomic unsigned int num_parent_ninsts_completed;
@@ -89,10 +87,13 @@ struct ninst_t
     float sent_time;
 
     // For Scheduling
+    int dev_to_compute [SCHEDULE_MAX_DEVICES];       // who will compute this ninst?
+    int dev_send_target [SCHEDULE_MAX_DEVICES];    // who wants the result of this ninst?
+
     float compute_start;
     float compute_end;
-    float send_from_here;
-    float recv_from_other;
+    // float send_from_here;
+    // float recv_from_other;
 
     float rank_upward;
     float rank_downward;

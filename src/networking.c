@@ -10,7 +10,9 @@ void *net_tx_thread_runtime (void* thread_info)
         if(!net_engine->tx_run)
             pthread_cond_wait (&net_engine->tx_thread_cond, &net_engine->tx_thread_mutex);
     }
-    PRT ("Networking: TX thread exiting...\n");
+    #ifdef DEBUG
+    // PRT ("Networking: TX thread exiting...\n");
+    #endif
 }
 
 void *net_rx_thread_runtime (void* thread_info) 
@@ -23,7 +25,9 @@ void *net_rx_thread_runtime (void* thread_info)
         if(!net_engine->rx_run) 
             pthread_cond_wait (&net_engine->rx_thread_cond, &net_engine->rx_thread_mutex);
     }
-    PRT ("Networking: RX thread exiting...\n");
+    #ifdef DEBUG
+    // PRT ("Networking: RX thread exiting...\n");
+    #endif
 }
 
 void init_networking_queue (networking_queue_t *networking_queue)
@@ -39,114 +43,106 @@ void init_networking_queue (networking_queue_t *networking_queue)
     networking_queue->queue_mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
 }
 
-void init_server(networking_engine* net_engine, int port,int is_UDP) {
-
-    if (is_UDP != 0) {
-        net_engine->rx_sock = socket (PF_INET, SOCK_DGRAM, 0);
+void init_server(networking_engine* net_engine, int port, int is_UDP) 
+{
+    if (is_UDP != 0) 
+    {
+        net_engine->listen_sock = socket (PF_INET, SOCK_DGRAM, 0);
     }
-    else {
-        net_engine->rx_sock = socket (PF_INET, SOCK_STREAM, 0);
+    else 
+    {
+        net_engine->listen_sock = socket (PF_INET, SOCK_STREAM, 0);
     }
-    if (net_engine->rx_sock == -1) 
+    if (net_engine->listen_sock == -1) 
     {
         FPRT (stderr, "Error: socket() returned -1\n");
         assert(0);
     }
-    int option = 1;
-    setsockopt(net_engine->rx_sock, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
+
+    bzero (&net_engine->listen_addr, sizeof(net_engine->listen_addr));
+    bzero (&net_engine->server_addr, sizeof(net_engine->server_addr));
+    bzero (&net_engine->edge_addr, sizeof(net_engine->edge_addr));
+
     net_engine->device_mode = DEV_SERVER;
-    net_engine->tx_sock = 0;
-    net_engine->rx_addr.sin_family = AF_INET;
-    net_engine->rx_addr.sin_addr.s_addr = htonl (INADDR_ANY);
-    net_engine->rx_addr.sin_port = htons (port);
+    net_engine->comm_sock = 0;
+    net_engine->listen_addr.sin_family = AF_INET;
+    net_engine->listen_addr.sin_addr.s_addr = htonl (INADDR_ANY);
+    net_engine->listen_addr.sin_port = htons (port);
     net_engine->isUDP = is_UDP;
 
-    if(bind(net_engine->rx_sock,(struct sockaddr*)&net_engine->rx_addr, sizeof(net_engine->rx_addr)) == -1)
-        FPRT (stderr, "ERROR! socket bind error\n");
-
-    init_socket(net_engine);
-}
-
-void init_edge(networking_engine* net_engine, char* ip, int port, int is_UDP) {
-
-    bzero (&net_engine->rx_addr, sizeof(net_engine->rx_addr));
-    bzero (&net_engine->tx_addr, sizeof(net_engine->tx_addr));
-
-    net_engine->device_mode = DEV_EDGE;
-    net_engine->tx_sock = socket (PF_INET, SOCK_STREAM, 0);
-    if (net_engine->tx_sock == -1) 
+    int option = 1;
+    if (setsockopt(net_engine->listen_sock, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) == -1)
     {
-        FPRT (stderr, "Error: socket() returned -1\n");
+        FPRT (stderr, "ERROR! socket setsockopt error\n");
         assert(0);
     }
-    net_engine->rx_addr.sin_family = AF_INET;
-    net_engine->rx_addr.sin_addr.s_addr = inet_addr (ip);
-    net_engine->rx_addr.sin_port = htons (port);
-    net_engine->isUDP = 0;
-
-    init_socket(net_engine);
-}
-
-void init_socket (networking_engine* net_engine)
-{
-    int server_ip = net_engine->rx_addr.sin_addr.s_addr;
-    // Set socket to non-blocking
-    int flags = fcntl(net_engine->rx_sock, F_GETFL, 0);
-    if (fcntl(net_engine->rx_sock, F_SETFL, flags | O_NONBLOCK) < 0)
+    if(bind(net_engine->listen_sock, (struct sockaddr*)&net_engine->listen_addr, sizeof(net_engine->listen_addr)) == -1)
     {
-        FPRT (stderr, "Error - Socket non-blocking error... SERVER ip: %d.%d.%d.%d, SERVER Port: %d\n", 
-            (server_ip>>0)&0xff, (server_ip>>8)&0xff, (server_ip>>16)&0xff, (server_ip>>24)&0xff, net_engine->rx_addr.sin_port);
-        assert (0);
+        FPRT (stderr, "ERROR! socket bind error\n");
+        assert(0);
     }
-    
-    if (net_engine->device_mode = DEV_EDGE)
+    if(is_UDP == 0)
     {
-        size_t num_tries = 0;
-        PRT ("Networking: EDGE connecting to SERVER ip: %d.%d.%d.%d, SERVER Port: %d\n", 
-                (server_ip>>0)&0xff, (server_ip>>8)&0xff, (server_ip>>16)&0xff, (server_ip>>24)&0xff, net_engine->rx_addr.sin_port);
-        while (connect(net_engine->tx_sock,(struct sockaddr*)&net_engine->rx_addr, sizeof(net_engine->rx_addr)) == -1)
+        if(listen(net_engine->listen_sock, 5) == -1)
         {
-            if (num_tries > 120000) 
-            {
-                FPRT (stderr, "Error - EDGE Socket connection error... SERVER ip: %d.%d.%d.%d, SERVER Port: %d\n", 
-                    (server_ip>>0)&0xff, (server_ip>>8)&0xff, (server_ip>>16)&0xff, (server_ip>>24)&0xff, net_engine->rx_addr.sin_port);
-                assert (0);
-            }
-            if (num_tries % 100 == 99)
-            {
-                PRT ("\tEDGE retrying connection");
-                if (num_tries % 300 > 200) PRT (".");
-                if (num_tries % 300 > 100) PRT (".");
-                PRT (".\r");
-            }
-            usleep (5000);
-            num_tries++;
-        }
-    }
-    else if (net_engine->device_mode = DEV_SERVER)
-    {
-        PRT ("Networking: SERVER Waiting for connection... SERVER ip: %d.%d.%d.%d, SERVER Port: %d\n", 
-                (server_ip>>0)&0xff, (server_ip>>8)&0xff, (server_ip>>16)&0xff, (server_ip>>24)&0xff, net_engine->rx_addr.sin_port);
-        if(listen(net_engine->rx_sock, 99) == -1)
-        {
-            FPRT (stderr, "Error - Socket listen error... SERVER ip: %d.%d.%d.%d, SERVER Port: %d\n", 
-                (server_ip>>0)&0xff, (server_ip>>8)&0xff, (server_ip>>16)&0xff, (server_ip>>24)&0xff, net_engine->rx_addr.sin_port);
+            FPRT (stderr, "ERROR! socket listen error\n");
             assert(0);
         }
-        socklen_t rx_addr_size = sizeof(net_engine->rx_addr);
-        net_engine->tx_sock = accept(net_engine->rx_sock, (struct sockaddr*)&net_engine->rx_addr, &rx_addr_size);
-        if(net_engine->tx_sock == -1)
-            FPRT (stderr, "Error! - Socket accept error.\n");
-        else
-            PRT("Networking: Connected to IP: %d.%d.%d.%d\n", (server_ip>>0)&0xff, (server_ip>>8)&0xff, (server_ip>>16)&0xff, (server_ip>>24)&0xff);
-    
+        else 
+            PRT ("Networking: TCP Server listening on port %d\n", port);
+        socklen_t edge_addr_len = sizeof(net_engine->edge_addr);
+        net_engine->comm_sock = 
+            accept(net_engine->listen_sock, (struct sockaddr*)&net_engine->edge_addr, &edge_addr_len);
+        if (net_engine->comm_sock == -1)
+        {
+            FPRT (stderr, "ERROR! Server socket accept error\n");
+            assert(0);
+        }
+        net_engine->edge_addr.sin_family = AF_INET;
+        net_engine->edge_addr.sin_addr.s_addr = inet_addr (inet_ntoa (net_engine->edge_addr.sin_addr));
+        net_engine->edge_addr.sin_port = htons (port);
+        PRT ("Networking: TCP Server accepted connection from %s\n", inet_ntoa (net_engine->edge_addr.sin_addr));
+        write (net_engine->comm_sock, "SERVER ACK", 10);
+        char buf [24] = {0};
+        read (net_engine->comm_sock, buf, 24);
+        PRT ("Networking: TCP Server received %s\n", buf);
     }
-    else
-    {
-        FPRT (stderr, "Error - Unsupported device mode. Mode: %d\n", net_engine->device_mode);
+    else 
+        PRT ("Networking: UDP Server listening on port %d\n", port);
+}
+
+void init_edge(networking_engine* net_engine, char* ip, int port, int is_UDP) 
+{
+    bzero (&net_engine->listen_addr, sizeof(net_engine->listen_addr));
+    bzero (&net_engine->server_addr, sizeof(net_engine->server_addr));
+    bzero (&net_engine->edge_addr, sizeof(net_engine->edge_addr));
+
+    net_engine->device_mode = DEV_EDGE;
+    net_engine->comm_sock = socket (PF_INET, SOCK_STREAM, 0);
+    if (net_engine->comm_sock == -1) 
+    { 
+        FPRT (stderr, "Error: Edge socket() returned -1\n");
         assert(0);
     }
+    net_engine->server_addr.sin_family = AF_INET;
+    net_engine->server_addr.sin_addr.s_addr = inet_addr (ip);
+    net_engine->server_addr.sin_port = htons (port);
+    net_engine->isUDP = 0;
+
+    connect(net_engine->comm_sock, (struct sockaddr*)&net_engine->server_addr, sizeof(net_engine->server_addr));
+    if (net_engine->comm_sock == -1) 
+    {
+        FPRT (stderr, "Error: Edge connect() returned -1\n");
+        assert(0);
+    }
+    else
+        PRT ("Networking: TCP Edge connected to server %s port %d\n", inet_ntoa (net_engine->server_addr.sin_addr), port);
+    char buf [24] = {0};
+    read (net_engine->comm_sock, buf, 24);
+    PRT ("Networking: TCP Edge received %s\n", buf);
+    write (net_engine->comm_sock, "EDGE ACK", 8);
 }
+
 
 networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE device_mode, char* ip, int port, int is_UDP, int sequential) 
 {
@@ -190,7 +186,7 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE de
     void *whitelist[NUM_RPOOL_CONDS] = {NULL};
     whitelist [RPOOL_NASM] = nasm;
     sprintf (info_str, "%s_%s_%d", nasm->dnn->name, "nasm", nasm->nasm_id);
-    float queue_per_layer = rpool->ref_ases * NUM_LAYERQUEUE_PER_ASE * NUM_QUEUE_PER_LAYER;
+    float queue_per_layer = rpool->ref_dses * NUM_LAYERQUEUE_PER_ASE * NUM_QUEUE_PER_LAYER;
     unsigned int num_queues = nasm->dnn->num_layers*queue_per_layer;
     if (num_queues < 1)
         num_queues = 1;
@@ -272,7 +268,7 @@ void transmission(networking_engine *net_engine)
     payload_size += sizeof(int32_t);
 
     #ifdef DEBUG
-    PRT("Networking: Sending total %d ninsts, %d bytes - ", num_ninsts, payload_size);
+    PRT("Networking: Sending %d bytes -", num_ninsts, payload_size);
     for (int i = 0; i < num_ninsts; i++)
     {
         ninst_t* target_ninst = target_ninst_list[i];
@@ -284,8 +280,8 @@ void transmission(networking_engine *net_engine)
     int32_t bytes_sent = 0;
     while (bytes_sent < payload_size)
     {
-        int ret = send(net_engine->tx_sock
-            , (char*)net_engine->tx_buffer + bytes_sent, payload_size - bytes_sent, 0);
+        int ret = write(net_engine->comm_sock
+            , (char*)net_engine->tx_buffer + bytes_sent, payload_size - bytes_sent);
         if (ret < 0)
         {
             FPRT(stderr, "Error: send() failed. ret: %d\n", ret);
@@ -294,27 +290,17 @@ void transmission(networking_engine *net_engine)
         bytes_sent += ret;
     }
     #ifdef DEBUG
-    PRT(" - Time taken %fs, %d tx queue remains.", (get_time_secs() - time_sent), net_engine->tx_queue->num_stored);
+    PRT(" - Time taken %fs, %d tx queue remains.\n", (get_time_secs() - time_sent), net_engine->tx_queue->num_stored);
     #endif
 }
 
 void receive(networking_engine *net_engine) 
 {
-    int status;
+    
     int32_t payload_size;
-    ioctl(net_engine->rx_sock, FIONREAD, &status);
-    if (status <= 0)
-        return;
-
-    int ret = recv(net_engine->rx_sock, (char*)&payload_size, sizeof(int32_t), 0);
+    int ret = read(net_engine->comm_sock, (char*)&payload_size, sizeof(int32_t));
     if (ret == -1)
     {
-        return;
-    }
-    else if (ret == RX_STOP_SIGNAL)
-    {
-        PRT("Networking: Network engine rx thread stop signal received\n");
-        atomic_store (&net_engine->rx_run, 0);
         return;
     }
     else if (ret < 0)
@@ -322,13 +308,33 @@ void receive(networking_engine *net_engine)
         FPRT(stderr, "Error: recv() failed. ret: %d\n", ret);
         assert(0);
     }
+    else if (ret == 0)
+    {
+        FPRT(stderr, "Error, RX Connection closed unexpectedly.\n");
+        assert(0);
+    }
     else
     {
+        if (payload_size <= 0)
+        {
+            PRT("Networking: RX Command %d received - ", payload_size);
+            if (payload_size == RX_STOP_SIGNAL)
+            {
+                PRT("Stopping RX thread\n");
+                atomic_store (&net_engine->rx_run, 0);
+                return;
+            }
+            else
+            {
+                PRT("Unknown command\n");
+                assert(0);
+            }
+        }
         int32_t bytes_received = 0;
         while (bytes_received < payload_size)
         {
-            ret = recv(net_engine->rx_sock
-                , (char*)net_engine->rx_buffer + bytes_received, payload_size - bytes_received, 0);
+            ret = read(net_engine->comm_sock
+                , (char*)net_engine->rx_buffer + bytes_received, payload_size - bytes_received);
             if (ret < 0)
             {
                 FPRT(stderr, "Error: recv() failed. ret: %d\n", ret);
@@ -337,7 +343,7 @@ void receive(networking_engine *net_engine)
             bytes_received += ret;
         }
         #ifdef DEBUG
-        PRT("Networking: Received payload of %d bytes\n", bytes_received);
+        // PRT("Networking: Received %d bytes -", bytes_received);
         #endif
         char* buffer_ptr = (char*)net_engine->rx_buffer;
         while (buffer_ptr < (char*)net_engine->rx_buffer + bytes_received)
@@ -374,12 +380,12 @@ void receive(networking_engine *net_engine)
             buffer_ptr += data_size;
             target_ninst->received_time = get_time_secs();
             #ifdef DEBUG
-            PRT("Networking:\tReceived N%d L%d I%d %ldB at %f\n", 
-                target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->inference_id, 
-                target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float), target_ninst->received_time);
+            // PRT(" (N%d L%d I%d %ldB)", 
+            //     target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->inference_id, 
+            //     target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float));
             #endif
             unsigned int num_ninst_completed = atomic_fetch_add (&target_ninst->ldata->num_ninst_completed , 1);
-            int num_ase = net_engine->rpool->ref_ases > 0 ? net_engine->rpool->ref_ases : 1;
+            int num_ase = net_engine->rpool->ref_dses > 0 ? net_engine->rpool->ref_dses : 1;
             update_children (net_engine->rpool, target_ninst, ninst_idx/(net_engine->nasm->ldata_arr[0].num_ninst/num_ase));
             
             if (num_ninst_completed == target_ninst->ldata->num_ninst - 1)
@@ -402,7 +408,9 @@ void receive(networking_engine *net_engine)
                 }
             }
         }
-            
+        #ifdef DEBUG
+            // PRT("\n");
+        #endif
     }
 }
 
@@ -483,7 +491,7 @@ void net_engine_stop (networking_engine* net_engine)
     PRT("Networking: Sending network engine rx thread stop signal...\n");
     #endif
     int32_t command = RX_STOP_SIGNAL;
-    int ret = send(net_engine->tx_sock, (char*)&command, sizeof(command), 0);
+    int ret = write(net_engine->comm_sock, (char*)&command, sizeof(command));
     if (ret < 0)
     {
         FPRT(stderr, "ERROR: net_engine_sto: send() failed.\n");
@@ -522,17 +530,20 @@ void net_engine_destroy (networking_engine* net_engine)
 
     net_queue_destroy(net_engine->tx_queue);
     free (net_engine->tx_queue);
-    close(net_engine->rx_sock);
-    close(net_engine->tx_sock);
+    if (net_engine->is_listen_sock_open)
+        close(net_engine->listen_sock);
+    if (net_engine->is_comm_sock_open)
+        close(net_engine->comm_sock);
     pthread_mutex_destroy(&net_engine->rx_thread_mutex);
     pthread_mutex_destroy(&net_engine->tx_thread_mutex);
     pthread_cond_destroy(&net_engine->tx_thread_cond);
     pthread_cond_destroy(&net_engine->rx_thread_cond);
+    if (net_engine->rx_buffer)
+        free(net_engine->rx_buffer);
+    if (net_engine->tx_buffer)
+        free(net_engine->tx_buffer);
     free(net_engine);
 }
-
-
-
 
 void net_engine_wait_for_tx_queue_completion (networking_engine *net_engine)
 {

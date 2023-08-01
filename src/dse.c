@@ -121,7 +121,7 @@ void *dse_thread_runtime (void* thread_info)
                 continue;
             }
             // printf("fetched ninst %d, offload: %d, compute: %d\n", ninst->ninst_idx, ninst->offload, ninst->compute);
-            if (is_ninst_mine(ninst, dse->device_idx) || dse->profile_compute)    // It's mine, so compute
+            if (is_device_compute_dev(ninst, dse->device_idx) || dse->profile_compute)    // It's mine, so compute
             {
                 // printf("compute ninst %d\n", ninst->ninst_idx);
                 if (dse->profile_compute) ninst->compute_start = get_time_secs();
@@ -182,13 +182,6 @@ void *dse_thread_runtime (void* thread_info)
                     atomic_fetch_add (&nasm->num_ldata_completed, 1);
                     // if (num_ldata_completed == nasm->num_ldata - 1)
 
-                    if (ninst->ldata->layer->layer_idx == 0) {
-                        for (int i=0; i<nasm->ldata_arr[1].num_ninst; i++) {
-                            ninst_t *target_ninst = nasm->ldata_arr[1].ninst_arr_start + nasm->ldata_arr[1].num_ninst - 1 - i;
-                            target_ninst->alloc_devices[dse->device_idx] = 1;
-                            rpool_push_ninsts(dse->rpool, &target_ninst, 1, 0);    
-                        }
-                    }
                     if (nasm->ldata_arr[nasm->num_ldata-1].num_ninst_completed == nasm->ldata_arr[nasm->num_ldata-1].num_ninst)
                     {
                         // printf ("\t\tSignaling nasm completion...\n");
@@ -222,10 +215,12 @@ void *dse_thread_runtime (void* thread_info)
                 }
 
                 // check desiring devices for the computation output
-                if (dse->is_multiuser_case) {
-                    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
+                if (dse->is_multiuser_case) 
+                {
+                    for (int i = 0; i<SCHEDULE_MAX_DEVICES; i++) 
+                    {
                         if (i == dse->device_idx) continue;
-                        if (ninst->desiring_devices[i]) // Should be offload
+                        if (ninst->dev_send_target[i]) // Should be offload
                         {
                             networking_engine *net_engine = dse->net_engine_arr[i];
                             create_network_buffer_for_ninst (ninst);   
@@ -236,10 +231,16 @@ void *dse_thread_runtime (void* thread_info)
                     }
 
                 }
-                else {
-                    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
+                else 
+                {
+                    for (int i = 0; i<SCHEDULE_MAX_DEVICES; i++) 
+                    {
                         if (i == dse->device_idx) continue;
-                        if (ninst->desiring_devices[i]) {
+                        if (ninst->dev_send_target[i]) 
+                        {
+                            // printf ("\tninst idx %d (L%d), target device: %d, current device: %d, desired device%d\n", 
+                            // ninst->ninst_idx, ninst->ldata->layer->layer_idx, i, dse->device_idx,
+                            // ninst->dev_send_target[i]);
                             networking_engine *net_engine = dse->net_engine;
                             create_network_buffer_for_ninst (ninst);
                             pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
@@ -301,7 +302,7 @@ void dse_group_set_rpool (dse_group_t *dse_group, rpool_t *rpool)
     {
         dse_group->dse_arr[i].rpool = rpool;
     }
-    add_ref_ases (rpool, dse_group->num_ases);
+    add_ref_dses (rpool, dse_group->num_ases);
 }
 
 void dse_group_set_net_engine (dse_group_t *dse_group, networking_engine *net_engine)
@@ -425,7 +426,7 @@ void dse_group_destroy (dse_group_t *dse_group)
     for (int i = 0; i < dse_group->num_ases; i++)
     {
         if (dse_group->dse_arr[i].rpool != NULL)
-            atomic_fetch_sub (&dse_group->dse_arr[i].rpool->ref_ases, 1);
+            atomic_fetch_sub (&dse_group->dse_arr[i].rpool->ref_dses, 1);
         dse_destroy (&dse_group->dse_arr[i]);
     }
     free (dse_group->dse_arr);
@@ -604,7 +605,7 @@ void update_children (rpool_t *rpool, ninst_t *ninst, unsigned int dse_idx)
         FPRT (stderr, "Error: Invalid arguments to dse_update_children()\n");
         assert (0);
     }
-    if (ninst->state != NINST_COMPLETED)
+    if (atomic_load (&ninst->state) != NINST_COMPLETED)
     {
         FPRT (stderr, "Error: ninst->state != NINST_STATE_COMPLETED in dse_update_children()\n");
         assert (0);
@@ -613,19 +614,21 @@ void update_children (rpool_t *rpool, ninst_t *ninst, unsigned int dse_idx)
     for (int i = 0; i < ninst->num_child_ninsts; i++)
     {
         ninst_t *child_ninst = ninst->child_ninst_arr[i];
-        if (child_ninst->state == NINST_NOT_READY) {
+        if (atomic_load (&child_ninst->state) == NINST_NOT_READY) 
+        {
             unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
             if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
             {
-                #ifdef DEBUG_
+                #ifdef DEBUG
                 if (child_ninst->state != NINST_NOT_READY)
                 {
-                    FPRT (stderr, "Error: child_ninst->state != NINST_NOT_READY in dse_update_children()\n");
+                    FPRT (stderr, "Error: child_ninst->state != NINST_NOT_READY in dse_update_children() - %s\n",
+                        ninst_state_str[child_ninst->state]);
                     assert (0);
                 }
                 #endif
                 
-                child_ninst->state = NINST_READY;
+                atomic_store (&child_ninst->state, NINST_READY);
                 rpool_push_ninsts (rpool, &child_ninst, 1, 0);
             }
         }
@@ -651,18 +654,22 @@ void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst)
     for (int i = 0; i < ninst->num_child_ninsts; i++)
     {
         ninst_t *child_ninst = ninst->child_ninst_arr[i];
-        unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
-        if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
+        if (atomic_load (&child_ninst->state) == NINST_NOT_READY) 
         {
-            #ifdef DEBUG 
-            if (child_ninst->state != NINST_NOT_READY)
+            unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
+            if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
             {
-                FPRT (stderr, "Error: child_ninst->state != NINST_NOT_READY in dse_update_children_to_cache()\n");
-                assert (0);
+                #ifdef DEBUG 
+                if (child_ninst->state != NINST_NOT_READY)
+                {
+                    FPRT (stderr, "Error: child_ninst->state != NINST_NOT_READY in dse_update_children() - %s\n",
+                            ninst_state_str[child_ninst->state]);
+                    assert (0);
+                }
+                #endif
+                child_ninst->state = NINST_READY;
+                push_ninsts_to_queue (cache, &child_ninst, 1);
             }
-            #endif
-            child_ninst->state = NINST_READY;
-            push_ninsts_to_queue (cache, &child_ninst, 1);
         }
     }
 }
@@ -683,16 +690,27 @@ void update_children_but_prioritize_dse_target (rpool_t *rpool, ninst_t *ninst, 
     for (int i = 0; i < ninst->num_child_ninsts; i++)
     {
         ninst_t *child_ninst = ninst->child_ninst_arr[i];
-        unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
-        if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
+        if (atomic_load (&child_ninst->state) == NINST_NOT_READY) 
         {
-            child_ninst->state = NINST_READY;
-            if (dse->target != NULL)
+            unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
+            if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
             {
-                cache[num_cache++] = child_ninst;
+                #ifdef DEBUG
+                if (child_ninst->state != NINST_NOT_READY)
+                {
+                    FPRT (stderr, "Error: child_ninst->state != NINST_NOT_READY in dse_update_children() - %s\n",
+                            ninst_state_str[child_ninst->state]);
+                    assert (0);
+                }
+                #endif
+                child_ninst->state = NINST_READY;
+                if (dse->target != NULL)
+                {
+                    cache[num_cache++] = child_ninst;
+                }
+                else
+                    dse->target = child_ninst;
             }
-            else
-                dse->target = child_ninst;
         }
     }
     rpool_push_ninsts (rpool, cache, num_cache, 0);
@@ -717,21 +735,25 @@ void update_children_to_cache_but_prioritize_dse_target (rpool_queue_t *cache, n
     for (int i = 0; i < ninst->num_child_ninsts; i++)
     {
         ninst_t *child_ninst = ninst->child_ninst_arr[i];
-        unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
-        if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
+        if (atomic_load (&child_ninst->state) == NINST_NOT_READY) 
         {
-            #ifdef DEBUG 
-            if (child_ninst->state != NINST_NOT_READY)
+            unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
+            if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
             {
-                FPRT (stderr, "Error: child_ninst->state != NINST_NOT_READY in dse_update_children_to_cache()\n");
-                assert (0);
+                #ifdef DEBUG 
+                if (child_ninst->state != NINST_NOT_READY)
+                {
+                    FPRT (stderr, "Error: child_ninst->state != NINST_NOT_READY in dse_update_children() - %s\n",
+                            ninst_state_str[child_ninst->state]);
+                    assert (0);
+                }
+                #endif
+                child_ninst->state = NINST_READY;
+                if (*dse_target != NULL)
+                    push_ninsts_to_queue (cache, &child_ninst, 1);
+                else
+                    *dse_target = child_ninst;
             }
-            #endif
-            child_ninst->state = NINST_READY;
-            if (*dse_target != NULL)
-                push_ninsts_to_queue (cache, &child_ninst, 1);
-            else
-                *dse_target = child_ninst;
         }
     }
 }
@@ -872,7 +894,7 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
         }
         ninst->state = NINST_COMPLETED;
         atomic_fetch_add (&ninst->ldata->num_ninst_completed , 1);
-        int num_ase = rpool->ref_ases > 0 ? rpool->ref_ases : 1;
+        int num_ase = rpool->ref_dses > 0 ? rpool->ref_dses : 1;
         update_children (rpool, ninst, i/(1 + ldata->num_ninst/num_ase));
     }
     atomic_fetch_add (&nasm->num_ldata_completed, 1);

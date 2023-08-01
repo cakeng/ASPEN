@@ -816,9 +816,17 @@ int connect_server_sock(char *server_ip, int server_port) {
     server_addr.sin_addr.s_addr = inet_addr(server_ip);
     server_addr.sin_port = htons(server_port);
 
-    if (connect(server_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
-        printf("Error: socket() returned -1\n");
-        assert(0);
+
+    size_t num_tries = 0;
+    while (connect(server_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) 
+    {
+        if (num_tries > 120000) 
+        {
+            printf("Error: connect() returned -1\n");
+            assert(0);
+        }
+        num_tries++;
+        usleep(5000);
     }
 
     return server_sock;

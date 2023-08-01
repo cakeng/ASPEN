@@ -52,7 +52,7 @@ network_profile_t *profile_network(ninst_profile_t **ninst_profile, DEVICE_MODE 
     int num_ninst = ninst_profile[device_mode]->total;
 
     if (device_mode == DEV_SERVER) { // echo
-        printf("\tprofiling as RX...\n");
+        printf("\tprofiling as SERVER...\n");
 
         // echo shortmessage
         for (int i=0; i<num_repeat; i++) {
@@ -71,7 +71,7 @@ network_profile_t *profile_network(ninst_profile_t **ninst_profile, DEVICE_MODE 
         read_n(client_sock, network_profile, sizeof(network_profile_t));
     }
     else {
-        printf("\tprofiling as TX...\n");
+        printf("\tprofiling as EDGE...\n");
 
         // send shortmessage
         float send_timestamp[num_repeat];

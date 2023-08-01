@@ -1588,6 +1588,20 @@ void print_ninst_info (ninst_t *ninst, int print_data)
     //     printf("%d ", ninst->input_pos_idx_arr[i]);
     // }
     printf ("\n");
+
+    printf("\t\tDevices scheduled for computation:");
+    for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++)
+    {
+        printf(" %d", ninst->dev_to_compute[i]);
+    }
+    printf("\n\t\tDevices scheduled as send target:");
+    for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++)
+    {
+        printf(" %d", ninst->dev_send_target[i]);
+    }
+    printf("\n\t\tCompute Start/End time: %3.3f/%3.3f\n", 
+        ninst->compute_start, ninst->compute_end);
+
     if (print_data)
     {
         printf("\n\t\tData:");

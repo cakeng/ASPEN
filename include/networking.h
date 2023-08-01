@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 
+#define RX_TIMEOUT_USEC (1000) // 1ms
 #define RX_STOP_SIGNAL (-19960930)
 #define NET_INIT_QUEUE_SIZE (1024 * 32)
 #define NETQUEUE_BUFFER_SIZE (1024 * 1024 * 32) // 32MiB
@@ -31,10 +32,12 @@ struct networking_queue_t
 
 struct networking_engine
 {
-    struct sockaddr_in rx_addr;
-    struct sockaddr_in tx_addr;
+    struct sockaddr_in listen_addr;
+    struct sockaddr_in server_addr;
+    struct sockaddr_in edge_addr;
     int sock_id;
-    int rx_sock, tx_sock;
+    int listen_sock, comm_sock;
+    int is_listen_sock_open, is_comm_sock_open;
     int isUDP;
     int sequential;
     DEVICE_MODE device_mode;
@@ -46,7 +49,6 @@ struct networking_engine
 
     pthread_t rx_thread;
     pthread_t tx_thread;
-
     pthread_mutex_t rx_thread_mutex;
     pthread_cond_t rx_thread_cond;
     pthread_mutex_t tx_thread_mutex;

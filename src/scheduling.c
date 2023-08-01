@@ -1,76 +1,93 @@
 #include "scheduling.h"
 
-int is_ninst_mine(ninst_t *ninst, int device_idx) {
-    return ninst->alloc_devices[device_idx];
+int is_device_compute_dev(ninst_t *ninst, int device_idx) 
+{
+    return ninst->dev_to_compute[device_idx];
 }
 
-void clear_device_alloc(ninst_t *ninst) {
-    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
-        ninst->alloc_devices[i] = 0;
+void ninst_clear_compute_device(ninst_t *ninst) 
+{
+    for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++) 
+    {
+        ninst->dev_to_compute[i] = 0;
     }
 }
 
-void alloc_device_to_ninst(ninst_t *ninst, int device_idx) {
-    ninst->alloc_devices[device_idx] = 1;
+void ninst_set_compute_device(ninst_t *ninst, int device_idx) 
+{
+    ninst->dev_to_compute[device_idx] = 1;
 }
 
-void clear_device_desiring(ninst_t *ninst) {
-    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
-        ninst->desiring_devices[i] = 0;
+void ninst_clear_send_target_device(ninst_t *ninst) 
+{
+    for (int i = 0; i<SCHEDULE_MAX_DEVICES; i++) 
+    {
+        ninst->dev_send_target[i] = 0;
     }
 }
 
-void set_desiring_through_alloc(nasm_t *nasm) {
-    for (int i=0; i<nasm->num_ninst; i++) {
+void nasm_set_ninst_send_target_using_child_compute_device(nasm_t *nasm) 
+{
+    for (int i = 0; i < nasm->num_ninst; i++) 
+    {
         ninst_t *ninst = nasm->ninst_arr + i;
-        clear_device_desiring(ninst);
-        for (int j=0; j<ninst->num_child_ninsts; j++) {
+        ninst_clear_send_target_device(ninst);
+        for (int j = 0; j < ninst->num_child_ninsts; j++) 
+        {
             ninst_t *child_ninst = ninst->child_ninst_arr[j];
-            for (int dev=0; dev<SCHEDULE_MAX_DEVICES; dev++) {
-                ninst->desiring_devices[dev] |= child_ninst->alloc_devices[dev];
+            for (int dev = 0; dev < SCHEDULE_MAX_DEVICES; dev++) 
+            {
+                ninst->dev_send_target[dev] |= child_ninst->dev_to_compute[dev];
             }
         }
     }
 }
 
-void set_desiring_full_device(nasm_t *nasm, int device_idx) {
-    for (int i=0; i<nasm->num_ninst; i++) {
+void nasm_all_ninst_set_compute_device (nasm_t *nasm, int device_idx) 
+{
+    for (int i = 0; i < nasm->num_ninst; i++) 
+    {
         ninst_t *ninst = nasm->ninst_arr + i;
-        clear_device_desiring(ninst);
-        ninst->desiring_devices[device_idx] = 1;
+        ninst_clear_send_target_device(ninst);
+        ninst->dev_send_target[device_idx] = 1;
     }
 }
 
-void set_last_layer_desiring(nasm_t *nasm, int device_idx) {
+void nasm_set_last_layer_ninst_send_target_device(nasm_t *nasm, int device_idx) 
+{
     nasm_ldata_t *last_ldata = &(nasm->ldata_arr[nasm->num_ldata-1]);
     ninst_t *last_ldata_ninst_arr = last_ldata->ninst_arr_start;
-
-    for (int i=0; i<last_ldata->num_ninst; i++) {
-        last_ldata_ninst_arr[i].desiring_devices[device_idx] = 1;
+    for (int i = 0; i < last_ldata->num_ninst; i++) 
+    {
+        last_ldata_ninst_arr[i].dev_send_target[device_idx] = 1;
     }
 }
 
 void init_full_local(nasm_t *nasm) {
-    for (int i = 0; i < nasm->num_ninst; i++) {
+    for (int i = 0; i < nasm->num_ninst; i++) 
+    {
         ninst_t *ninst = nasm->ninst_arr + i;
-        clear_device_alloc(ninst);
-        alloc_device_to_ninst(ninst, DEV_EDGE);
+        ninst_clear_compute_device(ninst);
+        ninst_set_compute_device(ninst, DEV_EDGE);
     }
-    set_desiring_through_alloc(nasm);
+    nasm_set_ninst_send_target_using_child_compute_device(nasm);
 }
 
 void init_full_offload(nasm_t *nasm) {
-    for (int i = 0; i < nasm->num_ninst; i++) {
+    for (int i = 0; i < nasm->num_ninst; i++) 
+    {
         ninst_t *ninst = nasm->ninst_arr + i;
-        clear_device_alloc(ninst);
-        if (ninst->ldata->layer->layer_idx != nasm->num_ldata - 1) {
-            alloc_device_to_ninst(ninst, DEV_SERVER);
+        ninst_clear_compute_device(ninst);
+        if (ninst->ldata->layer->layer_idx != nasm->num_ldata - 1) 
+        {
+            ninst_set_compute_device(ninst, DEV_SERVER);
         }
-        else {
-            alloc_device_to_ninst(ninst, DEV_EDGE);
+        else 
+        {
+            ninst_set_compute_device(ninst, DEV_EDGE);
         }
     }
-    set_desiring_through_alloc(nasm);
+    nasm_set_ninst_send_target_using_child_compute_device(nasm);
 }
 
 void init_partial_offload(nasm_t *nasm, float compute_ratio) {
@@ -81,75 +98,75 @@ void init_partial_offload(nasm_t *nasm, float compute_ratio) {
     printf("division idx: %d\n", division_idx);
     for (int i = 0; i < nasm->num_ninst; i++) {
         ninst_t *ninst = nasm->ninst_arr + i;
-        clear_device_alloc(ninst);
+        ninst_clear_compute_device(ninst);
         if (ninst->ldata->layer->layer_idx == 0) {  // for the input data,
-            alloc_device_to_ninst(ninst, DEV_EDGE);  // all inputs are generated from TX
+            ninst_set_compute_device(ninst, DEV_EDGE);  // all inputs are generated from TX
         }
         else if (ninst->ldata->layer->layer_idx == 1) { // for the first computation layer,
             if (ninst->ninst_idx < division_idx) {  // front ninsts are for RX
-                alloc_device_to_ninst(ninst, DEV_SERVER);
+                ninst_set_compute_device(ninst, DEV_SERVER);
             }
             else if (ninst->ninst_idx > division_idx) { // behind ninsts are for TX
-                alloc_device_to_ninst(ninst, DEV_EDGE);
+                ninst_set_compute_device(ninst, DEV_EDGE);
             }
             else {  // division ninst is for the both
-                alloc_device_to_ninst(ninst, DEV_SERVER);
-                alloc_device_to_ninst(ninst, DEV_EDGE);
+                ninst_set_compute_device(ninst, DEV_SERVER);
+                ninst_set_compute_device(ninst, DEV_EDGE);
             }
         }
         else if (ninst->ldata->layer->layer_idx != nasm->num_ldata - 1) {   // intermediate layers are for RX
-            alloc_device_to_ninst(ninst, DEV_SERVER);
+            ninst_set_compute_device(ninst, DEV_SERVER);
         }
         else {  // final layer is for TX -> main.c has its own logic handling final layer
-            // ninst->alloc_devices[0] = DEV_EDGE;
-            // alloc_device_to_ninst(ninst, DEV_EDGE);
-            alloc_device_to_ninst(ninst, DEV_SERVER);
+            // ninst->dev_to_compute[0] = DEV_EDGE;
+            // ninst_set_compute_device(ninst, DEV_EDGE);
+            ninst_set_compute_device(ninst, DEV_SERVER);
         }
     }
-    set_desiring_through_alloc(nasm);
-    set_last_layer_desiring(nasm, DEV_EDGE);
+    nasm_set_ninst_send_target_using_child_compute_device(nasm);
+    nasm_set_last_layer_ninst_send_target_device(nasm, DEV_EDGE);
 }
 
-void init_sequential_offload(nasm_t *nasm, int split_layer, int from_dev, int to_dev) {
+void init_sequential_offload(nasm_t *nasm, int split_layer, int from_dev, int to_dev) 
+{
     printf("division ninst idx: %d\n", split_layer);
-    for (int i=0; i<nasm->num_ldata; i++) {
-        if (i < split_layer) {
-            for (int j=0; j<nasm->ldata_arr[i].num_ninst; j++) {
-                clear_device_alloc(&(nasm->ldata_arr[i].ninst_arr_start[j]));
-                alloc_device_to_ninst(&(nasm->ldata_arr[i].ninst_arr_start[j]), from_dev);
+    for (int i=0; i<nasm->num_ldata; i++) 
+    {
+        if (i < split_layer) 
+        {
+            for (int j=0; j<nasm->ldata_arr[i].num_ninst; j++) 
+            {
+                ninst_clear_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]));
+                ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), from_dev);
             }
         }
-        else {
-            for (int j=0; j<nasm->ldata_arr[i].num_ninst; j++) {
-                clear_device_alloc(&(nasm->ldata_arr[i].ninst_arr_start[j]));
-                alloc_device_to_ninst(&(nasm->ldata_arr[i].ninst_arr_start[j]), to_dev);
+        else 
+        {
+            for (int j=0; j<nasm->ldata_arr[i].num_ninst; j++) 
+            {
+                ninst_clear_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]));
+                ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), to_dev);
             }
         }
     }
-    
-    set_desiring_through_alloc(nasm);
-    set_last_layer_desiring(nasm, from_dev);
+    nasm_set_ninst_send_target_using_child_compute_device (nasm);
+    nasm_set_last_layer_ninst_send_target_device (nasm, from_dev);
 }
 
-void init_dynamic_offload(nasm_t *nasm) {
-    for (int i=0; i<nasm->num_ldata; i++) {
-        if (i == 1 || i == nasm->num_ldata - 1) {
-            for (int j=0; j<nasm->ldata_arr[i].num_ninst; j++) {
-                clear_device_alloc(&(nasm->ldata_arr[i].ninst_arr_start[j]));
-                alloc_device_to_ninst(&(nasm->ldata_arr[i].ninst_arr_start[j]), DEV_SERVER);
-            }
-        }
-        else {
-            for (int j=0; j<nasm->ldata_arr[i].num_ninst; j++) {
-                clear_device_alloc(&(nasm->ldata_arr[i].ninst_arr_start[j]));
-                alloc_device_to_ninst(&(nasm->ldata_arr[i].ninst_arr_start[j]), DEV_SERVER);
-                alloc_device_to_ninst(&(nasm->ldata_arr[i].ninst_arr_start[j]), DEV_EDGE);
-            }
+void init_dynamic_offload(nasm_t *nasm) 
+{
+    for (int i = 0; i < nasm->num_ldata; i++) 
+    {
+        for (int j = 0; j<nasm->ldata_arr[i].num_ninst; j++) 
+        {
+            ninst_clear_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]));
+            ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), DEV_SERVER);
+            ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), DEV_EDGE);
         }
     }
     
-    set_desiring_full_device(nasm, DEV_SERVER);
-    set_last_layer_desiring(nasm, DEV_EDGE);
+    nasm_all_ninst_set_compute_device(nasm, DEV_SERVER);
+    nasm_set_last_layer_ninst_send_target_device(nasm, DEV_EDGE);
 }
 
 sched_processor_t *init_heft(char *target_dnn_dir, char *target_nasm_dir, ninst_profile_t **ninst_profile, network_profile_t *network_profile, int num_device) {
@@ -588,7 +605,7 @@ void apply_schedule_to_nasm(nasm_t *nasm, sched_processor_t *sched_processor, in
     for (int dev=0; dev<num_device; dev++) {
         sched_task_t *iter_task = sched_processor[dev].task_list->next;
         for (int i=0; i<sched_processor[dev].num_task; i++) {
-            ninst_arr[iter_task->idx].alloc_devices[dev] = 1;
+            ninst_arr[iter_task->idx].dev_to_compute[dev] = 1;
             iter_task = iter_task->next;
         }
     }
@@ -596,8 +613,8 @@ void apply_schedule_to_nasm(nasm_t *nasm, sched_processor_t *sched_processor, in
     // last array is always for RX
     nasm_ldata_t *last_layer = &(nasm->ldata_arr[nasm->num_ldata-1]);
     for (int i=0; i<last_layer->num_ninst; i++) {
-        last_layer->ninst_arr_start[i].alloc_devices[DEV_SERVER] = 1;
+        last_layer->ninst_arr_start[i].dev_to_compute[DEV_SERVER] = 1;
     }
 
-    set_desiring_through_alloc(nasm);
+    nasm_set_ninst_send_target_using_child_compute_device(nasm);
 }

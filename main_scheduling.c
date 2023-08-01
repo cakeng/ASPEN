@@ -25,7 +25,7 @@ double get_sec()
 
 // OPTIONS
 // option "device_mode" - "" int required
-// option "sequential" - "" int required
+// option "pipelined" - "" int required
 // option "dirname" - "" string required
 // option "prefix" - "" string optional
 // option "log_idx_start" - "" int optional
@@ -35,7 +35,7 @@ double get_sec()
 // option "target_input" - "" string required
 // option "server_ip" - "" string required
 // option "server_port" - "" int required
-// option "schedule_policy" - "" string required values="partial","sequential"
+// option "schedule_policy" - "" string required values="partial","2"
 // option "sched_partial_ratio" - "" float optional
 // option "sched_sequential_idx" - "" int optional
 // option "dse_num" - "" int required
@@ -50,7 +50,7 @@ int main(int argc, char **argv)
     }
 
     DEVICE_MODE device_mode = ai.device_mode_arg; // 0: SERVER, 1: EDGE
-    int sequential = !ai.pipelined_arg;
+    int pipelined = ai.pipelined_arg;
     char *dirname = ai.dirname_arg;
     char *prefix = ai.prefix_arg ? ai.prefix_arg : "temp";
     int log_idx_start = ai.log_idx_start_arg;
@@ -208,7 +208,8 @@ int main(int argc, char **argv)
 
         init_partial_offload(target_nasm, 0.0);
     }
-    else if (!strcmp(schedule_policy, "sequential")) {
+    else if (!strcmp(schedule_policy, "sequential")) 
+    {
         /** STAGE: PROFILING NETWORK **/
 
         printf("STAGE: PROFILING NETWORK\n");
@@ -235,7 +236,8 @@ int main(int argc, char **argv)
 
         init_sequential_offload(target_nasm, sched_sequential_idx, DEV_EDGE, DEV_SERVER);
     }
-    else if (!strcmp(schedule_policy, "dynamic")) {
+    else if (!strcmp(schedule_policy, "dynamic")) 
+    {
         /** STAGE: PROFILING NETWORK **/
 
         printf("STAGE: PROFILING NETWORK\n");
@@ -271,6 +273,8 @@ int main(int argc, char **argv)
         dse_group_set_device (dse_group, 0);
         init_sequential_offload (target_nasm, 0, 0, 0);
     }
+
+    // print_nasm_info (target_nasm, 1, 0);
     
     /** STAGE: INFERENCE **/
 
@@ -296,7 +300,7 @@ int main(int argc, char **argv)
     else
     {
         
-        net_engine = init_networking(target_nasm, rpool, device_mode, server_ip, server_port, 0, sequential);
+        net_engine = init_networking(target_nasm, rpool, device_mode, server_ip, server_port, 0, pipelined);
         dse_group_set_net_engine(dse_group, net_engine);
         dse_group_set_device(dse_group, device_mode);
         net_engine->dse_group = dse_group;
@@ -343,15 +347,25 @@ int main(int argc, char **argv)
                 add_input_rpool (net_engine, target_nasm, target_input);
             }
 
-            get_elapsed_time ("init");
-            net_engine_run (net_engine);
-            if (!sequential || device_mode == DEV_EDGE) dse_group_run (dse_group);
-            if (!(!strcmp(schedule_policy, "local") && device_mode == DEV_SERVER)) dse_wait_for_nasm_completion (target_nasm);
-            get_elapsed_time ("run_aspen");
-            dse_group_stop (dse_group);
-            if (device_mode == DEV_SERVER)
-                net_engine_wait_for_tx_queue_completion (net_engine);
-            net_engine_stop (net_engine);
+            // for (int i = 0; i < 2; i++)
+            //     print_ldata_info (&target_nasm->ldata_arr[i], 1, 0);
+
+            if (pipelined)
+            {
+                get_elapsed_time ("init");
+                net_engine_run (net_engine);
+                dse_group_run (dse_group);
+                dse_wait_for_nasm_completion (target_nasm);
+                get_elapsed_time ("run_aspen");
+                dse_group_stop (dse_group);
+                if (device_mode == DEV_SERVER)
+                    net_engine_wait_for_tx_queue_completion (net_engine);
+                net_engine_stop (net_engine);
+            }
+            else
+            {
+                assert (0);
+            }
             
             LAYER_PARAMS output_order_cnn[] = {BATCH, OUT_H, OUT_W, OUT_C};  // for CNN
             LAYER_PARAMS output_order_transformer[] = {BATCH, MAT_N, MAT_M};    // for Transformer
@@ -382,7 +396,7 @@ int main(int argc, char **argv)
             }
 
             sprintf(file_name, "./logs/%s/%s_%s_%s_%s_%s_Iter%d.csv", dirname, prefix, 
-                sequential ? "seq" : "pipe", schedule_policy, device_mode == DEV_SERVER ? "SERVER" : "EDGE", 
+                pipelined ? "pipelined" : "no-pipeline", schedule_policy, device_mode == DEV_SERVER ? "SERVER" : "EDGE", 
                 nasm_name, log_idx_start+i);
             
             FILE *log_fp = fopen(file_name, "w");
