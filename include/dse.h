@@ -62,6 +62,8 @@ void dse_destroy (dse_t *dse);
 void dse_run (dse_t *dse);
 void dse_stop (dse_t *dse);
 
+void dse_schedule (dse_t *dse);
+
 void dse_group_set_net_engine (dse_group_t *dse_group, networking_engine *net_engine);
 void dse_group_set_device (dse_group_t *dse_group, int device_idx);
 void dse_group_set_profile (dse_group_t *dse_group, int profile_compute);

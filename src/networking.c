@@ -10,9 +10,6 @@ void *net_tx_thread_runtime (void* thread_info)
         if(!net_engine->tx_run)
             pthread_cond_wait (&net_engine->tx_thread_cond, &net_engine->tx_thread_mutex);
     }
-    #ifdef DEBUG
-    // PRT ("Networking: TX thread exiting...\n");
-    #endif
 }
 
 void *net_rx_thread_runtime (void* thread_info) 
@@ -25,9 +22,6 @@ void *net_rx_thread_runtime (void* thread_info)
         if(!net_engine->rx_run) 
             pthread_cond_wait (&net_engine->rx_thread_cond, &net_engine->rx_thread_mutex);
     }
-    #ifdef DEBUG
-    // PRT ("Networking: RX thread exiting...\n");
-    #endif
 }
 
 void init_networking_queue (networking_queue_t *networking_queue)
@@ -268,7 +262,7 @@ void transmission(networking_engine *net_engine)
     payload_size += sizeof(int32_t);
 
     #ifdef DEBUG
-    PRT("Networking: Sending %d bytes -", num_ninsts, payload_size);
+    PRT("Networking: Sending %d bytes -", payload_size);
     for (int i = 0; i < num_ninsts; i++)
     {
         ninst_t* target_ninst = target_ninst_list[i];
@@ -310,7 +304,7 @@ void receive(networking_engine *net_engine)
     }
     else if (ret == 0)
     {
-        FPRT(stderr, "Error, RX Connection closed unexpectedly.\n");
+        FPRT(stderr, "Error: RX Connection closed unexpectedly.\n");
         assert(0);
     }
     else
@@ -367,7 +361,9 @@ void receive(networking_engine *net_engine)
             }
             #endif
             ninst_t* target_ninst = &net_engine->nasm->ninst_arr[ninst_idx];
-            if (atomic_exchange (&target_ninst->state, NINST_COMPLETED) == NINST_COMPLETED || !is_inference_whitelist(net_engine, inference_id)) 
+            if (!is_inference_whitelist(net_engine, inference_id))
+                return;
+            if (atomic_exchange (&target_ninst->state, NINST_COMPLETED) == NINST_COMPLETED) 
                 return;
             #ifdef DEBUG
             if (data_size != target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float))
@@ -555,27 +551,36 @@ void net_engine_wait_for_tx_queue_completion (networking_engine *net_engine)
     pthread_mutex_unlock (&net_engine->tx_queue->queue_mutex);
 }
 
-void add_inference_whitelist (networking_engine *net_engine, int inference_id) {
-    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
-        if (net_engine->inference_whitelist[i] == -1) {
+void add_inference_whitelist (networking_engine *net_engine, int inference_id) 
+{
+    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) 
+    {
+        if (net_engine->inference_whitelist[i] == -1) 
+        {
             net_engine->inference_whitelist[i] = inference_id;
             return;
         }
     }
 }
 
-void remove_inference_whitelist (networking_engine *net_engine, int inference_id) {
-    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
-        if (net_engine->inference_whitelist[i] == inference_id) {
+void remove_inference_whitelist (networking_engine *net_engine, int inference_id) 
+{
+    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) 
+    {
+        if (net_engine->inference_whitelist[i] == inference_id) 
+        {
             net_engine->inference_whitelist[i] = -1;
             return;
         }
     }
 }
 
-int is_inference_whitelist (networking_engine *net_engine, int inference_id) {
-    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
-        if (net_engine->inference_whitelist[i] == inference_id) {
+int is_inference_whitelist (networking_engine *net_engine, int inference_id) 
+{
+    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) 
+    {
+        if (net_engine->inference_whitelist[i] == inference_id) 
+        {
             return 1;
         }
     }

@@ -5,255 +5,262 @@ static _Atomic unsigned int dse_thread_id_counter = 0;
 void *dse_thread_runtime (void* thread_info)
 {
     dse_t *dse = (dse_t*) thread_info;
-    int target_device;
     pthread_mutex_lock(&dse->thread_mutex);
     while (dse->kill == 0)
     {
-        // print_rpool_info (dse->rpool);
-        // print_rpool_queue_info (dse->ninst_cache);
+        dse_schedule (dse);
         if (dse->run == 0)
-        {   
             pthread_cond_wait(&dse->thread_cond, &dse->thread_mutex); 
-        }
-        // if ((dse->ninst_cache->num_stored < dse_NINST_CACHE_BALLANCE - dse_NINST_CACHE_DIFF) || 
-        //     dse->ninst_cache->num_stored == 0)
-        if (dse->target == NULL)
+    }
+    return NULL;
+}
+
+void dse_schedule (dse_t *dse)
+{
+    // print_rpool_info (dse->rpool);
+    // print_rpool_queue_info (dse->ninst_cache);
+    
+    // if ((dse->ninst_cache->num_stored < dse_NINST_CACHE_BALLANCE - dse_NINST_CACHE_DIFF) || 
+    //     dse->ninst_cache->num_stored == 0)
+    int target_device;
+    if (dse->target == NULL)
+    {
+        if (dse->is_multiuser_case)
         {
-            if (dse->device_idx != 0 && dse->is_multiuser_case) {
+            if (dse->device_idx != 0) 
+            {
                 rpool_fetch_ninsts (dse->rpool_arr[0], &dse->target, 1, 0);
-
-                if (dse->target == NULL) continue;
+                if (dse->target == NULL)
+                    return;
             }
-            if (dse->device_idx == 0 && dse->is_multiuser_case) {
-                int checked[SCHEDULE_MAX_DEVICES];
-                for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) checked[i] = 0;
-
-                for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
-                    if (dse->prioritize_rpool[i] != -1) {
+            else
+            {
+                int checked[SCHEDULE_MAX_DEVICES] = {0};
+                for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++) 
+                {
+                    if (dse->prioritize_rpool[i] != -1) 
+                    {
                         rpool_fetch_ninsts (dse->rpool_arr[dse->prioritize_rpool[i]], &dse->target, 1, 0);
                         checked[dse->prioritize_rpool[i]] = 1;
-
-                        if (dse->target) {
+                        if (dse->target) 
+                        {
                             target_device = dse->prioritize_rpool[i];
                             break;
                         }
                     }
-                    else {
+                    else 
                         break;
-                    }
                 }
-
-                for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
-                    if (!dse->enabled_device[i]) continue;
-                    if (checked[i]) continue;
+                for (int i = 1; i < SCHEDULE_MAX_DEVICES; i++) 
+                {
+                    if (!dse->enabled_device[i]) 
+                        continue;
+                    if (checked[i]) 
+                        continue;
 
                     rpool_fetch_ninsts (dse->rpool_arr[i], &dse->target, 1, 0);
-
-                    if (dse->target) {
+                    if (dse->target) 
+                    {
                         target_device = i;
                         break;
                     }
-
                 }
+                if (dse->target == NULL) 
+                    return;
+            }
+        }
+        else 
+        {
+            rpool_fetch_ninsts (dse->rpool, &dse->target, 1, 0);
+            if (dse->target == NULL)
+                return;
+        }
+        // unsigned int fetch_num = 
+        //     rpool_fetch_ninsts (dse->rpool, dse->scratchpad, dse_NINST_CACHE_BALLANCE - dse->ninst_cache->num_stored);
+        // push_ninsts_to_queue (dse->ninst_cache, dse->scratchpad, fetch_num);
+        // PRT ("Thread %d fetched %d ninsts from rpool\n", dse->thread_id, fetch_num);
+        // #ifdef DEBUG
+        // PRT ("Thread %d fetched %d ninsts from rpool\n", dse->thread_id, fetch_num);
+        // print_rpool_info (dse->rpool);
+        // print_rpool_queue_info (dse->ninst_cache);
+        // #endif
+    }
+    // else if (dse->ninst_cache->num_stored > dse_NINST_CACHE_BALLANCE + dse_NINST_CACHE_DIFF)
+    // if (dse->ninst_cache->num_stored > 0)
+    // {
+    //     // unsigned int push_num = 
+    //     //     pop_ninsts_from_queue_back (dse->ninst_cache, dse->scratchpad, dse->ninst_cache->num_stored - dse_NINST_CACHE_BALLANCE);
+    //     rpool_push_ninsts (dse->rpool, dse->ninst_cache->ninst_ptr_arr, dse->ninst_cache->num_stored);
+    //     dse->ninst_cache->num_stored = 0;
+    //     dse->ninst_cache->idx_end = 0;
+    //     // PRT ("Thread %d pushed %d ninsts to rpool\n", dse->thread_id, push_num);
+    //     // #ifdef DEBUG
+    //     // PRT ("Thread %d pushed %d ninsts to rpool\n", dse->thread_id, push_num);
+    //     // print_rpool_info (dse->rpool);
+    //     // print_rpool_queue_info (dse->ninst_cache);
+    //     // #endif
+    // }
 
-                if (dse->target == NULL) continue;
+    // unsigned int num_ninsts = dse->ninst_cache->num_stored;
+    // for (int i = 0; i < num_ninsts; i++)
+    // {
+    //     ninst_t *ninst;
+    //     pop_ninsts_from_queue (dse->ninst_cache, &ninst, 1);
+        // PRT ("Thread %d running ninst #%d - N%d:L%d:%d\n", dse->thread_id, i,
+        //         ninst->ldata->nasm->nasm_id, ninst->ldata->layer->layer_idx, ninst->ninst_idx);
+        // #ifdef DEBUG
+        // if (ninst == NULL)
+        // {
+        //     FPRT (stderr, "ERROR: dse_thread_runtime: ninst is NULL\n");
+        //     assert (0);
+        // }
+        // else 
+        // {
+        //     PRT ("Thread %d running ninst #%d - N%d:L%d:%d\n", dse->thread_id, i,
+        //         ninst->ldata->nasm->nasm_id, ninst->ldata->layer->layer_idx, ninst->ninst_idx);
+        // }
+        // if (ninst->state != NINST_READY)
+        // {
+        //     FPRT (stderr, "ERROR: dse_thread_runtime: ninst->state != NINST_READY\n");
+        //     assert (0);
+        // }
+        // #endif
+        // Execute.
+        ninst_t *ninst = dse->target;
+        dse->target = NULL;
+        if (atomic_exchange (&ninst->state, NINST_COMPLETED) == NINST_COMPLETED)
+            return;
+
+        // printf("fetched ninst %d, offload: %d, compute: %d\n", ninst->ninst_idx, ninst->offload, ninst->compute);
+        if (is_device_compute_dev(ninst, dse->device_idx) || dse->profile_compute)    // It's mine, so compute
+        {
+            // printf("compute ninst %d\n", ninst->ninst_idx);
+            if (dse->profile_compute) ninst->compute_start = get_time_secs();
+            switch (ninst->ldata->layer->type)
+            {
+                case CONV_LAYER:
+                    tiled_conv2d (ninst, dse);
+                    break;
+                case MAXPOOL_LAYER:
+                    tiled_maxpool2d (ninst, dse);
+                    break;
+                case AVGPOOL_LAYER:
+                    tiled_avgpool2d (ninst, dse);
+                    break;
+                case FC_LAYER:
+                    tiled_fully_connected (ninst, dse);
+                    break;
+                case RESIDUAL_LAYER:
+                    tiled_residual (ninst, dse);
+                    break;
+                case SOFTMAX_LAYER:
+                    tiled_softmax (ninst, dse);
+                    break;
+                case YOLO_LAYER:
+                    tiled_yolo (ninst, dse);
+                    break;
+                case APPEND_LAYER:
+                    tiled_append (ninst, dse);
+                    break;
+                case MATMUL_LAYER:
+                    tiled_matmul (ninst, dse);
+                    break;
+                case LAYERNORM_LAYER:
+                    tiled_layernorm (ninst, dse);
+                    break;
+                case K_ATTENTION_LAYER:
+                    tiled_k_attention (ninst, dse);
+                    break;
+                case V_ATTENTION_LAYER:
+                    tiled_v_attention (ninst, dse);
+                    break;
+                default:
+                    // FPRT (stderr, "ERROR: dse_thread_runtime: layer type %s is not supported\n", layer_type_str[ninst->ldata->layer->type]);
+                    break;
+            }
+
+            ninst->computed_time = get_time_secs();
+            if (dse->profile_compute) ninst->compute_end = ninst->computed_time;
+        
+            
+            unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
+            if (num_ninst_completed == ninst->ldata->num_ninst - 1)
+            {
+                // printf ("\t\tThread %d completed layer %d of nasm %d\n", 
+                //     dse->thread_id, ninst->ldata->layer->layer_idx, ninst->ldata->nasm->nasm_id);
+                nasm_t *nasm = ninst->ldata->nasm;
+                // unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
+                atomic_fetch_add (&nasm->num_ldata_completed, 1);
+                // if (num_ldata_completed == nasm->num_ldata - 1)
+
+                if (nasm->ldata_arr[nasm->num_ldata-1].num_ninst_completed == nasm->ldata_arr[nasm->num_ldata-1].num_ninst)
+                {
+                    // printf ("\t\tSignaling nasm completion...\n");
+                    // All layers of the nasm is completed.
+                    rpool_queue_group_t *rpool_queue_group;
+                    if (dse->is_multiuser_case) {
+                        rpool_queue_group = get_queue_group_from_nasm (dse->rpool_arr[target_device], ninst->ldata->nasm);
+                        set_queue_group_weight (dse->rpool_arr[target_device], rpool_queue_group, 0);
+                    }
+                    else {
+                        rpool_queue_group = get_queue_group_from_nasm (dse->rpool, ninst->ldata->nasm);
+                        set_queue_group_weight (dse->rpool, rpool_queue_group, 0);
+                    }
+                    pthread_mutex_lock (&nasm->nasm_mutex);
+                    pthread_cond_signal (&nasm->nasm_cond);
+                    pthread_mutex_unlock (&nasm->nasm_mutex);
+                }
+            }
+            // update_children_to_cache (dse->ninst_cache, ninst);
+            if (dse->is_multiuser_case && dse->device_idx == 0) {
+                update_children_but_prioritize_dse_target (dse->rpool_arr[target_device], ninst, dse);
+            }
+            else if (dse->is_multiuser_case && dse->device_idx != 0) {
+                update_children_but_prioritize_dse_target (dse->rpool_arr[0], ninst, dse);
+            }
+            else if (!dse->is_multiuser_case && dse->is_dynamic_scheduling && ninst->ldata->layer->layer_idx == 0) {
+                update_children (dse->rpool, ninst, 0);
             }
             else {
-                rpool_fetch_ninsts (dse->rpool, &dse->target, 1, 0);
-                if (dse->target == NULL)
-                    continue;
+                update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
             }
-            // unsigned int fetch_num = 
-            //     rpool_fetch_ninsts (dse->rpool, dse->scratchpad, dse_NINST_CACHE_BALLANCE - dse->ninst_cache->num_stored);
-            // push_ninsts_to_queue (dse->ninst_cache, dse->scratchpad, fetch_num);
-            // PRT ("Thread %d fetched %d ninsts from rpool\n", dse->thread_id, fetch_num);
-            // #ifdef DEBUG
-            // PRT ("Thread %d fetched %d ninsts from rpool\n", dse->thread_id, fetch_num);
-            // print_rpool_info (dse->rpool);
-            // print_rpool_queue_info (dse->ninst_cache);
-            // #endif
+
+            // check devices to send to for the computation output
+            if (dse->is_multiuser_case) 
+            {
+                for (int i = 0; i<SCHEDULE_MAX_DEVICES; i++) 
+                {
+                    if (i == dse->device_idx) continue;
+                    if (ninst->dev_send_target[i]) // Should be offload
+                    {
+                        networking_engine *net_engine = dse->net_engine_arr[i];
+                        create_network_buffer_for_ninst (ninst);   
+                        pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
+                        push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
+                        pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
+                    }
+                }
+            }
+            else 
+            {
+                for (int i = 0; i<SCHEDULE_MAX_DEVICES; i++) 
+                {
+                    if (i == dse->device_idx) continue;
+                    if (ninst->dev_send_target[i]) 
+                    {
+                        // printf ("\tninst idx %d (L%d), target device: %d, current device: %d, desired device%d\n", 
+                        // ninst->ninst_idx, ninst->ldata->layer->layer_idx, i, dse->device_idx,
+                        // ninst->dev_send_target[i]);
+                        networking_engine *net_engine = dse->net_engine;
+                        create_network_buffer_for_ninst (ninst);
+                        pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
+                        push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
+                        pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
+                    }
+                }
+            }
         }
-        // else if (dse->ninst_cache->num_stored > dse_NINST_CACHE_BALLANCE + dse_NINST_CACHE_DIFF)
-        // if (dse->ninst_cache->num_stored > 0)
-        // {
-        //     // unsigned int push_num = 
-        //     //     pop_ninsts_from_queue_back (dse->ninst_cache, dse->scratchpad, dse->ninst_cache->num_stored - dse_NINST_CACHE_BALLANCE);
-        //     rpool_push_ninsts (dse->rpool, dse->ninst_cache->ninst_ptr_arr, dse->ninst_cache->num_stored);
-        //     dse->ninst_cache->num_stored = 0;
-        //     dse->ninst_cache->idx_end = 0;
-        //     // PRT ("Thread %d pushed %d ninsts to rpool\n", dse->thread_id, push_num);
-        //     // #ifdef DEBUG
-        //     // PRT ("Thread %d pushed %d ninsts to rpool\n", dse->thread_id, push_num);
-        //     // print_rpool_info (dse->rpool);
-        //     // print_rpool_queue_info (dse->ninst_cache);
-        //     // #endif
-        // }
-
-        // unsigned int num_ninsts = dse->ninst_cache->num_stored;
-        // for (int i = 0; i < num_ninsts; i++)
-        // {
-        //     ninst_t *ninst;
-        //     pop_ninsts_from_queue (dse->ninst_cache, &ninst, 1);
-            // PRT ("Thread %d running ninst #%d - N%d:L%d:%d\n", dse->thread_id, i,
-            //         ninst->ldata->nasm->nasm_id, ninst->ldata->layer->layer_idx, ninst->ninst_idx);
-            // #ifdef DEBUG
-            // if (ninst == NULL)
-            // {
-            //     FPRT (stderr, "ERROR: dse_thread_runtime: ninst is NULL\n");
-            //     assert (0);
-            // }
-            // else 
-            // {
-            //     PRT ("Thread %d running ninst #%d - N%d:L%d:%d\n", dse->thread_id, i,
-            //         ninst->ldata->nasm->nasm_id, ninst->ldata->layer->layer_idx, ninst->ninst_idx);
-            // }
-            // if (ninst->state != NINST_READY)
-            // {
-            //     FPRT (stderr, "ERROR: dse_thread_runtime: ninst->state != NINST_READY\n");
-            //     assert (0);
-            // }
-            // #endif
-            // Execute.
-            ninst_t *ninst = dse->target;
-            dse->target = NULL;
-            if (atomic_exchange (&ninst->state, NINST_COMPLETED) == NINST_COMPLETED)
-            {
-                continue;
-            }
-            // printf("fetched ninst %d, offload: %d, compute: %d\n", ninst->ninst_idx, ninst->offload, ninst->compute);
-            if (is_device_compute_dev(ninst, dse->device_idx) || dse->profile_compute)    // It's mine, so compute
-            {
-                // printf("compute ninst %d\n", ninst->ninst_idx);
-                if (dse->profile_compute) ninst->compute_start = get_time_secs();
-                switch (ninst->ldata->layer->type)
-                {
-                    case CONV_LAYER:
-                        tiled_conv2d (ninst, dse);
-                        break;
-                    case MAXPOOL_LAYER:
-                        tiled_maxpool2d (ninst, dse);
-                        break;
-                    case AVGPOOL_LAYER:
-                        tiled_avgpool2d (ninst, dse);
-                        break;
-                    case FC_LAYER:
-                        tiled_fully_connected (ninst, dse);
-                        break;
-                    case RESIDUAL_LAYER:
-                        tiled_residual (ninst, dse);
-                        break;
-                    case SOFTMAX_LAYER:
-                        tiled_softmax (ninst, dse);
-                        break;
-                    case YOLO_LAYER:
-                        tiled_yolo (ninst, dse);
-                        break;
-                    case APPEND_LAYER:
-                        tiled_append (ninst, dse);
-                        break;
-                    case MATMUL_LAYER:
-                        tiled_matmul (ninst, dse);
-                        break;
-                    case LAYERNORM_LAYER:
-                        tiled_layernorm (ninst, dse);
-                        break;
-                    case K_ATTENTION_LAYER:
-                        tiled_k_attention (ninst, dse);
-                        break;
-                    case V_ATTENTION_LAYER:
-                        tiled_v_attention (ninst, dse);
-                        break;
-                    default:
-                        // FPRT (stderr, "ERROR: dse_thread_runtime: layer type %s is not supported\n", layer_type_str[ninst->ldata->layer->type]);
-                        break;
-                }
-
-                ninst->computed_time = get_time_secs();
-                if (dse->profile_compute) ninst->compute_end = ninst->computed_time;
-            
-                
-                unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
-                if (num_ninst_completed == ninst->ldata->num_ninst - 1)
-                {
-                    // printf ("\t\tThread %d completed layer %d of nasm %d\n", 
-                    //     dse->thread_id, ninst->ldata->layer->layer_idx, ninst->ldata->nasm->nasm_id);
-                    nasm_t *nasm = ninst->ldata->nasm;
-                    // unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
-                    atomic_fetch_add (&nasm->num_ldata_completed, 1);
-                    // if (num_ldata_completed == nasm->num_ldata - 1)
-
-                    if (nasm->ldata_arr[nasm->num_ldata-1].num_ninst_completed == nasm->ldata_arr[nasm->num_ldata-1].num_ninst)
-                    {
-                        // printf ("\t\tSignaling nasm completion...\n");
-                        // All layers of the nasm is completed.
-                        rpool_queue_group_t *rpool_queue_group;
-                        if (dse->is_multiuser_case) {
-                            rpool_queue_group = get_queue_group_from_nasm (dse->rpool_arr[target_device], ninst->ldata->nasm);
-                            set_queue_group_weight (dse->rpool_arr[target_device], rpool_queue_group, 0);
-                        }
-                        else {
-                            rpool_queue_group = get_queue_group_from_nasm (dse->rpool, ninst->ldata->nasm);
-                            set_queue_group_weight (dse->rpool, rpool_queue_group, 0);
-                        }
-                        pthread_mutex_lock (&nasm->nasm_mutex);
-                        pthread_cond_signal (&nasm->nasm_cond);
-                        pthread_mutex_unlock (&nasm->nasm_mutex);
-                    }
-                }
-                // update_children_to_cache (dse->ninst_cache, ninst);
-                if (dse->is_multiuser_case && dse->device_idx == 0) {
-                    update_children_but_prioritize_dse_target (dse->rpool_arr[target_device], ninst, dse);
-                }
-                else if (dse->is_multiuser_case && dse->device_idx != 0) {
-                    update_children_but_prioritize_dse_target (dse->rpool_arr[0], ninst, dse);
-                }
-                else if (!dse->is_multiuser_case && dse->is_dynamic_scheduling && ninst->ldata->layer->layer_idx == 0) {
-                    update_children (dse->rpool, ninst, 0);
-                }
-                else {
-                    update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
-                }
-
-                // check desiring devices for the computation output
-                if (dse->is_multiuser_case) 
-                {
-                    for (int i = 0; i<SCHEDULE_MAX_DEVICES; i++) 
-                    {
-                        if (i == dse->device_idx) continue;
-                        if (ninst->dev_send_target[i]) // Should be offload
-                        {
-                            networking_engine *net_engine = dse->net_engine_arr[i];
-                            create_network_buffer_for_ninst (ninst);   
-                            pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
-                            push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
-                            pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
-                        }
-                    }
-
-                }
-                else 
-                {
-                    for (int i = 0; i<SCHEDULE_MAX_DEVICES; i++) 
-                    {
-                        if (i == dse->device_idx) continue;
-                        if (ninst->dev_send_target[i]) 
-                        {
-                            // printf ("\tninst idx %d (L%d), target device: %d, current device: %d, desired device%d\n", 
-                            // ninst->ninst_idx, ninst->ldata->layer->layer_idx, i, dse->device_idx,
-                            // ninst->dev_send_target[i]);
-                            networking_engine *net_engine = dse->net_engine;
-                            create_network_buffer_for_ninst (ninst);
-                            pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
-                            push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
-                            pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
-                        }
-                    }
-                }
-            }
-                
-        // }
-    }
-    return NULL;
+    // }
 }
 
 dse_group_t *dse_group_init (unsigned int num_ase, int gpu_idx)
@@ -602,34 +609,38 @@ void update_children (rpool_t *rpool, ninst_t *ninst, unsigned int dse_idx)
     #ifdef DEBUG
     if (rpool == NULL || ninst == NULL)
     {
-        FPRT (stderr, "Error: Invalid arguments to dse_update_children()\n");
+        FPRT (stderr, "Error: Invalid arguments to update_children()\n");
         assert (0);
     }
     if (atomic_load (&ninst->state) != NINST_COMPLETED)
     {
-        FPRT (stderr, "Error: ninst->state != NINST_STATE_COMPLETED in dse_update_children()\n");
+        FPRT (stderr, "Error: ninst->state != NINST_STATE_COMPLETED in update_children()\n");
         assert (0);
     }
     #endif
     for (int i = 0; i < ninst->num_child_ninsts; i++)
     {
         ninst_t *child_ninst = ninst->child_ninst_arr[i];
-        if (atomic_load (&child_ninst->state) == NINST_NOT_READY) 
+        unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
+        if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
         {
-            unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
-            if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
+            // Pseudo-mutex while ninst state change, using NINST_COMPLETED state as lock
+            NINST_STATE old_state = atomic_exchange (&child_ninst->state, NINST_COMPLETED);
+            if (old_state == NINST_NOT_READY) 
+            {
+                atomic_store (&child_ninst->state, NINST_READY);
+                rpool_push_ninsts (rpool, &child_ninst, 1, 0);
+            }
+            else
             {
                 #ifdef DEBUG
-                if (child_ninst->state != NINST_NOT_READY)
+                if (old_state != NINST_COMPLETED)
                 {
-                    FPRT (stderr, "Error: child_ninst->state != NINST_NOT_READY in dse_update_children() - %s\n",
-                        ninst_state_str[child_ninst->state]);
+                    FPRT (stderr, "Error: update_children_to_cache_but_prioritize_dse_target(), old_state = %d\n", old_state);
                     assert (0);
                 }
                 #endif
-                
-                atomic_store (&child_ninst->state, NINST_READY);
-                rpool_push_ninsts (rpool, &child_ninst, 1, 0);
+                atomic_store (&child_ninst->state, old_state);
             }
         }
     }
@@ -640,12 +651,12 @@ void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst)
     #ifdef DEBUG
     if (cache == NULL || ninst == NULL)
     {
-        FPRT (stderr, "Error: Invalid arguments to dse_update_children_to_cache()\n");
+        FPRT (stderr, "Error: Invalid arguments to update_children_to_cache()\n");
         assert (0);
     }
     if (ninst->state != NINST_COMPLETED)
     {
-        FPRT (stderr, "Error: ninst->state != NINST_STATE_COMPLETED in dse_update_children_to_cache()\n");
+        FPRT (stderr, "Error: ninst->state != NINST_STATE_COMPLETED in update_children_to_cache()\n");
         assert (0);
     }
     #endif
@@ -654,21 +665,26 @@ void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst)
     for (int i = 0; i < ninst->num_child_ninsts; i++)
     {
         ninst_t *child_ninst = ninst->child_ninst_arr[i];
-        if (atomic_load (&child_ninst->state) == NINST_NOT_READY) 
+        unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
+        if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
         {
-            unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
-            if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
+            // Pseudo-mutex while ninst state change, using NINST_COMPLETED state as lock
+            NINST_STATE old_state = atomic_exchange (&child_ninst->state, NINST_COMPLETED);
+            if (old_state == NINST_NOT_READY) 
             {
-                #ifdef DEBUG 
-                if (child_ninst->state != NINST_NOT_READY)
+                atomic_store (&child_ninst->state, NINST_READY);
+                push_ninsts_to_queue (cache, &child_ninst, 1);
+            }
+            else
+            {
+                #ifdef DEBUG
+                if (old_state != NINST_COMPLETED)
                 {
-                    FPRT (stderr, "Error: child_ninst->state != NINST_NOT_READY in dse_update_children() - %s\n",
-                            ninst_state_str[child_ninst->state]);
+                    FPRT (stderr, "Error: update_children_to_cache_but_prioritize_dse_target(), old_state = %d\n", old_state);
                     assert (0);
                 }
                 #endif
-                child_ninst->state = NINST_READY;
-                push_ninsts_to_queue (cache, &child_ninst, 1);
+                atomic_store (&child_ninst->state, old_state);
             }
         }
     }
@@ -679,7 +695,7 @@ void update_children_but_prioritize_dse_target (rpool_t *rpool, ninst_t *ninst, 
     #ifdef DEBUG
     if (ninst->state != NINST_COMPLETED)
     {
-        FPRT (stderr, "Error: ninst->state != NINST_STATE_COMPLETED in dse_update_children_to_cache()\n");
+        FPRT (stderr, "Error: ninst->state != NINST_STATE_COMPLETED in update_children_but_prioritize_dse_target()\n");
         assert (0);
     }
     #endif
@@ -690,20 +706,14 @@ void update_children_but_prioritize_dse_target (rpool_t *rpool, ninst_t *ninst, 
     for (int i = 0; i < ninst->num_child_ninsts; i++)
     {
         ninst_t *child_ninst = ninst->child_ninst_arr[i];
-        if (atomic_load (&child_ninst->state) == NINST_NOT_READY) 
+        unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
+        if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
         {
-            unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
-            if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
+            // Pseudo-mutex while ninst state change, using NINST_COMPLETED state as lock
+            NINST_STATE old_state = atomic_exchange (&child_ninst->state, NINST_COMPLETED);
+            if (old_state == NINST_NOT_READY) 
             {
-                #ifdef DEBUG
-                if (child_ninst->state != NINST_NOT_READY)
-                {
-                    FPRT (stderr, "Error: child_ninst->state != NINST_NOT_READY in dse_update_children() - %s\n",
-                            ninst_state_str[child_ninst->state]);
-                    assert (0);
-                }
-                #endif
-                child_ninst->state = NINST_READY;
+                atomic_store (&child_ninst->state, NINST_READY);
                 if (dse->target != NULL)
                 {
                     cache[num_cache++] = child_ninst;
@@ -711,7 +721,19 @@ void update_children_but_prioritize_dse_target (rpool_t *rpool, ninst_t *ninst, 
                 else
                     dse->target = child_ninst;
             }
+            else
+            {
+                #ifdef DEBUG
+                if (old_state != NINST_COMPLETED)
+                {
+                    FPRT (stderr, "Error: update_children_to_cache_but_prioritize_dse_target(), old_state = %d\n", old_state);
+                    assert (0);
+                }
+                #endif
+                atomic_store (&child_ninst->state, old_state);
+            }
         }
+
     }
     rpool_push_ninsts (rpool, cache, num_cache, 0);
 }
@@ -721,12 +743,12 @@ void update_children_to_cache_but_prioritize_dse_target (rpool_queue_t *cache, n
     #ifdef DEBUG
     if (cache == NULL || ninst == NULL)
     {
-        FPRT (stderr, "Error: Invalid arguments to dse_update_children_to_cache()\n");
+        FPRT (stderr, "Error: Invalid arguments to update_children_to_cache_but_prioritize_dse_target()\n");
         assert (0);
     }
     if (ninst->state != NINST_COMPLETED)
     {
-        FPRT (stderr, "Error: ninst->state != NINST_STATE_COMPLETED in dse_update_children_to_cache()\n");
+        FPRT (stderr, "Error: ninst->state != NINST_STATE_COMPLETED in update_children_to_cache_but_prioritize_dse_target()\n");
         assert (0);
     }
     #endif
@@ -735,24 +757,29 @@ void update_children_to_cache_but_prioritize_dse_target (rpool_queue_t *cache, n
     for (int i = 0; i < ninst->num_child_ninsts; i++)
     {
         ninst_t *child_ninst = ninst->child_ninst_arr[i];
-        if (atomic_load (&child_ninst->state) == NINST_NOT_READY) 
+        unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
+        if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
         {
-            unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
-            if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
+           // Pseudo-mutex while ninst state change, using NINST_COMPLETED state as lock
+            NINST_STATE old_state = atomic_exchange (&child_ninst->state, NINST_COMPLETED);
+            if (old_state == NINST_NOT_READY) 
             {
-                #ifdef DEBUG 
-                if (child_ninst->state != NINST_NOT_READY)
-                {
-                    FPRT (stderr, "Error: child_ninst->state != NINST_NOT_READY in dse_update_children() - %s\n",
-                            ninst_state_str[child_ninst->state]);
-                    assert (0);
-                }
-                #endif
-                child_ninst->state = NINST_READY;
+                atomic_store (&child_ninst->state, NINST_READY);
                 if (*dse_target != NULL)
                     push_ninsts_to_queue (cache, &child_ninst, 1);
                 else
                     *dse_target = child_ninst;
+            }
+            else
+            {
+                #ifdef DEBUG
+                if (old_state != NINST_COMPLETED)
+                {
+                    FPRT (stderr, "Error: update_children_to_cache_but_prioritize_dse_target(), old_state = %d\n", old_state);
+                    assert (0);
+                }
+                #endif
+                atomic_store (&child_ninst->state, old_state);
             }
         }
     }
