@@ -25,7 +25,6 @@ double get_sec()
 
 // OPTIONS
 // option "device_mode" - "" int required
-// option "pipelined" - "" int required
 // option "dirname" - "" string required
 // option "prefix" - "" string optional
 // option "log_idx_start" - "" int optional
@@ -50,7 +49,6 @@ int main(int argc, char **argv)
     }
 
     DEVICE_MODE device_mode = ai.device_mode_arg; // 0: SERVER, 1: EDGE
-    int pipelined = ai.pipelined_arg;
     char *dirname = ai.dirname_arg;
     char *prefix = ai.prefix_arg ? ai.prefix_arg : "temp";
     int log_idx_start = ai.log_idx_start_arg;
@@ -82,29 +80,8 @@ int main(int argc, char **argv)
         printf ("nasm_name: %s\n", nasm_name);
     }
 
-    // char *target_config = "data/cfg/resnet50_aspen.cfg";
-    // char *target_bin = "data/resnet50/resnet50_data.bin";
-    // char *target_nasm_dir = "data/resnet50_B1_aspen.nasm";
-    // char *target_nasm_dir = "data/resnet50_B32_fine_aspen.nasm";
-    // char* target_input = "data/resnet50/batched_input_64.bin";
-    // char *target_config = "data/cfg/bert_base_encoder.cfg";
-    // char *target_bin = NULL;
-
-    // char *target_config = "data/cfg/vgg16_aspen.cfg";
-    // char *target_bin = "data/vgg16/vgg16_data.bin";
-    // char *target_nasm_dir = "data/vgg16_B1_aspen.nasm";
-    // char *target_nasm_dir = NULL;
-    // char *target_input = NULL;
-
     int gpu = -1;
-
-    // nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_B1_aspen.nasm", resnet50_dnn);
-    // nasm_t *resnet50_nasm = apu_load_nasm_from_file ("data/resnet50_B32_fine_aspen.nasm", resnet50_dnn);
-    // nasm_t *resnet50_nasm = apu_create_nasm(resnet50_dnn, 1e6, 200, 32);
-    // nasm_t *vgg16_nasm = apu_create_nasm(vgg16_dnn, 1e6, 8, 1);
-    // apu_save_nasm_to_file(resnet50_nasm, "data/resnset50_B32_fine_aspen.nasm");
-    // apu_save_nasm_to_file(vgg16_nasm, "data/vgg16_B1_aspen.nasm");
-
+    int is_conventional = !strcmp(schedule_policy, "conventional");
     int server_sock;
     int client_sock;
 
@@ -134,144 +111,56 @@ int main(int argc, char **argv)
     dse_group_set_rpool (dse_group, rpool);
     networking_engine* net_engine = NULL;
 
-    if (!strcmp(schedule_policy, "heft")) {
-        /** STAGE: PROFILING COMPUTATION **/
+    /** STAGE: PROFILING NETWORK **/
 
-        printf("STAGE: PROFILING COMPUTATION\n");
-        ninst_profile[device_mode] = profile_computation(target_dnn_dir, target_nasm_dir, target_input, gpu, 1);
-        ninst_profile[device_mode] = load_computation_profile("./data/vgg16_B1_comp_profile.bin");
-        save_computation_profile(ninst_profile[device_mode], "data/bert_base_comp_profile.bin");
+    printf("STAGE: PROFILING NETWORK\n");
 
-        
-        /** STAGE: PROFILING NETWORK **/
+    float sync = profile_network_sync(device_mode, server_sock, client_sock);
 
-        printf("STAGE: PROFILING NETWORK\n");
-
-        network_profile = profile_network(ninst_profile, device_mode, server_sock, client_sock);
-
-        int connection_key;
-        if (device_mode == DEV_SERVER) {
-            connection_key = 12534;
-            write_n(client_sock, &connection_key, sizeof(int));
-            printf("connection key: %d\n", connection_key);
-        }
-        else if (device_mode == DEV_EDGE) {
-            connection_key = -1;
-            read_n(server_sock, &connection_key, sizeof(int));
-            printf("connection key: %d\n", connection_key);
-        }
-
-        printf("sync: %f\n", network_profile->sync);
-        
-        
-        /** STAGE: SCHEDULING - HEFT **/
-        printf("STAGE: SCHEUDLING - HEFT\n");
-
-        if (device_mode == DEV_SERVER) {
-            schedule = init_heft(target_dnn_dir, target_nasm_dir, ninst_profile, network_profile, 2);
-            save_schedule(schedule, 2, "./temp_sched.txt");
-        }
-        
-        share_schedule(&schedule, 2, device_mode, server_sock, client_sock);
-
-        target_dnn = apu_load_dnn_from_file(target_dnn_dir);
-        target_nasm = apu_load_nasm_from_file (target_nasm_dir, target_dnn);
-
-        apply_schedule_to_nasm(target_nasm, schedule, 2, device_mode);
-    }
-    else if (!strcmp(schedule_policy, "partial")) {
-        /** STAGE: PROFILING NETWORK **/
-
-        printf("STAGE: PROFILING NETWORK\n");
-
-        float sync = profile_network_sync(device_mode, server_sock, client_sock);
-
-        int connection_key;
-        if (device_mode == DEV_SERVER) {
-            connection_key = 12534;
-            write_n(client_sock, &connection_key, sizeof(int));
-            printf("connection key: %d\n", connection_key);
-        }
-        else if (device_mode == DEV_EDGE) {
-            connection_key = -1;
-            read_n(server_sock, &connection_key, sizeof(int));
-            printf("connection key: %d\n", connection_key);
-        }
-
-        printf("sync: %f\n", sync);
-
-        /** STAGE: SCHEDULING - PARTIAL **/
-        target_dnn = apu_load_dnn_from_file(target_dnn_dir);
-        // target_nasm = apu_create_nasm(target_dnn, 1e4, 8, 32);
-        // apu_save_nasm_to_file(target_nasm, "data/bert_base_encoder_B32_S128.nasm");
-        target_nasm = apu_load_nasm_from_file(target_nasm_dir, target_dnn);
-
-        init_partial_offload(target_nasm, 0.0);
-    }
-    else if (!strcmp(schedule_policy, "sequential")) 
+    int connection_key;
+    if (device_mode == DEV_SERVER) 
     {
-        /** STAGE: PROFILING NETWORK **/
-
-        printf("STAGE: PROFILING NETWORK\n");
-
-        float sync = profile_network_sync(device_mode, server_sock, client_sock);
-
-        int connection_key;
-        if (device_mode == DEV_SERVER) {
-            connection_key = 12534;
-            write_n(client_sock, &connection_key, sizeof(int));
-            printf("connection key: %d\n", connection_key);
-        }
-        else if (device_mode == DEV_EDGE) {
-            connection_key = -1;
-            read_n(server_sock, &connection_key, sizeof(int));
-            printf("connection key: %d\n", connection_key);
-        }
-
-        printf("sync: %f\n", sync);
-
-        /** STAGE: SCHEDULING - SEQUENTIAL **/
-        target_dnn = apu_load_dnn_from_file(target_dnn_dir);
-        target_nasm = apu_load_nasm_from_file(target_nasm_dir, target_dnn);
-
-        init_sequential_offload(target_nasm, sched_sequential_idx, DEV_EDGE, DEV_SERVER);
+        connection_key = 12534;
+        write_n(client_sock, &connection_key, sizeof(int));
+        printf("connection key: %d\n", connection_key);
     }
+    else if (device_mode == DEV_EDGE) 
+    {
+        connection_key = -1;
+        read_n(server_sock, &connection_key, sizeof(int));
+        printf("connection key: %d\n", connection_key);
+    }
+
+    printf("sync: %f\n", sync);
+    target_dnn = apu_load_dnn_from_file(target_dnn_dir);
+    target_nasm = apu_load_nasm_from_file(target_nasm_dir, target_dnn);
+
+    /** STAGE: SCHEDULING **/
+
+    if (!strcmp(schedule_policy, "partial")) 
+        init_partial_offload(target_nasm, 0.0);
+    if (!strcmp(schedule_policy, "conventional")) 
+        init_sequential_offload(target_nasm, sched_sequential_idx, DEV_EDGE, DEV_SERVER);
+    else if (!strcmp(schedule_policy, "sequential")) 
+        init_sequential_offload(target_nasm, sched_sequential_idx, DEV_EDGE, DEV_SERVER);
+    else if (!strcmp(schedule_policy, "partial")) 
+        init_partial_offload(target_nasm, 0.0);
     else if (!strcmp(schedule_policy, "dynamic")) 
     {
-        /** STAGE: PROFILING NETWORK **/
-
-        printf("STAGE: PROFILING NETWORK\n");
-
-        float sync = profile_network_sync(device_mode, server_sock, client_sock);
-
-        int connection_key;
-        if (device_mode == DEV_SERVER) {
-            connection_key = 12534;
-            write_n(client_sock, &connection_key, sizeof(int));
-            printf("connection key: %d\n", connection_key);
-        }
-        else if (device_mode == DEV_EDGE) {
-            connection_key = -1;
-            read_n(server_sock, &connection_key, sizeof(int));
-            printf("connection key: %d\n", connection_key);
-        }
-
-        printf("sync: %f\n", sync);
-
         /** STAGE: SCHEDULING - DYNAMIC **/
-        target_dnn = apu_load_dnn_from_file(target_dnn_dir);
-        target_nasm = apu_load_nasm_from_file(target_nasm_dir, target_dnn);
-        for (int i=0; i<dse_group->num_ases; i++) {
+        for (int i=0; i<dse_group->num_ases; i++)
             dse_group->dse_arr[i].is_dynamic_scheduling = 1;
-        }
-
         init_dynamic_offload(target_nasm);
     }
-    else if (!strcmp(schedule_policy, "local")) {
-        target_dnn = apu_load_dnn_from_file(target_dnn_dir);
-        target_nasm = apu_load_nasm_from_file(target_nasm_dir, target_dnn);
+    else if (!strcmp(schedule_policy, "local")) 
+    {
         dse_group_set_device (dse_group, 0);
-        init_sequential_offload (target_nasm, 0, 0, 0);
+        init_sequential_offload (target_nasm, 0, DEV_SERVER, DEV_SERVER);
+    }
+    else
+    {
+        printf("ERROR: Unknown schedule policy: %s\n", schedule_policy);
+        exit(1);
     }
 
     // print_nasm_info (target_nasm, 1, 0);
@@ -300,7 +189,7 @@ int main(int argc, char **argv)
     else
     {
         
-        net_engine = init_networking(target_nasm, rpool, device_mode, server_ip, server_port, 0, pipelined);
+        net_engine = init_networking(target_nasm, rpool, device_mode, server_ip, server_port, 0, !is_conventional);
         dse_group_set_net_engine(dse_group, net_engine);
         dse_group_set_device(dse_group, device_mode);
         net_engine->dse_group = dse_group;
@@ -350,22 +239,20 @@ int main(int argc, char **argv)
             // for (int i = 0; i < 2; i++)
             //     print_ldata_info (&target_nasm->ldata_arr[i], 1, 0);
 
-            if (pipelined)
-            {
+
                 get_elapsed_time ("init");
                 net_engine_run (net_engine);
-                dse_group_run (dse_group);
+                // Do not start SERVER DSEs in conventional mode 
+                // (they are started when the offload layer are all downloaded.)
+                if (!(device_mode == DEV_SERVER && is_conventional)) 
+                    dse_group_run (dse_group);
                 dse_wait_for_nasm_completion (target_nasm);
                 get_elapsed_time ("run_aspen");
                 dse_group_stop (dse_group);
                 if (device_mode == DEV_SERVER)
                     net_engine_wait_for_tx_queue_completion (net_engine);
                 net_engine_stop (net_engine);
-            }
-            else
-            {
-                assert (0);
-            }
+
             
             LAYER_PARAMS output_order_cnn[] = {BATCH, OUT_H, OUT_W, OUT_C};  // for CNN
             LAYER_PARAMS output_order_transformer[] = {BATCH, MAT_N, MAT_M};    // for Transformer
@@ -395,8 +282,7 @@ int main(int argc, char **argv)
                 mkdir(dir_path, 0700);
             }
 
-            sprintf(file_name, "./logs/%s/%s_%s_%s_%s_%s_Iter%d.csv", dirname, prefix, 
-                pipelined ? "pipelined" : "no-pipeline", schedule_policy, device_mode == DEV_SERVER ? "SERVER" : "EDGE", 
+            sprintf(file_name, "./logs/%s/%s_%s_%s_%s_Iter%d.csv", dirname, prefix, schedule_policy, device_mode == DEV_SERVER ? "SERVER" : "EDGE", 
                 nasm_name, log_idx_start+i);
             
             FILE *log_fp = fopen(file_name, "w");

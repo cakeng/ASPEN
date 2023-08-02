@@ -169,6 +169,20 @@ void init_dynamic_offload(nasm_t *nasm)
     nasm_set_last_layer_ninst_send_target_device(nasm, DEV_EDGE);
 }
 
+void init_conventional_offload(nasm_t *nasm) 
+{
+    for (int i = 0; i < nasm->num_ldata; i++) 
+    {
+        for (int j = 0; j<nasm->ldata_arr[i].num_ninst; j++) 
+        {
+            ninst_clear_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]));
+            ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), DEV_SERVER);
+        }
+    }
+    nasm_all_ninst_set_compute_device(nasm, DEV_SERVER);
+    nasm_set_last_layer_ninst_send_target_device(nasm, DEV_EDGE);
+}
+
 sched_processor_t *init_heft(char *target_dnn_dir, char *target_nasm_dir, ninst_profile_t **ninst_profile, network_profile_t *network_profile, int num_device) {
     aspen_dnn_t *target_dnn = apu_load_dnn_from_file(target_dnn_dir);
     nasm_t *nasm = apu_load_nasm_from_file (target_nasm_dir, target_dnn);

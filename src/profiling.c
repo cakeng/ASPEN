@@ -125,7 +125,7 @@ float profile_network_sync(DEVICE_MODE device_mode, int server_sock, int client_
     float sync = 0;
 
     if (device_mode == DEV_SERVER) {
-        printf("\tprofiling as RX...\n");
+        printf("\tprofiling as SERVER...\n");
 
         // echo shortmessage
         for (int i=0; i<num_repeat; i++) {
@@ -138,7 +138,7 @@ float profile_network_sync(DEVICE_MODE device_mode, int server_sock, int client_
         return 0;
     }
     else {
-        printf("\tprofiling as TX...\n");
+        printf("\tprofiling as EDGE...\n");
 
         // send shortmessage
         float send_timestamp[num_repeat];

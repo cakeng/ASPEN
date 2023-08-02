@@ -39,7 +39,7 @@ struct networking_engine
     int listen_sock, comm_sock;
     int is_listen_sock_open, is_comm_sock_open;
     int isUDP;
-    int sequential;
+    int pipelined;
     DEVICE_MODE device_mode;
 
     _Atomic int tx_run;
@@ -69,7 +69,7 @@ struct networking_engine
 
 
 
-networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE device_mode, char* ip, int port, int is_UDP, int sequential);
+networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE device_mode, char* ip, int port, int is_UDP, int pipelined);
 void init_networking_queue (networking_queue_t *networking_queue);
 void init_server(networking_engine* net_engine, int port,int is_UDP);
 void init_edge(networking_engine* net_engine, char* ip, int port, int is_UDP);

@@ -4,6 +4,7 @@ void *net_tx_thread_runtime (void* thread_info)
 {
     networking_engine *net_engine = (networking_engine*) thread_info;
     pthread_mutex_lock (&net_engine->tx_thread_mutex);
+    pthread_cond_wait (&net_engine->tx_thread_cond, &net_engine->tx_thread_mutex);
     while (!net_engine->tx_kill)
     {
         transmission(net_engine);
@@ -16,6 +17,7 @@ void *net_rx_thread_runtime (void* thread_info)
 {
     networking_engine *net_engine = (networking_engine*) thread_info;
     pthread_mutex_lock (&net_engine->rx_thread_mutex);
+    pthread_cond_wait (&net_engine->rx_thread_cond, &net_engine->rx_thread_mutex);
     while (!net_engine->rx_kill)
     {
         receive(net_engine);
@@ -138,7 +140,7 @@ void init_edge(networking_engine* net_engine, char* ip, int port, int is_UDP)
 }
 
 
-networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE device_mode, char* ip, int port, int is_UDP, int sequential) 
+networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE device_mode, char* ip, int port, int is_UDP, int pipelined) 
 {
     PRT("Initializing Networking Engine...\n");
     networking_engine *net_engine = calloc (1, sizeof(networking_engine));
@@ -154,7 +156,7 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE de
 
     net_engine->nasm = nasm;
     net_engine->rpool = rpool;
-    net_engine->sequential = sequential;
+    net_engine->pipelined = pipelined;
     for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
         net_engine->inference_whitelist[i] = -1;
     }
@@ -221,8 +223,6 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE de
     net_engine->rx_thread_mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
     net_engine->tx_thread_cond = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
     net_engine->tx_thread_mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
-    pthread_mutex_lock (&net_engine->rx_thread_mutex);
-    pthread_mutex_lock (&net_engine->tx_thread_mutex);
     pthread_create (&net_engine->tx_thread, NULL, net_tx_thread_runtime, (void*)net_engine);
     pthread_create (&net_engine->rx_thread, NULL, net_rx_thread_runtime, (void*)net_engine);
     return net_engine;
@@ -311,7 +311,7 @@ void receive(networking_engine *net_engine)
     {
         if (payload_size <= 0)
         {
-            PRT("Networking: RX Command %d received - ", payload_size);
+            // PRT("Networking: RX Command %d received - ", payload_size);
             if (payload_size == RX_STOP_SIGNAL)
             {
                 PRT("Stopping RX thread\n");
@@ -387,20 +387,25 @@ void receive(networking_engine *net_engine)
             if (num_ninst_completed == target_ninst->ldata->num_ninst - 1)
             {
                 atomic_fetch_add (&net_engine->nasm->num_ldata_completed, 1);
-                if(net_engine->sequential)
-                {
-                    dse_group_run(net_engine->dse_group);
-                    dse_group_set_enable_device(net_engine->dse_group, net_engine->device_idx, 1);
-                    dse_group_add_prioritize_rpool(net_engine->dse_group, net_engine->device_idx);
-                } 
                 if (net_engine->device_mode == DEV_EDGE)
                 {
-                    if( target_ninst->ldata->layer->layer_idx == net_engine->nasm->num_ldata - 1) {
+                    if(target_ninst->ldata->layer->layer_idx == net_engine->nasm->num_ldata - 1) 
+                    {
                         atomic_store(&net_engine->nasm->num_ldata_completed, net_engine->nasm->num_ldata);
                         pthread_mutex_lock (&net_engine->nasm->nasm_mutex);
                         pthread_cond_signal (&net_engine->nasm->nasm_cond);
                         pthread_mutex_unlock (&net_engine->nasm->nasm_mutex);
                     }
+                }
+                else
+                {
+                    if(!net_engine->pipelined)
+                    {
+                        // Run SERVER DSEs when all layer DSEs are downloaded. (Conventional mode)
+                        dse_group_run(net_engine->dse_group);
+                        dse_group_set_enable_device(net_engine->dse_group, net_engine->device_idx, 1);
+                        dse_group_add_prioritize_rpool(net_engine->dse_group, net_engine->device_idx);
+                    } 
                 }
             }
         }

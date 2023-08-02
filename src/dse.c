@@ -6,6 +6,7 @@ void *dse_thread_runtime (void* thread_info)
 {
     dse_t *dse = (dse_t*) thread_info;
     pthread_mutex_lock(&dse->thread_mutex);
+    pthread_cond_wait(&dse->thread_cond, &dse->thread_mutex); 
     while (dse->kill == 0)
     {
         dse_schedule (dse);
@@ -465,7 +466,6 @@ void dse_init (dse_t *dse, int gpu_idx)
     atomic_store (&dse->run, 0);
     atomic_store (&dse->kill, 0);
     rpool_init_queue (dse->ninst_cache);
-    pthread_mutex_lock(&dse->thread_mutex);
     pthread_create (&dse->thread, NULL, dse_thread_runtime, (void*)dse);
 }
 
@@ -489,6 +489,45 @@ void dse_destroy (dse_t *dse)
         aspen_gpu_free (dse->gpu_scratchpad, dse->gpu_idx);
     rpool_destroy_queue (dse->ninst_cache);
     free (dse->ninst_cache);
+}
+
+void dse_run (dse_t *dse)
+{
+    if (dse == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_run: dse is NULL\n");
+        return;
+    }
+    unsigned int state = atomic_exchange (&dse->run, 1);
+    if (state == 1)
+    {
+        return;
+    }
+    else 
+    {
+        pthread_mutex_lock (&dse->thread_mutex);
+        pthread_cond_signal (&dse->thread_cond);
+        pthread_mutex_unlock (&dse->thread_mutex);
+    }
+}
+
+void dse_stop (dse_t *dse)
+{
+    if (dse == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_stop: dse is NULL\n");
+        return;
+    }
+    unsigned int state = atomic_exchange (&dse->run, 0);
+    if (state == 0)
+    {
+        return;
+    }
+    else 
+    {
+        pthread_mutex_lock (&dse->thread_mutex);
+        pthread_mutex_unlock (&dse->thread_mutex);
+    }
 }
 
 void dse_group_run (dse_group_t *dse_group)
@@ -565,43 +604,6 @@ void dse_cudagraph_run (rpool_t *rpool, nasm_t *nasm)
     }
     rpool_finish_nasm (rpool, nasm);
     // run_cudagraph (nasm);
-}
-
-void dse_run (dse_t *dse)
-{
-    if (dse == NULL)
-    {
-        FPRT (stderr, "ERROR: dse_run: dse is NULL\n");
-        return;
-    }
-    unsigned int state = atomic_exchange (&dse->run, 1);
-    if (state == 1)
-    {
-        return;
-    }
-    else 
-    {
-        pthread_cond_signal (&dse->thread_cond);
-        pthread_mutex_unlock (&dse->thread_mutex);
-    }
-}
-
-void dse_stop (dse_t *dse)
-{
-    if (dse == NULL)
-    {
-        FPRT (stderr, "ERROR: dse_stop: dse is NULL\n");
-        return;
-    }
-    unsigned int state = atomic_exchange (&dse->run, 0);
-    if (state == 0)
-    {
-        return;
-    }
-    else 
-    {
-        pthread_mutex_lock (&dse->thread_mutex);
-    }
 }
 
 void update_children (rpool_t *rpool, ninst_t *ninst, unsigned int dse_idx)
