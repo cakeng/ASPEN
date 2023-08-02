@@ -1,13 +1,12 @@
 # Take the first argument as the executable name
 # Take the second argument as the sleep time
 # Take the third argument as the number of runs
-# Take the fourth argument as the number of DSEs on rx
-# Take the fifth argument as the rx ip
-# Take the sixth argument as the rx port
+# Take the fourth argument as the SERVER ip
+# Take the fifth argument as the SERVER port
 
 if [ "$#" -ne 6 ]; then
     echo "Illegal number of parameters"
-    echo "Usage: ./run_tests.sh <executable> <sleep_time> <num_runs> <num_dse_rx> <rx_ip> <rx_port>"
+    echo "Usage: ./run_tests.sh <executable> <sleep_time> <num_runs> <num_dse_SERVER> <SERVER_ip> <SERVER_port>"
     exit 1
 fi
 
@@ -16,12 +15,19 @@ if [ ! -f "$1" ]; then
     echo "Executable $1 does not exist"
     exit 1
 fi
-tx_dses=()
-# Append the number of DSEs for each tx credential from a file named tx_dse_list.txt
-if [ -f "tx_dse_list.txt" ]; then
+edge_dse_nums=()
+# Append the number of DSEs for each EDGE credential from a file named edge_dse_num_list.txt
+if [ -f "edge_dse_num_list.txt" ]; then
     while read -r line; do
-        tx_dses+=("$line")
-    done < "tx_dse_list.txt"
+        edge_dse_nums+=("$line")
+    done < "edge_dse_num_list.txt"
+fi
+server_dse_nums=()
+# Append the number of DSEs for each SERVER credential from a file named server_dse_num_list.txt
+if [ -f "server_dse_num_list.txt" ]; then
+    while read -r line; do
+        server_dse_nums+=("$line")
+    done < "server_dse_num_list.txt"
 fi
 dnn_list=()
 # Append the DNNs from a file named dnn_list.txt
@@ -51,21 +57,20 @@ if [ -f "policy_list.txt" ]; then
         policy_list+=("$line")
     done < "policy_list.txt"
 fi
-tx_list=()
-# Append the tx credentials from a file named tx_cred_list.txt
-if [ -f "tx_cred_list.txt" ]; then
+EDGE_list=()
+# Append the EDGE credentials from a file named edge_cred_list.txt
+if [ -f "edge_cred_list.txt" ]; then
     while read -r line; do
-        tx_list+=("$line")
-    done < "tx_cred_list.txt"
+        EDGE_list+=("$line")
+    done < "edge_cred_list.txt"
 fi
 
 total_runs=0
 current_run=0
-tx_cred_idx=0
-rx_dse=$4
-rx_ip=$5
-rx_port=$6
-rx_name=$(uname -n)
+edge_cred_idx=0
+SERVER_ip=$4
+SERVER_port=$5
+SERVER_name=$(uname -n)
 unamestr=$(uname -a)
 start_time=$(date +%Y-%m-%d-%T)
 output_log="${start_time}_log.outputs"
@@ -81,18 +86,18 @@ echo "    Number of tiles: ${num_tiles[@]}"
 echo "    Number of tiles: ${num_tiles[@]}" >> $output_log
 echo "    Scheduling policies: ${policy_list[@]}"
 echo "    Scheduling policies: ${policy_list[@]}" >> $output_log
-echo "    Tx credentials: ${tx_list[@]}"
-echo "    Tx credentials: ${tx_list[@]}" >> $output_log
-echo "    Tx DSEs: ${tx_dses[@]}"
-echo "    Tx DSEs: ${tx_dses[@]}" >> $output_log
+echo "    EDGE credentials: ${EDGE_list[@]}"
+echo "    EDGE credentials: ${EDGE_list[@]}" >> $output_log
+echo "    EDGE DSEs: ${edge_dse_nums[@]}"
+echo "    EDGE DSEs: ${edge_dse_nums[@]}" >> $output_log
 echo ""
 echo "Script started at $start_time"
 echo "Script started at $start_time" >> $output_log
 echo ""
 echo "" >> $output_log
 mkdir $output_folder
-echo "TX_Cred, Scheduling Policy, DNN, Batch size, Number of tiles, Tx DSEs, Rx DSEs, Rx Time, Tx Time" >> $output_csv
-for tx_cred in "${tx_list[@]}";
+echo "EDGE_Cred, Scheduling Policy, DNN, Batch size, Number of tiles, EDGE DSEs, SERVER DSEs, SERVER Time, EDGE Time" >> $output_csv
+for edge_cred in "${EDGE_list[@]}";
 do
     for sched_policy in "${policy_list[@]}";
     do
@@ -109,7 +114,7 @@ do
     done
 done
 
-for tx_cred in "${tx_list[@]}";
+for edge_cred in "${EDGE_list[@]}";
 do
     for sched_policy in "${policy_list[@]}";
     do
@@ -120,59 +125,60 @@ do
                 for num_tile in "${num_tiles[@]}";
                 do
                     current_run=$((current_run+1))
-                    echo "    $(date +%T): Running $dnn with $rx_dse DSEs, batch size $batch, and $num_tile tiles, on tx $tx_cred ($current_run/$total_runs)"
-                    echo "    $(date +%T): Running $dnn with $rx_dse DSEs, batch size $batch, and $num_tile tiles, on tx $tx_cred ($current_run/$total_runs)" >> $output_log
+                    echo "    $(date +%T): Running $dnn with $server_dse_num DSEs, batch size $batch, and $num_tile tiles, on EDGE $edge_cred ($current_run/$total_runs)"
+                    echo "    $(date +%T): Running $dnn with $server_dse_num DSEs, batch size $batch, and $num_tile tiles, on EDGE $edge_cred ($current_run/$total_runs)" >> $output_log
                     nasm_file="${dnn}_B${batch}_T${num_tile}.nasm"
                     output_format="cnn"
                     #If dnn is bert_base, change output_format to bert
                     if [ "$dnn" == "bert_base" ]; then
                         output_format="transformer"
                     fi
+                    server_dse_num=${server_dse_nums[$edge_cred_idx]}
+                    edge_dse_num=${edge_dse_nums[$edge_cred_idx]}
 
-                    tx_dse=${tx_dses[$tx_cred_idx]}
-                    tx_name=$(ssh $tx_cred 'uname -n')
-                    dir_name="Test_Rx_${rx_name}_Tx_${tx_name}"
-                    rx_cmd="./$1 --sock_type=0 --pipelined=1 --dirname=$dir_name --target_nasm_dir="data/$nasm_file" --target_dnn_dir="data/${dnn}_base.aspen" --target_input=data/batched_input_128.bin --prefix="$dnn" --rx_ip="$rx_ip" --rx_port="$rx_port" --schedule_policy="$sched_policy" --sched_sequential_idx=1 --dse_num=$rx_dse --output_order="${output_format}" --inference_repeat_num=$3"
-                    tx_cmd_wo_ssh="./$1 --sock_type=1 --pipelined=1 --dirname=$dir_name --target_nasm_dir="data/$nasm_file" --target_dnn_dir="data/${dnn}_base.aspen" --target_input=data/batched_input_128.bin --prefix="$dnn" --rx_ip="$rx_ip" --rx_port="$rx_port" --schedule_policy="$sched_policy" --sched_sequential_idx=1 --dse_num=$tx_dse --output_order="${output_format}" --inference_repeat_num=$3"
-                    tx_cmd="ssh $tx_cred 'cd /home/cakeng/aspen_tests/ && $tx_cmd_wo_ssh'"
+                    EDGE_name=$(ssh $edge_cred 'uname -n')
+                    dir_name="Test_SERVER_${SERVER_name}_EDGE_${EDGE_name}"
+                    server_cmd="./$1 --sock_type=0 --dirname=$dir_name --target_nasm_dir="data/$nasm_file" --target_dnn_dir="data/${dnn}_base.aspen" --target_input=data/batched_input_128.bin --prefix="$dnn" --server_ip="$SERVER_ip" --server_port="$SERVER_port" --schedule_policy="$sched_policy" --sched_sequential_idx=1 --dse_num=$server_dse_num --output_order="${output_format}" --inference_repeat_num=$3"
+                    EDGE_cmd_wo_ssh="./$1 --sock_type=1 --dirname=$dir_name --target_nasm_dir="data/$nasm_file" --target_dnn_dir="data/${dnn}_base.aspen" --target_input=data/batched_input_128.bin --prefix="$dnn" --server_ip="$SERVER_ip" --server_port="$SERVER_port" --schedule_policy="$sched_policy" --sched_sequential_idx=1 --dse_num=$edge_dse_num --output_order="${output_format}" --inference_repeat_num=$3"
+                    EDGE_cmd="ssh $edge_cred 'cd /home/cakeng/aspen_tests/ && $EDGE_cmd_wo_ssh'"
                     
-                    echo "//////////    Rx command    //////////" >> $output_log
-                    echo "    $rx_cmd" >> $output_log
-                    echo "//////////    Tx command    //////////" >> $output_log
-                    echo "    $tx_cmd" >> $output_log
+                    echo "//////////    SERVER command    //////////" >> $output_log
+                    echo "    $server_cmd" >> $output_log
+                    echo "//////////    EDGE command    //////////" >> $output_log
+                    echo "    $EDGE_cmd" >> $output_log
 
-                    #Run rx in background and store output in a temporary file
-                    eval $rx_cmd 2>&1 | tee temp_rx_out.txt &
-                    rx_pid=$!
+                    #Run SERVER in background and store output in a temporary file
+                    eval $server_cmd 2>&1 | tee temp_server_out.txt &
+                    server_pid=$!
                     sleep 1
-                    #Run tx in foreground and store output in a temporary file
-                    eval $tx_cmd 2>&1 | tee temp_tx_out.txt
-                    tx_pid=$!
-                    #Wait for rx to finish
-                    wait $rx_pid
-                    #Kill tx
-                    wait $tx_pid
+                    #Run EDGE in foreground and store output in a temporary file
+                    eval $EDGE_cmd 2>&1 | tee temp_edge_out.txt
+                    edge_pid=$!
+                    #Wait for SERVER to finish
+                    wait $server_pid
+                    #Kill EDGE
+                    wait $edge_pid
                     #Get the output from the temporary file
-                    rx_out=$(cat temp_rx_out.txt)
-                    tx_out=$(cat temp_tx_out.txt)
-                    rm temp_rx_out.txt
-                    rm temp_tx_out.txt
+                    server_out=$(cat temp_server_out.txt)
+                    edge_out=$(cat temp_edge_out.txt)
+                    rm temp_server_out.txt
+                    rm temp_edge_out.txt
                     #Get the time taken from the output
-                    rx_time_taken=$(echo $rx_out | grep -oEi "Time taken: ([0-9.]+) seconds" | grep -oE "[0-9.]+")
-                    tx_time_taken=$(echo $tx_out | grep -oEi "Time taken: ([0-9.]+) seconds" | grep -oE "[0-9.]+")
+                    SERVER_time_taken=$(echo $server_out | grep -oEi "Time taken: ([0-9.]+) seconds" | grep -oE "[0-9.]+")
+                    EDGE_time_taken=$(echo $edge_out | grep -oEi "Time taken: ([0-9.]+) seconds" | grep -oE "[0-9.]+")
                     #Print the output
-                    echo "//////////    Rx Output    //////////" >> $output_log
-                    echo "        $rx_out" >> $output_log
-                    echo "//////////    Tx Output    //////////" >> $output_log
-                    echo "        $tx_out" >> $output_log
+                    echo "//////////    SERVER Output    //////////" >> $output_log
+                    echo "        $server_out" >> $output_log
+                    echo "//////////    EDGE Output    //////////" >> $output_log
+                    echo "        $edge_out" >> $output_log
                     echo "" >> $output_log
-                    echo "${tx_cred}, ${sched_policy}, ${dnn}, ${batch}, ${num_tile}, ${tx_dses}, ${rx_dses}, ${rx_time_taken}, ${tx_time_taken}" >> $output_csv
+                    echo "${edge_cred}, ${sched_policy}, ${dnn}, ${batch}, ${num_tile}, ${edge_dse_num}, ${server_dse_num}, ${SERVER_time_taken}, ${EDGE_time_taken}" >> $output_csv
                     sleep $2
                 done
             done
         done
     done
-    tx_cred_idx=$((tx_cred_idx+1))
+    edge_cred_idx=$((edge_cred_idx+1))
 done
 
 echo "Script ended at $(date +%Y-%m-%d-%T)"
