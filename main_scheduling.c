@@ -113,25 +113,26 @@ int main(int argc, char **argv)
 
     /** STAGE: PROFILING NETWORK **/
 
-    printf("STAGE: PROFILING NETWORK\n");
-
-    float sync = profile_network_sync(device_mode, server_sock, client_sock);
-
     int connection_key;
     if (device_mode == DEV_SERVER) 
     {
+        printf("STAGE: PROFILING NETWORK\n");
+        float sync = profile_network_sync(device_mode, server_sock, client_sock);
         connection_key = 12534;
         write_n(client_sock, &connection_key, sizeof(int));
         printf("connection key: %d\n", connection_key);
+        printf("sync: %f\n", sync);
     }
     else if (device_mode == DEV_EDGE) 
     {
+        printf("STAGE: PROFILING NETWORK\n");
+        float sync = profile_network_sync(device_mode, server_sock, client_sock);
         connection_key = -1;
         read_n(server_sock, &connection_key, sizeof(int));
         printf("connection key: %d\n", connection_key);
+        printf("sync: %f\n", sync);
     }
-
-    printf("sync: %f\n", sync);
+    
     target_dnn = apu_load_dnn_from_file(target_dnn_dir);
     target_nasm = apu_load_nasm_from_file(target_nasm_dir, target_dnn);
 
