@@ -136,10 +136,9 @@ do
                         output_format="transformer"
                     fi
                     
-
                     edge_user=$(echo $edge_cred | cut -d'@' -f1)
                     edge_name=$(ssh $edge_cred 'uname -n')
-                    dir_name="Test_SERVER_${server_name}_EDGE_${edge_name}"
+                    dir_name="Test_SERVER_${server_name}_EDGE_${edge_name}_${start_time}"
                     server_cmd="./$1 --device_mode=0 --dirname=$dir_name --target_nasm_dir="data/$nasm_file" --target_dnn_dir="data/${dnn}_base.aspen" --target_input=data/batched_input_128.bin --prefix="$dnn" --server_ip="$server_ip" --server_port="$server_port" --schedule_policy="$sched_policy" --sched_sequential_idx=1 --dse_num=$server_dse_num --output_order="${output_format}" --inference_repeat_num=$3"
                     edge_cmd_wo_ssh="./$1 --device_mode=1 --dirname=$dir_name --target_nasm_dir="data/$nasm_file" --target_dnn_dir="data/${dnn}_base.aspen" --target_input=data/batched_input_128.bin --prefix="$dnn" --server_ip="$server_ip" --server_port="$server_port" --schedule_policy="$sched_policy" --sched_sequential_idx=1 --dse_num=$edge_dse_num --output_order="${output_format}" --inference_repeat_num=$3"
                     edge_cmd="ssh $edge_cred 'cd /home/${edge_user}/aspen/ && $edge_cmd_wo_ssh'"
@@ -150,21 +149,32 @@ do
                     echo "    $edge_cmd" >> $output_log
 
                     #Run SERVER in background and store output in a temporary file
-                    eval $server_cmd 2>&1 | tee temp_server_out.txt &
+                    eval $server_cmd 2>&1 | tee temp_server_out.tmp &
                     server_pid=$!
                     sleep 3
                     #Run EDGE in foreground and store output in a temporary file
-                    eval $edge_cmd 2>&1 | tee temp_edge_out.txt &
+                    eval $edge_cmd 2>&1 | tee temp_edge_out.tmp &
                     edge_pid=$!
-                    #Wait for SERVER to finish
-                    wait $server_pid
-                    #Kill EDGE
-                    wait $edge_pid
+                    #Wait max of 10 minutes for EDGE to finish
+                    wait_time=600
+                    while [ $wait_time -gt 0 ]; do
+                        if ! kill -0 $edge_pid 2>/dev/null; then
+                            break
+                        fi
+                        sleep 1
+                        wait_time=$((wait_time-1))
+                    done
+                    #If EDGE is still running, kill it
+                    if kill -0 $edge_pid 2>/dev/null; then
+                        echo "    $(date +%T): EDGE is still running after 600 seconds, killing it"
+                        echo "    $(date +%T): EDGE is still running after 600 seconds, killing it" >> $output_log
+                        kill -9 $edge_pid
+                    fi
                     #Get the output from the temporary file
-                    server_out=$(cat temp_server_out.txt)
-                    edge_out=$(cat temp_edge_out.txt)
-                    rm temp_server_out.txt
-                    rm temp_edge_out.txt
+                    server_out=$(cat temp_server_out.tmp)
+                    edge_out=$(cat temp_edge_out.tmp)
+                    rm temp_server_out.tmp
+                    rm temp_edge_out.tmp
                     #Get the time taken from the output
                     server_time_taken=$(echo $server_out | grep -oEi "Time measurement run_aspen \([0-9]+\): [0-9.]+ - ([0-9.]+) secs elapsed" | grep -oEi "([0-9.]+) secs elapsed" | grep -oE "[0-9.]+")
                     edge_time_taken=$(echo $edge_out | grep -oEi "Time measurement run_aspen \([0-9]+\): [0-9.]+ - ([0-9.]+) secs elapsed" | grep -oEi "([0-9.]+) secs elapsed" | grep -oE "[0-9.]+")
