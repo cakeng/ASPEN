@@ -17,6 +17,7 @@ struct nasm_t
     ninst_t *ninst_arr;
     unsigned int num_ldata;
     _Atomic unsigned int num_ldata_completed;
+    _Atomic unsigned int completed;
     unsigned int num_ninst;
     unsigned int min_ninst_per_ldata;
     unsigned int flop_per_ninst;

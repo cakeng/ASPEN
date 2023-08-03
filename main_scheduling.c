@@ -246,7 +246,7 @@ int main(int argc, char **argv)
             // (they are started when the offloaded layers are all downloaded.)
             if (!(device_mode == DEV_SERVER && is_conventional)) 
             {
-                printf ("SERVER running DSEs...\n");
+                printf ("Running DSEs...\n");
                 dse_group_run (dse_group);
             }
             dse_wait_for_nasm_completion (target_nasm);

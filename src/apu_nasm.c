@@ -570,6 +570,7 @@ nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigne
     new_nasm->nasm_id = nasm_num;
     new_nasm->min_ninst_per_ldata = min_ninst_per_ldata;
     new_nasm->gpu_idx = -1;
+    atomic_store (&new_nasm->completed, 0);
     nasm_num++;
     for (int i = 0; i < dnn->num_layers; i++)
     {

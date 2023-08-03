@@ -317,8 +317,12 @@ void receive(networking_engine *net_engine)
             // PRT("Networking: RX Command %d received - ", payload_size);
             if (payload_size == RX_STOP_SIGNAL)
             {
-                PRT("Stopping RX thread\n");
+                PRT("RX stop signal received.\n");
                 atomic_store (&net_engine->rx_run, 0);
+                atomic_store (&net_engine->nasm->completed, 1);
+                pthread_mutex_lock (&net_engine->nasm->nasm_mutex);
+                pthread_cond_signal (&net_engine->nasm->nasm_cond);
+                pthread_mutex_unlock (&net_engine->nasm->nasm_mutex);
                 return;
             }
             else
