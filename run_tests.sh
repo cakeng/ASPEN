@@ -4,9 +4,9 @@
 # Take the fourth argument as the SERVER ip
 # Take the fifth argument as the SERVER port
 
-if [ "$#" -ne 6 ]; then
+if [ "$#" -ne 5 ]; then
     echo "Illegal number of parameters"
-    echo "Usage: ./run_tests.sh <executable> <sleep_time> <num_runs> <num_dse_SERVER> <SERVER_ip> <SERVER_port>"
+    echo "Usage: ./run_tests.sh <executable> <sleep_time> <num_runs> <server_ip> <server_port>"
     exit 1
 fi
 
@@ -57,20 +57,20 @@ if [ -f "policy_list.txt" ]; then
         policy_list+=("$line")
     done < "policy_list.txt"
 fi
-EDGE_list=()
+edge_list=()
 # Append the EDGE credentials from a file named edge_cred_list.txt
 if [ -f "edge_cred_list.txt" ]; then
     while read -r line; do
-        EDGE_list+=("$line")
+        edge_list+=("$line")
     done < "edge_cred_list.txt"
 fi
 
 total_runs=0
 current_run=0
 edge_cred_idx=0
-SERVER_ip=$4
-SERVER_port=$5
-SERVER_name=$(uname -n)
+server_ip=$4
+server_port=$5
+server_name=$(uname -n)
 unamestr=$(uname -a)
 start_time=$(date +%Y-%m-%d-%T)
 output_log="${start_time}_log.outputs"
@@ -86,8 +86,8 @@ echo "    Number of tiles: ${num_tiles[@]}"
 echo "    Number of tiles: ${num_tiles[@]}" >> $output_log
 echo "    Scheduling policies: ${policy_list[@]}"
 echo "    Scheduling policies: ${policy_list[@]}" >> $output_log
-echo "    EDGE credentials: ${EDGE_list[@]}"
-echo "    EDGE credentials: ${EDGE_list[@]}" >> $output_log
+echo "    EDGE credentials: ${edge_list[@]}"
+echo "    EDGE credentials: ${edge_list[@]}" >> $output_log
 echo "    EDGE DSEs: ${edge_dse_nums[@]}"
 echo "    EDGE DSEs: ${edge_dse_nums[@]}" >> $output_log
 echo ""
@@ -97,7 +97,7 @@ echo ""
 echo "" >> $output_log
 mkdir $output_folder
 echo "EDGE_Cred, Scheduling Policy, DNN, Batch size, Number of tiles, EDGE DSEs, SERVER DSEs, SERVER Time, EDGE Time" >> $output_csv
-for edge_cred in "${EDGE_list[@]}";
+for edge_cred in "${edge_list[@]}";
 do
     for sched_policy in "${policy_list[@]}";
     do
@@ -114,7 +114,7 @@ do
     done
 done
 
-for edge_cred in "${EDGE_list[@]}";
+for edge_cred in "${edge_list[@]}";
 do
     for sched_policy in "${policy_list[@]}";
     do
@@ -125,34 +125,36 @@ do
                 for num_tile in "${num_tiles[@]}";
                 do
                     current_run=$((current_run+1))
-                    echo "    $(date +%T): Running $dnn with $server_dse_num DSEs, batch size $batch, and $num_tile tiles, on EDGE $edge_cred ($current_run/$total_runs)"
-                    echo "    $(date +%T): Running $dnn with $server_dse_num DSEs, batch size $batch, and $num_tile tiles, on EDGE $edge_cred ($current_run/$total_runs)" >> $output_log
+                    server_dse_num=${server_dse_nums[$edge_cred_idx]}
+                    edge_dse_num=${edge_dse_nums[$edge_cred_idx]}
+                    echo "    $(date +%T): Running $dnn with $server_dse_num DSEs on server, $edge_dse_num DSEs on edge, batch size $batch, and $num_tile tiles, with EDGE $edge_cred ($current_run/$total_runs)"
+                    echo "    $(date +%T): Running $dnn with $server_dse_num DSEs on server, $edge_dse_num DSEs on edge, batch size $batch, and $num_tile tiles, with EDGE $edge_cred ($current_run/$total_runs)" >> $output_log
                     nasm_file="${dnn}_B${batch}_T${num_tile}.nasm"
                     output_format="cnn"
                     #If dnn is bert_base, change output_format to bert
                     if [ "$dnn" == "bert_base" ]; then
                         output_format="transformer"
                     fi
-                    server_dse_num=${server_dse_nums[$edge_cred_idx]}
-                    edge_dse_num=${edge_dse_nums[$edge_cred_idx]}
+                    
 
-                    EDGE_name=$(ssh $edge_cred 'uname -n')
-                    dir_name="Test_SERVER_${SERVER_name}_EDGE_${EDGE_name}"
-                    server_cmd="./$1 --sock_type=0 --dirname=$dir_name --target_nasm_dir="data/$nasm_file" --target_dnn_dir="data/${dnn}_base.aspen" --target_input=data/batched_input_128.bin --prefix="$dnn" --server_ip="$SERVER_ip" --server_port="$SERVER_port" --schedule_policy="$sched_policy" --sched_sequential_idx=1 --dse_num=$server_dse_num --output_order="${output_format}" --inference_repeat_num=$3"
-                    EDGE_cmd_wo_ssh="./$1 --sock_type=1 --dirname=$dir_name --target_nasm_dir="data/$nasm_file" --target_dnn_dir="data/${dnn}_base.aspen" --target_input=data/batched_input_128.bin --prefix="$dnn" --server_ip="$SERVER_ip" --server_port="$SERVER_port" --schedule_policy="$sched_policy" --sched_sequential_idx=1 --dse_num=$edge_dse_num --output_order="${output_format}" --inference_repeat_num=$3"
-                    EDGE_cmd="ssh $edge_cred 'cd /home/cakeng/aspen_tests/ && $EDGE_cmd_wo_ssh'"
+                    edge_user=$(echo $edge_cred | cut -d'@' -f1)
+                    edge_name=$(ssh $edge_cred 'uname -n')
+                    dir_name="Test_SERVER_${server_name}_EDGE_${edge_name}"
+                    server_cmd="./$1 --device_mode=0 --dirname=$dir_name --target_nasm_dir="data/$nasm_file" --target_dnn_dir="data/${dnn}_base.aspen" --target_input=data/batched_input_128.bin --prefix="$dnn" --server_ip="$server_ip" --server_port="$server_port" --schedule_policy="$sched_policy" --sched_sequential_idx=1 --dse_num=$server_dse_num --output_order="${output_format}" --inference_repeat_num=$3"
+                    edge_cmd_wo_ssh="./$1 --device_mode=1 --dirname=$dir_name --target_nasm_dir="data/$nasm_file" --target_dnn_dir="data/${dnn}_base.aspen" --target_input=data/batched_input_128.bin --prefix="$dnn" --server_ip="$server_ip" --server_port="$server_port" --schedule_policy="$sched_policy" --sched_sequential_idx=1 --dse_num=$edge_dse_num --output_order="${output_format}" --inference_repeat_num=$3"
+                    edge_cmd="ssh $edge_cred 'cd /home/${edge_user}/aspen/ && $edge_cmd_wo_ssh'"
                     
                     echo "//////////    SERVER command    //////////" >> $output_log
                     echo "    $server_cmd" >> $output_log
                     echo "//////////    EDGE command    //////////" >> $output_log
-                    echo "    $EDGE_cmd" >> $output_log
+                    echo "    $edge_cmd" >> $output_log
 
                     #Run SERVER in background and store output in a temporary file
                     eval $server_cmd 2>&1 | tee temp_server_out.txt &
                     server_pid=$!
                     sleep 1
                     #Run EDGE in foreground and store output in a temporary file
-                    eval $EDGE_cmd 2>&1 | tee temp_edge_out.txt
+                    eval $edge_cmd 2>&1 | tee temp_edge_out.txt &
                     edge_pid=$!
                     #Wait for SERVER to finish
                     wait $server_pid
@@ -164,15 +166,24 @@ do
                     rm temp_server_out.txt
                     rm temp_edge_out.txt
                     #Get the time taken from the output
-                    SERVER_time_taken=$(echo $server_out | grep -oEi "Time taken: ([0-9.]+) seconds" | grep -oE "[0-9.]+")
-                    EDGE_time_taken=$(echo $edge_out | grep -oEi "Time taken: ([0-9.]+) seconds" | grep -oE "[0-9.]+")
+                    server_time_taken=$(echo $server_out | grep -oEi "Time measurement run_aspen \([0-9]+\): [0-9.]+ - ([0-9.]+) secs elapsed" | grep -oEi "([0-9.]+) secs elapsed" | grep -oE "[0-9.]+")
+                    edge_time_taken=$(echo $edge_out | grep -oEi "Time measurement run_aspen \([0-9]+\): [0-9.]+ - ([0-9.]+) secs elapsed" | grep -oEi "([0-9.]+) secs elapsed" | grep -oE "[0-9.]+")
+                    echo "${server_time_taken}" > time.temp
+                    total_server_time=$(awk '{ sum += $1 } END { printf "%f", sum }' time.temp)
+                    avg_server_time=$(echo "scale=6; $total_server_time/$3" | bc | awk '{printf "%f", $0}')
+                    echo "${edge_time_taken}" > time.temp
+                    total_edge_time=$(awk '{ sum += $1 } END { printf "%f", sum }' time.temp)
+                    avg_edge_time=$(echo "scale=6; $total_edge_time/$3" | bc | awk '{printf "%f", $0}')
+                    rm time.temp
+                    echo "    $(date +%T): server took $avg_server_time seconds, edge took $avg_edge_time seconds"
+                    echo "    $(date +%T): server took $avg_server_time seconds, edge took $avg_edge_time seconds" >> $output_log
                     #Print the output
                     echo "//////////    SERVER Output    //////////" >> $output_log
                     echo "        $server_out" >> $output_log
                     echo "//////////    EDGE Output    //////////" >> $output_log
                     echo "        $edge_out" >> $output_log
                     echo "" >> $output_log
-                    echo "${edge_cred}, ${sched_policy}, ${dnn}, ${batch}, ${num_tile}, ${edge_dse_num}, ${server_dse_num}, ${SERVER_time_taken}, ${EDGE_time_taken}" >> $output_csv
+                    echo "${edge_cred}, ${sched_policy}, ${dnn}, ${batch}, ${num_tile}, ${edge_dse_num}, ${server_dse_num}, ${avg_server_time}, ${avg_edge_time}" >> $output_csv
                     sleep $2
                 done
             done
