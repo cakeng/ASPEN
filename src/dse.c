@@ -28,7 +28,7 @@ void dse_schedule (dse_t *dse)
     {
         if (dse->is_multiuser_case)
         {
-            if (dse->device_idx != 0) 
+            if (dse->device_idx != DEV_SERVER) 
             {
                 rpool_fetch_ninsts (dse->rpool_arr[0], &dse->target, 1, 0);
                 if (dse->target == NULL)
@@ -229,7 +229,7 @@ void dse_schedule (dse_t *dse)
             // check devices to send to for the computation output
             if (dse->is_multiuser_case) 
             {
-                for (int i = 0; i<SCHEDULE_MAX_DEVICES; i++) 
+                for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++) 
                 {
                     if (i == dse->device_idx) continue;
                     if (ninst->dev_send_target[i]) // Should be offload
@@ -244,7 +244,7 @@ void dse_schedule (dse_t *dse)
             }
             else 
             {
-                for (int i = 0; i<SCHEDULE_MAX_DEVICES; i++) 
+                for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++) 
                 {
                     if (i == dse->device_idx) continue;
                     if (ninst->dev_send_target[i]) 

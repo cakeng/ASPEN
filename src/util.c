@@ -589,25 +589,9 @@ void get_probability_results (char *class_data_path, float* probabilities, unsig
     }
 }
 
-double get_time_secs ()
-{
-    static int initiallized = 0;
-    static struct timeval zero_time;
-    if (initiallized == 0)
-    {
-        initiallized = 1;
-        gettimeofday (&zero_time, NULL);
-        // printf ("Program clock initialized to zero.\n");
-    }
-    
-    struct timeval now;
-    gettimeofday (&now, NULL);
-    long sec = now.tv_sec - zero_time.tv_sec;
-    long usec = now.tv_usec - zero_time.tv_usec;
-    return sec + usec*1e-6;
-}
+double get_time_last = -1;
 
-double get_time_secs_suppressed ()
+double get_time_secs ()
 {
     static int initiallized = 0;
     static struct timeval zero_time;
@@ -625,34 +609,38 @@ double get_time_secs_suppressed ()
 
 void get_elapsed_time (char *name)
 {
-    static int call_num = 0;
-    static double last = -1;
-    if (last < 0)
+    static size_t call_num = 0;
+    if (get_time_last < 0)
     {
-        last = get_time_secs();
+        get_time_last = get_time_secs();
     }
     double now = get_time_secs();
-    double elapsed = now - last;
-    if (call_num > 0)
-    {
-        printf ("Time measurement %s (%d): %6.6f - %6.6f secs elapsed since last measurement.\n", name, call_num, now, elapsed);
-    }
+    double elapsed = now - get_time_last;
+    printf ("Time measurement %s (%ld): %6.6f - %6.6f secs elapsed since last measurement.\n", name, call_num, now, elapsed);
     call_num++;
-    last = now;
+    get_time_last = now;
 }
 
 void get_elapsed_time_only()
 {
-    static int call_num = 0;
-    static double last = 0;
-    double now = get_time_secs_suppressed ();
-    double elapsed = now - last;
-    if (call_num > 0)
+    if (get_time_last < 0)
     {
-        printf ("%6.6f", elapsed);
+        get_time_last = get_time_secs();
     }
-    call_num++;
-    last = now;
+    double now = get_time_secs();
+    double elapsed = now - get_time_last;
+    printf ("%6.6f", elapsed);
+    get_time_last = now;
+}
+
+void set_elapsed_time_start()
+{
+    if (get_time_last < 0)
+    {
+        get_time_last = get_time_secs();
+    }
+    double now = get_time_secs();
+    get_time_last = now;
 }
 
 void print_float_array (float *input, int num, int newline_num)
@@ -737,19 +725,19 @@ void save_ninst_log(FILE* log_fp, nasm_t* nasm)
     fflush(log_fp);
 }
 
-ssize_t read_n(int fd, const void *buf, size_t n) {
+ssize_t read_n(int fd, void *buf, size_t n) {
     size_t bytes_read = 0;
     while(bytes_read < n) {
-        bytes_read += read(fd, buf+bytes_read, n-bytes_read);
+        bytes_read += read(fd, buf + bytes_read, n - bytes_read);
     }
 
     return n;
 }
 
-ssize_t write_n(int fd, const void *buf, size_t n) {
+ssize_t write_n(int fd, void *buf, size_t n) {
     size_t bytes_written = 0;
     while(bytes_written < n) {
-        bytes_written += write(fd, buf+bytes_written, n-bytes_written);
+        bytes_written += write(fd, buf + bytes_written, n - bytes_written);
     }
 
     return n;

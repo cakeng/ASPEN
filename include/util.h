@@ -50,14 +50,16 @@ unsigned int get_cpu_count();
 void get_probability_results (char *class_data_path, float* probabilities, unsigned int num);
 double get_time_secs();
 void get_elapsed_time (char *name);
+void get_elapsed_time_only();
+void set_elapsed_time_start();
 
 void print_float_array (float *input, int num, int newline_num);
 void print_float_tensor (float *input, int n, int c, int h, int w);
 
 void save_ninst_log(FILE* log_fp, nasm_t* nasm);
 
-ssize_t read_n(int fd, const void *buf, size_t n);
-ssize_t write_n(int fd, const void *buf, size_t n);
+ssize_t read_n(int fd, void *buf, size_t n);
+ssize_t write_n(int fd, void *buf, size_t n);
 
 int create_server_sock(char *server_ip, int server_port);
 int accept_client_sock(int server_sock);
