@@ -152,7 +152,7 @@ do
                     #Run SERVER in background and store output in a temporary file
                     eval $server_cmd 2>&1 | tee temp_server_out.txt &
                     server_pid=$!
-                    sleep 1
+                    sleep 3
                     #Run EDGE in foreground and store output in a temporary file
                     eval $edge_cmd 2>&1 | tee temp_edge_out.txt &
                     edge_pid=$!
