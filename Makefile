@@ -6,7 +6,7 @@ OBJECTS+=rpool.o dse.o naive_kernels.o tiled_kernels.o avx2_kernels.o neon_kerne
 AVX2=1
 NEON=0
 GPU=0
-ANDROID=1
+ANDROID=0
 DEBUG=0
 SUPPRESS_OUTPUT=1
 
