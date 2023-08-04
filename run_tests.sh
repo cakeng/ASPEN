@@ -135,13 +135,14 @@ do
                     if [ "$dnn" == "bert_base" ]; then
                         output_format="transformer"
                     fi
-                    
-                    edge_user=$(echo $edge_cred | cut -d'@' -f1)
-                    edge_name=$(ssh $edge_cred 'uname -n')
+
+                    # shell_cmd="ssh $edge_cred"
+                    shell_cmd="adb -s $edge_cred shell"
+                    edge_name=$(echo $edge_cred | cut -d' ' -f1)
                     dir_name="Test_SERVER_${server_name}_EDGE_${edge_name}_${start_time}"
                     server_cmd="./$1 --device_mode=0 --dirname=$dir_name --target_nasm_dir="data/$nasm_file" --target_dnn_dir="data/${dnn}_base.aspen" --target_input=data/batched_input_128.bin --prefix="$dnn" --server_ip="$server_ip" --server_port="$server_port" --schedule_policy="$sched_policy" --sched_sequential_idx=1 --dse_num=$server_dse_num --output_order="${output_format}" --inference_repeat_num=$3"
                     edge_cmd_wo_ssh="./$1 --device_mode=1 --dirname=$dir_name --target_nasm_dir="data/$nasm_file" --target_dnn_dir="data/${dnn}_base.aspen" --target_input=data/batched_input_128.bin --prefix="$dnn" --server_ip="$server_ip" --server_port="$server_port" --schedule_policy="$sched_policy" --sched_sequential_idx=1 --dse_num=$edge_dse_num --output_order="${output_format}" --inference_repeat_num=$3"
-                    edge_cmd="ssh $edge_cred 'cd /home/${edge_user}/aspen/ && $edge_cmd_wo_ssh'"
+                    edge_cmd="$shell_cmd 'cd /data/local/tmp/aspen_tests/ && $edge_cmd_wo_ssh'"
                     
                     echo "//////////    SERVER command    //////////" >> $output_log
                     echo "    $server_cmd" >> $output_log
