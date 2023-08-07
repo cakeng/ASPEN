@@ -182,6 +182,54 @@ void dse_schedule (dse_t *dse)
 
             ninst->computed_time = get_time_secs();
             if (dse->profile_compute) ninst->compute_end = ninst->computed_time;
+
+            // For dynamic offloading, kmbin added
+            if(dse->is_dynamic_scheduling)
+            {        
+                if(dse->device_idx != DEV_SERVER)
+                {
+                    // Check all childs
+                    // Update when child is not to offload
+                    for(int i = 0; i < ninst->num_child_ninsts; i++)
+                    {
+                        ninst_t* child_ninst = ninst->child_ninst_arr[i];
+
+                        for(int j = 0; j < child_ninst->num_parent_ninsts; j++)
+                        {
+                            // If one of parent is allocated to server, send output to server
+                            int parent_idx = child_ninst->parent_ninst_idx_arr[j];
+                            if(dse->net_engine->nasm->ninst_arr[parent_idx].dev_to_compute[0])
+                            {
+                                printf("\t ninst %d to server dev_to_compute[%d] -> ", child_ninst->ninst_idx, child_ninst->dev_to_compute[DEV_SERVER]);
+                                child_ninst->dev_to_compute[DEV_SERVER] = 1;
+                                ninst->dev_send_target[DEV_SERVER] = 1;
+                                printf("dev_to_compute[%d]", child_ninst->dev_to_compute[DEV_SERVER]);
+                                break;
+                            }
+                        }
+                    }
+
+                    float eft_mobile = 0.0;
+                    float eft_server = 1.0;
+                    if(eft_mobile < eft_server)
+                    {
+                        for(int i = 0; i < ninst->num_child_ninsts; i++)
+                        {
+                            ninst->child_ninst_arr[i]->dev_to_compute[DEV_SERVER] = 0;
+                            ninst->child_ninst_arr[i]->dev_to_compute[dse->device_idx] = 1;
+                        }
+                    }
+                    else
+                    {
+                        for(int i = 0; i < ninst->num_child_ninsts; i++)
+                        {
+                            ninst->child_ninst_arr[i]->dev_to_compute[DEV_SERVER] = 1;
+                            ninst->child_ninst_arr[i]->dev_to_compute[dse->device_idx] = 0;
+                        }
+                        ninst->dev_send_target[DEV_SERVER] = 1;
+                    }
+                }
+            }
         
             
             unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);

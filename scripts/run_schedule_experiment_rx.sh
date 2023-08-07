@@ -2,7 +2,6 @@ source ./scripts/param_dynamic.sh
 
 cmd="./main_scheduling \
     --device_mode=0   \
-    --pipelined=${PIPELINED}  \
     --dirname=${DIRNAME}  \
     --target_dnn_dir=${TARGET_DNN_DIR} \
     --target_nasm_dir=${TARGET_NASM_DIR} \

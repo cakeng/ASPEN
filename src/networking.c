@@ -376,9 +376,9 @@ void receive(networking_engine *net_engine)
             buffer_ptr += data_size;
             target_ninst->received_time = get_time_secs();
             #ifdef DEBUG
-            // PRT(" (N%d L%d I%d %ldB)", 
-            //     target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->inference_id, 
-            //     target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float));
+            PRT("\t(N%d L%d I%d %ldB)\n", 
+                target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->inference_id, 
+                target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float));
             #endif
             unsigned int num_ninst_completed = atomic_fetch_add (&target_ninst->ldata->num_ninst_completed , 1);
             int num_ase = net_engine->rpool->ref_dses > 0 ? net_engine->rpool->ref_dses : 1;

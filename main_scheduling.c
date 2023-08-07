@@ -102,6 +102,7 @@ int main(int argc, char **argv)
     network_profile_t *network_profile;
 
     sched_processor_t *schedule;
+    dynamic_scheduler_t *scheduler;
 
     aspen_dnn_t *target_dnn;
     nasm_t *target_nasm;
@@ -110,6 +111,16 @@ int main(int argc, char **argv)
     dse_group_t *dse_group = dse_group_init (dse_num, gpu);
     dse_group_set_rpool (dse_group, rpool);
     networking_engine* net_engine = NULL;
+
+    /** STAGE: PROFILING COMPUTATION FOR DYNAMIC OFFLOADING*/
+    if(!strcmp(schedule_policy, "dynamic"))
+    {
+        printf("STAGE: PROFILING COMPUTATION %d\n", device_mode);
+        ninst_profile[device_mode] = profile_computation(target_dnn_dir, target_nasm_dir, target_input, gpu, 1);
+        printf("\tTotal: %d\tTransmit Size: %d\tComputation Time: %f\n", ninst_profile[device_mode][256].total, 
+                                            ninst_profile[device_mode][256].transmit_size,
+                                            ninst_profile[device_mode][256].computation_time);
+    }
 
     /** STAGE: PROFILING NETWORK **/
 
@@ -120,8 +131,10 @@ int main(int argc, char **argv)
         float sync = profile_network_sync(device_mode, server_sock, client_sock);
         connection_key = 12534;
         write_n(client_sock, &connection_key, sizeof(int));
-        printf("connection key: %d\n", connection_key);
-        printf("sync: %f\n", sync);
+        printf("\tconnection key: %d\n", connection_key);
+        printf("\tsync: %f\n", sync);
+        network_profile = profile_network(ninst_profile, device_mode, server_sock, client_sock);
+        printf("\tRTT: %fms Bandwidth: %fMbps\n", network_profile->rtt, network_profile->transmit_rate);
     }
     else if (device_mode == DEV_EDGE) 
     {
@@ -129,8 +142,10 @@ int main(int argc, char **argv)
         float sync = profile_network_sync(device_mode, server_sock, client_sock);
         connection_key = -1;
         read_n(server_sock, &connection_key, sizeof(int));
-        printf("connection key: %d\n", connection_key);
-        printf("sync: %f\n", sync);
+        printf("\tconnection key: %d\n", connection_key);
+        printf("\tsync: %f\n", sync);
+        network_profile = profile_network(ninst_profile, device_mode, server_sock, client_sock);
+        printf("\tRTT: %fms Bandwidth: %fMbps\n", network_profile->rtt, network_profile->transmit_rate);
     }
     
     target_dnn = apu_load_dnn_from_file(target_dnn_dir);
@@ -152,6 +167,7 @@ int main(int argc, char **argv)
         for (int i=0; i<dse_group->num_ases; i++)
             dse_group->dse_arr[i].is_dynamic_scheduling = 1;
         init_dynamic_offload(target_nasm);
+        init_dyanmic_scheduler(scheduler, ninst_profile, network_profile);
     }
     else if (!strcmp(schedule_policy, "local")) 
     {

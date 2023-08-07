@@ -48,7 +48,7 @@ ninst_profile_t *profile_computation(char *target_dnn_dir, char *target_nasm_dir
 network_profile_t *profile_network(ninst_profile_t **ninst_profile, DEVICE_MODE device_mode, int server_sock, int client_sock) {
     network_profile_t *network_profile = malloc(sizeof(network_profile_t));
     
-    const int num_repeat = 4;
+    const int num_repeat = 20;
     int num_ninst = ninst_profile[device_mode]->total;
 
     if (device_mode == DEV_SERVER) { // echo
@@ -64,8 +64,10 @@ network_profile_t *profile_network(ninst_profile_t **ninst_profile, DEVICE_MODE 
 
         // receive & send ninst_profile
         ninst_profile[!device_mode] = malloc(num_ninst * sizeof(ninst_profile_t));
-        read_n(client_sock, ninst_profile[!device_mode], num_ninst * sizeof(ninst_profile_t));
-        write_n(client_sock, ninst_profile[device_mode], num_ninst * sizeof(ninst_profile_t));
+        for (int i=0; i<num_repeat; i++) {
+            read_n(client_sock, ninst_profile[!device_mode], num_ninst * sizeof(ninst_profile_t));
+            write_n(client_sock, ninst_profile[device_mode], num_ninst * sizeof(ninst_profile_t));
+        }
         
         // receive network_profile
         read_n(client_sock, network_profile, sizeof(network_profile_t));
@@ -96,18 +98,21 @@ network_profile_t *profile_network(ninst_profile_t **ninst_profile, DEVICE_MODE 
         rtt /= num_repeat;
 
         // send & receive ninst_profile;
-        float long_send_timestamp;
-        float long_recv_timestamp;
+        float long_send_timestamp[num_repeat];
+        float long_recv_timestamp[num_repeat];
         float transmit_rate;
 
         ninst_profile[!device_mode] = malloc(num_ninst * sizeof(ninst_profile_t));
-        long_send_timestamp = get_time_secs();
-        write_n(server_sock, ninst_profile[device_mode], num_ninst * sizeof(ninst_profile_t));
-        read_n(server_sock, ninst_profile[!device_mode], num_ninst * sizeof(ninst_profile_t));
-        long_recv_timestamp = get_time_secs();
+        for (int i=0; i<num_repeat; i++) {
+            long_send_timestamp[i] = get_time_secs();
+            write_n(server_sock, ninst_profile[device_mode], num_ninst * sizeof(ninst_profile_t));
+            read_n(server_sock, ninst_profile[!device_mode], num_ninst * sizeof(ninst_profile_t));
+            long_recv_timestamp[i] = get_time_secs();
+            transmit_rate += num_ninst * sizeof(ninst_profile_t) / ((long_recv_timestamp[i] - long_send_timestamp[i]) / 2) / 125000; // Mbps
+        }
 
-        transmit_rate = num_ninst * sizeof(ninst_profile_t) / ((long_recv_timestamp - long_send_timestamp) / 2);
-
+        // transmit_rate = num_ninst * sizeof(ninst_profile_t) / ((long_recv_timestamp - long_send_timestamp) / 2) / 125000; // Mbps
+        transmit_rate /= num_repeat;
 
         // send network_profile
         network_profile->rtt = rtt;
@@ -168,6 +173,7 @@ float profile_network_sync(DEVICE_MODE device_mode, int server_sock, int client_
 
 ninst_profile_t *extract_profile_from_ninsts(nasm_t *nasm) {
     ninst_profile_t *result = calloc(nasm->num_ninst, sizeof(ninst_profile_t));
+    
     for (int i=0; i<nasm->num_ninst; i++) {
         ninst_t *target_ninst = &(nasm->ninst_arr[i]);
 
@@ -177,7 +183,7 @@ ninst_profile_t *extract_profile_from_ninsts(nasm_t *nasm) {
 
         result[i].idx = i;
         result[i].total = nasm->num_ninst;
-        result[i].computation_time = target_ninst->compute_end - target_ninst->compute_start;
+        result[i].computation_time = (target_ninst->compute_end - target_ninst->compute_start);
         result[i].transmit_size = total_bytes;
     }
 
@@ -185,15 +191,16 @@ ninst_profile_t *extract_profile_from_ninsts(nasm_t *nasm) {
 }
 
 ninst_profile_t *merge_computation_profile(ninst_profile_t **ninst_profiles, int num_ninst_profiles) {
+    
     int num_ninst = ninst_profiles[0][0].total;
     ninst_profile_t *merged = calloc(num_ninst, sizeof(ninst_profile_t));
 
-    for(int i=0; i<num_ninst; i++) {
+    for(int i = 0; i < num_ninst; i++) {
         merged[i].computation_time = 0;
         merged[i].idx = i;
         merged[i].total = num_ninst;
         merged[i].transmit_size = ninst_profiles[0][i].transmit_size;
-        for(int j=0; j<num_ninst_profiles; j++) {
+        for(int j = 0; j < num_ninst_profiles; j++) {
             merged[i].computation_time += ninst_profiles[j][i].computation_time;
         }
         merged[i].computation_time /= num_ninst_profiles;

@@ -43,6 +43,12 @@ struct sched_processor_t {
     sched_task_t *task_list;
 };
 
+struct dynamic_scheduler_t{
+    float avg_server_ninst_compute_time;
+    float avg_edge_ninst_compute_time;
+    float avg_bandwidth;
+};
+
 int is_device_compute_dev(ninst_t *ninst, int device_idx);
 
 void init_full_local(nasm_t *nasm);
