@@ -97,7 +97,7 @@ int main(int argc, char **argv)
     }
     
 
-    ninst_profile_t *ninst_profile[SCHEDULE_MAX_DEVICES];
+    avg_ninst_profile_t *ninst_profile[SCHEDULE_MAX_DEVICES];
     network_profile_t *network_profile;
 
     sched_processor_t *schedule;
@@ -116,9 +116,8 @@ int main(int argc, char **argv)
     {
         printf("STAGE: PROFILING COMPUTATION %d\n", device_mode);
         ninst_profile[device_mode] = profile_computation(target_dnn_dir, target_nasm_dir, target_input, gpu, 1);
-        printf("\tTotal: %d\tTransmit Size: %d\tComputation Time: %f\n", ninst_profile[device_mode][256].total, 
-                                            ninst_profile[device_mode][256].transmit_size,
-                                            ninst_profile[device_mode][256].computation_time);
+        printf("\tTotal: %d\tAvg Computation Time: %f\n", ninst_profile[device_mode]->num_ninsts, 
+                                            ninst_profile[device_mode]->avg_computation_time);
     }
 
     /** STAGE: PROFILING NETWORK **/

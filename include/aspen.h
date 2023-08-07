@@ -111,6 +111,7 @@ typedef struct dse_group_t dse_group_t;
 typedef struct networking_engine networking_engine; // Offloading
 typedef struct networking_queue_t networking_queue_t; 
 
+typedef struct avg_ninst_profile_t avg_ninst_profile_t;
 typedef struct ninst_profile_t ninst_profile_t;
 typedef struct network_profile_t network_profile_t;
 

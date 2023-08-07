@@ -7,7 +7,7 @@ void profile_send(int sock, void* message_buf, int32_t message_size)
 
     while (bytes_sent < payload_size)
     {
-        int ret = write(sock, message_buf + bytes_sent, payload_size - bytes_sent);
+        int ret = write(sock, (char*)message_buf + bytes_sent, payload_size - bytes_sent);
         if (ret < 0)
         {
             FPRT(stderr, "Error: profile_send() failed. ret: %d\n", ret);
@@ -24,7 +24,7 @@ void profile_recv(int sock, void* message_buf, int32_t message_size)
 
     while (bytes_received < payload_size)
     {
-        int ret = read(sock, message_buf + bytes_received, payload_size - bytes_received);
+        int ret = read(sock, (char*)message_buf + bytes_received, payload_size - bytes_received);
         if (ret < 0)
         {
             FPRT(stderr, "Error: recv() failed. ret: %d\n", ret);
@@ -34,8 +34,10 @@ void profile_recv(int sock, void* message_buf, int32_t message_size)
     }
 }
 
-ninst_profile_t *profile_computation(char *target_dnn_dir, char *target_nasm_dir, char *target_input, int gpu, int num_repeat) {
-    ninst_profile_t **ninst_profiles = calloc(num_repeat, sizeof(ninst_profile_t *));
+avg_ninst_profile_t *profile_computation(char *target_dnn_dir, char *target_nasm_dir, char *target_input, int gpu, int num_repeat) {
+    // ninst_profile_t **ninst_profiles = calloc(num_repeat, sizeof(ninst_profile_t *));
+    float avg_computation_time = 0.0;
+    int total;
 
     for (int i=0; i<num_repeat; i++) {
         aspen_dnn_t *target_dnn = apu_load_dnn_from_file(target_dnn_dir);
@@ -57,7 +59,9 @@ ninst_profile_t *profile_computation(char *target_dnn_dir, char *target_nasm_dir
         float *softmax_output = calloc (1000*target_nasm->batch_size, sizeof(float));
         naive_softmax (layer_output, softmax_output, target_nasm->batch_size, 1000);
 
-        ninst_profiles[i] = extract_profile_from_ninsts(target_nasm);
+        // ninst_profiles[i] = extract_profile_from_ninsts(target_nasm);
+        total = target_nasm->num_ninst;
+        avg_computation_time += extract_profile_from_ninsts(target_nasm);
         
         free (layer_output);
         free (softmax_output);
@@ -68,33 +72,29 @@ ninst_profile_t *profile_computation(char *target_dnn_dir, char *target_nasm_dir
         apu_destroy_dnn (target_dnn);
     }
 
-    ninst_profile_t *result = merge_computation_profile(ninst_profiles, num_repeat);
+    avg_ninst_profile_t *result = calloc(1, sizeof(ninst_profile_t));
+    result->avg_computation_time = avg_computation_time / num_repeat;
+    result->num_ninsts = total;
 
-    for (int i=0; i<num_repeat; i++) {
-        free(ninst_profiles[i]);
-    }
+    // ninst_profile_t *result = merge_computation_profile(ninst_profiles, num_repeat);
+
+    // for (int i=0; i<num_repeat; i++) {
+        // free(ninst_profiles[i]);
+    // }
     
-    free(ninst_profiles);
+    // free(ninst_profiles);
 
     return result;
 }
 
-network_profile_t *profile_network(ninst_profile_t **ninst_profile, DEVICE_MODE device_mode, int server_sock, int client_sock) {
+network_profile_t *profile_network(avg_ninst_profile_t **ninst_profile, DEVICE_MODE device_mode, int server_sock, int client_sock) {
     network_profile_t *network_profile = malloc(sizeof(network_profile_t));
     
-    const int num_repeat = 8;
-    int num_ninst = ninst_profile[device_mode]->total;
+    const int num_repeat = PROFILE_REPEAT;
+    int num_ninst = ninst_profile[device_mode]->num_ninsts;
 
     if (device_mode == DEV_SERVER) { // echo
         printf("\tprofiling as SERVER...\n");
-
-        // echo shortmessage
-        // for (int i=0; i<num_repeat; i++) {
-        //     float buf;
-        //     read_n(client_sock, &buf, sizeof(float));
-        //     buf = get_time_secs();
-        //     write_n(client_sock, &buf, sizeof(float));
-        // }
 
         float send_time = 0.0;
         float recv_time = 0.0;
@@ -115,11 +115,12 @@ network_profile_t *profile_network(ninst_profile_t **ninst_profile, DEVICE_MODE 
             long_recv_timestamp = get_time_secs();
             profile_send(client_sock, &long_recv_timestamp, sizeof(float));
         }
+        free(profile_message);
 
         // Receive & Send ninst_profile
-        ninst_profile[!device_mode] = malloc(num_ninst * sizeof(ninst_profile_t));
-        profile_recv(client_sock, ninst_profile[!device_mode], num_ninst * sizeof(ninst_profile_t));
-        profile_send(client_sock, ninst_profile[device_mode], num_ninst * sizeof(ninst_profile_t));
+        ninst_profile[DEV_EDGE] = malloc(sizeof(avg_ninst_profile_t));
+        profile_recv(client_sock, ninst_profile[DEV_EDGE], num_ninst * sizeof(avg_ninst_profile_t));
+        profile_send(client_sock, ninst_profile[DEV_SERVER], num_ninst * sizeof(avg_ninst_profile_t));
         
         // Receive network_profile from edge
         profile_recv(client_sock, network_profile, sizeof(network_profile_t));
@@ -143,8 +144,8 @@ network_profile_t *profile_network(ninst_profile_t **ninst_profile, DEVICE_MODE 
         // Profile RTT
         for (int i=0; i<num_repeat; i++) {
             send_timestamp[i] = get_time_secs();
-            profile_recv(server_sock, &send_timestamp[i], sizeof(float));
-            profile_send(server_sock, &recv_timestamp[i], sizeof(float));
+            profile_send(server_sock, &send_timestamp[i], sizeof(float));
+            profile_recv(server_sock, &recv_timestamp[i], sizeof(float));
             recv_timestamp[i] = get_time_secs();
 
             sync += server_timestamp[i] - (recv_timestamp[i] + send_timestamp[i]) / 2;
@@ -161,9 +162,11 @@ network_profile_t *profile_network(ninst_profile_t **ninst_profile, DEVICE_MODE 
             long_send_timestamp = get_time_secs();
             profile_send(server_sock, profile_message, PROFILE_LONG_MESSAGE_SIZE);
             profile_recv(server_sock, &long_recv_timestamp, sizeof(float));
-            transmit_rate += PROFILE_LONG_MESSAGE_SIZE / ((long_recv_timestamp - long_send_timestamp) / 2) / 125000;
+            long_recv_timestamp = get_time_secs();
+            transmit_rate += PROFILE_LONG_MESSAGE_SIZE / ((long_recv_timestamp - long_send_timestamp)) / 125000;
         }
         transmit_rate /= num_repeat;
+        free(profile_message);
 
         // transmit_rate = num_ninst * sizeof(ninst_profile_t) / ((long_recv_timestamp - long_send_timestamp) / 2) / 125000; // Mbps
         
@@ -172,13 +175,12 @@ network_profile_t *profile_network(ninst_profile_t **ninst_profile, DEVICE_MODE 
         network_profile->transmit_rate = transmit_rate;
 
         // Send & receive ninst_profile;
-        ninst_profile[!device_mode] = malloc(num_ninst * sizeof(ninst_profile_t));
-        profile_send(server_sock, ninst_profile[device_mode], num_ninst * sizeof(ninst_profile_t));
-        profile_recv(server_sock, ninst_profile[device_mode], num_ninst * sizeof(ninst_profile_t));
+        ninst_profile[!device_mode] = malloc(sizeof(avg_ninst_profile_t));
+        profile_send(server_sock, ninst_profile[device_mode], sizeof(avg_ninst_profile_t));
+        profile_recv(server_sock, ninst_profile[device_mode], sizeof(avg_ninst_profile_t));
 
         // Send network_profile
         profile_send(server_sock, network_profile, sizeof(network_profile_t));
-        // write_n(server_sock, network_profile, sizeof(network_profile_t));
     }
 
     return network_profile;
@@ -230,8 +232,10 @@ float profile_network_sync(DEVICE_MODE device_mode, int server_sock, int client_
     }
 }
 
-ninst_profile_t *extract_profile_from_ninsts(nasm_t *nasm) {
-    ninst_profile_t *result = calloc(nasm->num_ninst, sizeof(ninst_profile_t));
+// ninst_profile_t *extract_profile_from_ninsts(nasm_t *nasm) {
+float extract_profile_from_ninsts(nasm_t *nasm) {
+    // ninst_profile_t *result = calloc(nasm->num_ninst, sizeof(ninst_profile_t));
+    float avg_computation_time = 0.0;
     
     for (int i=0; i<nasm->num_ninst; i++) {
         ninst_t *target_ninst = &(nasm->ninst_arr[i]);
@@ -240,13 +244,16 @@ ninst_profile_t *extract_profile_from_ninsts(nasm_t *nasm) {
         const unsigned int H = target_ninst->tile_dims[OUT_H];    
         const unsigned int total_bytes = W * H * sizeof(float);
 
-        result[i].idx = i;
-        result[i].total = nasm->num_ninst;
-        result[i].computation_time = (target_ninst->compute_end - target_ninst->compute_start);
-        result[i].transmit_size = total_bytes;
+        // result[i].idx = i;
+        // result[i].total = nasm->num_ninst;
+        // result[i].computation_time = (target_ninst->compute_end - target_ninst->compute_start);
+        // result[i].transmit_size = total_bytes;
+        avg_computation_time += (target_ninst->compute_end - target_ninst->compute_start);
     }
+    avg_computation_time /= nasm->num_ninst;
 
-    return result;
+    // return result;
+    return avg_computation_time;
 }
 
 ninst_profile_t *merge_computation_profile(ninst_profile_t **ninst_profiles, int num_ninst_profiles) {
