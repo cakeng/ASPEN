@@ -166,7 +166,7 @@ int main(int argc, char **argv)
         for (int i=0; i<dse_group->num_ases; i++)
             dse_group->dse_arr[i].is_dynamic_scheduling = 1;
         init_dynamic_offload(target_nasm);
-        init_dyanmic_scheduler(scheduler, ninst_profile, network_profile);
+        init_dynamic_scheduler(scheduler, ninst_profile, network_profile);
     }
     else if (!strcmp(schedule_policy, "local")) 
     {
