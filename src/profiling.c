@@ -1,5 +1,39 @@
 #include "profiling.h"
 
+void profile_send(int sock, void* message_buf, int32_t message_size)
+{
+    int32_t payload_size = message_size;
+    int32_t bytes_sent = 0;
+
+    while (bytes_sent < payload_size)
+    {
+        int ret = write(sock, message_buf + bytes_sent, payload_size - bytes_sent);
+        if (ret < 0)
+        {
+            FPRT(stderr, "Error: profile_send() failed. ret: %d\n", ret);
+            assert(0);
+        }
+        bytes_sent += ret;
+    }
+}
+
+void profile_recv(int sock, void* message_buf, int32_t message_size)
+{
+    int32_t payload_size = message_size;
+    int32_t bytes_received = 0;
+
+    while (bytes_received < payload_size)
+    {
+        int ret = read(sock, message_buf + bytes_received, payload_size - bytes_received);
+        if (ret < 0)
+        {
+            FPRT(stderr, "Error: recv() failed. ret: %d\n", ret);
+            assert(0);
+        }
+        bytes_received += ret;
+    }
+}
+
 ninst_profile_t *profile_computation(char *target_dnn_dir, char *target_nasm_dir, char *target_input, int gpu, int num_repeat) {
     ninst_profile_t **ninst_profiles = calloc(num_repeat, sizeof(ninst_profile_t *));
 
@@ -48,30 +82,50 @@ ninst_profile_t *profile_computation(char *target_dnn_dir, char *target_nasm_dir
 network_profile_t *profile_network(ninst_profile_t **ninst_profile, DEVICE_MODE device_mode, int server_sock, int client_sock) {
     network_profile_t *network_profile = malloc(sizeof(network_profile_t));
     
-    const int num_repeat = 20;
+    const int num_repeat = 8;
     int num_ninst = ninst_profile[device_mode]->total;
 
     if (device_mode == DEV_SERVER) { // echo
         printf("\tprofiling as SERVER...\n");
 
         // echo shortmessage
-        for (int i=0; i<num_repeat; i++) {
-            float buf;
-            read_n(client_sock, &buf, sizeof(float));
-            buf = get_time_secs();
-            write_n(client_sock, &buf, sizeof(float));
+        // for (int i=0; i<num_repeat; i++) {
+        //     float buf;
+        //     read_n(client_sock, &buf, sizeof(float));
+        //     buf = get_time_secs();
+        //     write_n(client_sock, &buf, sizeof(float));
+        // }
+
+        float send_time = 0.0;
+        float recv_time = 0.0;
+        for(int i = 0; i < num_repeat; i++)
+        {
+            profile_recv(client_sock, &recv_time, sizeof(float));
+            send_time = get_time_secs();
+            profile_send(client_sock, &recv_time, sizeof(float));
         }
 
-        // receive & send ninst_profile
+        float long_recv_timestamp;
+
+        // Profile Bandwidth
+        char* profile_message = malloc(sizeof(PROFILE_LONG_MESSAGE_SIZE));
+        for(int i = 0; i < num_repeat; i++)
+        {
+            profile_recv(client_sock, profile_message, PROFILE_LONG_MESSAGE_SIZE);
+            long_recv_timestamp = get_time_secs();
+            profile_send(client_sock, &long_recv_timestamp, sizeof(float));
+        }
+
+        // Receive & Send ninst_profile
         ninst_profile[!device_mode] = malloc(num_ninst * sizeof(ninst_profile_t));
-        read_n(client_sock, ninst_profile[!device_mode], num_ninst * sizeof(ninst_profile_t));
-        write_n(client_sock, ninst_profile[device_mode], num_ninst * sizeof(ninst_profile_t));
+        profile_recv(client_sock, ninst_profile[!device_mode], num_ninst * sizeof(ninst_profile_t));
+        profile_send(client_sock, ninst_profile[device_mode], num_ninst * sizeof(ninst_profile_t));
         
-        
-        // receive network_profile
-        read_n(client_sock, network_profile, sizeof(network_profile_t));
+        // Receive network_profile from edge
+        profile_recv(client_sock, network_profile, sizeof(network_profile_t));
     }
-    else {
+    else 
+    {
         printf("\tprofiling as EDGE...\n");
 
         // send shortmessage
@@ -79,46 +133,52 @@ network_profile_t *profile_network(ninst_profile_t **ninst_profile, DEVICE_MODE 
         float server_timestamp[num_repeat];
         float recv_timestamp[num_repeat];
 
+        float long_send_timestamp;
+        float long_recv_timestamp;
+        float transmit_rate;
+
         float sync = 0;
         float rtt = 0;
 
+        // Profile RTT
         for (int i=0; i<num_repeat; i++) {
             send_timestamp[i] = get_time_secs();
-            write_n(server_sock, &send_timestamp[i], sizeof(float));
-            read_n(server_sock, &server_timestamp[i], sizeof(float));
+            profile_recv(server_sock, &send_timestamp[i], sizeof(float));
+            profile_send(server_sock, &recv_timestamp[i], sizeof(float));
             recv_timestamp[i] = get_time_secs();
 
             sync += server_timestamp[i] - (recv_timestamp[i] + send_timestamp[i]) / 2;
             rtt += recv_timestamp[i] - send_timestamp[i];
-
         }
 
         sync /= num_repeat;
         rtt /= num_repeat;
 
-        // send & receive ninst_profile;
-        float long_send_timestamp;
-        float long_recv_timestamp;
-        float transmit_rate;
-
-        ninst_profile[!device_mode] = malloc(num_ninst * sizeof(ninst_profile_t));
-        // for (int i=0; i<num_repeat; i++) {
+        // Profile Bandwidth
+        char *profile_message = malloc(PROFILE_LONG_MESSAGE_SIZE);
+        for(int i = 0; i < num_repeat; i++)
+        {
             long_send_timestamp = get_time_secs();
-            write_n(server_sock, ninst_profile[device_mode], num_ninst * sizeof(ninst_profile_t));
-            read_n(server_sock, ninst_profile[!device_mode], num_ninst * sizeof(ninst_profile_t));
-            long_recv_timestamp = get_time_secs();
-            // transmit_rate += num_ninst * sizeof(ninst_profile_t) / ((long_recv_timestamp[i] - long_send_timestamp[i]) / 2) / 125000; // Mbps
-        // }
+            profile_send(server_sock, profile_message, PROFILE_LONG_MESSAGE_SIZE);
+            profile_recv(server_sock, &long_recv_timestamp, sizeof(float));
+            transmit_rate += PROFILE_LONG_MESSAGE_SIZE / ((long_recv_timestamp - long_send_timestamp) / 2) / 125000;
+        }
+        transmit_rate /= num_repeat;
 
-        transmit_rate = num_ninst * sizeof(ninst_profile_t) / ((long_recv_timestamp - long_send_timestamp) / 2) / 125000; // Mbps
-        // transmit_rate /= num_repeat;
-
-        // send network_profile
+        // transmit_rate = num_ninst * sizeof(ninst_profile_t) / ((long_recv_timestamp - long_send_timestamp) / 2) / 125000; // Mbps
+        
         network_profile->rtt = rtt;
         network_profile->sync = sync;
         network_profile->transmit_rate = transmit_rate;
 
-        write_n(server_sock, network_profile, sizeof(network_profile_t));
+        // Send & receive ninst_profile;
+        ninst_profile[!device_mode] = malloc(num_ninst * sizeof(ninst_profile_t));
+        profile_send(server_sock, ninst_profile[device_mode], num_ninst * sizeof(ninst_profile_t));
+        profile_recv(server_sock, ninst_profile[device_mode], num_ninst * sizeof(ninst_profile_t));
+
+        // Send network_profile
+        profile_send(server_sock, network_profile, sizeof(network_profile_t));
+        // write_n(server_sock, network_profile, sizeof(network_profile_t));
     }
 
     return network_profile;
