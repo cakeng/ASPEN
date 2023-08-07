@@ -91,8 +91,8 @@ struct ninst_t
     int dev_to_compute [SCHEDULE_MAX_DEVICES];       // who will compute this ninst?
     int dev_send_target [SCHEDULE_MAX_DEVICES];    // who wants the result of this ninst?
 
-    float compute_start;
-    float compute_end;
+    double compute_start;
+    double compute_end;
     // float send_from_here;
     // float recv_from_other;
 

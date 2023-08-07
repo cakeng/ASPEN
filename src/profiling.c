@@ -248,7 +248,12 @@ float extract_profile_from_ninsts(nasm_t *nasm) {
         // result[i].total = nasm->num_ninst;
         // result[i].computation_time = (target_ninst->compute_end - target_ninst->compute_start);
         // result[i].transmit_size = total_bytes;
-        avg_computation_time += (target_ninst->compute_end - target_ninst->compute_start);
+        double elapsed_time = (target_ninst->compute_end - target_ninst->compute_start);
+        if (elapsed_time > 0.0) {
+            avg_computation_time += elapsed_time;
+        } else {
+            avg_computation_time += 0;
+        }
     }
     avg_computation_time /= nasm->num_ninst;
 
