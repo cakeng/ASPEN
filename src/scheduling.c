@@ -63,30 +63,30 @@ void nasm_set_last_layer_ninst_send_target_device(nasm_t *nasm, int device_idx)
     }
 }
 
-void init_dynamic_scheduler(dynamic_scheduler_t *dynamic_scheduler, ninst_profile_t **ninst_profile, network_profile_t *network_profile)
+dynamic_scheduler_t* init_dynamic_scheduler(ninst_profile_t **ninst_profile, network_profile_t *network_profile)
 {
+    dynamic_scheduler_t *dynamic_scheduler = calloc(1, sizeof(dynamic_scheduler_t));
     float avg_server_ninst_compute_time = 0.0;
     float avg_edge_ninst_compute_time = 0.0;
+    int total_ninst = ninst_profile[DEV_SERVER][0].total;
     
     for(int i = 0; i < ninst_profile[DEV_SERVER][0].total; i++)
     {
         avg_server_ninst_compute_time += ninst_profile[DEV_SERVER][i].computation_time;
     }
-    avg_server_ninst_compute_time /= ninst_profile[DEV_SERVER][0].total;
+    avg_server_ninst_compute_time /= total_ninst;
 
     for(int i = 0; i < ninst_profile[DEV_EDGE][0].total; i++)
     {
         avg_edge_ninst_compute_time += ninst_profile[DEV_EDGE][i].computation_time;
     }
-    avg_edge_ninst_compute_time /= ninst_profile[DEV_EDGE][0].total;
+    avg_edge_ninst_compute_time /= total_ninst;
 
     dynamic_scheduler->avg_server_ninst_compute_time = avg_server_ninst_compute_time;
     dynamic_scheduler->avg_edge_ninst_compute_time = avg_edge_ninst_compute_time;
     dynamic_scheduler->avg_bandwidth = network_profile->transmit_rate;
-    printf("\tInit dynamic scheduler\n");
-    printf("\tAvg server ninst computation time: %fms\n", dynamic_scheduler->avg_server_ninst_compute_time);
-    printf("\tAvg edge ninst computation time: %fms\n", dynamic_scheduler->avg_edge_ninst_compute_time);
-    printf("\tAvg bandwidth: %fMbps\n", dynamic_scheduler->avg_bandwidth);
+    dynamic_scheduler->rtt = network_profile->rtt;
+    return dynamic_scheduler;
 }
 
 void init_full_local(nasm_t *nasm) {

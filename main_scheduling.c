@@ -166,7 +166,12 @@ int main(int argc, char **argv)
         for (int i=0; i<dse_group->num_ases; i++)
             dse_group->dse_arr[i].is_dynamic_scheduling = 1;
         init_dynamic_offload(target_nasm);
-        init_dynamic_scheduler(scheduler, ninst_profile, network_profile);
+        scheduler = init_dynamic_scheduler(ninst_profile, network_profile);
+        printf("\tInit dynamic scheduler\n");
+        printf("\tAvg server ninst computation time: %fms\n", scheduler->avg_server_ninst_compute_time);
+        printf("\tAvg edge ninst computation time:   %fms\n", scheduler->avg_edge_ninst_compute_time);
+        printf("\tAvg bandwidth: %fMbps\n", scheduler->avg_bandwidth);
+        printf("\tRTT: %fms\n", scheduler->rtt);
     }
     else if (!strcmp(schedule_policy, "local")) 
     {

@@ -64,10 +64,9 @@ network_profile_t *profile_network(ninst_profile_t **ninst_profile, DEVICE_MODE 
 
         // receive & send ninst_profile
         ninst_profile[!device_mode] = malloc(num_ninst * sizeof(ninst_profile_t));
-        for (int i=0; i<num_repeat; i++) {
-            read_n(client_sock, ninst_profile[!device_mode], num_ninst * sizeof(ninst_profile_t));
-            write_n(client_sock, ninst_profile[device_mode], num_ninst * sizeof(ninst_profile_t));
-        }
+        read_n(client_sock, ninst_profile[!device_mode], num_ninst * sizeof(ninst_profile_t));
+        write_n(client_sock, ninst_profile[device_mode], num_ninst * sizeof(ninst_profile_t));
+        
         
         // receive network_profile
         read_n(client_sock, network_profile, sizeof(network_profile_t));
@@ -98,21 +97,21 @@ network_profile_t *profile_network(ninst_profile_t **ninst_profile, DEVICE_MODE 
         rtt /= num_repeat;
 
         // send & receive ninst_profile;
-        float long_send_timestamp[num_repeat];
-        float long_recv_timestamp[num_repeat];
+        float long_send_timestamp;
+        float long_recv_timestamp;
         float transmit_rate;
 
         ninst_profile[!device_mode] = malloc(num_ninst * sizeof(ninst_profile_t));
-        for (int i=0; i<num_repeat; i++) {
-            long_send_timestamp[i] = get_time_secs();
+        // for (int i=0; i<num_repeat; i++) {
+            long_send_timestamp = get_time_secs();
             write_n(server_sock, ninst_profile[device_mode], num_ninst * sizeof(ninst_profile_t));
             read_n(server_sock, ninst_profile[!device_mode], num_ninst * sizeof(ninst_profile_t));
-            long_recv_timestamp[i] = get_time_secs();
-            transmit_rate += num_ninst * sizeof(ninst_profile_t) / ((long_recv_timestamp[i] - long_send_timestamp[i]) / 2) / 125000; // Mbps
-        }
+            long_recv_timestamp = get_time_secs();
+            // transmit_rate += num_ninst * sizeof(ninst_profile_t) / ((long_recv_timestamp[i] - long_send_timestamp[i]) / 2) / 125000; // Mbps
+        // }
 
-        // transmit_rate = num_ninst * sizeof(ninst_profile_t) / ((long_recv_timestamp - long_send_timestamp) / 2) / 125000; // Mbps
-        transmit_rate /= num_repeat;
+        transmit_rate = num_ninst * sizeof(ninst_profile_t) / ((long_recv_timestamp - long_send_timestamp) / 2) / 125000; // Mbps
+        // transmit_rate /= num_repeat;
 
         // send network_profile
         network_profile->rtt = rtt;
