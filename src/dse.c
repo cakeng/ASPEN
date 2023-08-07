@@ -203,7 +203,7 @@ void dse_schedule (dse_t *dse)
                                 printf("\t ninst %d to server dev_to_compute[%d] -> ", child_ninst->ninst_idx, child_ninst->dev_to_compute[DEV_SERVER]);
                                 child_ninst->dev_to_compute[DEV_SERVER] = 1;
                                 ninst->dev_send_target[DEV_SERVER] = 1;
-                                printf("dev_to_compute[%d]", child_ninst->dev_to_compute[DEV_SERVER]);
+                                printf("dev_to_compute[%d]\n", child_ninst->dev_to_compute[DEV_SERVER]);
                                 break;
                             }
                         }

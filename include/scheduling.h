@@ -3,7 +3,7 @@
 
 #define SCHEDULE_INIT_BUF_SIZE      (1024 * 1024)
 #define PROFILE_REPEAT              4
-#define PROFILE_LONG_MESSAGE_SIZE   (1024 * 64)
+#define PROFILE_LONG_MESSAGE_SIZE   (1024 * 256)
 #define SCHEDULE_MAX_DEVICES        4
 
 #include "nasm.h"
@@ -52,7 +52,7 @@ struct dynamic_scheduler_t{
 
 int is_device_compute_dev(ninst_t *ninst, int device_idx);
 
-dynamic_scheduler_t* init_dynamic_scheduler(ninst_profile_t **ninst_profile, network_profile_t *network_profile);
+dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t *network_profile);
 void init_full_local(nasm_t *nasm);
 void init_full_offload(nasm_t *nasm);
 void init_partial_offload(nasm_t *nasm, float compute_ratio);

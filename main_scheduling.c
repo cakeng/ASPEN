@@ -208,7 +208,6 @@ int main(int argc, char **argv)
     }
     else
     {
-        
         net_engine = init_networking(target_nasm, rpool, device_mode, server_ip, server_port, 0, !is_conventional);
         dse_group_set_net_engine(dse_group, net_engine);
         dse_group_set_device(dse_group, device_mode);

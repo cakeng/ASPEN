@@ -1,5 +1,39 @@
 #include "networking.h"
 
+void send_message(int sock, void* message_buf, int32_t message_size)
+{
+    int32_t payload_size = message_size;
+    int32_t bytes_sent = 0;
+
+    while (bytes_sent < payload_size)
+    {
+        int ret = write(sock, (char*)message_buf + bytes_sent, payload_size - bytes_sent);
+        if (ret < 0)
+        {
+            FPRT(stderr, "Error: send() failed. ret: %d\n", ret);
+            assert(0);
+        }
+        bytes_sent += ret;
+    }
+}
+
+void recv_message(int sock, void* message_buf, int32_t message_size)
+{
+    int32_t payload_size = message_size;
+    int32_t bytes_received = 0;
+
+    while (bytes_received < payload_size)
+    {
+        int ret = read(sock, (char*)message_buf + bytes_received, payload_size - bytes_received);
+        if (ret < 0)
+        {
+            FPRT(stderr, "Error: recv() failed. ret: %d\n", ret);
+            assert(0);
+        }
+        bytes_received += ret;
+    }
+}
+
 void *net_tx_thread_runtime (void* thread_info) 
 {
     networking_engine *net_engine = (networking_engine*) thread_info;
@@ -72,6 +106,7 @@ void init_server(networking_engine* net_engine, int port, int is_UDP)
         FPRT (stderr, "ERROR! socket setsockopt error\n");
         assert(0);
     }
+
     if(bind(net_engine->listen_sock, (struct sockaddr*)&net_engine->listen_addr, sizeof(net_engine->listen_addr)) == -1)
     {
         FPRT (stderr, "ERROR! socket bind error\n");
@@ -98,9 +133,10 @@ void init_server(networking_engine* net_engine, int port, int is_UDP)
         net_engine->edge_addr.sin_addr.s_addr = inet_addr (inet_ntoa (net_engine->edge_addr.sin_addr));
         net_engine->edge_addr.sin_port = htons (port);
         PRT ("Networking: TCP Server accepted connection from %s\n", inet_ntoa (net_engine->edge_addr.sin_addr));
-        write (net_engine->comm_sock, "SERVER ACK", 10);
-        char buf [24] = {0};
-        read (net_engine->comm_sock, buf, 24);
+        char* message = "SERVER ACK";
+        send_message(net_engine->comm_sock, message, 10);
+        char buf [8] = {0};
+        recv_message(net_engine->comm_sock, &buf, 8);
         PRT ("Networking: TCP Server received %s\n", buf);
     }
     else 
@@ -125,18 +161,17 @@ void init_edge(networking_engine* net_engine, char* ip, int port, int is_UDP)
     net_engine->server_addr.sin_port = htons (port);
     net_engine->isUDP = 0;
 
-    connect(net_engine->comm_sock, (struct sockaddr*)&net_engine->server_addr, sizeof(net_engine->server_addr));
-    if (net_engine->comm_sock == -1) 
+    int conn = -1;
+    while(conn < 0)
     {
-        FPRT (stderr, "Error: Edge connect() returned -1\n");
-        assert(0);
+        conn = connect(net_engine->comm_sock, (struct sockaddr*)&net_engine->server_addr, sizeof(net_engine->server_addr));
     }
-    else
-        PRT ("Networking: TCP Edge connected to server %s port %d\n", inet_ntoa (net_engine->server_addr.sin_addr), port);
-    char buf [24] = {0};
-    read (net_engine->comm_sock, buf, 24);
+    PRT ("Networking: TCP Edge connected to server %s port %d\n", inet_ntoa (net_engine->server_addr.sin_addr), port);
+    char buf [10];
+    recv_message(net_engine->comm_sock, &buf, 10);
     PRT ("Networking: TCP Edge received %s\n", buf);
-    write (net_engine->comm_sock, "EDGE ACK", 8);
+    char* message = "EDGE ACK";
+    send_message(net_engine->comm_sock, message, 8);
 }
 
 
