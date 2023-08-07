@@ -63,7 +63,7 @@ void nasm_set_last_layer_ninst_send_target_device(nasm_t *nasm, int device_idx)
     }
 }
 
-void init_dynamic_scheduler(dynamic_scheduler_t *dynamic_scheduler, ninst_profile_t *ninst_profile, network_profile_t *network_profile)
+void init_dynamic_scheduler(dynamic_scheduler_t *dynamic_scheduler, ninst_profile_t **ninst_profile, network_profile_t *network_profile)
 {
     float avg_server_ninst_compute_time = 0.0;
     float avg_edge_ninst_compute_time = 0.0;

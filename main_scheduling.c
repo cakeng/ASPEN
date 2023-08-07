@@ -151,7 +151,6 @@ int main(int argc, char **argv)
     target_nasm = apu_load_nasm_from_file(target_nasm_dir, target_dnn);
 
     /** STAGE: SCHEDULING **/
-
     printf ("STAGE: SCHEDULING - %s\n", schedule_policy);
     if (!strcmp(schedule_policy, "partial")) 
         init_partial_offload(target_nasm, 0.0);
