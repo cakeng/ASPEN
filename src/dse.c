@@ -28,7 +28,7 @@ void dse_schedule (dse_t *dse)
     {
         if (dse->is_multiuser_case)
         {
-            if (dse->device_idx != 0) 
+            if (dse->device_idx != DEV_SERVER) 
             {
                 rpool_fetch_ninsts (dse->rpool_arr[0], &dse->target, 1, 0);
                 if (dse->target == NULL)
@@ -242,10 +242,11 @@ void dse_schedule (dse_t *dse)
                 atomic_fetch_add (&nasm->num_ldata_completed, 1);
                 // if (num_ldata_completed == nasm->num_ldata - 1)
 
-                if (nasm->ldata_arr[nasm->num_ldata-1].num_ninst_completed == nasm->ldata_arr[nasm->num_ldata-1].num_ninst)
+                if (ninst->ldata == &nasm->ldata_arr[nasm->num_ldata - 1])
                 {
                     // printf ("\t\tSignaling nasm completion...\n");
                     // All layers of the nasm is completed.
+                    atomic_store (&nasm->completed, 1);
                     rpool_queue_group_t *rpool_queue_group;
                     if (dse->is_multiuser_case) {
                         rpool_queue_group = get_queue_group_from_nasm (dse->rpool_arr[target_device], ninst->ldata->nasm);
@@ -277,7 +278,7 @@ void dse_schedule (dse_t *dse)
             // check devices to send to for the computation output
             if (dse->is_multiuser_case) 
             {
-                for (int i = 0; i<SCHEDULE_MAX_DEVICES; i++) 
+                for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++) 
                 {
                     if (i == dse->device_idx) continue;
                     if (ninst->dev_send_target[i]) // Should be offload
@@ -292,7 +293,7 @@ void dse_schedule (dse_t *dse)
             }
             else 
             {
-                for (int i = 0; i<SCHEDULE_MAX_DEVICES; i++) 
+                for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++) 
                 {
                     if (i == dse->device_idx) continue;
                     if (ninst->dev_send_target[i]) 
@@ -332,7 +333,7 @@ dse_group_t *dse_group_init (unsigned int num_ase, int gpu_idx)
     dse_group->dse_arr = (dse_t *) calloc (num_ase, sizeof (dse_t));
     for (int i = 0; i < num_ase; i++)
     {
-        dse_init (&dse_group->dse_arr[i], dse_group->gpu_idx);
+        dse_init (dse_group, &dse_group->dse_arr[i], dse_group->gpu_idx);
     }
     return dse_group;
 }
@@ -489,7 +490,7 @@ void dse_group_destroy (dse_group_t *dse_group)
     free (dse_group);
 }
 
-void dse_init (dse_t *dse, int gpu_idx)
+void dse_init (dse_group_t *dse_group, dse_t *dse, int gpu_idx)
 {
     if (dse == NULL)
     {
@@ -501,6 +502,7 @@ void dse_init (dse_t *dse, int gpu_idx)
         FPRT (stderr, "ERROR: dse_init: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);
         gpu_idx = -1;
     }
+    dse->dse_group = dse_group;
     dse->thread_id = atomic_fetch_add (&dse_thread_id_counter, 1);
     dse->rpool = NULL;
     dse->gpu_idx = gpu_idx;
@@ -613,10 +615,7 @@ unsigned int dse_check_nasm_completion (nasm_t *nasm)
         assert (0);
     }
     #endif
-    if (atomic_load(&nasm->num_ldata_completed) == nasm->num_ldata)
-        return 1;
-        
-    return 0;
+    return atomic_load (&nasm->completed);
 }
 
 void dse_group_run_until_nasm_completion (dse_group_t *dse_group, nasm_t *nasm)

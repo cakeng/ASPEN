@@ -16,13 +16,6 @@
 #define SCHED_PARTIAL   1
 #define SCHED_DYNAMIC   2
 
-double get_sec()
-{
-    struct timeval now;
-    gettimeofday (&now, NULL);
-    return now.tv_sec + now.tv_usec*1e-6;
-}
-
 // OPTIONS
 // option "device_mode" - "" int required
 // option "dirname" - "" string required
@@ -85,11 +78,17 @@ int main(int argc, char **argv)
     int server_sock;
     int client_sock;
 
-   if (device_mode == DEV_SERVER) {
+    if (!strcmp(schedule_policy, "local"))
+    {
+        device_mode = DEV_LOCAL;
+    }
+    if (device_mode == DEV_SERVER) 
+    {
         server_sock = create_server_sock(server_ip, server_port+1);
         client_sock = accept_client_sock(server_sock);
     }
-    else if (device_mode == DEV_EDGE) {
+    else if (device_mode == DEV_EDGE) 
+    {
         server_sock = connect_server_sock(server_ip, server_port+1);
     }
     else
@@ -153,6 +152,7 @@ int main(int argc, char **argv)
 
     /** STAGE: SCHEDULING **/
 
+    printf ("STAGE: SCHEDULING - %s\n", schedule_policy);
     if (!strcmp(schedule_policy, "partial")) 
         init_partial_offload(target_nasm, 0.0);
     if (!strcmp(schedule_policy, "conventional")) 
@@ -171,7 +171,7 @@ int main(int argc, char **argv)
     }
     else if (!strcmp(schedule_policy, "local")) 
     {
-        dse_group_set_device (dse_group, 0);
+        dse_group_set_device (dse_group, DEV_SERVER);
         init_sequential_offload (target_nasm, 0, DEV_SERVER, DEV_SERVER);
     }
     else
@@ -190,7 +190,7 @@ int main(int argc, char **argv)
     {
         rpool_add_nasm (rpool, target_nasm, target_input);
 
-        double start_time = get_sec();
+        double start_time = get_time_secs();
         for (int i = 0; i < inference_repeat_num; i++)
         {
             rpool_reset (rpool);
@@ -200,7 +200,7 @@ int main(int argc, char **argv)
             dse_group_stop (dse_group);
         }
 
-        double end_time = get_sec();
+        double end_time = get_time_secs();
         printf ("Time taken: %lf seconds\n", (end_time - start_time)/inference_repeat_num);
     }
     else
@@ -209,6 +209,7 @@ int main(int argc, char **argv)
         net_engine = init_networking(target_nasm, rpool, device_mode, server_ip, server_port, 0, !is_conventional);
         dse_group_set_net_engine(dse_group, net_engine);
         dse_group_set_device(dse_group, device_mode);
+        net_engine->device_idx = device_mode;
         net_engine->dse_group = dse_group;
 
         for (int i=0; i<inference_repeat_num; i++) 
@@ -249,26 +250,27 @@ int main(int argc, char **argv)
             target_nasm->nasm_cond = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
 
             if(device_mode == DEV_EDGE) 
-            {
                 add_input_rpool (net_engine, target_nasm, target_input);
-            }
 
             // for (int i = 0; i < 2; i++)
             //     print_ldata_info (&target_nasm->ldata_arr[i], 1, 0);
 
 
-                get_elapsed_time ("init");
-                net_engine_run (net_engine);
-                // Do not start SERVER DSEs in conventional mode 
-                // (they are started when the offload layer are all downloaded.)
-                if (!(device_mode == DEV_SERVER && is_conventional)) 
-                    dse_group_run (dse_group);
-                dse_wait_for_nasm_completion (target_nasm);
-                get_elapsed_time ("run_aspen");
-                dse_group_stop (dse_group);
-                if (device_mode == DEV_SERVER)
-                    net_engine_wait_for_tx_queue_completion (net_engine);
-                net_engine_stop (net_engine);
+            set_elapsed_time_start ();
+            net_engine_run (net_engine);
+            // Do not start SERVER DSEs in conventional mode 
+            // (they are started when the offloaded layers are all downloaded.)
+            if (!(device_mode == DEV_SERVER && is_conventional)) 
+            {
+                printf ("Running DSEs...\n");
+                dse_group_run (dse_group);
+            }
+            dse_wait_for_nasm_completion (target_nasm);
+            get_elapsed_time ("run_aspen");
+            dse_group_stop (dse_group);
+            if (device_mode == DEV_SERVER)
+                net_engine_wait_for_tx_queue_completion (net_engine);
+            net_engine_stop (net_engine);
 
             
             LAYER_PARAMS output_order_cnn[] = {BATCH, OUT_H, OUT_W, OUT_C};  // for CNN

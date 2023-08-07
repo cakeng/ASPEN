@@ -24,6 +24,7 @@ struct dse_group_t
 
 struct dse_t
 {
+    dse_group_t *dse_group;
     _Atomic int run;
     _Atomic int kill;
     unsigned int thread_id;
@@ -56,7 +57,7 @@ struct dse_t
     int profile_compute;
 };
 
-void dse_init (dse_t *dse, int gpu_idx);
+void dse_init (dse_group_t *dse_group, dse_t *dse, int gpu_idx);
 void dse_destroy (dse_t *dse);
 
 void dse_run (dse_t *dse);

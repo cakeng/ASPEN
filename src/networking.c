@@ -236,7 +236,7 @@ void transmission(networking_engine *net_engine)
     char* buffer_ptr = (char*)net_engine->tx_buffer + sizeof(int32_t);
 
     pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
-    num_ninsts = pop_ninsts_from_net_queue(net_engine->tx_queue, target_ninst_list, 1);
+    num_ninsts = pop_ninsts_from_net_queue(net_engine->tx_queue, target_ninst_list, 4);
     pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
     if (num_ninsts == 0)
         return;
@@ -256,6 +256,9 @@ void transmission(networking_engine *net_engine)
         target_ninst->network_buf = NULL;
         target_ninst->sent_time = time_sent;
         buffer_ptr += data_size;
+        // PRT("Networking: Ninst%d, Sending %d bytes, W%d, H%d, data size %d\n", i, data_size + 3*sizeof(int), 
+        //     target_ninst_list[i]->tile_dims[OUT_W], target_ninst_list[i]->tile_dims[OUT_H], 
+        //     target_ninst_list[i]->tile_dims[OUT_W]*target_ninst_list[i]->tile_dims[OUT_H]*sizeof(float));
     }
     payload_size = buffer_ptr - (char*)net_engine->tx_buffer - sizeof(int32_t);
     *(int32_t*)net_engine->tx_buffer = payload_size;
@@ -314,8 +317,12 @@ void receive(networking_engine *net_engine)
             // PRT("Networking: RX Command %d received - ", payload_size);
             if (payload_size == RX_STOP_SIGNAL)
             {
-                PRT("Stopping RX thread\n");
+                PRT("RX stop signal received.\n");
                 atomic_store (&net_engine->rx_run, 0);
+                atomic_store (&net_engine->nasm->completed, 1);
+                pthread_mutex_lock (&net_engine->nasm->nasm_mutex);
+                pthread_cond_signal (&net_engine->nasm->nasm_cond);
+                pthread_mutex_unlock (&net_engine->nasm->nasm_mutex);
                 return;
             }
             else
@@ -402,9 +409,9 @@ void receive(networking_engine *net_engine)
                     if(!net_engine->pipelined)
                     {
                         // Run SERVER DSEs when all layer DSEs are downloaded. (Conventional mode)
-                        dse_group_run(net_engine->dse_group);
                         dse_group_set_enable_device(net_engine->dse_group, net_engine->device_idx, 1);
                         dse_group_add_prioritize_rpool(net_engine->dse_group, net_engine->device_idx);
+                        dse_group_run(net_engine->dse_group);
                     } 
                 }
             }
@@ -808,11 +815,22 @@ void add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_f
     for (int i = 0; i < ldata->num_ninst; i++)
     {
         ninst_t *ninst = &ldata->ninst_arr_start[i];
-        // pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
-        // push_ninsts_to_net_queue(net_engine->tx_queue, ninst, 1);
-        // pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
-        ninst->state = NINST_READY;
-        rpool_push_ninsts(net_engine->rpool, &ninst, 1, 0);
+        atomic_store (&ninst->state, NINST_COMPLETED);
+        update_children (net_engine->rpool, ninst, 0);
+        for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++) 
+        {
+            if (i == net_engine->device_idx) continue;
+            if (ninst->dev_send_target[i]) 
+            {
+                // printf ("\tninst idx %d (L%d), target device: %d, current device: %d, desired device%d\n", 
+                // ninst->ninst_idx, ninst->ldata->layer->layer_idx, i, dse->device_idx,
+                // ninst->dev_send_target[i]);
+                create_network_buffer_for_ninst (ninst);
+                pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
+                push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
+                pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
+            }
+        }
     }
     
     aspen_free (data); 
