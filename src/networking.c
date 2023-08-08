@@ -429,7 +429,8 @@ void receive(networking_engine *net_engine)
             unsigned int num_ninst_completed = atomic_fetch_add (&target_ninst->ldata->num_ninst_completed , 1);
             int num_ase = net_engine->rpool->ref_dses > 0 ? net_engine->rpool->ref_dses : 1;
             
-            update_children (net_engine->rpool, target_ninst, ninst_idx/(net_engine->nasm->ldata_arr[0].num_ninst/num_ase));
+            // update_children (net_engine->rpool, target_ninst, ninst_idx/(net_engine->nasm->ldata_arr[0].num_ninst/num_ase), net_engine->);
+            update_children (net_engine->rpool, target_ninst, net_engine->dse_group->dse_arr[0].device_idx);
             
             if (num_ninst_completed == target_ninst->ldata->num_ninst - 1)
             {
