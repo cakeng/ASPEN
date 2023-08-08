@@ -90,6 +90,7 @@ struct ninst_t
     // For Scheduling
     atomic_int dev_to_compute [SCHEDULE_MAX_DEVICES];       // who will compute this ninst?
     atomic_int dev_send_target [SCHEDULE_MAX_DEVICES];    // who wants the result of this ninst?
+    atomic_int offloaded;
 
     double compute_start;
     double compute_end;

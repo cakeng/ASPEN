@@ -436,8 +436,8 @@ void receive(networking_engine *net_engine)
             
             if (num_ninst_completed == target_ninst->ldata->num_ninst - 1)
             {
-                printf ("\t\tNet engine completed layer %d of nasm %d\n", 
-                    target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->nasm_id);
+                // printf ("\t\tNet engine completed layer %d of nasm %d\n", 
+                //     target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->nasm_id);
                 atomic_fetch_add (&net_engine->nasm->num_ldata_completed, 1);
                 if (net_engine->device_mode == DEV_EDGE)
                 {

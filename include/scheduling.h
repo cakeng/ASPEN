@@ -52,6 +52,7 @@ struct dynamic_scheduler_t{
     float scheduling_latency; // obtained by scheduling policy in cloud
 };
 
+int is_offloaded(ninst_t *ninst);
 int is_device_compute_dev(ninst_t *ninst, int device_idx);
 void ninst_clear_compute_device(ninst_t *ninst);
 void ninst_set_compute_device(ninst_t *ninst, int device_idx);

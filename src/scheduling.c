@@ -1,5 +1,10 @@
 #include "scheduling.h"
 
+int is_offloaed(ninst_t *ninst)
+{
+    return atomic_load(&ninst->offloaded);
+}
+
 int is_device_compute_dev(ninst_t *ninst, int device_idx) 
 {
     return atomic_load(&ninst->dev_to_compute[device_idx]);
@@ -28,6 +33,7 @@ void ninst_set_compute_device(ninst_t *ninst, int device_idx)
 {
     atomic_store(&ninst->dev_to_compute[device_idx], 1);
     // ninst->dev_to_compute[device_idx] = 1;
+    
 }
 
 void ninst_set_send_target_device(ninst_t *ninst, int device_idx)
@@ -213,6 +219,7 @@ void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode)
         {
             ninst_clear_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]));
             ninst_clear_send_target_device(&(nasm->ldata_arr[i].ninst_arr_start[j]));
+            atomic_store(&nasm->ldata_arr[i].ninst_arr_start[j].offloaded, 0);
             // if(device_mode == DEV_SERVER)
             //     ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), DEV_SERVER);
             // else if(device_mode == DEV_EDGE)
