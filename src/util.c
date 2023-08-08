@@ -590,6 +590,7 @@ void get_probability_results (char *class_data_path, float* probabilities, unsig
 }
 
 double get_time_last = -1;
+double time_offset = 0.0;
 
 double get_time_secs ()
 {
@@ -605,6 +606,23 @@ double get_time_secs ()
     long sec = now.tv_sec - zero_time.tv_sec;
     long usec = now.tv_usec - zero_time.tv_usec;
     return sec + usec*1e-6;
+}
+
+double get_time_secs_offset ()
+{
+    return get_time_secs() + time_offset;
+}
+
+void set_time_offset(double offset, DEVICE_MODE device_mode)
+{
+    if(device_mode == DEV_SERVER)
+    {
+        time_offset = -offset/2;
+    }
+    if(device_mode == DEV_EDGE)
+    {
+        time_offset = offset/2;
+    }
 }
 
 void get_elapsed_time (char *name)

@@ -136,7 +136,7 @@ void dse_schedule (dse_t *dse)
         if (is_device_compute_dev(ninst, dse->device_idx) || dse->profile_compute)    // It's mine, so compute
         {
             // printf("compute ninst %d\n", ninst->ninst_idx);
-            if (dse->profile_compute) ninst->compute_start = get_time_secs();
+            if (dse->profile_compute) ninst->compute_start = get_time_secs_offset ();
             switch (ninst->ldata->layer->type)
             {
                 case CONV_LAYER:
@@ -180,7 +180,7 @@ void dse_schedule (dse_t *dse)
                     break;
             }
 
-            ninst->computed_time = get_time_secs();
+            ninst->computed_time = get_time_secs_offset ();
             if (dse->profile_compute) ninst->compute_end = ninst->computed_time;
 
             // For dynamic offloading, kmbin added

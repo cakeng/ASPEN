@@ -275,7 +275,7 @@ void transmission(networking_engine *net_engine)
     pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
     if (num_ninsts == 0)
         return;
-    double time_sent = get_time_secs();
+    double time_sent = get_time_secs_offset();
     for (int i = 0; i < num_ninsts; i++)
     {
         ninst_t* target_ninst = target_ninst_list[i];
@@ -416,7 +416,7 @@ void receive(networking_engine *net_engine)
             #endif
             copy_buffer_to_ninst_data (target_ninst, buffer_ptr);
             buffer_ptr += data_size;
-            target_ninst->received_time = get_time_secs();
+            target_ninst->received_time = get_time_secs_offset ();
             #ifdef DEBUG
             PRT("\t(N%d L%d I%d %ldB)\n", 
                 target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->inference_id, 

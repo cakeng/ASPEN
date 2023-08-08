@@ -126,22 +126,24 @@ int main(int argc, char **argv)
     if (device_mode == DEV_SERVER) 
     {
         printf("STAGE: PROFILING NETWORK\n");
-        float sync = profile_network_sync(device_mode, server_sock, client_sock);
+        float time_offset = profile_network_sync(device_mode, server_sock, client_sock);
+        set_time_offset(time_offset, device_mode);
         connection_key = 12534;
         write_n(client_sock, &connection_key, sizeof(int));
         printf("\tconnection key: %d\n", connection_key);
-        printf("\tsync: %f\n", sync);
+        printf("\ttime_offset: %f\n", time_offset);
         network_profile = profile_network(ninst_profile, device_mode, server_sock, client_sock);
         printf("\tRTT: %fms Bandwidth: %fMbps\n", network_profile->rtt, network_profile->transmit_rate);
     }
     else if (device_mode == DEV_EDGE) 
     {
         printf("STAGE: PROFILING NETWORK\n");
-        float sync = profile_network_sync(device_mode, server_sock, client_sock);
+        float time_offset = profile_network_sync(device_mode, server_sock, client_sock);
+        set_time_offset(time_offset, device_mode);
         connection_key = -1;
         read_n(server_sock, &connection_key, sizeof(int));
         printf("\tconnection key: %d\n", connection_key);
-        printf("\tsync: %f\n", sync);
+        printf("\ttime_offset: %f\n", time_offset);
         network_profile = profile_network(ninst_profile, device_mode, server_sock, client_sock);
         printf("\tRTT: %fms Bandwidth: %fMbps\n", network_profile->rtt, network_profile->transmit_rate);
     }
@@ -220,7 +222,8 @@ int main(int argc, char **argv)
             remove_inference_whitelist(net_engine, target_nasm->inference_id);
             printf("Sync between inference...\n");
 
-            float sync = profile_network_sync(device_mode, server_sock, client_sock);
+            float time_offset = profile_network_sync(device_mode, server_sock, client_sock);
+            set_time_offset(time_offset, device_mode);
 
             int connection_key;
             if (device_mode == DEV_SERVER) {
@@ -234,7 +237,7 @@ int main(int argc, char **argv)
                 printf("connection key: %d\n", connection_key);
             }
 
-            printf("sync: %f\n", sync);
+            printf("time_offset: %f\n", time_offset);
 
             net_engine_reset(net_engine);
             rpool_reset(rpool);
