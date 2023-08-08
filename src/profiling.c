@@ -14,6 +14,8 @@ avg_ninst_profile_t *profile_computation(char *target_dnn_dir, char *target_nasm
         dse_group_set_rpool (dse_group, rpool);
         dse_group_set_profile (dse_group, 1);
 
+        init_sequential_offload (target_nasm, 0, DEV_SERVER, DEV_SERVER);
+
         rpool_add_nasm (rpool, target_nasm, target_input); 
         
         dse_group_run (dse_group);

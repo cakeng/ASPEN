@@ -305,7 +305,7 @@ void dse_schedule (dse_t *dse)
                 update_children_but_prioritize_dse_target (dse->rpool_arr[0], ninst, dse);
             }
             else if (!dse->is_multiuser_case && dse->is_dynamic_scheduling && ninst->ldata->layer->layer_idx == 0) {
-                update_children (dse->rpool, ninst, 0);
+                update_children (dse->rpool, ninst);
             }
             else {
                 update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
@@ -718,7 +718,7 @@ void dse_cudagraph_run (rpool_t *rpool, nasm_t *nasm)
     // run_cudagraph (nasm);
 }
 
-void update_children (rpool_t *rpool, ninst_t *ninst, dse_t *dse)
+void update_children (rpool_t *rpool, ninst_t *ninst)
 {
     #ifdef DEBUG
     if (rpool == NULL || ninst == NULL)
@@ -742,16 +742,9 @@ void update_children (rpool_t *rpool, ninst_t *ninst, dse_t *dse)
             NINST_STATE old_state = atomic_exchange (&child_ninst->state, NINST_COMPLETED);
             if (old_state == NINST_NOT_READY) 
             {
-                if(dse == NULL)
-                {
-                    atomic_store (&child_ninst->state, NINST_READY);
-                    rpool_push_ninsts (rpool, &child_ninst, 1, 0);
-                }
-                else if(child_ninst->dev_to_compute[dse->device_idx])
-                {
-                    atomic_store (&child_ninst->state, NINST_READY);
-                    rpool_push_ninsts (rpool, &child_ninst, 1, 0);
-                }
+                ninst_copy_compute_device(child_ninst, ninst);
+                atomic_store (&child_ninst->state, NINST_READY);
+                rpool_push_ninsts (rpool, &child_ninst, 1, 0);
             }
             else
             {
@@ -794,6 +787,7 @@ void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst)
             NINST_STATE old_state = atomic_exchange (&child_ninst->state, NINST_COMPLETED);
             if (old_state == NINST_NOT_READY) 
             {
+                ninst_copy_compute_device(child_ninst, ninst);
                 atomic_store (&child_ninst->state, NINST_READY);
                 push_ninsts_to_queue (cache, &child_ninst, 1);
             }
@@ -835,16 +829,15 @@ void update_children_but_prioritize_dse_target (rpool_t *rpool, ninst_t *ninst, 
             NINST_STATE old_state = atomic_exchange (&child_ninst->state, NINST_COMPLETED);
             if (old_state == NINST_NOT_READY) 
             {
-                if(child_ninst->dev_to_compute[dse->device_idx])
+                ninst_copy_compute_device(child_ninst, ninst);   
+                atomic_store (&child_ninst->state, NINST_READY);
+                if (dse->target != NULL)
                 {
-                    atomic_store (&child_ninst->state, NINST_READY);
-                    if (dse->target != NULL)
-                    {
-                        cache[num_cache++] = child_ninst;
-                    }
-                    else
-                        dse->target = child_ninst;
+                    cache[num_cache++] = child_ninst;
                 }
+                else
+                    dse->target = child_ninst;
+                
             }
             else
             {
@@ -889,6 +882,7 @@ void update_children_to_cache_but_prioritize_dse_target (rpool_queue_t *cache, n
             NINST_STATE old_state = atomic_exchange (&child_ninst->state, NINST_COMPLETED);
             if (old_state == NINST_NOT_READY) 
             {
+                ninst_copy_compute_device(child_ninst, ninst);
                 atomic_store (&child_ninst->state, NINST_READY);
                 if (*dse_target != NULL)
                     push_ninsts_to_queue (cache, &child_ninst, 1);

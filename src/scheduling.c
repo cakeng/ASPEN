@@ -5,6 +5,15 @@ int is_device_compute_dev(ninst_t *ninst, int device_idx)
     return ninst->dev_to_compute[device_idx];
 }
 
+void ninst_copy_compute_device(ninst_t* target_ninst, ninst_t* ninst)
+{
+    // ninst --> target_ninst
+    for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++) 
+    {
+        target_ninst->dev_to_compute[i] = ninst->dev_to_compute[i];
+    }
+}
+
 void ninst_clear_compute_device(ninst_t *ninst) 
 {
     for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++) 
