@@ -305,7 +305,7 @@ void dse_schedule (dse_t *dse)
                 update_children_but_prioritize_dse_target (dse->rpool_arr[0], ninst, dse);
             }
             else if (!dse->is_multiuser_case && dse->is_dynamic_scheduling && ninst->ldata->layer->layer_idx == 0) {
-                update_children (dse->rpool, ninst);
+                update_children (dse->rpool, ninst, dse->is_dynamic_scheduling);
             }
             else {
                 update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
@@ -718,7 +718,7 @@ void dse_cudagraph_run (rpool_t *rpool, nasm_t *nasm)
     // run_cudagraph (nasm);
 }
 
-void update_children (rpool_t *rpool, ninst_t *ninst)
+void update_children (rpool_t *rpool, ninst_t *ninst, int is_dynamic_scheduling)
 {
     #ifdef DEBUG
     if (rpool == NULL || ninst == NULL)
@@ -742,7 +742,8 @@ void update_children (rpool_t *rpool, ninst_t *ninst)
             NINST_STATE old_state = atomic_exchange (&child_ninst->state, NINST_COMPLETED);
             if (old_state == NINST_NOT_READY) 
             {
-                ninst_copy_compute_device(child_ninst, ninst);
+                if(is_dynamic_scheduling)
+                    ninst_copy_compute_device(child_ninst, ninst);
                 atomic_store (&child_ninst->state, NINST_READY);
                 rpool_push_ninsts (rpool, &child_ninst, 1, 0);
             }
@@ -761,7 +762,7 @@ void update_children (rpool_t *rpool, ninst_t *ninst)
     }
 }
 
-void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst)
+void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst, int is_dynamic_scheduling)
 {
     #ifdef DEBUG
     if (cache == NULL || ninst == NULL)
@@ -787,7 +788,8 @@ void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst)
             NINST_STATE old_state = atomic_exchange (&child_ninst->state, NINST_COMPLETED);
             if (old_state == NINST_NOT_READY) 
             {
-                ninst_copy_compute_device(child_ninst, ninst);
+                if(is_dynamic_scheduling)
+                    ninst_copy_compute_device(child_ninst, ninst);
                 atomic_store (&child_ninst->state, NINST_READY);
                 push_ninsts_to_queue (cache, &child_ninst, 1);
             }
@@ -829,7 +831,8 @@ void update_children_but_prioritize_dse_target (rpool_t *rpool, ninst_t *ninst, 
             NINST_STATE old_state = atomic_exchange (&child_ninst->state, NINST_COMPLETED);
             if (old_state == NINST_NOT_READY) 
             {
-                ninst_copy_compute_device(child_ninst, ninst);   
+                if(dse->is_dynamic_scheduling)
+                    ninst_copy_compute_device(child_ninst, ninst);   
                 atomic_store (&child_ninst->state, NINST_READY);
                 if (dse->target != NULL)
                 {
@@ -856,7 +859,7 @@ void update_children_but_prioritize_dse_target (rpool_t *rpool, ninst_t *ninst, 
     rpool_push_ninsts (rpool, cache, num_cache, 0);
 }
 
-void update_children_to_cache_but_prioritize_dse_target (rpool_queue_t *cache, ninst_t *ninst, ninst_t **dse_target)
+void update_children_to_cache_but_prioritize_dse_target (rpool_queue_t *cache, ninst_t *ninst, ninst_t **dse_target, int is_dynamic_scheduling)
 {
     #ifdef DEBUG
     if (cache == NULL || ninst == NULL)
@@ -882,7 +885,8 @@ void update_children_to_cache_but_prioritize_dse_target (rpool_queue_t *cache, n
             NINST_STATE old_state = atomic_exchange (&child_ninst->state, NINST_COMPLETED);
             if (old_state == NINST_NOT_READY) 
             {
-                ninst_copy_compute_device(child_ninst, ninst);
+                if(is_dynamic_scheduling)
+                    ninst_copy_compute_device(child_ninst, ninst);
                 atomic_store (&child_ninst->state, NINST_READY);
                 if (*dse_target != NULL)
                     push_ninsts_to_queue (cache, &child_ninst, 1);
@@ -1042,7 +1046,7 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
         atomic_fetch_add (&ninst->ldata->num_ninst_completed , 1);
         int num_ase = rpool->ref_dses > 0 ? rpool->ref_dses : 1;
         // update_children (rpool, ninst, i/(1 + ldata->num_ninst/num_ase));
-        update_children (rpool, ninst);
+        update_children (rpool, ninst, 0);
     }
     atomic_fetch_add (&nasm->num_ldata_completed, 1);
 }

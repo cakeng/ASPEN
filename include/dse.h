@@ -78,10 +78,10 @@ void dse_group_add_rpool_arr(dse_group_t *dse_group, rpool_t *rpool, int device_
 void dse_group_init_netengine_arr (dse_group_t *dse_group);
 void dse_group_add_netengine_arr (dse_group_t *dse_group, networking_engine *net_engine, int device_idx);
 
-void update_children_to_cache_but_prioritize_dse_target (rpool_queue_t *cache, ninst_t *ninst, ninst_t **dse_target);
-void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst);
+void update_children_to_cache_but_prioritize_dse_target (rpool_queue_t *cache, ninst_t *ninst, ninst_t **dse_target, int is_dynamic_scheduling);
+void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst, int is_dynamic_scheduling);
 void update_children_but_prioritize_dse_target (rpool_t *rpool, ninst_t *ninst, dse_t *dse);
-void update_children (rpool_t *rpool, ninst_t *ninst);
+void update_children (rpool_t *rpool, ninst_t *ninst, int is_dynamic_scheduling);
 void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data);
 
 void set_ldata_out_mat_mem_pos (nasm_ldata_t *ldata);
