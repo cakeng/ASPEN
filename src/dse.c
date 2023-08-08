@@ -137,7 +137,7 @@ void dse_schedule (dse_t *dse)
         //                                                                                     ninst->dev_to_compute[DEV_EDGE]);
         if (is_device_compute_dev(ninst, dse->device_idx) || dse->profile_compute)    // It's mine, so compute
         {
-            // printf("compute ninst %d\n", ninst->ninst_idx);
+            // printf("compute ninst (N%d L%d) remained rpool: %d\n", ninst->ninst_idx, ninst->ldata->layer->layer_idx, atomic_load(&dse->rpool->num_stored));
             if (dse->profile_compute) ninst->compute_start = get_time_secs_offset ();
             switch (ninst->ldata->layer->type)
             {
@@ -187,8 +187,15 @@ void dse_schedule (dse_t *dse)
 
             // For dynamic offloading, kmbin added
             if(dse->is_dynamic_scheduling)
-            {        
-                if(dse->device_idx != DEV_SERVER)
+            {
+                if(dse->device_idx == DEV_SERVER)
+                {
+                    for(int i = 0; i < ninst->num_child_ninsts; i++)
+                    {
+                        ninst->child_ninst_arr[i]->dev_to_compute[dse->device_idx] = 1;
+                    }
+                }
+                else if(dse->device_idx != DEV_SERVER)
                 {
                     // Check all childs
                     // Update when child is not to offload
@@ -269,6 +276,8 @@ void dse_schedule (dse_t *dse)
             }
             
             unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
+            // if(num_ninst_completed > (ninst->ldata->num_ninst - 10))
+            //     printf("\tL%d (%d/%d)\n", ninst->ldata->layer->layer_idx, num_ninst_completed, ninst->ldata->num_ninst);
             if (num_ninst_completed == ninst->ldata->num_ninst - 1)
             {
                 // printf ("\t\tThread %d completed layer %d of nasm %d\n", 
@@ -310,17 +319,6 @@ void dse_schedule (dse_t *dse)
             else {
                 update_children_but_prioritize_dse_target (dse->rpool, ninst, dse, dse->is_dynamic_scheduling, dse->device_idx);
             }
-
-            // if(dse->is_dynamic_scheduling)
-            // {
-            //     for(int i = 0; i < ninst->num_child_ninsts; i++)
-            //     {
-            //         if(ninst->dev_to_compute[DEV_SERVER])
-            //         {
-            //             ninst_set_compute_device(ninst->child_ninst_arr[i], DEV_SERVER);
-            //         }
-            //     }
-            // }
 
             // check devices to send to for the computation output
             if (dse->is_multiuser_case) 
@@ -746,8 +744,10 @@ void update_children (rpool_t *rpool, ninst_t *ninst, int is_dynamic_scheduling,
                 {
                     if(!child_ninst->dev_to_compute[device_idx])
                         continue;
+                    else
+                        ninst_copy_compute_device(child_ninst, ninst);
                 }
-                ninst_copy_compute_device(child_ninst, ninst);
+                // printf("\t Push (N%d L%d) to rpool\n", child_ninst->ninst_idx, child_ninst->ldata->layer->layer_idx);
                 atomic_store (&child_ninst->state, NINST_READY);
                 rpool_push_ninsts (rpool, &child_ninst, 1, 0);
             }
@@ -796,8 +796,10 @@ void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst, int is_dyna
                 {
                     if(!child_ninst->dev_to_compute[device_idx])
                         continue;
+                    else
+                        ninst_copy_compute_device(child_ninst, ninst);
                 }
-                ninst_copy_compute_device(child_ninst, ninst);
+                // printf("\t Push (N%d L%d) to rpool\n", child_ninst->ninst_idx, child_ninst->ldata->layer->layer_idx);
                 atomic_store (&child_ninst->state, NINST_READY);
                 push_ninsts_to_queue (cache, &child_ninst, 1);
             }
@@ -843,8 +845,10 @@ void update_children_but_prioritize_dse_target (rpool_t *rpool, ninst_t *ninst, 
                 {
                     if(!child_ninst->dev_to_compute[device_idx])
                         continue;
+                    else
+                        ninst_copy_compute_device(child_ninst, ninst);
                 }
-                ninst_copy_compute_device(child_ninst, ninst);   
+                // printf("\t here Push (N%d L%d) to rpool\n", child_ninst->ninst_idx, child_ninst->ldata->layer->layer_idx);
                 atomic_store (&child_ninst->state, NINST_READY);
                 if (dse->target != NULL)
                 {
@@ -901,8 +905,10 @@ void update_children_to_cache_but_prioritize_dse_target (rpool_queue_t *cache, n
                 {
                     if(!child_ninst->dev_to_compute[device_idx])
                         continue;
+                    else
+                        ninst_copy_compute_device(child_ninst, ninst);
                 }
-                ninst_copy_compute_device(child_ninst, ninst);
+                printf("\t Push (N%d L%d) to rpool\n", child_ninst->ninst_idx, child_ninst->ldata->layer->layer_idx);
                 atomic_store (&child_ninst->state, NINST_READY);
                 if (*dse_target != NULL)
                     push_ninsts_to_queue (cache, &child_ninst, 1);
