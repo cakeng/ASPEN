@@ -1042,7 +1042,7 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
         atomic_fetch_add (&ninst->ldata->num_ninst_completed , 1);
         int num_ase = rpool->ref_dses > 0 ? rpool->ref_dses : 1;
         // update_children (rpool, ninst, i/(1 + ldata->num_ninst/num_ase));
-        update_children (rpool, ninst, NULL);
+        update_children (rpool, ninst);
     }
     atomic_fetch_add (&nasm->num_ldata_completed, 1);
 }
