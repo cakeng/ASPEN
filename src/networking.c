@@ -300,14 +300,14 @@ void transmission(networking_engine *net_engine)
     payload_size += sizeof(int32_t);
 
     #ifdef DEBUG
-    PRT("Networking: Sending %d bytes -", payload_size);
-    for (int i = 0; i < num_ninsts; i++)
-    {
-        ninst_t* target_ninst = target_ninst_list[i];
-        PRT(" (N%d L%d I%d %ldB)", 
-            target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->inference_id, 
-            target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float));
-    }
+    // PRT("Networking: Sending %d bytes -", payload_size);
+    // for (int i = 0; i < num_ninsts; i++)
+    // {
+    //     ninst_t* target_ninst = target_ninst_list[i];
+    //     PRT(" (N%d L%d I%d %ldB)", 
+    //         target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->inference_id, 
+    //         target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float));
+    // }
     #endif
     int32_t bytes_sent = 0;
     while (bytes_sent < payload_size)
@@ -322,7 +322,7 @@ void transmission(networking_engine *net_engine)
         bytes_sent += ret;
     }
     #ifdef DEBUG
-    PRT(" - Time taken %fs, %d tx queue remains.\n", (get_time_secs() - time_sent), net_engine->tx_queue->num_stored);
+    // PRT(" - Time taken %fs, %d tx queue remains.\n", (get_time_secs() - time_sent), net_engine->tx_queue->num_stored);
     #endif
 }
 
@@ -418,9 +418,9 @@ void receive(networking_engine *net_engine)
             buffer_ptr += data_size;
             target_ninst->received_time = get_time_secs_offset ();
             #ifdef DEBUG
-            PRT("\t(N%d L%d I%d %ldB)\n", 
-                target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->inference_id, 
-                target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float));
+            // PRT("\t(N%d L%d I%d %ldB)\n", 
+            //     target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->inference_id, 
+            //     target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float));
             #endif
             for(int i = 0; i < target_ninst->num_child_ninsts; i++)
             {

@@ -199,19 +199,19 @@ void dse_schedule (dse_t *dse)
                         {
                             // If one of parent is allocated to server, send output to server
                             int parent_idx = child_ninst->parent_ninst_idx_arr[j];
-                            if(dse->net_engine->nasm->ninst_arr[parent_idx].dev_to_compute[0])
+                            if(dse->net_engine->nasm->ninst_arr[parent_idx].dev_to_compute[DEV_SERVER])
                             {
                                 #ifdef DEBUG
-                                printf("\t(N%d L%d) dev_to_compute[DEV_SERVER]: %d -> ", child_ninst->ninst_idx,
-                                                                                        child_ninst->ldata->layer->layer_idx,
-                                                                                        child_ninst->dev_to_compute[DEV_SERVER]);
+                                // printf("\t(N%d L%d) dev_to_compute[DEV_SERVER]: %d -> ", child_ninst->ninst_idx,
+                                //                                                         child_ninst->ldata->layer->layer_idx,
+                                //                                                         child_ninst->dev_to_compute[DEV_SERVER]);
                                 #endif
                                 ninst_clear_compute_device(ninst->child_ninst_arr[i]);
                                 ninst_set_compute_device(ninst->child_ninst_arr[i], DEV_SERVER);
                                 ninst_set_send_target_device(ninst, DEV_SERVER);
                                 // ninst->dev_send_target[DEV_SERVER] = 1;
                                 #ifdef DEBUG
-                                printf("dev_to_compute[DEV_SERVER]: %d\n", child_ninst->dev_to_compute[DEV_SERVER]);
+                                // printf("dev_to_compute[DEV_SERVER]: %d\n", child_ninst->dev_to_compute[DEV_SERVER]);
                                 #endif
                                 break;
                             }
@@ -222,14 +222,13 @@ void dse_schedule (dse_t *dse)
                     {
                         ninst_t* child_ninst = ninst->child_ninst_arr[i];
                         //child ninst 가 server 로 할당 안된경우
-                        if(!child_ninst->dev_to_compute[DEV_SERVER])
+                        if(!child_ninst->dev_to_compute[DEV_SERVER] && !child_ninst->dev_to_compute[DEV_EDGE])
                         {
                             // Estimate eft of mobile and server
                             // Set avg transmission size as first parent size
                             int avg_parent_output_bytes = ninst->tile_dims[OUT_H] * ninst->tile_dims[OUT_W] * sizeof(float);
                             float eft_edge = get_eft_edge(dse->dynamic_scheduler, dse->rpool, dse->dse_group->num_ases, child_ninst->num_parent_ninsts);
                             float eft_server = get_eft_server(dse->dynamic_scheduler, dse->net_engine, avg_parent_output_bytes, child_ninst->num_child_ninsts);
-                            
 
                             if(eft_edge < eft_server)
                             {
@@ -255,7 +254,7 @@ void dse_schedule (dse_t *dse)
                                     ninst_clear_compute_device(child_ninst);
                                     ninst_set_compute_device(child_ninst, DEV_SERVER);
                                     #ifdef DEBUG
-                                    printf("\t(N%d L%d) EFT Edge: %f, EFT Server: %f, dev_to_compute[DEV_SERVER]: %d", child_ninst->ninst_idx,
+                                    printf("\t(N%d L%d) EFT Edge: %f, EFT Server: %f, dev_to_compute[DEV_SERVER]: %d\n", child_ninst->ninst_idx,
                                                                                             child_ninst->ldata->layer->layer_idx,
                                                                                             eft_edge,
                                                                                             eft_server,
@@ -300,32 +299,24 @@ void dse_schedule (dse_t *dse)
             }
             // update_children_to_cache (dse->ninst_cache, ninst);
             if (dse->is_multiuser_case && dse->device_idx == 0) {
-                for(int i = 0; i < ninst->num_child_ninsts; i++)
-                {
-                    ninst_set_compute_device(ninst->child_ninst_arr[i], dse->device_idx);
-                }
                 update_children_but_prioritize_dse_target (dse->rpool_arr[target_device], ninst, dse);
             }
             else if (dse->is_multiuser_case && dse->device_idx != 0) {
-                for(int i = 0; i < ninst->num_child_ninsts; i++)
-                {
-                    ninst_set_compute_device(ninst->child_ninst_arr[i], dse->device_idx);
-                }
                 update_children_but_prioritize_dse_target (dse->rpool_arr[0], ninst, dse);
             }
             else if (!dse->is_multiuser_case && dse->is_dynamic_scheduling && ninst->ldata->layer->layer_idx == 0) {
-                for(int i = 0; i < ninst->num_child_ninsts; i++)
-                {
-                    ninst_set_compute_device(ninst->child_ninst_arr[i], dse->device_idx);
-                }
                 update_children (dse->rpool, ninst, 0);
             }
             else {
+                update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
+            }
+
+            if(dse->is_dynamic_scheduling)
+            {
                 for(int i = 0; i < ninst->num_child_ninsts; i++)
                 {
                     ninst_set_compute_device(ninst->child_ninst_arr[i], dse->device_idx);
                 }
-                update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
             }
 
             // check devices to send to for the computation output
@@ -352,11 +343,11 @@ void dse_schedule (dse_t *dse)
                     if (ninst->dev_send_target[i]) 
                     {
                         #ifdef DEBUG
-                        printf ("\t(N%d L%d) Send from %d to %d\n", 
-                                        ninst->ninst_idx, 
-                                        ninst->ldata->layer->layer_idx, 
-                                        dse->device_idx,
-                                        i);
+                        // printf ("\t(N%d L%d) Send from %d to %d\n", 
+                        //                 ninst->ninst_idx, 
+                        //                 ninst->ldata->layer->layer_idx, 
+                        //                 dse->device_idx,
+                        //                 i);
                         #endif
                         networking_engine *net_engine = dse->net_engine;
                         create_network_buffer_for_ninst (ninst);

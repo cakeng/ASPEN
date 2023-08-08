@@ -85,6 +85,7 @@ dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile,
 float get_eft_edge(dynamic_scheduler_t* dynamic_scheduler, rpool_t* rpool, int num_dse, int num_parent_ninsts)
 {
     unsigned int rpool_num_stored = atomic_load(&rpool->num_stored);
+    // printf("%d, %d, %f, %d\n", rpool_num_stored, num_parent_ninsts, dynamic_scheduler->avg_edge_ninst_compute_time, num_dse);
     float eft_edge = (float)(rpool_num_stored + num_parent_ninsts) * dynamic_scheduler->avg_edge_ninst_compute_time / num_dse;
     return eft_edge;
 }
@@ -173,6 +174,7 @@ void init_sequential_offload(nasm_t *nasm, int split_layer, int from_dev, int to
             {
                 ninst_clear_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]));
                 ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), from_dev);
+                ninst_set_send_target_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), to_dev);
             }
         }
         else 

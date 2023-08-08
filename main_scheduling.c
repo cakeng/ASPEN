@@ -112,13 +112,13 @@ int main(int argc, char **argv)
     networking_engine* net_engine = NULL;
 
     /** STAGE: PROFILING COMPUTATION FOR DYNAMIC OFFLOADING*/
-    if(!strcmp(schedule_policy, "dynamic"))
-    {
+    // if(!strcmp(schedule_policy, "dynamic"))
+    // {
         printf("STAGE: PROFILING COMPUTATION %d\n", device_mode);
         ninst_profile[device_mode] = profile_computation(target_dnn_dir, target_nasm_dir, target_input, gpu, 1);
         printf("\tTotal: %d\tAvg Computation Time: %f\n", ninst_profile[device_mode]->num_ninsts, 
                                             ninst_profile[device_mode]->avg_computation_time);
-    }
+    // }
 
     /** STAGE: PROFILING NETWORK **/
 
