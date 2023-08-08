@@ -305,26 +305,26 @@ void dse_schedule (dse_t *dse)
                 update_children_but_prioritize_dse_target (dse->rpool_arr[0], ninst, dse);
             }
             else if (!dse->is_multiuser_case && dse->is_dynamic_scheduling && ninst->ldata->layer->layer_idx == 0) {
-                update_children (dse->rpool, ninst, 0);
+                update_children (dse->rpool, ninst, 0, dse->device_idx);
             }
             else {
                 update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
             }
 
-            if(dse->is_dynamic_scheduling)
-            {
-                for(int i = 0; i < ninst->num_child_ninsts; i++)
-                {
-                    if(ninst->dev_to_compute[DEV_EDGE])
-                    {
-                        ninst_set_compute_device(ninst->child_ninst_arr[i], DEV_EDGE);
-                    } 
-                    else if(ninst->dev_to_compute[DEV_SERVER])
-                    {
-                        ninst_set_compute_device(ninst->child_ninst_arr[i], DEV_SERVER);
-                    }
-                }
-            }
+            // if(dse->is_dynamic_scheduling)
+            // {
+            //     for(int i = 0; i < ninst->num_child_ninsts; i++)
+            //     {
+            //         if(ninst->dev_to_compute[DEV_EDGE])
+            //         {
+            //             ninst_set_compute_device(ninst->child_ninst_arr[i], DEV_EDGE);
+            //         } 
+            //         else if(ninst->dev_to_compute[DEV_SERVER])
+            //         {
+            //             ninst_set_compute_device(ninst->child_ninst_arr[i], DEV_SERVER);
+            //         }
+            //     }
+            // }
 
             // check devices to send to for the computation output
             if (dse->is_multiuser_case) 
@@ -722,7 +722,7 @@ void dse_cudagraph_run (rpool_t *rpool, nasm_t *nasm)
     // run_cudagraph (nasm);
 }
 
-void update_children (rpool_t *rpool, ninst_t *ninst, unsigned int dse_idx)
+void update_children (rpool_t *rpool, ninst_t *ninst, unsigned int dse_idx, int device_id)
 {
     #ifdef DEBUG
     if (rpool == NULL || ninst == NULL)
@@ -747,7 +747,8 @@ void update_children (rpool_t *rpool, ninst_t *ninst, unsigned int dse_idx)
             if (old_state == NINST_NOT_READY) 
             {
                 atomic_store (&child_ninst->state, NINST_READY);
-                rpool_push_ninsts (rpool, &child_ninst, 1, 0);
+                if(child_ninst->dev_to_compute[device_id])
+                    rpool_push_ninsts (rpool, &child_ninst, 1, 0);
             }
             else
             {
@@ -1040,7 +1041,7 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
         ninst->state = NINST_COMPLETED;
         atomic_fetch_add (&ninst->ldata->num_ninst_completed , 1);
         int num_ase = rpool->ref_dses > 0 ? rpool->ref_dses : 1;
-        update_children (rpool, ninst, i/(1 + ldata->num_ninst/num_ase));
+        update_children (rpool, ninst, i/(1 + ldata->num_ninst/num_ase), 0);
     }
     atomic_fetch_add (&nasm->num_ldata_completed, 1);
 }
