@@ -218,6 +218,7 @@ void dse_schedule (dse_t *dse)
                         }
                     }
 
+                    float start = get_time_secs();
                     for(int i = 0; i < ninst->num_child_ninsts; i++)
                     {
                         ninst_t* child_ninst = ninst->child_ninst_arr[i];
@@ -265,6 +266,8 @@ void dse_schedule (dse_t *dse)
                             }
                         }
                     }
+                    float end = get_time_secs();
+                    printf("\t%f\n", (end-start)*1000.0);
                 }
             }
             
@@ -305,7 +308,7 @@ void dse_schedule (dse_t *dse)
                 update_children_but_prioritize_dse_target (dse->rpool_arr[0], ninst, dse);
             }
             else if (!dse->is_multiuser_case && dse->is_dynamic_scheduling && ninst->ldata->layer->layer_idx == 0) {
-                update_children (dse->rpool, ninst, 0, dse->device_idx);
+                update_children (dse->rpool, ninst, 0);
             }
             else {
                 update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
@@ -722,7 +725,7 @@ void dse_cudagraph_run (rpool_t *rpool, nasm_t *nasm)
     // run_cudagraph (nasm);
 }
 
-void update_children (rpool_t *rpool, ninst_t *ninst, unsigned int dse_idx, int device_id)
+void update_children (rpool_t *rpool, ninst_t *ninst, unsigned int dse_idx)
 {
     #ifdef DEBUG
     if (rpool == NULL || ninst == NULL)
@@ -747,8 +750,7 @@ void update_children (rpool_t *rpool, ninst_t *ninst, unsigned int dse_idx, int 
             if (old_state == NINST_NOT_READY) 
             {
                 atomic_store (&child_ninst->state, NINST_READY);
-                if(child_ninst->dev_to_compute[device_id])
-                    rpool_push_ninsts (rpool, &child_ninst, 1, 0);
+                rpool_push_ninsts (rpool, &child_ninst, 1, 0);
             }
             else
             {
@@ -1041,7 +1043,7 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
         ninst->state = NINST_COMPLETED;
         atomic_fetch_add (&ninst->ldata->num_ninst_completed , 1);
         int num_ase = rpool->ref_dses > 0 ? rpool->ref_dses : 1;
-        update_children (rpool, ninst, i/(1 + ldata->num_ninst/num_ase), 0);
+        update_children (rpool, ninst, i/(1 + ldata->num_ninst/num_ase));
     }
     atomic_fetch_add (&nasm->num_ldata_completed, 1);
 }
