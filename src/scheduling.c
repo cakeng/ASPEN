@@ -74,6 +74,18 @@ dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile,
     return dynamic_scheduler;
 }
 
+float get_eft_edge()
+{
+    float eft_edge = 0.0;
+    return eft_edge;
+}
+
+float get_eft_server()
+{
+    float eft_edge = 0.0;
+    return eft_edge;
+}
+
 void init_full_local(nasm_t *nasm) {
     for (int i = 0; i < nasm->num_ninst; i++) 
     {
