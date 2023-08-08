@@ -202,16 +202,16 @@ void dse_schedule (dse_t *dse)
                             if(dse->net_engine->nasm->ninst_arr[parent_idx].dev_to_compute[DEV_SERVER])
                             {
                                 #ifdef DEBUG
-                                // printf("\t(N%d L%d) dev_to_compute[DEV_SERVER]: %d -> ", child_ninst->ninst_idx,
-                                //                                                         child_ninst->ldata->layer->layer_idx,
-                                //                                                         child_ninst->dev_to_compute[DEV_SERVER]);
+                                printf("\t(N%d L%d) dev_to_compute[DEV_SERVER]: %d -> ", child_ninst->ninst_idx,
+                                                                                        child_ninst->ldata->layer->layer_idx,
+                                                                                        child_ninst->dev_to_compute[DEV_SERVER]);
                                 #endif
                                 ninst_clear_compute_device(ninst->child_ninst_arr[i]);
                                 ninst_set_compute_device(ninst->child_ninst_arr[i], DEV_SERVER);
                                 ninst_set_send_target_device(ninst, DEV_SERVER);
                                 // ninst->dev_send_target[DEV_SERVER] = 1;
                                 #ifdef DEBUG
-                                // printf("dev_to_compute[DEV_SERVER]: %d\n", child_ninst->dev_to_compute[DEV_SERVER]);
+                                printf("dev_to_compute[DEV_SERVER]: %d\n", child_ninst->dev_to_compute[DEV_SERVER]);
                                 #endif
                                 break;
                             }
@@ -238,7 +238,7 @@ void dse_schedule (dse_t *dse)
                                     ninst_clear_compute_device(child_ninst);
                                     ninst_set_compute_device(child_ninst, dse->device_idx);
                                     #ifdef DEBUG
-                                    printf("\t(N%d L%d) EFT Edge: %f, EFT Server: %f, dev_to_compute[DEV_EDGE]: %d", child_ninst->ninst_idx,
+                                    printf("\t(N%d L%d) EFT Edge: %f, EFT Server: %f, dev_to_compute[DEV_EDGE]: %d\n", child_ninst->ninst_idx,
                                                                                             child_ninst->ldata->layer->layer_idx,
                                                                                             eft_edge,
                                                                                             eft_server,

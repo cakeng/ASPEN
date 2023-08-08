@@ -53,6 +53,10 @@ struct dynamic_scheduler_t{
 };
 
 int is_device_compute_dev(ninst_t *ninst, int device_idx);
+void ninst_clear_compute_device(ninst_t *ninst);
+void ninst_set_compute_device(ninst_t *ninst, int device_idx);
+void ninst_set_send_target_device(ninst_t *ninst, int device_idx);
+void ninst_clear_send_target_device(ninst_t *ninst);
 
 dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t *network_profile);
 void init_full_local(nasm_t *nasm);

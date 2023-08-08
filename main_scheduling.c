@@ -116,8 +116,8 @@ int main(int argc, char **argv)
     // {
         printf("STAGE: PROFILING COMPUTATION %d\n", device_mode);
         ninst_profile[device_mode] = profile_computation(target_dnn_dir, target_nasm_dir, target_input, gpu, 1);
-        printf("\tTotal: %d\tAvg Computation Time: %f\n", ninst_profile[device_mode]->num_ninsts, 
-                                            ninst_profile[device_mode]->avg_computation_time);
+        printf("\tTotal: %d\tAvg Computation Time: %fms\n", ninst_profile[device_mode]->num_ninsts, 
+                                            ninst_profile[device_mode]->avg_computation_time*1000);
     // }
 
     /** STAGE: PROFILING NETWORK **/
@@ -170,8 +170,8 @@ int main(int argc, char **argv)
         dynamic_scheduler = init_dynamic_scheduler(ninst_profile, network_profile);
         dse_group_set_dynamic_scheduler(dse_group, dynamic_scheduler);
         printf("\tInit dynamic scheduler\n");
-        printf("\tAvg server ninst computation time: %fms\n", dynamic_scheduler->avg_server_ninst_compute_time);
-        printf("\tAvg edge ninst computation time:   %fms\n", dynamic_scheduler->avg_edge_ninst_compute_time);
+        printf("\tAvg server ninst computation time: %fms\n", dynamic_scheduler->avg_server_ninst_compute_time*1000);
+        printf("\tAvg edge ninst computation time:   %fms\n", dynamic_scheduler->avg_edge_ninst_compute_time*1000);
         printf("\tAvg bandwidth: %fMbps\n", dynamic_scheduler->avg_bandwidth);
         printf("\tRTT: %fms\n", dynamic_scheduler->rtt);
     }
