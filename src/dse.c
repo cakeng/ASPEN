@@ -200,18 +200,23 @@ void dse_schedule (dse_t *dse)
                             int parent_idx = child_ninst->parent_ninst_idx_arr[j];
                             if(dse->net_engine->nasm->ninst_arr[parent_idx].dev_to_compute[0])
                             {
+                                #ifdef DEBUG
                                 printf("\t ninst %d to server dev_to_compute[%d] -> ", child_ninst->ninst_idx, child_ninst->dev_to_compute[DEV_SERVER]);
+                                #endif
                                 child_ninst->dev_to_compute[DEV_SERVER] = 1;
                                 ninst->dev_send_target[DEV_SERVER] = 1;
+                                #ifdef DEBUG
                                 printf("dev_to_compute[%d]\n", child_ninst->dev_to_compute[DEV_SERVER]);
+                                #endif
                                 break;
                             }
                         }
                     }
 
-                    float eft_mobile = 0.0;
+                    // Estimate eft of mobile and server
+                    float eft_edge = 0.0;
                     float eft_server = 1.0;
-                    if(eft_mobile < eft_server)
+                    if(eft_edge < eft_server)
                     {
                         for(int i = 0; i < ninst->num_child_ninsts; i++)
                         {
