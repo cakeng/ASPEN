@@ -2,7 +2,7 @@
 
 int is_device_compute_dev(ninst_t *ninst, int device_idx) 
 {
-    return ninst->dev_to_compute[device_idx];
+    return atomic_load(&ninst->dev_to_compute[device_idx]);
 }
 
 void ninst_copy_compute_device(ninst_t* target_ninst, ninst_t* ninst)
@@ -10,7 +10,8 @@ void ninst_copy_compute_device(ninst_t* target_ninst, ninst_t* ninst)
     // ninst --> target_ninst
     for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++) 
     {
-        target_ninst->dev_to_compute[i] = ninst->dev_to_compute[i];
+        atomic_exchange(&target_ninst->dev_to_compute[i], &ninst->dev_to_compute[i]);
+        // target_ninst->dev_to_compute[i] = ninst->dev_to_compute[i];
     }
 }
 
@@ -18,25 +19,29 @@ void ninst_clear_compute_device(ninst_t *ninst)
 {
     for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++) 
     {
-        ninst->dev_to_compute[i] = 0;
+        atomic_store(&ninst->dev_to_compute[i], 0);
+        // ninst->dev_to_compute[i] = 0;
     }
 }
 
 void ninst_set_compute_device(ninst_t *ninst, int device_idx) 
 {
-    ninst->dev_to_compute[device_idx] = 1;
+    atomic_store(&ninst->dev_to_compute[device_idx], 1);
+    // ninst->dev_to_compute[device_idx] = 1;
 }
 
 void ninst_set_send_target_device(ninst_t *ninst, int device_idx)
 {
-    ninst->dev_send_target[device_idx] = 1;
+    atomic_store(&ninst->dev_send_target[device_idx], 1);
+    // ninst->dev_send_target[device_idx] = 1;
 }
 
 void ninst_clear_send_target_device(ninst_t *ninst) 
 {
     for (int i = 0; i<SCHEDULE_MAX_DEVICES; i++) 
     {
-        ninst->dev_send_target[i] = 0;
+        atomic_store(&ninst->dev_send_target[i], 0);
+        // ninst->dev_send_target[i] = 0;
     }
 }
 
@@ -63,7 +68,7 @@ void nasm_all_ninst_set_compute_device (nasm_t *nasm, int device_idx)
     {
         ninst_t *ninst = nasm->ninst_arr + i;
         ninst_clear_send_target_device(ninst);
-        ninst->dev_send_target[device_idx] = 1;
+        atomic_store(&ninst->dev_send_target[device_idx], 1);
     }
 }
 
@@ -73,7 +78,8 @@ void nasm_set_last_layer_ninst_send_target_device(nasm_t *nasm, int device_idx)
     ninst_t *last_ldata_ninst_arr = last_ldata->ninst_arr_start;
     for (int i = 0; i < last_ldata->num_ninst; i++) 
     {
-        last_ldata_ninst_arr[i].dev_send_target[device_idx] = 1;
+        // last_ldata_ninst_arr[i].dev_send_target[device_idx] = 1;
+        atomic_store(&last_ldata_ninst_arr[i].dev_send_target[device_idx], 1);
     }
 }
 

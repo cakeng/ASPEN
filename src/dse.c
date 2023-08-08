@@ -192,13 +192,14 @@ void dse_schedule (dse_t *dse)
                 {
                     for(int i = 0; i < ninst->num_child_ninsts; i++)
                     {
-                        ninst->child_ninst_arr[i]->dev_to_compute[dse->device_idx] = 1;
+                        atomic_store(&ninst->child_ninst_arr[i]->dev_to_compute[dse->device_idx], 1);
+                        // ninst->child_ninst_arr[i]->dev_to_compute[dse->device_idx] = 1;
                     }
                 }
                 else if(dse->device_idx != DEV_SERVER)
                 {
                     // Check all childs
-                    // Update when child is not to offload
+                    // Offload ninst when one of child's parent is allocated to server
                     for(int i = 0; i < ninst->num_child_ninsts; i++)
                     {
                         ninst_t* child_ninst = ninst->child_ninst_arr[i];
@@ -206,19 +207,19 @@ void dse_schedule (dse_t *dse)
                         {
                             // If one of parent is allocated to server, send output to server
                             int parent_idx = child_ninst->parent_ninst_idx_arr[j];
-                            if(dse->net_engine->nasm->ninst_arr[parent_idx].dev_to_compute[DEV_SERVER])
+                            if(atomic_load(&dse->net_engine->nasm->ninst_arr[parent_idx].dev_to_compute[DEV_SERVER]))
                             {
                                 #ifdef DEBUG
-                                printf("\t(N%d L%d) dev_to_compute[DEV_SERVER]: %d -> ", child_ninst->ninst_idx,
-                                                                                        child_ninst->ldata->layer->layer_idx,
-                                                                                        child_ninst->dev_to_compute[DEV_SERVER]);
+                                // printf("\t(N%d L%d) dev_to_compute[DEV_SERVER]: %d -> ", child_ninst->ninst_idx,
+                                //                                                         child_ninst->ldata->layer->layer_idx,
+                                //                                                         child_ninst->dev_to_compute[DEV_SERVER]);
                                 #endif
                                 ninst_clear_compute_device(ninst->child_ninst_arr[i]);
                                 ninst_set_compute_device(ninst->child_ninst_arr[i], DEV_SERVER);
                                 ninst_set_send_target_device(ninst, DEV_SERVER);
                                 // ninst->dev_send_target[DEV_SERVER] = 1;
                                 #ifdef DEBUG
-                                printf("dev_to_compute[DEV_SERVER]: %d\n", child_ninst->dev_to_compute[DEV_SERVER]);
+                                // printf("dev_to_compute[DEV_SERVER]: %d\n", child_ninst->dev_to_compute[DEV_SERVER]);
                                 #endif
                                 break;
                             }
@@ -228,8 +229,7 @@ void dse_schedule (dse_t *dse)
                     for(int i = 0; i < ninst->num_child_ninsts; i++)
                     {
                         ninst_t* child_ninst = ninst->child_ninst_arr[i];
-                        //child ninst 가 server 로 할당 안된경우
-                        if(!child_ninst->dev_to_compute[DEV_SERVER] && !child_ninst->dev_to_compute[DEV_EDGE])
+                        if(!atomic_load(&child_ninst->dev_to_compute[DEV_SERVER]) && !atomic_load(&child_ninst->dev_to_compute[DEV_EDGE]))
                         {
                             // Estimate eft of mobile and server
                             // Set avg transmission size as first parent size
@@ -245,11 +245,11 @@ void dse_schedule (dse_t *dse)
                                     ninst_clear_compute_device(child_ninst);
                                     ninst_set_compute_device(child_ninst, dse->device_idx);
                                     #ifdef DEBUG
-                                    printf("\t(N%d L%d) EFT Edge: %f, EFT Server: %f, dev_to_compute[DEV_EDGE]: %d\n", child_ninst->ninst_idx,
-                                                                                            child_ninst->ldata->layer->layer_idx,
-                                                                                            eft_edge,
-                                                                                            eft_server,
-                                                                                            child_ninst->dev_to_compute[DEV_EDGE]);
+                                    // printf("\t(N%d L%d) EFT Edge: %f, EFT Server: %f, dev_to_compute[DEV_EDGE]: %d\n", child_ninst->ninst_idx,
+                                    //                                                         child_ninst->ldata->layer->layer_idx,
+                                    //                                                         eft_edge,
+                                    //                                                         eft_server,
+                                    //                                                         child_ninst->dev_to_compute[DEV_EDGE]);
                                     #endif
                                 }
                             }
@@ -261,11 +261,17 @@ void dse_schedule (dse_t *dse)
                                     ninst_clear_compute_device(child_ninst);
                                     ninst_set_compute_device(child_ninst, DEV_SERVER);
                                     #ifdef DEBUG
-                                    printf("\t(N%d L%d) EFT Edge: %f, EFT Server: %f, dev_to_compute[DEV_SERVER]: %d\n", child_ninst->ninst_idx,
-                                                                                            child_ninst->ldata->layer->layer_idx,
-                                                                                            eft_edge,
-                                                                                            eft_server,
-                                                                                            child_ninst->dev_to_compute[DEV_SERVER]);
+                                    if(ninst->ninst_idx > 124 && ninst->ninst_idx < 130)
+                                    {
+                                        printf("\tOffload Parent : (N%d L%d) as child (N%d L%d) EFT Edge: %f, EFT Server: %f, dev_to_compute[DEV_SERVER]: %d\n", 
+                                                                                                ninst->ninst_idx,
+                                                                                                ninst->ldata->layer->layer_idx,
+                                                                                                child_ninst->ninst_idx,
+                                                                                                child_ninst->ldata->layer->layer_idx,
+                                                                                                eft_edge,
+                                                                                                eft_server,
+                                                                                                child_ninst->dev_to_compute[DEV_SERVER]);
+                                    }
                                     #endif
                                 }
                                 ninst_set_send_target_device(ninst, DEV_SERVER);
