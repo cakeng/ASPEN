@@ -1,6 +1,6 @@
 #include "scheduling.h"
 
-int is_offloaed(ninst_t *ninst)
+int is_offloaded(ninst_t *ninst)
 {
     return atomic_load(&ninst->offloaded);
 }
@@ -8,6 +8,19 @@ int is_offloaed(ninst_t *ninst)
 int is_device_compute_dev(ninst_t *ninst, int device_idx) 
 {
     return atomic_load(&ninst->dev_to_compute[device_idx]);
+}
+
+int check_all_parents_target_device(ninst_t *ninst, nasm_t* nasm, int device_idx)
+{
+    for(int i = 0; i < ninst->num_parent_ninsts; i++)
+    {
+        int parent_idx = ninst->parent_ninst_idx_arr[i];
+        if(!atomic_load(&nasm->ninst_arr[parent_idx].dev_to_compute[device_idx]))
+        {
+            return 0;
+        }
+    }
+    return 1;
 }
 
 void ninst_copy_compute_device(ninst_t* target_ninst, ninst_t* ninst)
@@ -111,7 +124,7 @@ float get_eft_edge(dynamic_scheduler_t* dynamic_scheduler, rpool_t* rpool, int n
     return eft_edge;
 }
 
-float get_eft_server(dynamic_scheduler_t* dynamic_scheduler, networking_engine* net_engine, int net_tx_queue_bytes, int num_parent_ninsts)
+float get_eft_server(dynamic_scheduler_t* dynamic_scheduler, networking_engine* net_engine, int net_tx_queue_bytes)
 {
     unsigned int net_tx_queue_num_stored = atomic_load(&net_engine->tx_queue->num_stored);
     float eft_edge = dynamic_scheduler->rtt + // RTT
