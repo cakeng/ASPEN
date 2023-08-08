@@ -188,14 +188,7 @@ void dse_schedule (dse_t *dse)
             // For dynamic offloading, kmbin added
             if(dse->is_dynamic_scheduling)
             {
-                if(dse->device_idx == DEV_SERVER)
-                {
-                    for(int i = 0; i < ninst->num_child_ninsts; i++)
-                    {
-                        atomic_store(&ninst->child_ninst_arr[i]->dev_to_compute[dse->device_idx], 1);
-                    }
-                }
-                else if(dse->device_idx != DEV_SERVER)
+                if(dse->device_idx != DEV_SERVER)
                 {
                     // Check all childs
                     // Offload ninst when one of child's parent is allocated to server
