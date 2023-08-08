@@ -13,6 +13,7 @@ avg_ninst_profile_t *profile_computation(char *target_dnn_dir, char *target_nasm
         dse_group_t *dse_group = dse_group_init (16, gpu);
         dse_group_set_rpool (dse_group, rpool);
         dse_group_set_profile (dse_group, 1);
+        dse_group_set_device(dse_group, DEV_SERVER);
 
         init_sequential_offload (target_nasm, 0, DEV_SERVER, DEV_SERVER);
 
