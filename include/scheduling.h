@@ -48,6 +48,8 @@ struct dynamic_scheduler_t{
     float avg_edge_ninst_compute_time;
     float avg_bandwidth;
     float rtt;
+
+    float scheduling_latency; // obtained by scheduling policy in cloud
 };
 
 int is_device_compute_dev(ninst_t *ninst, int device_idx);
@@ -57,7 +59,7 @@ void init_full_local(nasm_t *nasm);
 void init_full_offload(nasm_t *nasm);
 void init_partial_offload(nasm_t *nasm, float compute_ratio);
 void init_sequential_offload(nasm_t *nasm, int split_layer, int from_dev, int to_dev);
-void init_dynamic_offload(nasm_t *nasm);
+void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode);
 void init_conventional_offload(nasm_t *nasm);
 sched_processor_t *init_heft(char *target_dnn_dir, char *target_nasm_dir, ninst_profile_t **ninst_profile, network_profile_t *network_profile, int num_device);
 

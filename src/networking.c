@@ -422,6 +422,10 @@ void receive(networking_engine *net_engine)
                 target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->inference_id, 
                 target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float));
             #endif
+            for(int i = 0; i < target_ninst->num_child_ninsts; i++)
+            {
+                ninst_set_compute_device(target_ninst->child_ninst_arr[i], DEV_SERVER);
+            }
             unsigned int num_ninst_completed = atomic_fetch_add (&target_ninst->ldata->num_ninst_completed , 1);
             int num_ase = net_engine->rpool->ref_dses > 0 ? net_engine->rpool->ref_dses : 1;
             update_children (net_engine->rpool, target_ninst, ninst_idx/(net_engine->nasm->ldata_arr[0].num_ninst/num_ase));
@@ -850,22 +854,25 @@ void add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_f
     for (int i = 0; i < ldata->num_ninst; i++)
     {
         ninst_t *ninst = &ldata->ninst_arr_start[i];
-        atomic_store (&ninst->state, NINST_COMPLETED);
-        update_children (net_engine->rpool, ninst, 0);
-        for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++) 
-        {
-            if (i == net_engine->device_idx) continue;
-            if (ninst->dev_send_target[i]) 
-            {
-                // printf ("\tninst idx %d (L%d), target device: %d, current device: %d, desired device%d\n", 
-                // ninst->ninst_idx, ninst->ldata->layer->layer_idx, i, dse->device_idx,
-                // ninst->dev_send_target[i]);
-                create_network_buffer_for_ninst (ninst);
-                pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
-                push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
-                pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
-            }
-        }
+        // atomic_store (&ninst->state, NINST_COMPLETED);
+        atomic_store (&ninst->state, NINST_READY);
+        int num_ase = net_engine->rpool->ref_dses > 0 ? net_engine->rpool->ref_dses : 1;
+        rpool_push_ninsts(net_engine->rpool, &ninst, 1, num_ase);
+        // update_children (net_engine->rpool, ninst, 0);
+        // for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++) 
+        // {
+        //     if (i == net_engine->device_idx) continue;
+        //     if (ninst->dev_send_target[i]) 
+        //     {
+        //         // printf ("\tninst idx %d (L%d), target device: %d, current device: %d, desired device%d\n", 
+        //         // ninst->ninst_idx, ninst->ldata->layer->layer_idx, i, dse->device_idx,
+        //         // ninst->dev_send_target[i]);
+        //         create_network_buffer_for_ninst (ninst);
+        //         pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
+        //         push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
+        //         pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
+        //     }
+        // }
     }
     
     aspen_free (data); 

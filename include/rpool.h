@@ -46,6 +46,7 @@ struct rpool_t
     rpool_queue_t default_queue;
     _Atomic unsigned int ref_dses;
     int gpu_idx;
+    _Atomic unsigned int num_stored;
 };
 
 void rpool_init_queue (rpool_queue_t *rpool_queue);

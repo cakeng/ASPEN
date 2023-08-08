@@ -52,6 +52,7 @@ struct dse_t
 
     // for dynamic scheduling
     int is_dynamic_scheduling;
+    dynamic_scheduler_t* dynamic_scheduler;
 
     // for profiling stage
     int profile_compute;
@@ -69,6 +70,7 @@ void dse_group_set_net_engine (dse_group_t *dse_group, networking_engine *net_en
 void dse_group_set_device (dse_group_t *dse_group, int device_idx);
 void dse_group_set_profile (dse_group_t *dse_group, int profile_compute);
 void dse_group_set_multiuser (dse_group_t *dse_group, int is_multiuser_case);
+void dse_group_set_dynamic_scheduler (dse_group_t *dse_group, dynamic_scheduler_t* dynamic_scheduler);
 void dse_group_add_prioritize_rpool (dse_group_t *dse_group, int device_idx);
 void dse_group_init_enable_device(dse_group_t *dse_group);
 void dse_group_set_enable_device(dse_group_t *dse_group, int device_idx, int enable);

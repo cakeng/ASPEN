@@ -101,7 +101,7 @@ int main(int argc, char **argv)
     network_profile_t *network_profile;
 
     sched_processor_t *schedule;
-    dynamic_scheduler_t *scheduler;
+    dynamic_scheduler_t *dynamic_scheduler;
 
     aspen_dnn_t *target_dnn;
     nasm_t *target_nasm;
@@ -164,15 +164,16 @@ int main(int argc, char **argv)
     else if (!strcmp(schedule_policy, "dynamic")) 
     {
         /** STAGE: SCHEDULING - DYNAMIC **/
-        for (int i=0; i<dse_group->num_ases; i++)
-            dse_group->dse_arr[i].is_dynamic_scheduling = 1;
-        init_dynamic_offload(target_nasm);
-        scheduler = init_dynamic_scheduler(ninst_profile, network_profile);
+        // for (int i=0; i<dse_group->num_ases; i++)
+        //     dse_group->dse_arr[i].is_dynamic_scheduling = 1;
+        init_dynamic_offload(target_nasm, device_mode);
+        dynamic_scheduler = init_dynamic_scheduler(ninst_profile, network_profile);
+        dse_group_set_dynamic_scheduler(dse_group, dynamic_scheduler);
         printf("\tInit dynamic scheduler\n");
-        printf("\tAvg server ninst computation time: %fms\n", scheduler->avg_server_ninst_compute_time);
-        printf("\tAvg edge ninst computation time:   %fms\n", scheduler->avg_edge_ninst_compute_time);
-        printf("\tAvg bandwidth: %fMbps\n", scheduler->avg_bandwidth);
-        printf("\tRTT: %fms\n", scheduler->rtt);
+        printf("\tAvg server ninst computation time: %fms\n", dynamic_scheduler->avg_server_ninst_compute_time);
+        printf("\tAvg edge ninst computation time:   %fms\n", dynamic_scheduler->avg_edge_ninst_compute_time);
+        printf("\tAvg bandwidth: %fMbps\n", dynamic_scheduler->avg_bandwidth);
+        printf("\tRTT: %fms\n", dynamic_scheduler->rtt);
     }
     else if (!strcmp(schedule_policy, "local")) 
     {
@@ -243,7 +244,7 @@ int main(int argc, char **argv)
             rpool_reset(rpool);
             apu_reset_nasm(target_nasm);
             
-            if (!strcmp(schedule_policy, "dynamic")) init_dynamic_offload(target_nasm);
+            if (!strcmp(schedule_policy, "dynamic")) init_dynamic_offload(target_nasm, device_mode);
 
             
             set_nasm_inference_id(target_nasm, connection_key);

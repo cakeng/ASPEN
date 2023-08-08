@@ -132,7 +132,9 @@ void dse_schedule (dse_t *dse)
         if (atomic_exchange (&ninst->state, NINST_COMPLETED) == NINST_COMPLETED)
             return;
 
-        // printf("fetched ninst %d, offload: %d, compute: %d\n", ninst->ninst_idx, ninst->offload, ninst->compute);
+        // printf("Fetched ninst %d, dev_to_compute[DEV_SERVER]: %d, dev_to_compute[DEV_EDGE]: %d\n", ninst->ninst_idx, 
+        //                                                                                     ninst->dev_to_compute[DEV_SERVER],
+        //                                                                                     ninst->dev_to_compute[DEV_EDGE]);
         if (is_device_compute_dev(ninst, dse->device_idx) || dse->profile_compute)    // It's mine, so compute
         {
             // printf("compute ninst %d\n", ninst->ninst_idx);
@@ -193,7 +195,6 @@ void dse_schedule (dse_t *dse)
                     for(int i = 0; i < ninst->num_child_ninsts; i++)
                     {
                         ninst_t* child_ninst = ninst->child_ninst_arr[i];
-
                         for(int j = 0; j < child_ninst->num_parent_ninsts; j++)
                         {
                             // If one of parent is allocated to server, send output to server
@@ -201,41 +202,72 @@ void dse_schedule (dse_t *dse)
                             if(dse->net_engine->nasm->ninst_arr[parent_idx].dev_to_compute[0])
                             {
                                 #ifdef DEBUG
-                                printf("\t ninst %d to server dev_to_compute[%d] -> ", child_ninst->ninst_idx, child_ninst->dev_to_compute[DEV_SERVER]);
+                                printf("\t(N%d L%d) dev_to_compute[DEV_SERVER]: %d -> ", child_ninst->ninst_idx,
+                                                                                        child_ninst->ldata->layer->layer_idx,
+                                                                                        child_ninst->dev_to_compute[DEV_SERVER]);
                                 #endif
-                                child_ninst->dev_to_compute[DEV_SERVER] = 1;
-                                ninst->dev_send_target[DEV_SERVER] = 1;
+                                ninst_clear_compute_device(ninst->child_ninst_arr[i]);
+                                ninst_set_compute_device(ninst->child_ninst_arr[i], DEV_SERVER);
+                                ninst_set_send_target_device(ninst, DEV_SERVER);
+                                // ninst->dev_send_target[DEV_SERVER] = 1;
                                 #ifdef DEBUG
-                                printf("dev_to_compute[%d]\n", child_ninst->dev_to_compute[DEV_SERVER]);
+                                printf("dev_to_compute[DEV_SERVER]: %d\n", child_ninst->dev_to_compute[DEV_SERVER]);
                                 #endif
                                 break;
                             }
                         }
                     }
 
-                    // Estimate eft of mobile and server
-                    float eft_edge = 0.0;
-                    float eft_server = 1.0;
-                    if(eft_edge < eft_server)
+                    for(int i = 0; i < ninst->num_child_ninsts; i++)
                     {
-                        for(int i = 0; i < ninst->num_child_ninsts; i++)
+                        ninst_t* child_ninst = ninst->child_ninst_arr[i];
+                        //child ninst 가 server 로 할당 안된경우
+                        if(!child_ninst->dev_to_compute[DEV_SERVER])
                         {
-                            ninst->child_ninst_arr[i]->dev_to_compute[DEV_SERVER] = 0;
-                            ninst->child_ninst_arr[i]->dev_to_compute[dse->device_idx] = 1;
+                            // Estimate eft of mobile and server
+                            // Set avg transmission size as first parent size
+                            int avg_parent_output_bytes = ninst->tile_dims[OUT_H] * ninst->tile_dims[OUT_W] * sizeof(float);
+                            float eft_edge = get_eft_edge(dse->dynamic_scheduler, dse->rpool, dse->dse_group->num_ases, child_ninst->num_parent_ninsts);
+                            float eft_server = get_eft_server(dse->dynamic_scheduler, dse->net_engine, avg_parent_output_bytes, child_ninst->num_child_ninsts);
+                            
+
+                            if(eft_edge < eft_server)
+                            {
+                                // Allocated child ninsts to edge
+                                for(int i = 0; i < ninst->num_child_ninsts; i++)
+                                {
+                                    ninst_clear_compute_device(child_ninst);
+                                    ninst_set_compute_device(child_ninst, dse->device_idx);
+                                    #ifdef DEBUG
+                                    printf("\t(N%d L%d) EFT Edge: %f, EFT Server: %f, dev_to_compute[DEV_EDGE]: %d", child_ninst->ninst_idx,
+                                                                                            child_ninst->ldata->layer->layer_idx,
+                                                                                            eft_edge,
+                                                                                            eft_server,
+                                                                                            child_ninst->dev_to_compute[DEV_EDGE]);
+                                    #endif
+                                }
+                            }
+                            else
+                            {
+                                // Allocated child ninsts to server
+                                for(int i = 0; i < ninst->num_child_ninsts; i++)
+                                {
+                                    ninst_clear_compute_device(child_ninst);
+                                    ninst_set_compute_device(child_ninst, DEV_SERVER);
+                                    #ifdef DEBUG
+                                    printf("\t(N%d L%d) EFT Edge: %f, EFT Server: %f, dev_to_compute[DEV_SERVER]: %d", child_ninst->ninst_idx,
+                                                                                            child_ninst->ldata->layer->layer_idx,
+                                                                                            eft_edge,
+                                                                                            eft_server,
+                                                                                            child_ninst->dev_to_compute[DEV_SERVER]);
+                                    #endif
+                                }
+                                ninst_set_send_target_device(ninst, DEV_SERVER);
+                            }
                         }
-                    }
-                    else
-                    {
-                        for(int i = 0; i < ninst->num_child_ninsts; i++)
-                        {
-                            ninst->child_ninst_arr[i]->dev_to_compute[DEV_SERVER] = 1;
-                            ninst->child_ninst_arr[i]->dev_to_compute[dse->device_idx] = 0;
-                        }
-                        ninst->dev_send_target[DEV_SERVER] = 1;
                     }
                 }
             }
-        
             
             unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
             if (num_ninst_completed == ninst->ldata->num_ninst - 1)
@@ -268,15 +300,31 @@ void dse_schedule (dse_t *dse)
             }
             // update_children_to_cache (dse->ninst_cache, ninst);
             if (dse->is_multiuser_case && dse->device_idx == 0) {
+                for(int i = 0; i < ninst->num_child_ninsts; i++)
+                {
+                    ninst_set_compute_device(ninst->child_ninst_arr[i], dse->device_idx);
+                }
                 update_children_but_prioritize_dse_target (dse->rpool_arr[target_device], ninst, dse);
             }
             else if (dse->is_multiuser_case && dse->device_idx != 0) {
+                for(int i = 0; i < ninst->num_child_ninsts; i++)
+                {
+                    ninst_set_compute_device(ninst->child_ninst_arr[i], dse->device_idx);
+                }
                 update_children_but_prioritize_dse_target (dse->rpool_arr[0], ninst, dse);
             }
             else if (!dse->is_multiuser_case && dse->is_dynamic_scheduling && ninst->ldata->layer->layer_idx == 0) {
+                for(int i = 0; i < ninst->num_child_ninsts; i++)
+                {
+                    ninst_set_compute_device(ninst->child_ninst_arr[i], dse->device_idx);
+                }
                 update_children (dse->rpool, ninst, 0);
             }
             else {
+                for(int i = 0; i < ninst->num_child_ninsts; i++)
+                {
+                    ninst_set_compute_device(ninst->child_ninst_arr[i], dse->device_idx);
+                }
                 update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
             }
 
@@ -303,9 +351,13 @@ void dse_schedule (dse_t *dse)
                     if (i == dse->device_idx) continue;
                     if (ninst->dev_send_target[i]) 
                     {
-                        // printf ("\tninst idx %d (L%d), target device: %d, current device: %d, desired device%d\n", 
-                        // ninst->ninst_idx, ninst->ldata->layer->layer_idx, i, dse->device_idx,
-                        // ninst->dev_send_target[i]);
+                        #ifdef DEBUG
+                        printf ("\t(N%d L%d) Send from %d to %d\n", 
+                                        ninst->ninst_idx, 
+                                        ninst->ldata->layer->layer_idx, 
+                                        dse->device_idx,
+                                        i);
+                        #endif
                         networking_engine *net_engine = dse->net_engine;
                         create_network_buffer_for_ninst (ninst);
                         pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
@@ -408,6 +460,20 @@ void dse_group_set_profile (dse_group_t *dse_group, int profile_compute)
     for (int i = 0; i < dse_group->num_ases; i++)
     {
         dse_group->dse_arr[i].profile_compute = profile_compute;
+    }
+}
+
+void dse_group_set_dynamic_scheduler (dse_group_t *dse_group, dynamic_scheduler_t* dynamic_scheduler)
+{
+    if (dse_group == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_set_scheduler: dse_group is NULL\n");
+        assert (0);
+    }
+    for (int i = 0; i < dse_group->num_ases; i++)
+    {
+        dse_group->dse_arr[i].dynamic_scheduler = dynamic_scheduler;
+        dse_group->dse_arr[i].is_dynamic_scheduling = 1;
     }
 }
 

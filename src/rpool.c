@@ -54,6 +54,7 @@ rpool_t *rpool_init (int gpu_idx)
         gpu_idx = -1;
     }
     rpool_t *rpool = calloc (1, sizeof(rpool_t));
+    rpool->num_stored = 0;
     rpool->ref_dses = 0;
     rpool->num_groups = 0;
     rpool->queue_group_weight_sum = 0;
@@ -263,6 +264,7 @@ void rpool_pop_all_nasm (rpool_t *rpool, nasm_t *nasm)
         queue_group->queue_arr[i].num_stored = 0;
         pthread_mutex_unlock (&queue_group->queue_arr[i].occupied_mutex);
     }
+    atomic_exchange(&rpool->num_stored, 0);
 }
 
 void rpool_pop_all (rpool_t *rpool)
@@ -277,6 +279,7 @@ void rpool_pop_all (rpool_t *rpool)
         queue_group->queue_arr[i].num_stored = 0;
         pthread_mutex_unlock (&queue_group->queue_arr[i].occupied_mutex);
     }
+    atomic_exchange(&rpool->num_stored, 0);
 }
 
 void rpool_finish_nasm (rpool_t *rpool, nasm_t *nasm)
@@ -760,6 +763,7 @@ unsigned int rpool_fetch_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsig
     unsigned int num_ninsts = pop_ninsts_from_queue (rpool_queue, ninst_ptr_list, max_ninst_to_fetch);
     // atomic_store (&rpool_queue->occupied, 0);
     pthread_mutex_unlock (&rpool_queue->occupied_mutex);
+    atomic_fetch_sub(&rpool->num_stored, num_ninsts);
     return num_ninsts;
 }
 
@@ -842,6 +846,7 @@ void rpool_push_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int n
         // atomic_store (&rpool_queue->occupied, 0);
         pthread_mutex_unlock (&rpool_queue->occupied_mutex);
     }
+    atomic_fetch_add(&rpool->num_stored, num_ninsts);
 }
 
 void print_rpool_cond_list (void **input_list)
