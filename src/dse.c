@@ -299,16 +299,16 @@ void dse_schedule (dse_t *dse)
             }
             // update_children_to_cache (dse->ninst_cache, ninst);
             if (dse->is_multiuser_case && dse->device_idx == 0) {
-                update_children_but_prioritize_dse_target (dse->rpool_arr[target_device], ninst, dse, dse->net_engine->device_idx);
+                update_children_but_prioritize_dse_target (dse->rpool_arr[target_device], ninst, dse, dse->is_dynamic_scheduling, dse->net_engine->device_idx);
             }
             else if (dse->is_multiuser_case && dse->device_idx != 0) {
-                update_children_but_prioritize_dse_target (dse->rpool_arr[0], ninst, dse, dse->net_engine->device_idx);
+                update_children_but_prioritize_dse_target (dse->rpool_arr[0], ninst, dse, dse->is_dynamic_scheduling, dse->net_engine->device_idx);
             }
             else if (!dse->is_multiuser_case && dse->is_dynamic_scheduling && ninst->ldata->layer->layer_idx == 0) {
                 update_children (dse->rpool, ninst, dse->is_dynamic_scheduling, dse->net_engine->device_idx);
             }
             else {
-                update_children_but_prioritize_dse_target (dse->rpool, ninst, dse, dse->net_engine->device_idx);
+                update_children_but_prioritize_dse_target (dse->rpool, ninst, dse, dse->is_dynamic_scheduling, dse->net_engine->device_idx);
             }
 
             // if(dse->is_dynamic_scheduling)
