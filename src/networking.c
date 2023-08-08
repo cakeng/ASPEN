@@ -428,9 +428,9 @@ void receive(networking_engine *net_engine)
 
             for(int i = 0; i < target_ninst->num_child_ninsts; i++)
             {
-                target_ninst->child_ninst_arr[i]->dev_to_compute[net_engine->device_idx] = 1;
+                atomic_store(&target_ninst->child_ninst_arr[i]->dev_to_compute[net_engine->device_idx], 1);
             }
-            target_ninst->dev_to_compute[net_engine->device_idx] = 1;
+            atomic_store(&target_ninst->dev_to_compute[net_engine->device_idx], 1);
             
             update_children (net_engine->rpool, target_ninst, net_engine->dse_group->dse_arr[0].is_dynamic_scheduling, net_engine->device_idx);
             

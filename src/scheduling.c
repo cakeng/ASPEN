@@ -233,10 +233,10 @@ void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode)
             ninst_clear_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]));
             ninst_clear_send_target_device(&(nasm->ldata_arr[i].ninst_arr_start[j]));
             atomic_store(&nasm->ldata_arr[i].ninst_arr_start[j].offloaded, 0);
-            // if(device_mode == DEV_SERVER)
-            //     ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), DEV_SERVER);
-            // else if(device_mode == DEV_EDGE)
-            //     ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), DEV_EDGE);
+            if(device_mode == DEV_SERVER)
+                ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), DEV_SERVER);
+            else if(device_mode == DEV_EDGE)
+                ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), DEV_EDGE);
             // else
             //     assert(0);
         }
