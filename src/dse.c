@@ -315,7 +315,14 @@ void dse_schedule (dse_t *dse)
             {
                 for(int i = 0; i < ninst->num_child_ninsts; i++)
                 {
-                    ninst_set_compute_device(ninst->child_ninst_arr[i], dse->device_idx);
+                    if(ninst->dev_to_compute[DEV_EDGE])
+                    {
+                        ninst_set_compute_device(ninst->child_ninst_arr[i], DEV_EDGE);
+                    } 
+                    else if(ninst->dev_to_compute[DEV_SERVER])
+                    {
+                        ninst_set_compute_device(ninst->child_ninst_arr[i], DEV_SERVER);
+                    }
                 }
             }
 
