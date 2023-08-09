@@ -86,6 +86,8 @@ struct ninst_t
     float computed_time;
     float received_time;
     float sent_time;
+    float eft_edge;
+    float eft_server;
 
     // For Scheduling
     atomic_int dev_to_compute [SCHEDULE_MAX_DEVICES];       // who will compute this ninst?
