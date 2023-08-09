@@ -188,14 +188,7 @@ void dse_schedule (dse_t *dse)
             // For dynamic offloading, kmbin added
             if(dse->is_dynamic_scheduling)
             {
-                if(dse->device_idx == DEV_SERVER)
-                {
-                    for(int i = 0; i < ninst->num_child_ninsts; i++)
-                    {
-                        atomic_store(&ninst->child_ninst_arr[i]->dev_to_compute[dse->device_idx], 1);
-                    }
-                }
-                else if(dse->device_idx != DEV_SERVER)
+                if(dse->device_idx != DEV_SERVER)
                 {
                     // Check all childs
                     // Offload ninst when one of child's parent is allocated to server
@@ -254,7 +247,8 @@ void dse_schedule (dse_t *dse)
                     float eft_edge = get_eft_edge(dse->dynamic_scheduler, dse->rpool, dse->dse_group->num_ases, ninst->num_child_ninsts);
                     float eft_server = get_eft_server(dse->dynamic_scheduler, dse->net_engine, avg_output_bytes);
 
-                    // eft_edge = 0.03;
+                    ninst->eft_edge = eft_edge;
+                    ninst->eft_server = eft_server;
 
                     if(eft_edge < eft_server)
                     {
@@ -357,7 +351,11 @@ void dse_schedule (dse_t *dse)
                         create_network_buffer_for_ninst (ninst);   
                         pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
                         if(!is_offloaded(ninst))
+                        {
                             push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
+                            atomic_store(&ninst->offloaded, 1);
+                        }
+                            
                         pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
                     }
                 }
@@ -380,7 +378,10 @@ void dse_schedule (dse_t *dse)
                         create_network_buffer_for_ninst (ninst);
                         pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
                         if(!is_offloaded(ninst))
+                        {
                             push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
+                            atomic_store(&ninst->offloaded, 1);
+                        }
                         pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
                     }
                 }
