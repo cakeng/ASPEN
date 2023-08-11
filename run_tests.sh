@@ -133,17 +133,17 @@ done
 
 for edge_cred in "${edge_list[@]}";
 do
-    for sched_policy in "${policy_list[@]}";
+    for dnn in "${dnn_list[@]}";
     do
-        for dnn in "${dnn_list[@]}";
+        for batch in "${batch_list[@]}";
         do
-            for batch in "${batch_list[@]}";
+            for num_tile in "${num_tiles[@]}";
             do
-                for num_tile in "${num_tiles[@]}";
+                for server_dse_num in "${server_dse_nums[@]}";
                 do
-                    for server_dse_num in "${server_dse_nums[@]}";
+                    for bandwidth in "${bandwidth_list[@]}";
                     do
-                        for bandwidth in "${bandwidth_list[@]}";
+                        for sched_policy in "${policy_list[@]}";
                         do
                             current_run=$((current_run+1))
                             # server_dse_num=${server_dse_nums[$edge_cred_idx]}
