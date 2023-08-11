@@ -24,7 +24,7 @@ struct network_profile_t {
 };
 
 avg_ninst_profile_t *profile_computation(char *target_dnn_dir, char *target_nasm_dir, char *target_input, int gpu, int num_repeat);
-network_profile_t *profile_network(avg_ninst_profile_t **ninst_profile, DEVICE_MODE device_mode, int server_sock, int client_sock);
+network_profile_t *profile_network(avg_ninst_profile_t **ninst_profile, DEVICE_MODE device_mode, int edge_device_idx, int server_sock, int client_sock);
 float profile_network_sync(DEVICE_MODE device_mode, int server_sock, int client_sock);
 
 // ninst_profile_t *extract_profile_from_ninsts(nasm_t *nasm);

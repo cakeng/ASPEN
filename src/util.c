@@ -784,7 +784,7 @@ int create_server_sock(char *server_ip, int server_port) {
         assert(0);
     }
 
-    if (listen(server_sock, 5) == -1) {
+    if (listen(server_sock, SCHEDULE_MAX_DEVICES) == -1) {
         printf("Error: listen() returned -1\n");
         assert(0);
     }

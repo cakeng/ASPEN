@@ -60,12 +60,12 @@ void ninst_set_send_target_device(ninst_t *ninst, int device_idx);
 void ninst_clear_send_target_device(ninst_t *ninst);
 void ninst_copy_compute_device(ninst_t* target_ninst, ninst_t* ninst);
 
-dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t *network_profile);
+dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, int devices_idx);
 void init_full_local(nasm_t *nasm);
 void init_full_offload(nasm_t *nasm);
 void init_partial_offload(nasm_t *nasm, float compute_ratio);
 void init_sequential_offload(nasm_t *nasm, int split_layer, int from_dev, int to_dev);
-void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode);
+void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode, int device_idx);
 void init_conventional_offload(nasm_t *nasm);
 sched_processor_t *init_heft(char *target_dnn_dir, char *target_nasm_dir, ninst_profile_t **ninst_profile, network_profile_t *network_profile, int num_device);
 

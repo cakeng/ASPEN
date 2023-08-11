@@ -72,7 +72,7 @@ void dse_group_set_profile (dse_group_t *dse_group, int profile_compute);
 void dse_group_set_multiuser (dse_group_t *dse_group, int is_multiuser_case);
 void dse_group_set_dynamic_scheduler (dse_group_t *dse_group, dynamic_scheduler_t* dynamic_scheduler);
 void dse_group_add_prioritize_rpool (dse_group_t *dse_group, int device_idx);
-void dse_group_init_enable_device(dse_group_t *dse_group);
+void dse_group_init_enable_device(dse_group_t *dse_group, int num_edge_devices);
 void dse_group_set_enable_device(dse_group_t *dse_group, int device_idx, int enable);
 void dse_group_add_rpool_arr(dse_group_t *dse_group, rpool_t *rpool, int device_idx);
 void dse_group_init_netengine_arr (dse_group_t *dse_group);

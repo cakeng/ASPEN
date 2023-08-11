@@ -107,15 +107,15 @@ void nasm_set_last_layer_ninst_send_target_device(nasm_t *nasm, int device_idx)
     }
 }
 
-dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t *network_profile)
+dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, int devices_idx)
 {
     dynamic_scheduler_t *dynamic_scheduler = calloc(1, sizeof(dynamic_scheduler_t));
 
     dynamic_scheduler->avg_server_ninst_compute_time = ninst_profile[DEV_SERVER]->avg_computation_time;
-    dynamic_scheduler->avg_edge_ninst_compute_time = ninst_profile[DEV_EDGE]->avg_computation_time;
-    dynamic_scheduler->avg_bandwidth = network_profile->transmit_rate;
-    dynamic_scheduler->rtt = network_profile->rtt;
-
+    dynamic_scheduler->avg_edge_ninst_compute_time = ninst_profile[devices_idx]->avg_computation_time;
+    dynamic_scheduler->avg_bandwidth = network_profile[devices_idx]->transmit_rate;
+    dynamic_scheduler->rtt = network_profile[devices_idx]->rtt;
+    
     // ** TODO : Implement PF scheduler **
     dynamic_scheduler->scheduling_latency = 0.0;
     return dynamic_scheduler;
@@ -229,7 +229,7 @@ void init_sequential_offload(nasm_t *nasm, int split_layer, int from_dev, int to
     nasm_set_last_layer_ninst_send_target_device (nasm, from_dev);
 }
 
-void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode) 
+void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode, int device_idx) 
 {
     for (int i = 0; i < nasm->num_ldata; i++) 
     {
@@ -241,7 +241,7 @@ void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode)
             if(device_mode == DEV_SERVER)
                 ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), DEV_SERVER);
             else if(device_mode == DEV_EDGE)
-                ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), DEV_EDGE);
+                ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), device_idx);
             else
                 assert(0);
         }
@@ -249,12 +249,12 @@ void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode)
 
     for (int i = 0; i < nasm->ldata_arr[0].num_ninst; i++)
     {
-        ninst_set_compute_device(&(nasm->ldata_arr[0].ninst_arr_start[i]), DEV_EDGE);
+        ninst_set_compute_device(&(nasm->ldata_arr[0].ninst_arr_start[i]), device_idx);
         ninst_set_send_target_device(&(nasm->ldata_arr[0].ninst_arr_start[i]), DEV_SERVER);
     }
 
     // Set last layer to edge as default
-    nasm_set_last_layer_ninst_send_target_device(nasm, DEV_EDGE);
+    nasm_set_last_layer_ninst_send_target_device(nasm, device_idx);
 }
 
 void init_conventional_offload(nasm_t *nasm) 

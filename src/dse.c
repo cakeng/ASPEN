@@ -425,9 +425,9 @@ void dse_group_add_prioritize_rpool (dse_group_t *dse_group, int device_idx) {
     }
 }
 
-void dse_group_init_enable_device(dse_group_t *dse_group) {
+void dse_group_init_enable_device(dse_group_t *dse_group, int num_edge_devices) {
     for (int i = 0; i < dse_group->num_ases; i++) {
-        for (int j=0; j < SCHEDULE_MAX_DEVICES; j++)
+        for (int j = 0; j < num_edge_devices; j++)
         dse_group->dse_arr[i].enabled_device[j] = 0;
     }
 }

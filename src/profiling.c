@@ -56,11 +56,16 @@ avg_ninst_profile_t *profile_computation(char *target_dnn_dir, char *target_nasm
     return result;
 }
 
-network_profile_t *profile_network(avg_ninst_profile_t **ninst_profile, DEVICE_MODE device_mode, int server_sock, int client_sock) {
+network_profile_t *profile_network(avg_ninst_profile_t **ninst_profile, DEVICE_MODE device_mode, int edge_device_idx, int server_sock, int client_sock) {
     network_profile_t *network_profile = malloc(sizeof(network_profile_t));
     
     const int num_repeat = PROFILE_REPEAT;
-    int num_ninst = ninst_profile[device_mode]->num_ninsts;
+    if(device_mode == DEV_SERVER) {
+        int num_ninst = ninst_profile[DEV_SERVER]->num_ninsts;
+    }
+    else {
+        int num_ninst = ninst_profile[edge_device_idx]->num_ninsts;
+    }
 
     float time_offset = 0;
     float t0, t1, t2, t3;
@@ -92,8 +97,8 @@ network_profile_t *profile_network(avg_ninst_profile_t **ninst_profile, DEVICE_M
         free(profile_message);
 
         // Receive & Send ninst_profile
-        ninst_profile[DEV_EDGE] = malloc(sizeof(avg_ninst_profile_t));
-        read_n(client_sock, ninst_profile[DEV_EDGE], sizeof(avg_ninst_profile_t));
+        ninst_profile[edge_device_idx] = malloc(sizeof(avg_ninst_profile_t));
+        read_n(client_sock, ninst_profile[edge_device_idx], sizeof(avg_ninst_profile_t));
         write_n(client_sock, ninst_profile[DEV_SERVER], sizeof(avg_ninst_profile_t));
         
         // Receive network_profile from edge
@@ -133,7 +138,7 @@ network_profile_t *profile_network(avg_ninst_profile_t **ninst_profile, DEVICE_M
 
         // Send & receive ninst_profile;
         ninst_profile[DEV_SERVER] = malloc(sizeof(avg_ninst_profile_t));
-        write_n(server_sock, ninst_profile[DEV_EDGE], sizeof(avg_ninst_profile_t));
+        write_n(server_sock, ninst_profile[edge_device_idx], sizeof(avg_ninst_profile_t));
         read_n(server_sock, ninst_profile[DEV_SERVER], sizeof(avg_ninst_profile_t));
 
         // Send network_profile
