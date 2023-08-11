@@ -249,6 +249,11 @@ void dse_schedule (dse_t *dse)
 
                     ninst->eft_edge = eft_edge;
                     ninst->eft_server = eft_server;
+<<<<<<< HEAD
+=======
+
+                    ninst->eft_edge = eft_edge;
+                    ninst->eft_server = eft_server;
 
                     if(eft_edge < eft_server)
                     {
@@ -351,7 +356,11 @@ void dse_schedule (dse_t *dse)
                         create_network_buffer_for_ninst (ninst);   
                         pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
                         if(!is_offloaded(ninst))
+                        {
                             push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
+                            atomic_store(&ninst->offloaded, 1);
+                        }
+                            
                         pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
                     }
                 }
@@ -374,7 +383,10 @@ void dse_schedule (dse_t *dse)
                         create_network_buffer_for_ninst (ninst);
                         pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
                         if(!is_offloaded(ninst))
+                        {
                             push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
+                            atomic_store(&ninst->offloaded, 1);
+                        }
                         pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
                     }
                 }
