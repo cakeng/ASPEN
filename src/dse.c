@@ -185,6 +185,7 @@ void dse_schedule (dse_t *dse)
             ninst->computed_time = get_time_secs_offset ();
             if (dse->profile_compute) ninst->compute_end = ninst->computed_time;
 
+            ninst->dse_idx = dse->thread_id;
             // For dynamic offloading
             if(dse->is_dynamic_scheduling)
             {
