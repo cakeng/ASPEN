@@ -53,7 +53,7 @@ struct dynamic_scheduler_t{
 };
 
 int is_offloaded(ninst_t *ninst);
-int is_device_compute_dev(ninst_t *ninst, int device_idx);
+int is_dev_compute(ninst_t *ninst, int device_idx);
 void ninst_clear_compute_device(ninst_t *ninst);
 void ninst_set_compute_device(ninst_t *ninst, int device_idx);
 void ninst_set_send_target_device(ninst_t *ninst, int device_idx);

@@ -5,9 +5,14 @@ int is_offloaded(ninst_t *ninst)
     return atomic_load(&ninst->offloaded);
 }
 
-int is_device_compute_dev(ninst_t *ninst, int device_idx) 
+int is_dev_compute(ninst_t *ninst, int device_idx)
 {
     return atomic_load(&ninst->dev_to_compute[device_idx]);
+}
+
+int is_dev_send_target(ninst_t *ninst, int device_idx)
+{
+    return atomic_load(&ninst->dev_send_target[device_idx]);
 }
 
 int check_all_parents_target_device(ninst_t *ninst, nasm_t* nasm, int device_idx)
@@ -233,10 +238,10 @@ void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode)
             ninst_clear_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]));
             ninst_clear_send_target_device(&(nasm->ldata_arr[i].ninst_arr_start[j]));
             atomic_store(&nasm->ldata_arr[i].ninst_arr_start[j].offloaded, 0);
-            if(device_mode == DEV_SERVER)
-                ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), DEV_SERVER);
-            else if(device_mode == DEV_EDGE)
-                ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), DEV_EDGE);
+            // if(device_mode == DEV_SERVER)
+            //     ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), DEV_SERVER);
+            // else if(device_mode == DEV_EDGE)
+            //     ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), DEV_EDGE);
             // else
             //     assert(0);
         }
@@ -245,19 +250,8 @@ void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode)
     for (int i = 0; i < nasm->ldata_arr[0].num_ninst; i++)
     {
         ninst_set_compute_device(&(nasm->ldata_arr[0].ninst_arr_start[i]), DEV_EDGE);
-        ninst_set_send_target_device(&(nasm->ldata_arr[0].ninst_arr_start[i]), DEV_SERVER);
+        // ninst_set_send_target_device(&(nasm->ldata_arr[0].ninst_arr_start[i]), DEV_SERVER);
     }
-    // for (int i = 0; i < nasm->num_ldata; i++) 
-    // {
-    //     for (int j = 0; j<nasm->ldata_arr[i].num_ninst; j++) 
-    //     {
-    //         ninst_clear_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]));
-    //         ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), DEV_SERVER);
-    //         ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), DEV_EDGE);
-    //     }
-    // }
-    
-    // nasm_all_ninst_set_compute_device(nasm, DEV_SERVER);
 
     // Set last layer to edge as default
     nasm_set_last_layer_ninst_send_target_device(nasm, DEV_EDGE);
