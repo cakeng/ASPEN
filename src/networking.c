@@ -160,7 +160,7 @@ void init_edge(networking_engine* net_engine, char* ip, int port, int is_UDP)
     net_engine->server_addr.sin_addr.s_addr = inet_addr (ip);
     net_engine->server_addr.sin_port = htons (port);
     net_engine->isUDP = 0;
-
+    PRT ("Trying to access server...\n");
     int conn = -1;
     while(conn < 0)
     {

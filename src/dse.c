@@ -249,6 +249,11 @@ void dse_schedule (dse_t *dse)
 
                     ninst->eft_edge = eft_edge;
                     ninst->eft_server = eft_server;
+<<<<<<< HEAD
+=======
+
+                    // eft_edge = 0.03;
+>>>>>>> 258de8947df9b6cb47d8680591f75f80c9ef3965
 
                     if(eft_edge < eft_server)
                     {

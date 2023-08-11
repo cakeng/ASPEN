@@ -133,7 +133,7 @@ int main(int argc, char **argv)
         printf("\tconnection key: %d\n", connection_key);
         printf("\ttime_offset: %f\n", time_offset);
         network_profile = profile_network(ninst_profile, device_mode, server_sock, client_sock);
-        printf("\tRTT: %fms Bandwidth: %fMbps\n", network_profile->rtt, network_profile->transmit_rate);
+        printf("\tRTT: %fms Bandwidth: %fMbps\n", network_profile->rtt * 1000.0, network_profile->transmit_rate);
     }
     else if (device_mode == DEV_EDGE) 
     {
@@ -145,7 +145,7 @@ int main(int argc, char **argv)
         printf("\tconnection key: %d\n", connection_key);
         printf("\ttime_offset: %f\n", time_offset);
         network_profile = profile_network(ninst_profile, device_mode, server_sock, client_sock);
-        printf("\tRTT: %fms Bandwidth: %fMbps\n", network_profile->rtt, network_profile->transmit_rate);
+        printf("\tRTT: %fms Bandwidth: %fMbps\n", network_profile->rtt * 1000.0, network_profile->transmit_rate);
     }
     
     target_dnn = apu_load_dnn_from_file(target_dnn_dir);
@@ -173,7 +173,7 @@ int main(int argc, char **argv)
         printf("\tAvg server ninst computation time: %fms\n", dynamic_scheduler->avg_server_ninst_compute_time*1000);
         printf("\tAvg edge ninst computation time:   %fms\n", dynamic_scheduler->avg_edge_ninst_compute_time*1000);
         printf("\tAvg bandwidth: %fMbps\n", dynamic_scheduler->avg_bandwidth);
-        printf("\tRTT: %fms\n", dynamic_scheduler->rtt);
+        printf("\tRTT: %fms\n", dynamic_scheduler->rtt * 1000.0);
     }
     else if (!strcmp(schedule_policy, "local")) 
     {
