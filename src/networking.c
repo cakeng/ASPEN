@@ -300,14 +300,14 @@ void transmission(networking_engine *net_engine)
     payload_size += sizeof(int32_t);
 
     #ifdef DEBUG
-    PRT("Networking: Sending %d bytes -", payload_size);
-    for (int i = 0; i < num_ninsts; i++)
-    {
-        ninst_t* target_ninst = target_ninst_list[i];
-        PRT(" (N%d L%d I%d %ldB)", 
-            target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->inference_id, 
-            target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float));
-    }
+    // PRT("Networking: Sending %d bytes -", payload_size);
+    // for (int i = 0; i < num_ninsts; i++)
+    // {
+    //     ninst_t* target_ninst = target_ninst_list[i];
+    //     PRT(" (N%d L%d I%d %ldB)", 
+    //         target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->inference_id, 
+    //         target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float));
+    // }
     #endif
     int32_t bytes_sent = 0;
     while (bytes_sent < payload_size)
@@ -322,7 +322,7 @@ void transmission(networking_engine *net_engine)
         bytes_sent += ret;
     }
     #ifdef DEBUG
-    PRT(" - Time taken %fs, %d tx queue remains.\n", (get_time_secs() - time_sent), net_engine->tx_queue->num_stored);
+    // PRT(" - Time taken %fs, %d tx queue remains.\n", (get_time_secs() - time_sent), net_engine->tx_queue->num_stored);
     #endif
 }
 
@@ -860,25 +860,25 @@ void add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_f
     for (int i = 0; i < ldata->num_ninst; i++)
     {
         ninst_t *ninst = &ldata->ninst_arr_start[i];
-        // atomic_store (&ninst->state, NINST_COMPLETED);
-        atomic_store (&ninst->state, NINST_READY);
+        atomic_store (&ninst->state, NINST_COMPLETED);
+        // atomic_store (&ninst->state, NINST_READY);
         int num_ase = net_engine->rpool->ref_dses > 0 ? net_engine->rpool->ref_dses : 1;
-        rpool_push_ninsts(net_engine->rpool, &ninst, 1, num_ase);
-        // update_children (net_engine->rpool, ninst, 0);
-        // for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++) 
-        // {
-        //     if (i == net_engine->device_idx) continue;
-        //     if (ninst->dev_send_target[i]) 
-        //     {
-        //         // printf ("\tninst idx %d (L%d), target device: %d, current device: %d, desired device%d\n", 
-        //         // ninst->ninst_idx, ninst->ldata->layer->layer_idx, i, dse->device_idx,
-        //         // ninst->dev_send_target[i]);
-        //         create_network_buffer_for_ninst (ninst);
-        //         pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
-        //         push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
-        //         pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
-        //     }
-        // }
+        // rpool_push_ninsts(net_engine->rpool, &ninst, 1, num_ase);
+        update_children (net_engine->rpool, ninst);
+        for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++) 
+        {
+            if (i == net_engine->device_idx) continue;
+            if (ninst->dev_send_target[i]) 
+            {
+                // printf ("\tninst idx %d (L%d), target device: %d, current device: %d, desired device%d\n", 
+                // ninst->ninst_idx, ninst->ldata->layer->layer_idx, i, dse->device_idx,
+                // ninst->dev_send_target[i]);
+                create_network_buffer_for_ninst (ninst);
+                pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
+                push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
+                pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
+            }
+        }
     }
     
     aspen_free (data); 
@@ -936,11 +936,25 @@ void add_input_rpool_reverse (networking_engine *net_engine, nasm_t* nasm, char 
     for (int i = 0; i < ldata->num_ninst; i++)
     {
         ninst_t *ninst = &ldata->ninst_arr_start[ldata->num_ninst - i - 1];
-        // pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
-        // push_ninsts_to_net_queue(net_engine->tx_queue, ninst, 1);
-        // pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
-        ninst->state = NINST_READY;
-        rpool_push_ninsts(net_engine->rpool, &ninst, 1, 0);
+        atomic_store (&ninst->state, NINST_COMPLETED);
+        // atomic_store (&ninst->state, NINST_READY);
+        int num_ase = net_engine->rpool->ref_dses > 0 ? net_engine->rpool->ref_dses : 1;
+        // rpool_push_ninsts(net_engine->rpool, &ninst, 1, num_ase);
+        update_children (net_engine->rpool, ninst);
+        for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++) 
+        {
+            if (i == net_engine->device_idx) continue;
+            if (ninst->dev_send_target[i]) 
+            {
+                // printf ("\tninst idx %d (L%d), target device: %d, current device: %d, desired device%d\n", 
+                // ninst->ninst_idx, ninst->ldata->layer->layer_idx, i, dse->device_idx,
+                // ninst->dev_send_target[i]);
+                create_network_buffer_for_ninst (ninst);
+                pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
+                push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
+                pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
+            }
+        }
     }
     
     aspen_free (data); 

@@ -137,7 +137,7 @@ void dse_schedule (dse_t *dse)
         //                                                                                     ninst->dev_to_compute[DEV_EDGE]);
         if (is_dev_compute(ninst, dse->device_idx) || dse->profile_compute)    // It's mine, so compute
         {
-            // printf("\tCompute ninst (N%d L%d) remained rpool: %d\n", ninst->ninst_idx, ninst->ldata->layer->layer_idx, atomic_load(&dse->rpool->num_stored));
+            // printf("\tCompute ninst (N%d L%d)\n", ninst->ninst_idx, ninst->ldata->layer->layer_idx);
             if (dse->profile_compute) ninst->compute_start = get_time_secs_offset ();
             switch (ninst->ldata->layer->type)
             {
@@ -192,68 +192,12 @@ void dse_schedule (dse_t *dse)
                 // For edge side offloading decision
                 if(dse->device_idx != DEV_SERVER)
                 {
-                    // Check all childs
-                    int is_offload = 0;
                     for(int i = 0; i < ninst->num_child_ninsts; i++)
                     {
-                        if(!is_dev_send_target(ninst, DEV_SERVER))
-                        {    
-                            // (1) If a child is allocated to server, send output to server
-                            ninst_t* child_ninst = ninst->child_ninst_arr[i];
-                            if(is_dev_compute(child_ninst, DEV_SERVER))
-                            {
-                                ninst_set_compute_device(child_ninst, DEV_SERVER);
-                                ninst_set_send_target_device(ninst, DEV_SERVER);
-                                break;
-                            }
-
-                            // (2) One of a child of parent is allocated to server, send output to server
-                            for(int j = 0; j < child_ninst->num_parent_ninsts; j++)
-                            {
-                                int parent_idx = child_ninst->parent_ninst_idx_arr[j];
-                                ninst_t* parent_ninst = &(dse->net_engine->nasm->ninst_arr[parent_idx]);
-                                if(is_dev_compute(parent_ninst, DEV_SERVER))
-                                {
-                                    ninst_set_compute_device(child_ninst, DEV_SERVER);
-                                    ninst_set_send_target_device(ninst, DEV_SERVER);   
-                                    break;
-                                }
-                            }
-                        }
-                        else 
-                            break;
+                        ninst_t* child_ninst = ninst->child_ninst_arr[i];
+                        ninst_set_compute_device(child_ninst, dse->device_idx);
                     }
-
-                    if(!is_dev_send_target(ninst, DEV_SERVER))
-                    {
-                        int avg_output_bytes = ninst->tile_dims[OUT_H] * ninst->tile_dims[OUT_W] * sizeof(float);
-                        float eft_edge = get_eft_edge(dse->dynamic_scheduler, dse->rpool, dse->dse_group->num_ases, ninst->num_child_ninsts);
-                        float eft_server = get_eft_server(dse->dynamic_scheduler, dse->net_engine, avg_output_bytes);
-
-                        ninst->eft_edge = eft_edge;
-                        ninst->eft_server = eft_server;
-
-                        // eft_server = 0;
-
-                        if(eft_edge < eft_server)
-                        {
-                            for(int i = 0; i < ninst->num_child_ninsts; i++)
-                            {
-                                ninst_t* child_ninst = ninst->child_ninst_arr[i];
-                                ninst_set_compute_device(child_ninst, dse->device_idx);
-                            }
-                        }
-                        else
-                        {
-                            // Allocated child ninsts to server
-                            for(int i = 0; i < ninst->num_child_ninsts; i++)
-                            {
-                                ninst_t* child_ninst = ninst->child_ninst_arr[i];
-                                ninst_set_compute_device(child_ninst, DEV_SERVER);
-                            }
-                            ninst_set_send_target_device(ninst, DEV_SERVER);
-                        }
-                    }                    
+                    ninst_set_send_target_device(ninst, DEV_SERVER);
                 }
                 else // For server
                 {
@@ -264,6 +208,7 @@ void dse_schedule (dse_t *dse)
                     }
                 }
             }
+
             
             unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
             if (num_ninst_completed == ninst->ldata->num_ninst - 1)

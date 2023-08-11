@@ -256,7 +256,8 @@ int main(int argc, char **argv)
             target_nasm->nasm_cond = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
 
             if(device_mode == DEV_EDGE) 
-                add_input_rpool (net_engine, target_nasm, target_input);
+                // add_input_rpool (net_engine, target_nasm, target_input);
+                add_input_rpool_reverse (net_engine, target_nasm, target_input);
 
             // for (int i = 0; i < 2; i++)
             //     print_ldata_info (&target_nasm->ldata_arr[i], 1, 0);
