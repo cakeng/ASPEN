@@ -373,18 +373,18 @@ void dse_schedule (dse_t *dse)
                     if (i == dse->device_idx) continue;
                     if (atomic_load(&ninst->dev_send_target[i]) == 1) 
                     {
-                        #ifdef DEBUG
-                        printf ("\t(N%d L%d) Send from %d to %d\n", 
-                                        ninst->ninst_idx, 
-                                        ninst->ldata->layer->layer_idx, 
-                                        dse->device_idx,
-                                        i);
-                        #endif
                         networking_engine *net_engine = dse->net_engine;
                         create_network_buffer_for_ninst (ninst);
                         pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
                         if(!is_offloaded(ninst))
                         {
+                            #ifdef DEBUG
+                            printf ("\t(N%d L%d) Send from %d to %d\n", 
+                                            ninst->ninst_idx, 
+                                            ninst->ldata->layer->layer_idx, 
+                                            dse->device_idx,
+                                            i);
+                            #endif
                             push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
                             atomic_store(&ninst->offloaded, 1);
                         }

@@ -849,6 +849,7 @@ void apu_reset_nasm (nasm_t *nasm)
             ninst->computed_time = 0;
             ninst->received_time = 0;
             ninst->sent_time = 0;
+            ninst->offloaded = 0;
             atomic_store (&ninst->state, NINST_NOT_READY);
             atomic_store (&ninst->num_parent_ninsts_completed, 0);
             if (ninst->network_buf)
