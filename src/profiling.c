@@ -23,17 +23,17 @@ avg_ninst_profile_t *profile_computation(char *target_dnn_dir, char *target_nasm
         dse_wait_for_nasm_completion (target_nasm);
         dse_group_stop (dse_group);
         
-        LAYER_PARAMS output_order[] = {BATCH, OUT_H, OUT_W, OUT_C};
-        float *layer_output = dse_get_nasm_result (target_nasm, output_order);
-        float *softmax_output = calloc (1000*target_nasm->batch_size, sizeof(float));
-        naive_softmax (layer_output, softmax_output, target_nasm->batch_size, 1000);
+        // LAYER_PARAMS output_order[] = {BATCH, OUT_H, OUT_W, OUT_C};
+        // float *layer_output = dse_get_nasm_result (target_nasm, output_order);
+        // float *softmax_output = calloc (1000*target_nasm->batch_size, sizeof(float));
+        // naive_softmax (layer_output, softmax_output, target_nasm->batch_size, 1000);
 
         // ninst_profiles[i] = extract_profile_from_ninsts(target_nasm);
         total = target_nasm->num_ninst;
         avg_computation_time += extract_profile_from_ninsts(target_nasm);
         
-        free (layer_output);
-        free (softmax_output);
+        // free (layer_output);
+        // free (softmax_output);
 
         dse_group_destroy (dse_group);
         rpool_destroy (rpool);

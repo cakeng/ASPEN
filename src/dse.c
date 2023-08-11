@@ -247,7 +247,8 @@ void dse_schedule (dse_t *dse)
                     float eft_edge = get_eft_edge(dse->dynamic_scheduler, dse->rpool, dse->dse_group->num_ases, ninst->num_child_ninsts);
                     float eft_server = get_eft_server(dse->dynamic_scheduler, dse->net_engine, avg_output_bytes);
 
-                    // eft_edge = 0.03;
+                    ninst->eft_edge = eft_edge;
+                    ninst->eft_server = eft_server;
 
                     if(eft_edge < eft_server)
                     {
