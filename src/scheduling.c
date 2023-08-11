@@ -242,11 +242,10 @@ void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode)
         }
     }
 
-    // Set first layer to edge as default
     for (int i = 0; i < nasm->ldata_arr[0].num_ninst; i++)
     {
         ninst_set_compute_device(&(nasm->ldata_arr[0].ninst_arr_start[i]), DEV_EDGE);
-        // ninst_set_send_target_device(&(nasm->ldata_arr[0].ninst_arr_start[i]), DEV_SERVER);
+        ninst_set_send_target_device(&(nasm->ldata_arr[0].ninst_arr_start[i]), DEV_SERVER);
     }
     // for (int i = 0; i < nasm->num_ldata; i++) 
     // {
