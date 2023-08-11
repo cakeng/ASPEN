@@ -190,58 +190,64 @@ void dse_schedule (dse_t *dse)
             {
                 if(dse->device_idx != DEV_SERVER)
                 {
-                    // Check all childs
-                    // Offload ninst when one of child's parent is allocated to server
                     for(int i = 0; i < ninst->num_child_ninsts; i++)
                     {
                         ninst_t* child_ninst = ninst->child_ninst_arr[i];
-                        for(int j = 0; j < child_ninst->num_parent_ninsts; j++)
-                        {
-                            // If one of parent is allocated to server, send output to server
-                            int parent_idx = child_ninst->parent_ninst_idx_arr[j];
-                            // printf("\t(N%d) (N%d) parent[dev_server]: %d parent[dev_edge]: %d child[dev_server]: %d child[dev_edge]: %d\n",
-                            // parent_idx,
-                            // child_ninst->ninst_idx,
-                            // atomic_load(&dse->net_engine->nasm->ninst_arr[parent_idx].dev_to_compute[DEV_SERVER]),
-                            // atomic_load(&dse->net_engine->nasm->ninst_arr[parent_idx].dev_to_compute[DEV_EDGE]),
-                            // atomic_load(&child_ninst->dev_to_compute[DEV_SERVER]),
-                            // atomic_load(&child_ninst->dev_to_compute[DEV_EDGE])
-                            // );
-                            if(atomic_load(&dse->net_engine->nasm->ninst_arr[parent_idx].dev_to_compute[DEV_SERVER]) == 1)
-                            {
-                                // ninst_clear_compute_device(child_ninst);
-                                ninst_set_compute_device(child_ninst, DEV_SERVER);
-                                ninst_set_send_target_device(ninst, DEV_SERVER);
-                                
-                                // printf("\tThread %d Offload Parent : (N%d L%d) Child: (N%d L%d) as one of child's parents is in server\n", 
-                                //                                                     dse->thread_id,
-                                //                                                     ninst->ninst_idx,
-                                //                                                     ninst->ldata->layer->layer_idx,
-                                //                                                     child_ninst->ninst_idx,
-                                //                                                     child_ninst->ldata->layer->layer_idx);
-                                break;
-                            }
-                        }
-
-                        if(atomic_load(&child_ninst->dev_to_compute[DEV_SERVER]) == 1)
-                        {
-                            // #ifdef DEBUG
-                            // printf("\tThread %d Offload Parent : (N%d L%d) as Child: (N%d L%d) dev_to_compute[DEV_SERVER] is %d\n", 
-                            //                                                         dse->thread_id,
-                            //                                                         ninst->ninst_idx,
-                            //                                                         ninst->ldata->layer->layer_idx,
-                            //                                                         child_ninst->ninst_idx,
-                            //                                                         child_ninst->ldata->layer->layer_idx,
-                            //                                                         child_ninst->dev_to_compute[DEV_SERVER]);
-                            // #endif
-                            // ninst_clear_compute_device(child_ninst);
-                            ninst_set_compute_device(child_ninst, DEV_SERVER);
-                            ninst_set_send_target_device(ninst, DEV_SERVER);
-                            // #ifdef DEBUG
-                            // printf("dev_to_compute[DEV_SERVER]: %d\n", child_ninst->dev_to_compute[DEV_SERVER]);
-                            // #endif
-                        }
+                        ninst_set_compute_device(child_ninst, DEV_SERVER);
                     }
+                    ninst_set_send_target_device(ninst, DEV_SERVER);
+                    // Check all childs
+                    // Offload ninst when one of child's parent is allocated to server
+                    // for(int i = 0; i < ninst->num_child_ninsts; i++)
+                    // {
+                    //     ninst_t* child_ninst = ninst->child_ninst_arr[i];
+                    //     for(int j = 0; j < child_ninst->num_parent_ninsts; j++)
+                    //     {
+                    //         // If one of parent is allocated to server, send output to server
+                    //         int parent_idx = child_ninst->parent_ninst_idx_arr[j];
+                    //         // printf("\t(N%d) (N%d) parent[dev_server]: %d parent[dev_edge]: %d child[dev_server]: %d child[dev_edge]: %d\n",
+                    //         // parent_idx,
+                    //         // child_ninst->ninst_idx,
+                    //         // atomic_load(&dse->net_engine->nasm->ninst_arr[parent_idx].dev_to_compute[DEV_SERVER]),
+                    //         // atomic_load(&dse->net_engine->nasm->ninst_arr[parent_idx].dev_to_compute[DEV_EDGE]),
+                    //         // atomic_load(&child_ninst->dev_to_compute[DEV_SERVER]),
+                    //         // atomic_load(&child_ninst->dev_to_compute[DEV_EDGE])
+                    //         // );
+                    //         if(atomic_load(&dse->net_engine->nasm->ninst_arr[parent_idx].dev_to_compute[DEV_SERVER]) == 1)
+                    //         {
+                    //             // ninst_clear_compute_device(child_ninst);
+                    //             ninst_set_compute_device(child_ninst, DEV_SERVER);
+                    //             ninst_set_send_target_device(ninst, DEV_SERVER);
+                                
+                    //             // printf("\tThread %d Offload Parent : (N%d L%d) Child: (N%d L%d) as one of child's parents is in server\n", 
+                    //             //                                                     dse->thread_id,
+                    //             //                                                     ninst->ninst_idx,
+                    //             //                                                     ninst->ldata->layer->layer_idx,
+                    //             //                                                     child_ninst->ninst_idx,
+                    //             //                                                     child_ninst->ldata->layer->layer_idx);
+                    //             break;
+                    //         }
+                    //     }
+
+                    //     if(atomic_load(&child_ninst->dev_to_compute[DEV_SERVER]) == 1)
+                    //     {
+                    //         // #ifdef DEBUG
+                    //         // printf("\tThread %d Offload Parent : (N%d L%d) as Child: (N%d L%d) dev_to_compute[DEV_SERVER] is %d\n", 
+                    //         //                                                         dse->thread_id,
+                    //         //                                                         ninst->ninst_idx,
+                    //         //                                                         ninst->ldata->layer->layer_idx,
+                    //         //                                                         child_ninst->ninst_idx,
+                    //         //                                                         child_ninst->ldata->layer->layer_idx,
+                    //         //                                                         child_ninst->dev_to_compute[DEV_SERVER]);
+                    //         // #endif
+                    //         // ninst_clear_compute_device(child_ninst);
+                    //         ninst_set_compute_device(child_ninst, DEV_SERVER);
+                    //         ninst_set_send_target_device(ninst, DEV_SERVER);
+                    //         // #ifdef DEBUG
+                    //         // printf("dev_to_compute[DEV_SERVER]: %d\n", child_ninst->dev_to_compute[DEV_SERVER]);
+                    //         // #endif
+                    //     }
+                    // }
 
                     int avg_output_bytes = ninst->tile_dims[OUT_H] * ninst->tile_dims[OUT_W] * sizeof(float);
                     float eft_edge = get_eft_edge(dse->dynamic_scheduler, dse->rpool, dse->dse_group->num_ases, ninst->num_child_ninsts);
@@ -249,53 +255,48 @@ void dse_schedule (dse_t *dse)
 
                     ninst->eft_edge = eft_edge;
                     ninst->eft_server = eft_server;
-<<<<<<< HEAD
-=======
 
-                    ninst->eft_edge = eft_edge;
-                    ninst->eft_server = eft_server;
-
-                    if(eft_edge < eft_server)
-                    {
-                        for(int i = 0; i < ninst->num_child_ninsts; i++)
-                        {
-                            ninst_t* child_ninst = ninst->child_ninst_arr[i];
-                            if(atomic_load(&child_ninst->dev_to_compute[DEV_SERVER]) != 1)
-                            {
-                                // ninst_clear_compute_device(child_ninst);
-                                ninst_set_compute_device(child_ninst, dse->device_idx);
-                                // #ifdef DEBUG
-                                // printf("\tThread %d Local Parent(N%d L%d) Child: (N%d L%d) EFT Edge: %f, EFT Server: %f, dev_to_compute[DEV_EDGE]: %d num remained in rpool: %d\n",
-                                //                                                         dse->thread_id,
-                                //                                                         ninst->ninst_idx,
-                                //                                                         ninst->ldata->layer->layer_idx,
-                                //                                                         child_ninst->ninst_idx,
-                                //                                                         child_ninst->ldata->layer->layer_idx,
-                                //                                                         eft_edge,
-                                //                                                         eft_server,
-                                //                                                         child_ninst->dev_to_compute[DEV_EDGE],
-                                //                                                         atomic_load(&dse->rpool->num_stored)
-                                //                                                         );    
-                                // #endif
-                            }
-                        }
-                    }
-                    else
-                    {
-                        // Allocated child ninsts to server
-                        for(int i = 0; i < ninst->num_child_ninsts; i++)
-                        {
-                            ninst_t* child_ninst = ninst->child_ninst_arr[i];
-                            ninst_set_compute_device(child_ninst, DEV_SERVER);
-                        }
-                        // printf("\tThread %d Offload Parent : (N%d L%d) EFT Edge: %f, EFT Server: %f\n", 
-                        //                                                             dse->thread_id,
-                        //                                                             ninst->ninst_idx,
-                        //                                                             ninst->ldata->layer->layer_idx,
-                        //                                                             eft_edge,
-                        //                                                             eft_server);
-                        ninst_set_send_target_device(ninst, DEV_SERVER);
-                    }
+                    // if(eft_edge < eft_server)
+                    // {
+                    //     for(int i = 0; i < ninst->num_child_ninsts; i++)
+                    //     {
+                    //         ninst_t* child_ninst = ninst->child_ninst_arr[i];
+                    //         if(atomic_load(&child_ninst->dev_to_compute[DEV_SERVER]) != 1)
+                    //         {
+                    //             // ninst_clear_compute_device(child_ninst);
+                    //             ninst_set_compute_device(child_ninst, dse->device_idx);
+                    //             // #ifdef DEBUG
+                    //             // printf("\tThread %d Local Parent(N%d L%d) Child: (N%d L%d) EFT Edge: %f, EFT Server: %f, dev_to_compute[DEV_EDGE]: %d num remained in rpool: %d\n",
+                    //             //                                                         dse->thread_id,
+                    //             //                                                         ninst->ninst_idx,
+                    //             //                                                         ninst->ldata->layer->layer_idx,
+                    //             //                                                         child_ninst->ninst_idx,
+                    //             //                                                         child_ninst->ldata->layer->layer_idx,
+                    //             //                                                         eft_edge,
+                    //             //                                                         eft_server,
+                    //             //                                                         child_ninst->dev_to_compute[DEV_EDGE],
+                    //             //                                                         atomic_load(&dse->rpool->num_stored)
+                    //             //                                                         );    
+                    //             // #endif
+                    //         }
+                    //     }
+                    // }
+                    // else
+                    // {
+                    //     // Allocated child ninsts to server
+                    //     for(int i = 0; i < ninst->num_child_ninsts; i++)
+                    //     {
+                    //         ninst_t* child_ninst = ninst->child_ninst_arr[i];
+                    //         ninst_set_compute_device(child_ninst, DEV_SERVER);
+                    //     }
+                    //     // printf("\tThread %d Offload Parent : (N%d L%d) EFT Edge: %f, EFT Server: %f\n", 
+                    //     //                                                             dse->thread_id,
+                    //     //                                                             ninst->ninst_idx,
+                    //     //                                                             ninst->ldata->layer->layer_idx,
+                    //     //                                                             eft_edge,
+                    //     //                                                             eft_server);
+                    //     ninst_set_send_target_device(ninst, DEV_SERVER);
+                    // }
                 }
             }
             
