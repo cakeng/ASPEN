@@ -207,7 +207,7 @@ void dse_schedule (dse_t *dse)
                                 break;
                             }
 
-                            // (2) One of a child is allocated to server, send output to server
+                            // (2) One of a child of parent is allocated to server, send output to server
                             for(int j = 0; j < child_ninst->num_parent_ninsts; j++)
                             {
                                 int parent_idx = child_ninst->parent_ninst_idx_arr[j];
@@ -240,10 +240,7 @@ void dse_schedule (dse_t *dse)
                             for(int i = 0; i < ninst->num_child_ninsts; i++)
                             {
                                 ninst_t* child_ninst = ninst->child_ninst_arr[i];
-                                if(atomic_load(&child_ninst->dev_to_compute[DEV_SERVER]) != 1)
-                                {
-                                    ninst_set_compute_device(child_ninst, dse->device_idx);
-                                }
+                                ninst_set_compute_device(child_ninst, dse->device_idx);
                             }
                         }
                         else
@@ -258,7 +255,7 @@ void dse_schedule (dse_t *dse)
                         }
                     }                    
                 }
-                else
+                else // For server
                 {
                     for(int i = 0; i < ninst->num_child_ninsts; i++)
                     {
