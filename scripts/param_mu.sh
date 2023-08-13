@@ -1,3 +1,4 @@
+EDGE_CREDIT="nxc@192.168.1.25"
 PIPELINED=1
 DIRNAME="multiuser"
 TARGET_DNN_DIR="data/vgg16_base.aspen"
