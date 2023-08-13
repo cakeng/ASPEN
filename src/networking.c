@@ -300,14 +300,14 @@ void transmission(networking_engine *net_engine)
     payload_size += sizeof(int32_t);
 
     #ifdef DEBUG
-    // PRT("Networking: Sending %d bytes -", payload_size);
-    // for (int i = 0; i < num_ninsts; i++)
-    // {
-    //     ninst_t* target_ninst = target_ninst_list[i];
-    //     PRT(" (N%d L%d I%d %ldB)", 
-    //         target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->inference_id, 
-    //         target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float));
-    // }
+    PRT("Networking: Sending %d bytes -", payload_size);
+    for (int i = 0; i < num_ninsts; i++)
+    {
+        ninst_t* target_ninst = target_ninst_list[i];
+        PRT(" (N%d L%d I%d %ldB)", 
+            target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->inference_id, 
+            target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float));
+    }
     #endif
     int32_t bytes_sent = 0;
     while (bytes_sent < payload_size)

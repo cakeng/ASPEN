@@ -296,7 +296,7 @@ int main(int argc, char **argv)
         for(int i = 0; i < num_edge_devices; i++)
         {
             if(device_mode == DEV_SERVER || device_idx == i)
-                init_dynamic_offload(target_nasm[i], device_mode, i);
+                init_dynamic_offload(target_nasm[i], device_mode, i, num_edge_devices);
         }
             
         dynamic_scheduler = init_dynamic_scheduler(ninst_profile, network_profile, device_mode, device_idx, num_edge_devices);
@@ -425,7 +425,7 @@ int main(int argc, char **argv)
                     rpool_reset(rpool_arr[edge_id]);
                     apu_reset_nasm(target_nasm[edge_id]);
 
-                    if (!strcmp(schedule_policy, "dynamic")) init_dynamic_offload(target_nasm[edge_id], device_mode, edge_id);
+                    if (!strcmp(schedule_policy, "dynamic")) init_dynamic_offload(target_nasm[edge_id], device_mode, edge_id, num_edge_devices);
 
                     set_nasm_inference_id(target_nasm[edge_id], connection_key);
                     add_inference_whitelist(net_engine_arr[edge_id], target_nasm[edge_id]->inference_id);

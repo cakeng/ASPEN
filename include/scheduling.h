@@ -65,7 +65,7 @@ void init_full_local(nasm_t *nasm);
 void init_full_offload(nasm_t *nasm);
 void init_partial_offload(nasm_t *nasm, float compute_ratio);
 void init_sequential_offload(nasm_t *nasm, int split_layer, int from_dev, int to_dev);
-void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode, int device_idx);
+void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode, int device_idx, int server_idx);
 void init_conventional_offload(nasm_t *nasm);
 sched_processor_t *init_heft(char *target_dnn_dir, char *target_nasm_dir, ninst_profile_t **ninst_profile, network_profile_t *network_profile, int num_device);
 

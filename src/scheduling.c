@@ -235,7 +235,7 @@ void init_sequential_offload(nasm_t *nasm, int split_layer, int from_dev, int to
     nasm_set_last_layer_ninst_send_target_device (nasm, from_dev);
 }
 
-void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode, int device_idx) 
+void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode, int device_idx, int server_idx) 
 {
     for (int i = 0; i < nasm->num_ldata; i++) 
     {
@@ -245,7 +245,7 @@ void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode, int device_idx)
             ninst_clear_send_target_device(&(nasm->ldata_arr[i].ninst_arr_start[j]));
             atomic_store(&nasm->ldata_arr[i].ninst_arr_start[j].offloaded, 0);
             if(device_mode == DEV_SERVER)
-                ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), DEV_SERVER);
+                ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), server_idx);
             else if(device_mode == DEV_EDGE)
                 ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), device_idx);
             else
@@ -256,7 +256,7 @@ void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode, int device_idx)
     for (int i = 0; i < nasm->ldata_arr[0].num_ninst; i++)
     {
         ninst_set_compute_device(&(nasm->ldata_arr[0].ninst_arr_start[i]), device_idx);
-        ninst_set_send_target_device(&(nasm->ldata_arr[0].ninst_arr_start[i]), DEV_SERVER);
+        ninst_set_send_target_device(&(nasm->ldata_arr[0].ninst_arr_start[i]), server_idx);
     }
 
     // Set last layer to edge as default
