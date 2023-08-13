@@ -375,29 +375,47 @@ int main(int argc, char **argv)
         {
             // synchronize
             printf("[Inference %d] inference: %d/%d\n", inf_num+1, inf_num+1, inference_repeat_num);
+            int sync_edge_device[SCHEDULE_MAX_DEVICES] = {0, };
+            int num_sync_edges = 0;
 
-            // if(device_mode == DEV_SERVER)
-            // {
-            //     for(int edge_id = 0; edge_id < num_edge_devices; edge_id)
-            //     {
-            //         connection_key = 12534+inf_num;
-            //         float time_offset = profile_network_sync(device_mode, server_sock, client_sock_arr[edge_id]);
-            //         set_time_offset(time_offset, device_mode);
-            //         write_n(client_sock_arr[edge_id], &connection_key, sizeof(int));
-            //         printf("\t[Edge Device %d]connection key: %d\n", edge_id, connection_key);
-            //         printf("\t[Edge Device %d]time_offset: %f\n", edge_id, time_offset);
+            if(device_mode == DEV_SERVER)
+            {
+                while(num_sync_edges != num_edge_devices)
+                {
+                    for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
+                    {
+                        if(sync_edge_device[edge_id] == 0)
+                        {
+                            float time_offset = profile_network_sync(device_mode, server_sock, client_sock_arr[edge_id]);
+                            set_time_offset(time_offset, device_mode);
+                            read_n(client_sock_arr[edge_id], &connection_key, sizeof(int));
+                            
+                            printf("\t[Edge Device %d]connection key: %d\n", edge_id, connection_key);
+                            printf("\t[Edge Device %d]time_offset: %f\n", edge_id, time_offset);
 
-            //     }
-            // }
-            // else
-            // {   
-            //     float time_offset = profile_network_sync(device_mode, server_sock, 0);
-            //     set_time_offset(time_offset, device_mode);
-            //     connection_key = -1;
-            //     read_n(server_sock, &connection_key, sizeof(int));
-            //     printf("\t[Edge Device %d]connection key: %d\n", device_idx, connection_key);
-            //     printf("\t[Edge Device %d]time_offset: %f\n", device_idx, time_offset);
-            // }
+                            sync_edge_device[edge_id] = 1;
+                            num_sync_edges++;
+                        }
+                    }
+                }
+
+                for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
+                    write_n(client_sock_arr[edge_id], &num_sync_edges, sizeof(int));
+            }
+            else
+            {
+                while(num_sync_edges != num_edge_devices)
+                {
+                    connection_key = 12534 + inf_num;
+                    float time_offset = profile_network_sync(device_mode, server_sock, 0);
+                    set_time_offset(time_offset, device_mode);
+                    write_n(server_sock, &connection_key, sizeof(int));
+                    printf("\t[Edge Device %d]connection key: %d\n", device_idx, connection_key);
+                    printf("\t[Edge Device %d]time_offset: %f\n", device_idx, time_offset);
+                    read_n(server_sock, &num_sync_edges, sizeof(int));
+                }
+
+            }
 
             for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
             {
