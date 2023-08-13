@@ -1,1 +1,4 @@
 vgg16
+resnet50
+yolov3
+bert_base
