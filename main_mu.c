@@ -493,13 +493,15 @@ int main(int argc, char **argv)
                 // For logging
                 char file_name[1024];
                 char dir_path[1024];
+                char dir_edge_path[1024];
                 
 
                 for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
                 {
                     if(device_mode == DEV_SERVER || edge_id == device_idx)
                     {
-                        sprintf(dir_path, "./logs/%s/edge_%d", dirname, edge_id);
+                        sprintf(dir_path, "./logs/%s", dirname);
+                        sprintf(dir_edge_path, "./logs/%s/edge_%d", dirname, edge_id);
                         struct stat st = {0};
                         if (stat("./logs/", &st) == -1) 
                         {
@@ -508,6 +510,10 @@ int main(int argc, char **argv)
                         if (stat(dir_path, &st) == -1) 
                         {
                             mkdir(dir_path, 0700);
+                        }
+                        if (stat(dir_edge_path, &st) == -1) 
+                        {
+                            mkdir(dir_edge_path, 0700);
                         }
 
                         sprintf(file_name, "./logs/%s/edge_%d/%s_%s_%s_%s_Iter%d.csv", 
