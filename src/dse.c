@@ -24,6 +24,7 @@ void dse_schedule (dse_t *dse)
     // if ((dse->ninst_cache->num_stored < dse_NINST_CACHE_BALLANCE - dse_NINST_CACHE_DIFF) || 
     //     dse->ninst_cache->num_stored == 0)
     int target_device = dse->device_idx;
+    dse->target_device = target_device;
     if (dse->target == NULL)
     {
         if (dse->is_multiuser_case)
@@ -214,8 +215,6 @@ void dse_schedule (dse_t *dse)
             }
             // update_children_to_cache (dse->ninst_cache, ninst);
             if (dse->is_multiuser_case && dse->device_mode == DEV_SERVER) {
-                if(dse->rpool_arr[dse->target_device] == NULL)
-                    printf("ERROR: dse_thread_runtime: rpool_arr[%d] is NULL\n", dse->target_device);
                 update_children_but_prioritize_dse_target (dse->rpool_arr[dse->target_device], ninst, dse);
             }
             else if (dse->is_multiuser_case && dse->device_mode != DEV_SERVER) {
@@ -231,7 +230,7 @@ void dse_schedule (dse_t *dse)
             // check devices to send to for the computation output
             if (!dse->profile_compute && dse->is_multiuser_case) 
             {
-                for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++) 
+                for (int i = 0; i < dse->num_edge_devices; i++)
                 {
                     if (i == dse->device_idx) continue;
                     if (atomic_load(&ninst->dev_send_target[i]) == 1) // Should be offload
@@ -251,7 +250,7 @@ void dse_schedule (dse_t *dse)
             }
             else if (!dse->profile_compute && !dse->is_multiuser_case)
             {
-                for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++) 
+                for (int i = 0; i < dse->num_edge_devices; i++) 
                 {
                     if (i == dse->device_idx) continue;
                     if (atomic_load(&ninst->dev_send_target[i]) == 1) 
