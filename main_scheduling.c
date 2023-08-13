@@ -164,9 +164,7 @@ int main(int argc, char **argv)
     else if (!strcmp(schedule_policy, "dynamic")) 
     {
         /** STAGE: SCHEDULING - DYNAMIC **/
-        // for (int i=0; i<dse_group->num_ases; i++)
-        //     dse_group->dse_arr[i].is_dynamic_scheduling = 1;
-        init_dynamic_offload(target_nasm, device_mode);
+        init_dynamic_offload(target_nasm, device_mode, device_idx);
         dynamic_scheduler = init_dynamic_scheduler(ninst_profile, network_profile);
         dse_group_set_dynamic_scheduler(dse_group, dynamic_scheduler);
         printf("\tInit dynamic scheduler\n");
@@ -244,7 +242,7 @@ int main(int argc, char **argv)
             rpool_reset(rpool);
             apu_reset_nasm(target_nasm);
             
-            if (!strcmp(schedule_policy, "dynamic")) init_dynamic_offload(target_nasm, device_mode);
+            if (!strcmp(schedule_policy, "dynamic")) init_dynamic_offload(target_nasm, device_mode, device_idx);
 
             
             set_nasm_inference_id(target_nasm, connection_key);

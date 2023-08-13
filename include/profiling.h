@@ -7,7 +7,8 @@
 
 struct avg_ninst_profile_t {
     int num_ninsts;
-    float avg_computation_time;
+    float avg_server_computation_time;
+    float avg_edge_computation_time;
 };
 
 struct ninst_profile_t {
@@ -23,9 +24,13 @@ struct network_profile_t {
     float transmit_rate;
 };
 
-avg_ninst_profile_t *profile_computation(char *target_dnn_dir, char *target_nasm_dir, char *target_input, int gpu, int num_repeat);
-network_profile_t *profile_network(avg_ninst_profile_t **ninst_profile, DEVICE_MODE device_mode, int edge_device_idx, int server_sock, int client_sock);
+
+avg_ninst_profile_t *profile_computation(nasm_t *target_nasm, int dse_num, int device_idx, char *target_input, DEVICE_MODE device_mode, int gpu, int num_repeat);
+network_profile_t *profile_network(DEVICE_MODE device_mode, int edge_device_idx, int server_sock, int client_sock);
 float profile_network_sync(DEVICE_MODE device_mode, int server_sock, int client_sock);
+
+void communicate_profiles_server(int client_sock, network_profile_t *network_profile, avg_ninst_profile_t *ninst_profile);
+void communicate_profiles_edge(int server_sock, network_profile_t *network_profile, avg_ninst_profile_t *ninst_profile);
 
 // ninst_profile_t *extract_profile_from_ninsts(nasm_t *nasm);
 float extract_profile_from_ninsts(nasm_t *nasm);

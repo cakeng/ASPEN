@@ -23,49 +23,23 @@ void dse_schedule (dse_t *dse)
     
     // if ((dse->ninst_cache->num_stored < dse_NINST_CACHE_BALLANCE - dse_NINST_CACHE_DIFF) || 
     //     dse->ninst_cache->num_stored == 0)
-    int target_device;
+    int target_device = dse->device_idx;
     if (dse->target == NULL)
     {
         if (dse->is_multiuser_case)
         {
-            if (dse->device_idx != DEV_SERVER) 
+            if (dse->device_mode != DEV_SERVER) 
             {
-                rpool_fetch_ninsts (dse->rpool_arr[0], &dse->target, 1, 0);
+                rpool_fetch_ninsts (dse->rpool_arr[target_device], &dse->target, 1, 0);
                 if (dse->target == NULL)
                     return;
             }
             else
             {
-                int checked[SCHEDULE_MAX_DEVICES] = {0};
-                for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++) 
-                {
-                    if (dse->prioritize_rpool[i] != -1) 
-                    {
-                        rpool_fetch_ninsts (dse->rpool_arr[dse->prioritize_rpool[i]], &dse->target, 1, 0);
-                        checked[dse->prioritize_rpool[i]] = 1;
-                        if (dse->target) 
-                        {
-                            target_device = dse->prioritize_rpool[i];
-                            break;
-                        }
-                    }
-                    else 
-                        break;
-                }
-                for (int i = 1; i < SCHEDULE_MAX_DEVICES; i++) 
-                {
-                    if (!dse->enabled_device[i]) 
-                        continue;
-                    if (checked[i]) 
-                        continue;
-
-                    rpool_fetch_ninsts (dse->rpool_arr[i], &dse->target, 1, 0);
-                    if (dse->target) 
-                    {
-                        target_device = i;
-                        break;
-                    }
-                }
+                target_device = rand() % (dse->num_edge_devices);
+                rpool_fetch_ninsts (dse->rpool_arr[target_device], &dse->target, 1, 0);
+                dse->target_device = target_device;
+                
                 if (dse->target == NULL) 
                     return;
             }
@@ -132,12 +106,14 @@ void dse_schedule (dse_t *dse)
         if (atomic_exchange (&ninst->state, NINST_COMPLETED) == NINST_COMPLETED)
             return;
 
-        // printf("Fetched ninst %d, dev_to_compute[DEV_SERVER]: %d, dev_to_compute[DEV_EDGE]: %d\n", ninst->ninst_idx, 
+        // printf("[Device: %d] Fetched ninst %d, dev_to_compute[DEV_SERVER]: %d, dev_to_compute[DEV_EDGE]: %d\n", 
+        //                                                                                     target_device,
+        //                                                                                     ninst->ninst_idx, 
         //                                                                                     ninst->dev_to_compute[DEV_SERVER],
-        //                                                                                     ninst->dev_to_compute[DEV_EDGE]);
+        //                                                                                     ninst->dev_to_compute[dse->device_idx]);
         if (is_dev_compute(ninst, dse->device_idx) || dse->profile_compute)    // It's mine, so compute
         {
-            // printf("\tCompute ninst (N%d L%d)\n", ninst->ninst_idx, ninst->ldata->layer->layer_idx);
+            // printf("\t[Device: %d] Compute ninst (N%d L%d)\n", target_device, ninst->ninst_idx, ninst->ldata->layer->layer_idx);
             if (dse->profile_compute) ninst->compute_start = get_time_secs_offset ();
             switch (ninst->ldata->layer->type)
             {
@@ -190,31 +166,28 @@ void dse_schedule (dse_t *dse)
             if(dse->is_dynamic_scheduling)
             {
                 // For edge side offloading decision
-                if(dse->device_idx != DEV_SERVER)
+                if(dse->device_mode != DEV_SERVER)
                 {
                     for(int i = 0; i < ninst->num_child_ninsts; i++)
                     {
                         ninst_t* child_ninst = ninst->child_ninst_arr[i];
                         ninst_set_compute_device(child_ninst, dse->device_idx);
                     }
-                    ninst_set_send_target_device(ninst, DEV_SERVER);
+                    ninst_set_send_target_device(ninst, dse->num_edge_devices);
                 }
                 else // For server
                 {
                     for(int i = 0; i < ninst->num_child_ninsts; i++)
                     {
                         ninst_t* child_ninst = ninst->child_ninst_arr[i];
-                        ninst_set_compute_device(child_ninst, DEV_SERVER);
+                        ninst_set_compute_device(child_ninst, dse->device_idx);
                     }
                 }
             }
-
             
             unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
             if (num_ninst_completed == ninst->ldata->num_ninst - 1)
             {
-                // printf ("\t\tThread %d completed layer %d of nasm %d\n", 
-                //     dse->thread_id, ninst->ldata->layer->layer_idx, ninst->ldata->nasm->nasm_id);
                 nasm_t *nasm = ninst->ldata->nasm;
                 // unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
                 atomic_fetch_add (&nasm->num_ldata_completed, 1);
@@ -227,8 +200,8 @@ void dse_schedule (dse_t *dse)
                     atomic_store (&nasm->completed, 1);
                     rpool_queue_group_t *rpool_queue_group;
                     if (dse->is_multiuser_case) {
-                        rpool_queue_group = get_queue_group_from_nasm (dse->rpool_arr[target_device], ninst->ldata->nasm);
-                        set_queue_group_weight (dse->rpool_arr[target_device], rpool_queue_group, 0);
+                        rpool_queue_group = get_queue_group_from_nasm (dse->rpool_arr[dse->target_device], ninst->ldata->nasm);
+                        set_queue_group_weight (dse->rpool_arr[dse->target_device], rpool_queue_group, 0);
                     }
                     else {
                         rpool_queue_group = get_queue_group_from_nasm (dse->rpool, ninst->ldata->nasm);
@@ -240,11 +213,13 @@ void dse_schedule (dse_t *dse)
                 }
             }
             // update_children_to_cache (dse->ninst_cache, ninst);
-            if (dse->is_multiuser_case && dse->device_idx == 0) {
-                update_children_but_prioritize_dse_target (dse->rpool_arr[target_device], ninst, dse);
+            if (dse->is_multiuser_case && dse->device_mode == DEV_SERVER) {
+                if(dse->rpool_arr[dse->target_device] == NULL)
+                    printf("ERROR: dse_thread_runtime: rpool_arr[%d] is NULL\n", dse->target_device);
+                update_children_but_prioritize_dse_target (dse->rpool_arr[dse->target_device], ninst, dse);
             }
-            else if (dse->is_multiuser_case && dse->device_idx != 0) {
-                update_children_but_prioritize_dse_target (dse->rpool_arr[0], ninst, dse);
+            else if (dse->is_multiuser_case && dse->device_mode != DEV_SERVER) {
+                update_children_but_prioritize_dse_target (dse->rpool_arr[dse->target_device], ninst, dse);
             }
             else if (!dse->is_multiuser_case && dse->is_dynamic_scheduling && ninst->ldata->layer->layer_idx == 0) {
                 update_children (dse->rpool, ninst);
@@ -254,7 +229,7 @@ void dse_schedule (dse_t *dse)
             }
 
             // check devices to send to for the computation output
-            if (dse->is_multiuser_case) 
+            if (!dse->profile_compute && dse->is_multiuser_case) 
             {
                 for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++) 
                 {
@@ -274,7 +249,7 @@ void dse_schedule (dse_t *dse)
                     }
                 }
             }
-            else 
+            else if (!dse->profile_compute && !dse->is_multiuser_case)
             {
                 for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++) 
                 {
@@ -364,6 +339,19 @@ void dse_group_set_net_engine (dse_group_t *dse_group, networking_engine *net_en
     }
 }
 
+void dse_group_set_device_mode (dse_group_t *dse_group, DEVICE_MODE device_mode)
+{
+    if (dse_group == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_set_device_mode: dse_group is NULL\n");
+        assert (0);
+    }
+    for (int i = 0; i < dse_group->num_ases; i++)
+    {
+        dse_group->dse_arr[i].device_mode = device_mode;
+    }
+}
+
 void dse_group_set_device (dse_group_t *dse_group, int device_idx)
 {
     if (dse_group == NULL)
@@ -374,6 +362,19 @@ void dse_group_set_device (dse_group_t *dse_group, int device_idx)
     for (int i = 0; i < dse_group->num_ases; i++)
     {
         dse_group->dse_arr[i].device_idx = device_idx;
+    }
+}
+
+void dse_group_set_num_edge_devices (dse_group_t *dse_group, int num_edge_devices)
+{
+    if (dse_group == NULL)
+    {
+        FPRT (stderr, "ERROR: dse_group_set_num_edge_devices: dse_group is NULL\n");
+        assert (0);
+    }
+    for (int i = 0; i < dse_group->num_ases; i++)
+    {
+        dse_group->dse_arr[i].num_edge_devices = num_edge_devices;
     }
 }
 
@@ -427,7 +428,7 @@ void dse_group_add_prioritize_rpool (dse_group_t *dse_group, int device_idx) {
 
 void dse_group_init_enable_device(dse_group_t *dse_group, int num_edge_devices) {
     for (int i = 0; i < dse_group->num_ases; i++) {
-        for (int j = 0; j < num_edge_devices; j++)
+        for (int j = 1; j <= num_edge_devices; j++)
         dse_group->dse_arr[i].enabled_device[j] = 0;
     }
 }

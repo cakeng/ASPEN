@@ -56,6 +56,7 @@ struct networking_engine
 
     nasm_t* nasm;
     rpool_t* rpool;
+    
     networking_queue_t *tx_queue;
     dse_group_t *dse_group;
 

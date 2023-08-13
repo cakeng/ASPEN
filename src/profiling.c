@@ -1,71 +1,53 @@
 #include "profiling.h"
 
-avg_ninst_profile_t *profile_computation(char *target_dnn_dir, char *target_nasm_dir, char *target_input, int gpu, int num_repeat) {
-    // ninst_profile_t **ninst_profiles = calloc(num_repeat, sizeof(ninst_profile_t *));
+avg_ninst_profile_t *profile_computation(nasm_t *target_nasm, int dse_num, int device_idx, char *target_input, DEVICE_MODE device_mode, int gpu, int num_repeat) 
+{
     float avg_computation_time = 0.0;
     int total;
 
-    for (int i=0; i<num_repeat; i++) {
-        aspen_dnn_t *target_dnn = apu_load_dnn_from_file(target_dnn_dir);
-        nasm_t *target_nasm = apu_load_nasm_from_file (target_nasm_dir, target_dnn);
-
+    for (int i = 0; i < num_repeat; i++) {
         rpool_t *rpool = rpool_init (gpu);
-        dse_group_t *dse_group = dse_group_init (16, gpu);
+        dse_group_t *dse_group = dse_group_init (dse_num, gpu);
         dse_group_set_rpool (dse_group, rpool);
+        dse_group_add_rpool_arr (dse_group, rpool, device_idx);
         dse_group_set_profile (dse_group, 1);
-        dse_group_set_device(dse_group, DEV_SERVER);
+        dse_group_set_multiuser (dse_group, 0);
 
-        init_sequential_offload (target_nasm, 0, DEV_SERVER, DEV_SERVER);
-
+        init_sequential_offload (target_nasm, 0, device_idx, device_idx);
+        
         rpool_add_nasm (rpool, target_nasm, target_input); 
         
         dse_group_run (dse_group);
         dse_wait_for_nasm_completion (target_nasm);
         dse_group_stop (dse_group);
         
-        // LAYER_PARAMS output_order[] = {BATCH, OUT_H, OUT_W, OUT_C};
-        // float *layer_output = dse_get_nasm_result (target_nasm, output_order);
-        // float *softmax_output = calloc (1000*target_nasm->batch_size, sizeof(float));
-        // naive_softmax (layer_output, softmax_output, target_nasm->batch_size, 1000);
-
-        // ninst_profiles[i] = extract_profile_from_ninsts(target_nasm);
         total = target_nasm->num_ninst;
         avg_computation_time += extract_profile_from_ninsts(target_nasm);
-        
-        // free (layer_output);
-        // free (softmax_output);
 
         dse_group_destroy (dse_group);
         rpool_destroy (rpool);
-        apu_destroy_nasm (target_nasm);
-        apu_destroy_dnn (target_dnn);
     }
 
     avg_ninst_profile_t *result = calloc(1, sizeof(ninst_profile_t));
-    result->avg_computation_time = avg_computation_time / num_repeat;
+    if(device_mode == DEV_SERVER)
+    {
+        result->avg_server_computation_time = avg_computation_time / num_repeat;
+        result->avg_edge_computation_time = 0;
+    }
+    else
+    {
+        result->avg_server_computation_time = 0;
+        result->avg_edge_computation_time = avg_computation_time / num_repeat;
+    }
     result->num_ninsts = total;
-
-    // ninst_profile_t *result = merge_computation_profile(ninst_profiles, num_repeat);
-
-    // for (int i=0; i<num_repeat; i++) {
-        // free(ninst_profiles[i]);
-    // }
-    
-    // free(ninst_profiles);
 
     return result;
 }
 
-network_profile_t *profile_network(avg_ninst_profile_t **ninst_profile, DEVICE_MODE device_mode, int edge_device_idx, int server_sock, int client_sock) {
+network_profile_t *profile_network(DEVICE_MODE device_mode, int edge_device_idx, int server_sock, int client_sock) {
     network_profile_t *network_profile = malloc(sizeof(network_profile_t));
     
     const int num_repeat = PROFILE_REPEAT;
-    if(device_mode == DEV_SERVER) {
-        int num_ninst = ninst_profile[DEV_SERVER]->num_ninsts;
-    }
-    else {
-        int num_ninst = ninst_profile[edge_device_idx]->num_ninsts;
-    }
 
     float time_offset = 0;
     float t0, t1, t2, t3;
@@ -95,14 +77,6 @@ network_profile_t *profile_network(avg_ninst_profile_t **ninst_profile, DEVICE_M
             write_n(client_sock, &long_recv_timestamp, sizeof(float));
         }
         free(profile_message);
-
-        // Receive & Send ninst_profile
-        ninst_profile[edge_device_idx] = malloc(sizeof(avg_ninst_profile_t));
-        read_n(client_sock, ninst_profile[edge_device_idx], sizeof(avg_ninst_profile_t));
-        write_n(client_sock, ninst_profile[DEV_SERVER], sizeof(avg_ninst_profile_t));
-        
-        // Receive network_profile from edge
-        read_n(client_sock, network_profile, sizeof(network_profile_t));
     }
     else 
     {
@@ -135,14 +109,6 @@ network_profile_t *profile_network(avg_ninst_profile_t **ninst_profile, DEVICE_M
         network_profile->rtt = rtt;
         network_profile->sync = time_offset;
         network_profile->transmit_rate = transmit_rate;
-
-        // Send & receive ninst_profile;
-        ninst_profile[DEV_SERVER] = malloc(sizeof(avg_ninst_profile_t));
-        write_n(server_sock, ninst_profile[edge_device_idx], sizeof(avg_ninst_profile_t));
-        read_n(server_sock, ninst_profile[DEV_SERVER], sizeof(avg_ninst_profile_t));
-
-        // Send network_profile
-        write_n(server_sock, network_profile, sizeof(network_profile_t));
     }
 
     return network_profile;
@@ -174,6 +140,20 @@ float profile_network_sync(DEVICE_MODE device_mode, int server_sock, int client_
     rtt = (t3 - t0) - (t2 - t1);
     time_offset = ((t1 - t0) + (t2 - t3))/2;
     return time_offset;
+}
+
+void communicate_profiles_server(int client_sock, network_profile_t *network_profile, avg_ninst_profile_t *ninst_profile)
+{
+    read_n(client_sock, network_profile, sizeof(network_profile_t));
+    read_n(client_sock, &ninst_profile->avg_edge_computation_time, sizeof(float));
+    write_n(client_sock, &ninst_profile->avg_server_computation_time, sizeof(float));
+}
+
+void communicate_profiles_edge(int server_sock, network_profile_t *network_profile, avg_ninst_profile_t *ninst_profile)
+{
+    write_n(server_sock, network_profile, sizeof(network_profile_t));
+    write_n(server_sock, &ninst_profile->avg_edge_computation_time, sizeof(float));
+    read_n(server_sock, &ninst_profile->avg_server_computation_time, sizeof(float));
 }
 
 float extract_profile_from_ninsts(nasm_t *nasm) {

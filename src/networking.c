@@ -418,7 +418,8 @@ void receive(networking_engine *net_engine)
             buffer_ptr += data_size;
             target_ninst->received_time = get_time_secs_offset ();
             #ifdef DEBUG
-            PRT("\t(N%d L%d I%d %ldB)\n", 
+            PRT("\t[Device %d] (N%d L%d I%d %ldB)\n",
+                net_engine->device_idx,
                 target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->inference_id, 
                 target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float));
             #endif
@@ -433,6 +434,7 @@ void receive(networking_engine *net_engine)
             }
             
             update_children (net_engine->rpool, target_ninst);
+            
             
             if (num_ninst_completed == target_ninst->ldata->num_ninst - 1)
             {
@@ -515,6 +517,7 @@ void net_engine_run (networking_engine *net_engine)
         pthread_mutex_unlock (&net_engine->tx_thread_mutex);
     }
 }
+
 
 void net_queue_destroy(networking_queue_t* net_queue)
 {

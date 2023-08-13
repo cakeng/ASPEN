@@ -4,7 +4,7 @@
 #define SCHEDULE_INIT_BUF_SIZE      (1024 * 1024)
 #define PROFILE_REPEAT              4
 #define PROFILE_LONG_MESSAGE_SIZE   (1024 * 256)
-#define SCHEDULE_MAX_DEVICES        4
+#define SCHEDULE_MAX_DEVICES        5
 
 #include "nasm.h"
 #include "profiling.h"
@@ -44,12 +44,12 @@ struct sched_processor_t {
 };
 
 struct dynamic_scheduler_t{
-    float avg_server_ninst_compute_time;
-    float avg_edge_ninst_compute_time;
-    float avg_bandwidth;
-    float rtt;
+    float avg_server_ninst_compute_time[SCHEDULE_MAX_DEVICES];
+    float avg_edge_ninst_compute_time[SCHEDULE_MAX_DEVICES];
+    float avg_bandwidth[SCHEDULE_MAX_DEVICES];
+    float rtt[SCHEDULE_MAX_DEVICES];
 
-    float scheduling_latency; // obtained by scheduling policy in cloud
+    float scheduling_latency[SCHEDULE_MAX_DEVICES]; // obtained by scheduling policy in cloud
 };
 
 int is_offloaded(ninst_t *ninst);
@@ -60,7 +60,7 @@ void ninst_set_send_target_device(ninst_t *ninst, int device_idx);
 void ninst_clear_send_target_device(ninst_t *ninst);
 void ninst_copy_compute_device(ninst_t* target_ninst, ninst_t* ninst);
 
-dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, int devices_idx);
+dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, DEVICE_MODE device_mode, int device_idx, int num_edge_devices);
 void init_full_local(nasm_t *nasm);
 void init_full_offload(nasm_t *nasm);
 void init_partial_offload(nasm_t *nasm, float compute_ratio);
@@ -87,8 +87,8 @@ void heft_push_task(sched_processor_t *sched_processor, sched_task_t *sched_task
 
 int compare_by_rank_upward(const void *ninst_1, const void *ninst_2);
 
-float get_eft_edge(dynamic_scheduler_t* dynamic_scheduler, rpool_t* rpool, int num_dse, int num_parent_ninsts);
-float get_eft_server(dynamic_scheduler_t* dynamic_scheduler, networking_engine* net_engine, int net_tx_queue_bytes);
+float get_eft_edge(dynamic_scheduler_t* dynamic_scheduler, rpool_t* rpool, int device_idx, int num_dse, int num_parent_ninsts);
+float get_eft_server(dynamic_scheduler_t* dynamic_scheduler, networking_engine* net_engine, int device_idx, int net_tx_queue_bytes);
 
 void save_schedule(sched_processor_t *sched_processor_arr, int num_device, char *file_path);
 sched_processor_t *load_schedule(char *file_path);

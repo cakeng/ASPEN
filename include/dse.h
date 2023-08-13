@@ -47,6 +47,10 @@ struct dse_t
     networking_engine *net_engine_arr[SCHEDULE_MAX_DEVICES];
 
     int device_idx;
+    DEVICE_MODE device_mode;
+    int num_edge_devices;
+
+    int target_device;
 
     int gpu_idx;
 
@@ -71,6 +75,8 @@ void dse_group_set_device (dse_group_t *dse_group, int device_idx);
 void dse_group_set_profile (dse_group_t *dse_group, int profile_compute);
 void dse_group_set_multiuser (dse_group_t *dse_group, int is_multiuser_case);
 void dse_group_set_dynamic_scheduler (dse_group_t *dse_group, dynamic_scheduler_t* dynamic_scheduler);
+void dse_group_set_device_mode (dse_group_t *dse_group, DEVICE_MODE device_mode);
+void dse_group_set_num_edge_devices (dse_group_t *dse_group, int num_edge_devices);
 void dse_group_add_prioritize_rpool (dse_group_t *dse_group, int device_idx);
 void dse_group_init_enable_device(dse_group_t *dse_group, int num_edge_devices);
 void dse_group_set_enable_device(dse_group_t *dse_group, int device_idx, int enable);

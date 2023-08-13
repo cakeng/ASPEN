@@ -1,0 +1,19 @@
+Running tests 20 times, with 0.2 sec intervals, at Linux nxc-3990x 5.15.0-78-generic #85-Ubuntu SMP Fri Jul 7 15:25:09 UTC 2023 x86_64 x86_64 x86_64 GNU/Linux
+    DNNs: vgg16 resnet50 yolov3 bert_base
+    Batch sizes: 1 4 8 16
+    Number of tiles: 20 100 200
+    Scheduling policies: dynamic sequential conventional
+    EDGE credentials: nxc@192.168.1.25
+    EDGE DSEs: 8
+    Network Bandwidth: 70 50 20 5
+Script started at 2023-08-12-23:24:31
+
+    23:24:31: Running vgg16 with 1 DSEs on server, 8 DSEs on edge, batch size 1, and 20 tiles, with EDGE nxc@192.168.1.25 BW 70 (1/2304)
+//////////    Set TC in EDGE    //////////
+     ssh nxc@192.168.1.25 'echo "bestnxcl" | sudo -S tc qdisc del dev wlan0 root'
+     ssh nxc@192.168.1.25 'echo "bestnxcl" | sudo -S tc qdisc add dev wlan0 root handle 1: htb default 6'
+     ssh nxc@192.168.1.25 'echo "bestnxcl" | sudo -S tc class add dev wlan0 parent 1: classid 1:6 htb rate 70mbit'
+//////////    SERVER command    //////////
+    ./main_scheduling --device_mode=0 --dirname=Test_SERVER_nxc-3990x_EDGE_nxc@192.168.1.25_2023-08-12-23:24:31 --target_nasm_dir=data/vgg16_B1_T20.nasm --target_dnn_dir=data/vgg16_base.aspen --target_input=data/batched_input_128.bin --prefix=vgg16 --server_ip=147.46.130.51 --server_port=8081 --schedule_policy=dynamic --sched_sequential_idx=1 --dse_num=1 --output_order=cnn --inference_repeat_num=20
+//////////    EDGE command    //////////
+    ssh nxc@192.168.1.25 'cd ~/kmbin/pipelining/aspen && ./main_scheduling --device_mode=1 --dirname=Test_SERVER_nxc-3990x_EDGE_nxc@192.168.1.25_2023-08-12-23:24:31 --target_nasm_dir=data/vgg16_B1_T20.nasm --target_dnn_dir=data/vgg16_base.aspen --target_input=data/batched_input_128.bin --prefix=vgg16 --server_ip=147.46.130.51 --server_port=8081 --schedule_policy=dynamic --sched_sequential_idx=1 --dse_num=8 --output_order=cnn --inference_repeat_num=20'

@@ -107,34 +107,40 @@ void nasm_set_last_layer_ninst_send_target_device(nasm_t *nasm, int device_idx)
     }
 }
 
-dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, int devices_idx)
+dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, DEVICE_MODE device_mode, int device_idx, int num_edge_devices)
 {
     dynamic_scheduler_t *dynamic_scheduler = calloc(1, sizeof(dynamic_scheduler_t));
 
-    dynamic_scheduler->avg_server_ninst_compute_time = ninst_profile[DEV_SERVER]->avg_computation_time;
-    dynamic_scheduler->avg_edge_ninst_compute_time = ninst_profile[devices_idx]->avg_computation_time;
-    dynamic_scheduler->avg_bandwidth = network_profile[devices_idx]->transmit_rate;
-    dynamic_scheduler->rtt = network_profile[devices_idx]->rtt;
+    for(int i = 0; i < num_edge_devices; i++)
+    {
+        if(device_mode == DEV_SERVER || device_idx == i)
+        {
+            dynamic_scheduler->avg_server_ninst_compute_time[i] = ninst_profile[i]->avg_server_computation_time;
+            dynamic_scheduler->avg_edge_ninst_compute_time[i] = ninst_profile[i]->avg_edge_computation_time;
+            dynamic_scheduler->avg_bandwidth[i] = network_profile[i]->transmit_rate;
+            dynamic_scheduler->rtt[i] = network_profile[i]->rtt;
+            // ** TODO : Implement PF scheduler **
+            dynamic_scheduler->scheduling_latency[i] = 0.0;
+        }
+    }
     
-    // ** TODO : Implement PF scheduler **
-    dynamic_scheduler->scheduling_latency = 0.0;
     return dynamic_scheduler;
 }
 
-float get_eft_edge(dynamic_scheduler_t* dynamic_scheduler, rpool_t* rpool, int num_dse, int num_child_ninsts)
+float get_eft_edge(dynamic_scheduler_t* dynamic_scheduler, rpool_t* rpool, int device_idx, int num_dse, int num_child_ninsts)
 {
     unsigned int rpool_num_stored = atomic_load(&rpool->num_stored);
     // printf("%d, %d, %f, %d\n", rpool_num_stored, num_parent_ninsts, dynamic_scheduler->avg_edge_ninst_compute_time, num_dse);
-    float eft_edge = (float)(rpool_num_stored + num_child_ninsts) * dynamic_scheduler->avg_edge_ninst_compute_time / num_dse;
+    float eft_edge = (float)(rpool_num_stored + num_child_ninsts) * dynamic_scheduler->avg_edge_ninst_compute_time[device_idx] / num_dse;
     return eft_edge;
 }
 
-float get_eft_server(dynamic_scheduler_t* dynamic_scheduler, networking_engine* net_engine, int net_tx_queue_bytes)
+float get_eft_server(dynamic_scheduler_t* dynamic_scheduler, networking_engine* net_engine, int device_idx, int net_tx_queue_bytes)
 {
     unsigned int net_tx_queue_num_stored = atomic_load(&net_engine->tx_queue->num_stored);
-    float eft_edge = dynamic_scheduler->rtt + // RTT
-                    (net_tx_queue_num_stored) * net_tx_queue_bytes * 8 / dynamic_scheduler->avg_bandwidth / 1000000 // Transmission latency
-                    + dynamic_scheduler->scheduling_latency;
+    float eft_edge = dynamic_scheduler->rtt[device_idx] + // RTT
+                    (net_tx_queue_num_stored) * net_tx_queue_bytes * 8 / dynamic_scheduler->avg_bandwidth[device_idx] / 1000000 // Transmission latency
+                    + dynamic_scheduler->scheduling_latency[device_idx];
     return eft_edge;
 }
 
@@ -204,12 +210,12 @@ void init_partial_offload(nasm_t *nasm, float compute_ratio) {
 
 void init_sequential_offload(nasm_t *nasm, int split_layer, int from_dev, int to_dev) 
 {
-    printf("division ninst idx: %d\n", split_layer);
-    for (int i=0; i<nasm->num_ldata; i++) 
+    printf("[Init sequential offload] division ninst idx: %d from dev: %d to_dev: %d\n", split_layer, from_dev, to_dev);
+    for (int i = 0; i < nasm->num_ldata; i++) 
     {
         if (i < split_layer) 
         {
-            for (int j=0; j<nasm->ldata_arr[i].num_ninst; j++) 
+            for (int j = 0; j < nasm->ldata_arr[i].num_ninst; j++) 
             {
                 ninst_clear_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]));
                 ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), from_dev);
@@ -218,7 +224,7 @@ void init_sequential_offload(nasm_t *nasm, int split_layer, int from_dev, int to
         }
         else 
         {
-            for (int j=0; j<nasm->ldata_arr[i].num_ninst; j++) 
+            for (int j = 0; j < nasm->ldata_arr[i].num_ninst; j++) 
             {
                 ninst_clear_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]));
                 ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), to_dev);
@@ -246,7 +252,7 @@ void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode, int device_idx)
                 assert(0);
         }
     }
-
+    
     for (int i = 0; i < nasm->ldata_arr[0].num_ninst; i++)
     {
         ninst_set_compute_device(&(nasm->ldata_arr[0].ninst_arr_start[i]), device_idx);
