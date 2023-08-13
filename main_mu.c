@@ -414,7 +414,6 @@ int main(int argc, char **argv)
                     printf("\t[Edge Device %d]time_offset: %f\n", device_idx, time_offset);
                     read_n(server_sock, &num_sync_edges, sizeof(int));
                 }
-
             }
 
             for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
@@ -492,128 +491,39 @@ int main(int argc, char **argv)
                 }
 
                 // For logging
-                // char file_name[1024];
-                // char dir_path[1024];
-                // sprintf(dir_path, "./logs/%s", dirname);
-
-                // struct stat st = {0};
-                // if (stat("./logs/", &st) == -1) 
-                // {
-                //     mkdir("./logs/", 0700);
-                // }
-                // if (stat(dir_path, &st) == -1) 
-                // {
-                //     mkdir(dir_path, 0700);
-                // }
-
-                // sprintf(file_name, "./logs/%s/%s_%s_%s_%s_Iter%d.csv", 
-                //     dirname, 
-                //     prefix, 
-                //     schedule_policy, 
-                //     device_mode == DEV_SERVER ? "SERVER" : "EDGE", 
-                //     nasm_name, 
-                //     log_idx_start+inf_num);
+                char file_name[1024];
+                char dir_path[1024];
                 
-                // FILE *log_fp = fopen(file_name, "w");
-                // save_ninst_log(log_fp, target_nasm[edge_id]); 
+
+                for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
+                {
+                    if(device_mode == DEV_SERVER || edge_id == device_idx)
+                    {
+                        sprintf(dir_path, "./logs/%s/edge_%d", dirname, edge_id);
+                        struct stat st = {0};
+                        if (stat("./logs/", &st) == -1) 
+                        {
+                            mkdir("./logs/", 0700);
+                        }
+                        if (stat(dir_path, &st) == -1) 
+                        {
+                            mkdir(dir_path, 0700);
+                        }
+
+                        sprintf(file_name, "./logs/%s/edge_%d/%s_%s_%s_%s_Iter%d.csv", 
+                            edge_id,
+                            dirname, 
+                            prefix, 
+                            schedule_policy, 
+                            device_mode == DEV_SERVER ? "SERVER" : "EDGE",
+                            nasm_name, 
+                            log_idx_start+inf_num);
+                    
+                        FILE *log_fp = fopen(file_name, "w");
+                        save_ninst_log(log_fp, target_nasm[edge_id]); 
+                    }
+                }
             }
         }
     }
-
-    // // SYNC HERE
-    // float sync_key;
-    // float sync;
-    // int control_server_sock;
-    // int client_sock_arr[SCHEDULE_MAX_DEVICES];
-
-    // if (device_idx == 0) {
-    //     control_server_sock = create_server_sock(server_ip, server_port_start);
-    //     for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
-    //         client_sock_arr[i] = accept_client_sock(control_server_sock);
-    //     }
-    //     for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
-    //         sync_key = get_time_secs();
-    //         printf("SYNC KEY SEND %d: %f\n", i, sync_key);
-    //         sync += sync_key/2;
-    //         write_n(client_sock_arr[i], &sync_key, sizeof(float));
-    //         read_n(client_sock_arr[i], &sync_key, sizeof(float));
-    //         printf("SYNC KEY RECV %d: %f\n", i, sync_key);
-    //         sync -= sync_key;
-    //         sync_key = get_time_secs();
-    //         printf("SYNC KEY LAST %d: %f\n", i, sync_key);
-    //         sync += sync_key/2;
-    //         printf("SYNC %d: %f\n", i, sync);
-            
-    //         close(client_sock_arr[i]);
-    //     }
-    //     close(control_server_sock);
-    // }
-    // else {
-    //     sleep(5 + device_idx);
-    //     control_server_sock = connect_server_sock(server_ip, server_port_start);
-    //     read_n(control_server_sock, &sync_key, sizeof(float));
-    //     sync_key = get_time_secs();
-    //     write_n(control_server_sock, &sync_key, sizeof(float));
-    //     close(control_server_sock);
-    //     printf("SYNC KEY: %f\n", sync_key);
-    // }
-    
-    // get_elapsed_time ("init");
-    // if (!sequential || device_idx != DEV_SERVER) dse_group_run (dse_group);
-    // if (device_idx == DEV_SERVER) {
-    //     for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
-    //         dse_wait_for_nasm_completion (target_nasm[i]);
-    //     }
-    // }
-    // else {
-    //     dse_wait_for_nasm_completion (target_nasm[device_idx]);
-    // }
-    
-    // get_elapsed_time ("run_aspen");
-    // dse_group_stop (dse_group);
-    
-    // if (device_idx > 0) {
-    //     LAYER_PARAMS output_order[] = {BATCH, OUT_H, OUT_W, OUT_C};
-    //     float *layer_output = dse_get_nasm_result (target_nasm[device_idx], output_order);
-    //     float *softmax_output = calloc (1000*target_nasm[device_idx]->batch_size, sizeof(float));
-    //     naive_softmax (layer_output, softmax_output, target_nasm[device_idx]->batch_size, 1000);
-    //     for (int i = 0; i < target_nasm[device_idx]->batch_size; i++)
-    //     {
-    //         get_probability_results ("data/resnet50/imagenet_classes.txt", softmax_output + 1000*i, 1000);
-    //     }
-
-    //     free (layer_output);
-    //     free (softmax_output);
-    // }
-    
-
-    // // WRAP UP
-    // char file_name[256];
-    // if (device_idx == 0) {
-    //     FILE *log_fp;
-        
-    //     for (int i=1; i<SCHEDULE_MAX_DEVICES; i++) {
-    //         sprintf(file_name, "./logs/multiuser/%s_dev%d_RX.txt", (sequential ? "seq" : "pip"), i);
-    //         log_fp = fopen(file_name, "w");
-
-    //         save_ninst_log(log_fp, target_nasm[i]);
-    //         net_engine_destroy (net_engine_arr[i]);
-    //         apu_destroy_nasm (target_nasm[i]);
-    //         apu_destroy_dnn (target_dnn[i]);
-    //     }
-    // }
-    // else {
-    //     sprintf(file_name, "./logs/multiuser/%s_dev%d_TX.txt", (sequential ? "seq" : "pip"), device_idx);
-    //     FILE *log_fp = fopen(file_name, "w");
-
-    //     save_ninst_log(log_fp, target_nasm[device_idx]);
-    //     net_engine_destroy (net_engine);
-    //     apu_destroy_nasm (target_nasm[device_idx]);
-    //     apu_destroy_dnn (target_dnn[device_idx]);
-    // }
-    // dse_group_destroy (dse_group);
-    // rpool_destroy (rpool);
-
-    // printf("total transferred: %d\n", total_transferred);
-    // return 0;
 }

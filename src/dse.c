@@ -24,7 +24,8 @@ void dse_schedule (dse_t *dse)
     // if ((dse->ninst_cache->num_stored < dse_NINST_CACHE_BALLANCE - dse_NINST_CACHE_DIFF) || 
     //     dse->ninst_cache->num_stored == 0)
     int target_device = dse->device_idx;
-    dse->target_device = target_device;
+    if(dse->device_mode == DEV_LOCAL || dse->profile_compute)
+        dse->target_device = target_device;
     if (dse->target == NULL)
     {
         if (dse->is_multiuser_case)

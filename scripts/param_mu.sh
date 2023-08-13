@@ -1,5 +1,5 @@
 PIPELINED=1
-DIRNAME="temp"
+DIRNAME="multiuser"
 TARGET_DNN_DIR="data/vgg16_base.aspen"
 # TARGET_DNN_DIR="data/resnet50_base.aspen"
 TARGET_NASM_DIR="data/vgg16_B1_T100.nasm"
@@ -14,7 +14,7 @@ SCHEDULE_POLICY="dynamic"
 # SCHEDULE_POLICY="sequential"
 # SCHEDULE_POLICY="conventional"
 SCHED_SEQUENTIAL_IDX=1
-DSE_NUM=6
+DSE_NUM=16
 OUTPUT_ORDER="cnn"
 INFERENCE_REPEAT_NUM=10
 NUM_EDGE_DEVICES=2
