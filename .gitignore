@@ -18,3 +18,5 @@ logs
 main_mu
 subcmdline.c
 subcmdline.h
+.outputs
+.csv
