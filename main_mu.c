@@ -517,8 +517,8 @@ int main(int argc, char **argv)
                         }
 
                         sprintf(file_name, "./logs/%s/edge_%d/%s_%s_%s_%s_Iter%d.csv", 
-                            edge_id,
                             dirname, 
+                            edge_id,
                             prefix, 
                             schedule_policy, 
                             device_mode == DEV_SERVER ? "SERVER" : "EDGE",
