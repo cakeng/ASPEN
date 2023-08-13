@@ -32,6 +32,7 @@ void dse_schedule (dse_t *dse)
         {
             if (dse->device_mode != DEV_SERVER) 
             {
+                dse->target_device = target_device;
                 rpool_fetch_ninsts (dse->rpool_arr[target_device], &dse->target, 1, 0);
                 if (dse->target == NULL)
                     return;
