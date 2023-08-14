@@ -36,12 +36,6 @@ server_dse_num_list=(1 4 8 16)
 edge_dse_num_list=(4 8)
 split_layer_list=()
 
-output_format="cnn"
-#If dnn is bert_base, change output_format to bert
-if [ "$dnn" == "bert_base" ]; then
-    output_format="transformer"
-fi
-
 echo "EDGE_Cred,Split Idx,DNN,Batch size,Number of tiles,EDGE DSEs,SERVER DSEs,BWs,Edge Computing Time (ms),Communication Time (ms),Server Computing Time (ms),Computing Time (ms)" >> $output_csv
 
 for dnn in "${dnn_list[@]}"
@@ -68,6 +62,12 @@ do
         for ((i=1; i<=103; i++)); do
             split_layer_list+=("$i")
         done
+    fi
+
+    output_format="cnn"
+    #If dnn is bert_base, change output_format to bert
+    if [ "$dnn" == "bert_base" ]; then
+        output_format="transformer"
     fi
     
     for bw in "${bw_list[@]}"

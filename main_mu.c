@@ -182,13 +182,23 @@ int main(int argc, char **argv)
             read_n(client_sock_arr[i], &target_dnn_dir_len, sizeof(int));
             read_n(client_sock_arr[i], &target_input_len, sizeof(int));
 
-            target_nasm_dirs[i] = (char*)malloc(target_nasm_dir_len);
-            target_dnn_dirs[i] = (char*)malloc(target_dnn_dir_len);
-            target_inputs[i] = (char*)malloc(target_input_len);
+            printf("%d %d %d\n", target_nasm_dir_len, target_dnn_dir_len, target_input_len);
+
+            target_nasm_dirs[i] = (char*)malloc(target_nasm_dir_len * sizeof(char));
+            target_dnn_dirs[i] = (char*)malloc(target_dnn_dir_len  * sizeof(char));
+            target_inputs[i] = (char*)malloc(target_input_len  * sizeof(char));
+
+            memset(target_nasm_dirs[i], 0, target_nasm_dir_len);
+            memset(target_dnn_dirs[i], 0, target_dnn_dir_len);
+            memset(target_inputs[i], 0, target_input_len);
 
             read_n(client_sock_arr[i], target_nasm_dirs[i], target_nasm_dir_len);
             read_n(client_sock_arr[i], target_dnn_dirs[i], target_dnn_dir_len);
             read_n(client_sock_arr[i], target_inputs[i], target_input_len);
+
+            target_nasm_dirs[i][target_nasm_dir_len] = '\0';
+            target_dnn_dirs[i][target_dnn_dir_len] = '\0';
+            target_inputs[i][target_input_len] = '\0';
 
             printf("\t[EDGE %d] NASM: %s\n", i, target_nasm_dirs[i]);
             printf("\t[EDGE %d] DNN: %s\n", i, target_dnn_dirs[i]);
@@ -203,6 +213,7 @@ int main(int argc, char **argv)
         int target_nasm_dir_len = strlen(target_nasm_dirs[device_idx]);
         int target_dnn_dir_len = strlen(target_dnn_dirs[device_idx]);
         int target_input_len = strlen(target_inputs[device_idx]);
+
         write_n(server_sock, &target_nasm_dir_len, sizeof(int));
         write_n(server_sock, &target_dnn_dir_len, sizeof(int));
         write_n(server_sock, &target_input_len, sizeof(int));
