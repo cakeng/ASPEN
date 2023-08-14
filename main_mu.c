@@ -526,7 +526,15 @@ int main(int argc, char **argv)
                             log_idx_start+inf_num);
                     
                         FILE *log_fp = fopen(file_name, "w");
-                        save_ninst_log(log_fp, target_nasm[edge_id]); 
+                        save_ninst_log(log_fp, target_nasm[edge_id]);
+
+                        int total_received = 0;
+                        for(int j = 0; j < target_nasm[edge_id]->num_ninst; j++)
+                        {
+                            if(target_nasm[edge_id]->ninst_arr[j].received_time != 0)
+                                total_received++;
+                        }
+                        printf("\t[Edge %d] Total received : (%d/%d)\n", edge_id, total_received, target_nasm[edge_id]->num_ninst);
                     }
                 }
             }
