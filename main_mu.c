@@ -137,7 +137,7 @@ int main(int argc, char **argv)
 
 
     // rpool_t *rpool = rpool_init (gpu);
-    rpool_t *rpool_arr[SCHEDULE_MAX_DEVICES];
+    rpool_t *rpool_arr[SCHEDULE_MAX_DEVICES+1];
     rpool_arr[device_idx] = rpool_init(gpu);
 
     if(device_mode == DEV_SERVER)
@@ -196,7 +196,6 @@ int main(int argc, char **argv)
             
             target_dnn[i] = apu_load_dnn_from_file(target_dnn_dirs[i]);
             target_nasm[i] = apu_load_nasm_from_file(target_nasm_dirs[i], target_dnn[i]);
-            
         }
     }
     else if (device_mode == DEV_EDGE)
@@ -211,6 +210,11 @@ int main(int argc, char **argv)
         write_n(server_sock, target_dnn_dirs[device_idx], target_dnn_dir_len);
         write_n(server_sock, target_inputs[device_idx], target_input_len);
 
+        target_dnn[device_idx] = apu_load_dnn_from_file(target_dnn_dirs[device_idx]);
+        target_nasm[device_idx] = apu_load_nasm_from_file(target_nasm_dirs[device_idx], target_dnn[device_idx]);
+    }
+    else if (device_mode == DEV_LOCAL)
+    {
         target_dnn[device_idx] = apu_load_dnn_from_file(target_dnn_dirs[device_idx]);
         target_nasm[device_idx] = apu_load_nasm_from_file(target_nasm_dirs[device_idx], target_dnn[device_idx]);
     }
@@ -316,8 +320,7 @@ int main(int argc, char **argv)
     }
     else if (!strcmp(schedule_policy, "local")) 
     {
-        dse_group_set_device (dse_group, DEV_SERVER);
-        init_sequential_offload (target_nasm, 0, DEV_SERVER, DEV_SERVER);
+        init_sequential_offload (target_nasm[device_idx], 0, device_idx, device_idx);
     }
     else
     {
@@ -330,15 +333,18 @@ int main(int argc, char **argv)
     printf("STAGE: INFERENCE\n");
     if (!strcmp(schedule_policy, "local"))
     {
-        rpool_add_nasm (rpool_arr[device_idx], target_nasm, target_input);
+        rpool_reset(rpool_arr[device_idx]);
+        apu_reset_nasm(target_nasm[device_idx]);
+
+        rpool_add_nasm (rpool_arr[device_idx], target_nasm[device_idx], target_inputs[device_idx]);
 
         double start_time = get_time_secs();
         for (int i = 0; i < inference_repeat_num; i++)
         {
             rpool_reset (rpool_arr[device_idx]);
-            rpool_reset_nasm (rpool_arr[device_idx], target_nasm);
+            rpool_reset_nasm (rpool_arr[device_idx], target_nasm[device_idx]);
             dse_group_run (dse_group);
-            dse_wait_for_nasm_completion (target_nasm);
+            dse_wait_for_nasm_completion (target_nasm[device_idx]);
             dse_group_stop (dse_group);
         }
 
