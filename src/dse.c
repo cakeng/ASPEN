@@ -232,13 +232,16 @@ void dse_schedule (dse_t *dse)
             // check devices to send to for the computation output
             if (!dse->profile_compute && dse->is_multiuser_case) 
             {
-                for (int i = 0; i < dse->num_edge_devices; i++)
+                for (int i = 0; i <= dse->num_edge_devices; i++)
                 {
                     if (i == dse->device_idx) continue;
                     if (atomic_load(&ninst->dev_send_target[i]) == 1) // Should be offload
                     {
-                        networking_engine *net_engine = dse->net_engine_arr[i];
-                        create_network_buffer_for_ninst (ninst);   
+                        networking_engine *net_engine;
+                        if(dse->device_mode == DEV_SERVER) net_engine = dse->net_engine_arr[i];
+                        else if(dse->device_mode == DEV_EDGE) net_engine = dse->net_engine_arr[dse->device_idx];
+                        else continue;
+                        create_network_buffer_for_ninst (ninst);
                         pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
                         if(!is_offloaded(ninst))
                         {
@@ -252,12 +255,15 @@ void dse_schedule (dse_t *dse)
             }
             else if (!dse->profile_compute && !dse->is_multiuser_case)
             {
-                for (int i = 0; i < dse->num_edge_devices; i++) 
+                for (int i = 0; i <= dse->num_edge_devices; i++) 
                 {
                     if (i == dse->device_idx) continue;
                     if (atomic_load(&ninst->dev_send_target[i]) == 1) 
                     {
-                        networking_engine *net_engine = dse->net_engine;
+                        networking_engine *net_engine;
+                        if(dse->device_mode == DEV_SERVER) net_engine = dse->net_engine_arr[i];
+                        else if(dse->device_mode == DEV_EDGE) net_engine = dse->net_engine_arr[dse->device_idx];
+                        else continue;
                         create_network_buffer_for_ninst (ninst);
                         pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
                         if(!is_offloaded(ninst))
