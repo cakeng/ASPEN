@@ -84,9 +84,9 @@ int main(int argc, char **argv)
         server_ports[i] = server_port_start + i;
     }
 
-    if(num_edge_devices > SCHEDULE_MAX_DEVICES-1)
+    if(num_edge_devices > SCHEDULE_MAX_DEVICES)
     {
-        printf("num_edge_devices should be less than %d\n", SCHEDULE_MAX_DEVICES-1);
+        printf("num_edge_devices should be less than %d\n", SCHEDULE_MAX_DEVICES);
         exit(1);
     }
 

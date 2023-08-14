@@ -4,7 +4,7 @@
 #define SCHEDULE_INIT_BUF_SIZE      (1024 * 1024)
 #define PROFILE_REPEAT              4
 #define PROFILE_LONG_MESSAGE_SIZE   (1024 * 256)
-#define SCHEDULE_MAX_DEVICES        5
+#define SCHEDULE_MAX_DEVICES        8
 
 #include "nasm.h"
 #include "profiling.h"
