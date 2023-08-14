@@ -91,8 +91,8 @@ struct ninst_t
     int dse_idx;
 
     // For Scheduling
-    atomic_int dev_to_compute [SCHEDULE_MAX_DEVICES];       // who will compute this ninst?
-    atomic_int dev_send_target [SCHEDULE_MAX_DEVICES];    // who wants the result of this ninst?
+    atomic_int dev_to_compute [SCHEDULE_MAX_DEVICES+1];       // who will compute this ninst?
+    atomic_int dev_send_target [SCHEDULE_MAX_DEVICES+1];    // who wants the result of this ninst?
     atomic_int offloaded;
 
     double compute_start;
