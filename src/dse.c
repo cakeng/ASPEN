@@ -232,7 +232,7 @@ void dse_schedule (dse_t *dse)
             // check devices to send to for the computation output
             if (!dse->profile_compute && dse->is_multiuser_case) 
             {
-                for (int i = 0; i <= dse->num_edge_devices; i++)
+                for (int i = 0; i < dse->num_edge_devices; i++)
                 {
                     if (i == dse->device_idx) continue;
                     if (atomic_load(&ninst->dev_send_target[i]) == 1) // Should be offload
@@ -252,7 +252,7 @@ void dse_schedule (dse_t *dse)
             }
             else if (!dse->profile_compute && !dse->is_multiuser_case)
             {
-                for (int i = 0; i <= dse->num_edge_devices; i++) 
+                for (int i = 0; i < dse->num_edge_devices; i++) 
                 {
                     if (i == dse->device_idx) continue;
                     if (atomic_load(&ninst->dev_send_target[i]) == 1) 

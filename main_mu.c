@@ -84,7 +84,7 @@ int main(int argc, char **argv)
         server_ports[i] = server_port_start + i;
     }
 
-    if(num_edge_devices > SCHEDULE_MAX_DEVICES)
+    if(num_edge_devices >= SCHEDULE_MAX_DEVICES)
     {
         printf("num_edge_devices should be less than %d\n", SCHEDULE_MAX_DEVICES);
         exit(1);
@@ -121,7 +121,7 @@ int main(int argc, char **argv)
             write_n(client_sock_arr[i], &i, sizeof(int));
             printf("\tEdge %d is connected\n", i);
         }
-        device_idx = num_edge_devices;
+        device_idx = num_edge_devices-1;
     }
     else if (device_mode == DEV_EDGE) 
     {
