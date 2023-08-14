@@ -121,7 +121,7 @@ int main(int argc, char **argv)
             write_n(client_sock_arr[i], &i, sizeof(int));
             printf("\tEdge %d is connected\n", i);
         }
-        device_idx = num_edge_devices-1;
+        device_idx = num_edge_devices;
     }
     else if (device_mode == DEV_EDGE) 
     {
