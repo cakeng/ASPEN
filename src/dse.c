@@ -176,7 +176,16 @@ void dse_schedule (dse_t *dse)
                         ninst_t* child_ninst = ninst->child_ninst_arr[i];
                         ninst_set_compute_device(child_ninst, dse->device_idx);
                     }
-                    ninst_set_send_target_device(ninst, dse->num_edge_devices);
+                    
+                    float eft_edge = get_eft_edge(dse->dynamic_scheduler, dse->rpool_arr[target_device], dse->device_idx, dse->net_engine_arr[target_device]->dse_group->num_ases, ninst->num_child_ninsts);
+                    float eft_server = get_eft_server(dse->dynamic_scheduler, dse->net_engine_arr[target_device], dse->device_idx, ninst->tile_dims[OUT_H] * ninst->tile_dims[OUT_W] * sizeof(float));
+                    
+
+                    ninst->eft_edge = eft_edge;
+                    ninst->eft_server = eft_server;
+
+                    if(eft_server <= eft_edge)
+                        ninst_set_send_target_device(ninst, dse->num_edge_devices);
                 }
                 else // For server
                 {
