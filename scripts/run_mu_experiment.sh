@@ -86,6 +86,20 @@ total_server_time=$(awk '{ sum += $1 } END { printf "%f", sum }' time.temp)
 avg_server_time=$(echo "scale=6; $total_server_time/$INFERENCE_REPEAT_NUM/$NUM_EDGE_DEVICES" | bc | awk '{printf "%f", $0}')
 echo "$(date +%T): server took $avg_server_time seconds"
 
+declare -A edge_total_received
+declare -A edge_counts
+
+# "Total received" 값 파싱하여 값과 카운트 저장
+while IFS= read -r line; do
+    if [[ $line =~ \[Edge\ ([0-9]+)\]\ Total\ received\ :\ \(([0-9]+)\/([0-9]+)\) ]]; then
+        edge_num="${BASH_REMATCH[1]}"
+        received="${BASH_REMATCH[2]}"
+        total="${BASH_REMATCH[3]}"
+        edge_total_received[$edge_num]+="$received "
+        ((edge_counts[$edge_num]++))
+    fi
+done <<< "$server_out"
+
 for i in $(seq 1 $NUM_EDGE_DEVICES)
 do
     edge_out=$(cat temp_edge_out$i.tmp)
@@ -95,6 +109,16 @@ do
     total_edge_time=$(awk '{ sum += $1 } END { printf "%f", sum }' time.temp)
     avg_edge_time=$(echo "scale=6; $total_edge_time/$INFERENCE_REPEAT_NUM" | bc | awk '{printf "%f", $0}')
     rm time.temp
-    echo "$(date +%T): edge $i took $avg_edge_time seconds"
-done
 
+    total_received=0
+    total_count=${edge_counts[$edge_num]}
+    received_values=(${edge_total_received[$edge_num]})
+    
+    for received in "${received_values[@]}"; do
+        total_received=$((total_received + received))
+    done
+    
+    average_received=$((total_received / total_count))
+    echo "$(date +%T): edge $i took $avg_edge_time seconds with total received $average_received"
+    # echo "$(date +%T): edge $i took $avg_edge_time seconds with total received ${edge_totals[$i-1]}"
+done
