@@ -244,6 +244,7 @@ void init_sequential_offload(nasm_t *nasm, int split_layer, int from_dev, int to
                     ninst_t *child_ninst = ninst->child_ninst_arr[k];
                     if(atomic_load(&child_ninst->dev_to_compute[to_dev]) == 1)
                     {
+                        printf("(N%d L%d) child: (N%d L%d)\n", ninst->ninst_idx, ninst->ldata->layer->layer_idx, child_ninst->ninst_idx, child_ninst->ldata->layer->layer_idx);
                         ninst_set_compute_device(ninst, to_dev);
                         ninst_set_send_target_device(ninst, to_dev);
                         break;
