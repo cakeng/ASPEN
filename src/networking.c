@@ -322,7 +322,7 @@ void transmission(networking_engine *net_engine)
         bytes_sent += ret;
     }
     #ifdef DEBUG
-    // PRT(" - Time taken %fs, %d tx queue remains.\n", (get_time_secs() - time_sent), net_engine->tx_queue->num_stored);
+    PRT(" - Time taken %fs, %d tx queue remains.\n", (get_time_secs() - time_sent), net_engine->tx_queue->num_stored);
     #endif
 }
 

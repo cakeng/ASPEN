@@ -231,6 +231,27 @@ void init_sequential_offload(nasm_t *nasm, int split_layer, int from_dev, int to
             }
         }
     }
+
+    for (int i = 0; i < nasm->num_ldata; i++) 
+    {
+        if (i < split_layer)
+        {
+            for (int j = 0; j < nasm->ldata_arr[i].num_ninst; j++) 
+            {
+                ninst_t *ninst = &(nasm->ldata_arr[i].ninst_arr_start[j]);
+                for (int k = 0; k < ninst->num_child_ninsts; k++)
+                {
+                    ninst_t *child_ninst = ninst->child_ninst_arr[k];
+                    if(atomic_load(&child_ninst->dev_to_compute[to_dev]) == 1)
+                    {
+                        ninst_set_compute_device(ninst, to_dev);
+                        ninst_set_send_target_device(ninst, to_dev);
+                        break;
+                    }
+                }   
+            }
+        }
+    }
     nasm_set_ninst_send_target_using_child_compute_device (nasm);
     nasm_set_last_layer_ninst_send_target_device (nasm, from_dev);
 }

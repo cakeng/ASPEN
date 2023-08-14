@@ -78,6 +78,7 @@ do
             do
                 for split_idx in "${split_layer_list[@]}"
                 do
+                    eval "killall main_mu"
                     nasm_file="${dnn}_B${batch}_T${num_tile}.nasm"
                     shell_cmd="ssh ${edge_cred}"
                     echo "//////////    Set TC in EDGE    //////////" >> $output_log
@@ -94,6 +95,7 @@ do
                     eval $tc_reset_cmd
                     eval $tc_set_cmd
                     eval $tc_set_bw_cmd
+                    eval "$shell_cmd 'killall main_mu'"
 
                     server_cmd="./main_mu --device_mode=0 --dirname=$dir_name --target_nasm_dir="data/$nasm_file" --target_dnn_dir="data/${dnn}_base.aspen" --target_input=data/batched_input_128.bin --prefix="$dnn" --server_ip="$server_ip" --server_port="$server_port" --schedule_policy="$schedule_policy" --sched_sequential_idx=$split_idx --dse_num=$server_dse_num --output_order="${output_format}" --inference_repeat_num=$inference_repeat_num --num_edge_devices=$NUM_EDGE_DEVICES"
                     edge_cmd_wo_ssh="./main_mu --device_mode=1 --dirname=$dir_name --target_nasm_dir="data/$nasm_file" --target_dnn_dir="data/${dnn}_base.aspen" --target_input=data/batched_input_128.bin --prefix="$dnn" --server_ip="$server_ip" --server_port="$server_port" --schedule_policy="$schedule_policy" --sched_sequential_idx=$split_idx --dse_num=$edge_dse_num --output_order="${output_format}" --inference_repeat_num=$inference_repeat_num --num_edge_devices=$NUM_EDGE_DEVICES"

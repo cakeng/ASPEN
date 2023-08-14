@@ -165,6 +165,17 @@ void dse_schedule (dse_t *dse)
             if (dse->profile_compute) ninst->compute_end = ninst->computed_time;
 
             ninst->dse_idx = dse->thread_id;
+
+            for(int i = 0; i < ninst->num_child_ninsts; i++)
+            {
+                ninst_t* child_ninst = ninst->child_ninst_arr[i];
+                if(atomic_load(&child_ninst->dev_to_compute[dse->num_edge_devices]) == 1)
+                {
+                   ninst_set_send_target_device(ninst, dse->num_edge_devices);
+                   break;
+                }
+            }
+
             // For dynamic offloading
             if(dse->is_dynamic_scheduling)
             {
