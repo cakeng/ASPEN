@@ -141,7 +141,7 @@ float get_edge_offline_latency_to_split_layer(spinn_scheduler_t* spinn_scheduler
     return latency_sum;
 }
 
-float get_server_offline_latency_to_split_layer(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int device_idx, int split_layer)
+float get_server_offline_latency_from_split_layer(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int device_idx, int split_layer)
 {
     int num_ninsts = 0;
     int data_size = 0;
@@ -165,18 +165,16 @@ void spinn_offline_profile(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int
     {
         int split_layer = spinn_scheduler->split_candidates[device_idx][i];
         spinn_scheduler->edge_offline_layer_latency[device_idx][i] = get_edge_offline_latency_to_split_layer(spinn_scheduler, nasm, device_idx, split_layer);
-        spinn_scheduler->server_offline_layer_latency[device_idx][i] = get_server_offline_latency_to_split_layer(spinn_scheduler, nasm, device_idx, split_layer);
-        printf("%d, %f, %f\n", split_layer, spinn_scheduler->edge_offline_layer_latency[device_idx][i], spinn_scheduler->server_offline_layer_latency[device_idx][i]);
+        spinn_scheduler->server_offline_layer_latency[device_idx][i] = get_server_offline_latency_from_split_layer(spinn_scheduler, nasm, device_idx, split_layer);
     }
 }
 
-// void spinn_update_profile(spinn_scheduler_t* spinn_scheduler, avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile)
-// {
-//     if(ninst_profile != NULL)
-//         spinn_scheduler->ninst_profile = ninst_profile;
-//     if(network_profile != NULL)
-//         spinn_scheduler->network_profile = network_profile;
-// }
+void spinn_update_profile(spinn_scheduler_t* spinn_scheduler, float rtt, float avg_bandwidth, float prev_server_latency, int device_idx)
+{
+    spinn_scheduler->rtt[device_idx] = rtt;
+    spinn_scheduler->avg_bandwidth[device_idx] = avg_bandwidth;
+    spinn_scheduler->prev_server_latency[device_idx] = prev_server_latency;
+}
 
 spinn_scheduler_t* init_spinn_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, nasm_t** nasms, DEVICE_MODE device_mode, int device_idx, int num_edge_devices)    
 {
@@ -209,7 +207,8 @@ int spinn_schedule_layer(spinn_scheduler_t* spinn_scheduler, int device_idx)
     float min_latency = 100000000.0;
     for(int i = 0; i < spinn_scheduler->num_split_candidates[device_idx]; i++)
     {
-        float latency = spinn_scheduler->edge_offline_layer_latency[device_idx][i] + spinn_scheduler->server_offline_layer_latency[device_idx][i];
+        float latency = spinn_scheduler->edge_offline_layer_latency[device_idx][i] * spinn_scheduler->edge_scaling_factors[device_idx][i] + 
+            spinn_scheduler->server_offline_layer_latency[device_idx][i];
         if(latency < min_latency)
         {
             min_latency = latency;

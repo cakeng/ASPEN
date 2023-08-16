@@ -318,10 +318,9 @@ int main(int argc, char **argv)
         {
             if(device_mode == DEV_SERVER || device_idx == edge_id)
             {
-                int split_layer = spinn_schedule_layer(spinn_scheduler, edge_id);
-                printf("\t[Edge Device %d] Split Layer: %d\n", edge_id, split_layer);
+                sched_sequential_idx = spinn_schedule_layer(spinn_scheduler, edge_id);
+                printf("\t[Edge Device %d] Split Layer: %d\n", edge_id, sched_sequential_idx);
                 init_sequential_offload(target_nasm[edge_id], sched_sequential_idx, edge_id, num_edge_devices); // server idx == num_edge_devices
-                // printf("\t[Edge Device %d] Split Layer: %d\n", edge_id, split_layer);
             }
         }
     }
@@ -466,6 +465,12 @@ int main(int argc, char **argv)
                     apu_reset_nasm(target_nasm[edge_id]);
 
                     if (!strcmp(schedule_policy, "dynamic")) init_dynamic_offload(target_nasm[edge_id], device_mode, edge_id, num_edge_devices);
+                    if (!strcmp(schedule_policy, "spinn") || !strcmp(schedule_policy, "spinn+pipeline"))
+                    {
+                        spinn_update_profile(spinn_scheduler, edge_id);
+                        sched_sequential_idx = spinn_schedule_layer(spinn_scheduler, edge_id);
+                        init_sequential_offload(target_nasm[edge_id], split_layer, edge_id, num_edge_devices); // server idx == num_edge_devices
+                    } 
 
                     set_nasm_inference_id(target_nasm[edge_id], connection_key);
                     add_inference_whitelist(net_engine_arr[edge_id], target_nasm[edge_id]->inference_id);
