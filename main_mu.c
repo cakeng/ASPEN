@@ -511,7 +511,6 @@ int main(int argc, char **argv)
                             read_n(server_sock, &max_recv_time, sizeof(float));
                             prev_bandwidth = spinn_scheduler->data_size_split_candidates[edge_id][spinn_scheduler->current_split_layer[edge_id]-1] * 8 / (max_recv_time - min_sent_time) / 125000;
                             spinn_update_profile(spinn_scheduler, spinn_scheduler->rtt[edge_id], prev_bandwidth, prev_edge_latency, prev_server_latency, edge_id);
-                            printf("%f, %f", prev_edge_latency, prev_server_latency);
                         }
                     }
                 }
@@ -532,11 +531,12 @@ int main(int argc, char **argv)
                         if(device_mode == DEV_SERVER)
                         {
                             read_n(client_sock_arr[edge_id], &sched_sequential_idx, sizeof(int));
-                            printf("\t[Edge Device %d]sequential idx: %d\n", edge_id, sched_sequential_idx);
+                            printf("\t[Edge Device %d] Split Layer: %d\n", edge_id, sched_sequential_idx);
                         }
                         else if(device_mode == DEV_EDGE)
                         {
                             sched_sequential_idx = spinn_schedule_layer(spinn_scheduler, target_nasm[edge_id], edge_id);
+                            printf("\t[Edge Device %d] Split Layer: %d\n", edge_id, sched_sequential_idx);
                             write_n(server_sock, &sched_sequential_idx, sizeof(int));   
                         }
                         init_sequential_offload(target_nasm[edge_id], sched_sequential_idx, edge_id, num_edge_devices); // server idx == num_edge_devices
