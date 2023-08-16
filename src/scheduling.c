@@ -232,7 +232,7 @@ int spinn_schedule_layer(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int d
         float latency = spinn_scheduler->edge_offline_layer_latency[device_idx][i] * spinn_scheduler->edge_scaling_factors[device_idx][i] + 
             spinn_scheduler->server_offline_layer_latency[device_idx][i] * spinn_scheduler->server_scaling_factors[device_idx][i] +
             get_data_transmission_latency(spinn_scheduler, nasm, device_idx, spinn_scheduler->split_candidates[device_idx][i]);
-        
+        printf("%d: %f\n", spinn_scheduler->split_candidates[device_idx][i], latency);   
         if(latency < min_latency)
         {
             min_latency = latency;
