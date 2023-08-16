@@ -119,6 +119,8 @@ dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile,
             dynamic_scheduler->avg_edge_ninst_compute_time[i] = ninst_profile[i]->avg_edge_computation_time;
             dynamic_scheduler->avg_bandwidth[i] = network_profile[i]->transmit_rate;
             dynamic_scheduler->rtt[i] = network_profile[i]->rtt;
+            dynamic_scheduler->edge_num_dse[i] = ninst_profile[i]->edge_num_dse;
+            dynamic_scheduler->server_num_dse[i] = ninst_profile[i]->server_num_dse;
             // ** TODO : Implement PF scheduler **
             dynamic_scheduler->scheduling_latency[i] = 0.0;
         }
@@ -155,6 +157,8 @@ float get_server_offline_latency_to_split_layer(spinn_scheduler_t* spinn_schedul
                 spinn_scheduler->rtt[device_idx] * num_ninsts + 
                 data_size * 8 / spinn_scheduler->avg_bandwidth[device_idx] / 1000000; // Transmission latency;
 
+    printf("%f %f %f\n", spinn_scheduler->avg_server_ninst_compute_time[device_idx] * num_ninsts, spinn_scheduler->rtt[device_idx] * num_ninsts, data_size * 8 / spinn_scheduler->avg_bandwidth[device_idx] / 1000000);
+
     return latency_sum;
 }
 
@@ -189,6 +193,8 @@ spinn_scheduler_t* init_spinn_scheduler(avg_ninst_profile_t **ninst_profile, net
             spinn_scheduler->avg_edge_ninst_compute_time[edge_id] = ninst_profile[edge_id]->avg_edge_computation_time;
             spinn_scheduler->avg_bandwidth[edge_id] = network_profile[edge_id]->transmit_rate;
             spinn_scheduler->rtt[edge_id] = network_profile[edge_id]->rtt;
+            spinn_scheduler->edge_num_dse[edge_id] = ninst_profile[edge_id]->edge_num_dse;
+            spinn_scheduler->server_num_dse[edge_id] = ninst_profile[edge_id]->server_num_dse;
 
             // Model Splitter : Find Conv, Maxpool, Residual layers and store indices to split_candidates
             spinn_model_splitter(spinn_scheduler, nasms[edge_id], edge_id);

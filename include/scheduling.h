@@ -49,6 +49,9 @@ struct dynamic_scheduler_t{
     float avg_bandwidth[SCHEDULE_MAX_DEVICES];
     float rtt[SCHEDULE_MAX_DEVICES];
 
+    int edge_num_dse[SCHEDULE_MAX_DEVICES];
+    int server_num_dse[SCHEDULE_MAX_DEVICES];
+
     float scheduling_latency[SCHEDULE_MAX_DEVICES]; // obtained by scheduling policy in cloud
 };
 
@@ -67,6 +70,8 @@ struct spinn_scheduler_t{
     // For computation profile
     float avg_server_ninst_compute_time[SCHEDULE_MAX_DEVICES];
     float avg_edge_ninst_compute_time[SCHEDULE_MAX_DEVICES];
+    int edge_num_dse[SCHEDULE_MAX_DEVICES];
+    int server_num_dse[SCHEDULE_MAX_DEVICES];
     
     // For layer profile
     float *server_offline_layer_latency[SCHEDULE_MAX_DEVICES]; //[SCHEDULE_MAX_DEVICES][MAX_LAYERS];

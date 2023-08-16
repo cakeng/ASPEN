@@ -9,6 +9,8 @@ struct avg_ninst_profile_t {
     int num_ninsts;
     float avg_server_computation_time;
     float avg_edge_computation_time;
+    int edge_num_dse;
+    int server_num_dse;
 };
 
 struct ninst_profile_t {
