@@ -1,4 +1,4 @@
-vgg16
-resnet50
-yolov3
 bert_base
+yolov3
+resnet50
+vgg16
