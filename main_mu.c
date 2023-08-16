@@ -502,14 +502,25 @@ int main(int argc, char **argv)
                             {
                                 if(target_nasm[edge_id]->ninst_arr[i].sent_time != 0)
                                 {
-                                    if(target_nasm[edge_id]->ninst_arr[i].sent_time > min_sent_time)
+                                    if(target_nasm[edge_id]->ninst_arr[i].sent_time < min_sent_time)
                                         min_sent_time = target_nasm[edge_id]->ninst_arr[i].received_time;
+                                }
+                            }
+                            int current_split_layer = spinn_scheduler->current_split_layer[device_idx];
+                            int idx = -1;
+                            for (int i = 0; i < spinn_scheduler->num_split_candidates[device_idx]; i++)
+                            {
+                                if (spinn_scheduler->split_candidates[device_idx][i] == current_split_layer)
+                                {
+                                    idx = i;
+                                    break;
                                 }
                             }
                             prev_edge_latency = max_computed_time - min_computed_time;
                             read_n(server_sock, &prev_server_latency, sizeof(float));
                             read_n(server_sock, &max_recv_time, sizeof(float));
-                            prev_bandwidth = spinn_scheduler->data_size_split_candidates[edge_id][spinn_scheduler->current_split_layer[edge_id]-1] * 8 / (max_recv_time - min_sent_time) / 125000;
+
+                            prev_bandwidth = spinn_scheduler->data_size_split_candidates[edge_id][idx] * 8 / (max_recv_time - min_sent_time) / 125000;
                             spinn_update_profile(spinn_scheduler, spinn_scheduler->rtt[edge_id], prev_bandwidth, prev_edge_latency, prev_server_latency, edge_id);
                         }
                     }
