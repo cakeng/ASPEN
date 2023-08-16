@@ -69,11 +69,12 @@ int main(int argc, char **argv)
 
     sched_processor_t *schedule;
     dynamic_scheduler_t *dynamic_scheduler;
+    spinn_scheduler_t *spinn_scheduler;
 
     aspen_dnn_t *target_dnn[SCHEDULE_MAX_DEVICES];
     nasm_t *target_nasm[SCHEDULE_MAX_DEVICES];
 
-    int is_conventional = !strcmp(schedule_policy, "conventional");
+    int is_conventional = !strcmp(schedule_policy, "conventional") || !strcmp(schedule_policy, "spinn");
     int server_sock;
     int client_sock_arr[SCHEDULE_MAX_DEVICES];
 
@@ -287,20 +288,28 @@ int main(int argc, char **argv)
     printf ("STAGE: SCHEDULING - %s\n", schedule_policy);
     if (!strcmp(schedule_policy, "partial")) 
         init_partial_offload(target_nasm[device_idx], 0.0);
-    if (!strcmp(schedule_policy, "conventional"))
+    if (!strcmp(schedule_policy, "conventional") || !strcmp(schedule_policy, "conventional+pipeline"))
     {
         for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
         {
             if(device_mode == DEV_SERVER || device_idx == edge_id)
+            {
                 init_sequential_offload(target_nasm[edge_id], sched_sequential_idx, edge_id, num_edge_devices); // server idx == num_edge_devices
+            }
         }
     }
-    else if (!strcmp(schedule_policy, "sequential")) 
+    else if (!strcmp(schedule_policy, "spinn") || !strcmp(schedule_policy, "spinn+pipeline"))
     {
+        spinn_scheduler = init_spinn_scheduler(ninst_profile, network_profile, target_nasm, device_mode, device_idx, num_edge_devices);
         for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
         {
             if(device_mode == DEV_SERVER || device_idx == edge_id)
+            {
+                int split_layer = spinn_schedule_layer(spinn_scheduler, edge_id);
+                printf("\t[Edge Device %d] Split Layer: %d\n", edge_id, split_layer);
                 init_sequential_offload(target_nasm[edge_id], sched_sequential_idx, edge_id, num_edge_devices); // server idx == num_edge_devices
+                // printf("\t[Edge Device %d] Split Layer: %d\n", edge_id, split_layer);
+            }
         }
     }
     else if (!strcmp(schedule_policy, "partial")) 
@@ -366,7 +375,8 @@ int main(int argc, char **argv)
     {
         dse_group_set_multiuser (dse_group, 1);
         if (device_mode == DEV_SERVER) {
-            if (!strcmp(schedule_policy, "conventional")) 
+            if (!strcmp(schedule_policy, "conventional") || !strcmp(schedule_policy, "conventional+pipeline") || 
+                        !strcmp(schedule_policy, "spinn") || !strcmp(schedule_policy, "spinn+pipeline")) 
                 dse_group_init_enable_device(dse_group, num_edge_devices);
             else 
             {
@@ -488,6 +498,7 @@ int main(int argc, char **argv)
                 }
             }
 
+            // Get results and save logs
             for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
             {
                 if(device_mode == DEV_SERVER || device_idx == edge_id)
@@ -513,47 +524,47 @@ int main(int argc, char **argv)
                 char dir_edge_path[1024];
                 
 
-                for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
+                // for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
+                // {
+                //     if(device_mode == DEV_SERVER || edge_id == device_idx)
+                //     {
+                sprintf(dir_path, "./logs/%s", dirname);
+                sprintf(dir_edge_path, "./logs/%s/edge_%d", dirname, edge_id);
+                struct stat st = {0};
+                if (stat("./logs/", &st) == -1) 
                 {
-                    if(device_mode == DEV_SERVER || edge_id == device_idx)
-                    {
-                        sprintf(dir_path, "./logs/%s", dirname);
-                        sprintf(dir_edge_path, "./logs/%s/edge_%d", dirname, edge_id);
-                        struct stat st = {0};
-                        if (stat("./logs/", &st) == -1) 
-                        {
-                            mkdir("./logs/", 0700);
-                        }
-                        if (stat(dir_path, &st) == -1) 
-                        {
-                            mkdir(dir_path, 0700);
-                        }
-                        if (stat(dir_edge_path, &st) == -1) 
-                        {
-                            mkdir(dir_edge_path, 0700);
-                        }
-
-                        sprintf(file_name, "./logs/%s/edge_%d/%s_%s_%s_%s_Iter%d.csv", 
-                            dirname, 
-                            edge_id,
-                            prefix, 
-                            schedule_policy, 
-                            device_mode == DEV_SERVER ? "SERVER" : "EDGE",
-                            nasm_name, 
-                            log_idx_start+inf_num);
-                    
-                        FILE *log_fp = fopen(file_name, "w");
-                        save_ninst_log(log_fp, target_nasm[edge_id]);
-
-                        int total_received = 0;
-                        for(int j = 0; j < target_nasm[edge_id]->num_ninst; j++)
-                        {
-                            if(target_nasm[edge_id]->ninst_arr[j].received_time != 0)
-                                total_received++;
-                        }
-                        printf("\t[Edge %d] Total received : (%d/%d)\n", edge_id, total_received, target_nasm[edge_id]->num_ninst);
-                    }
+                    mkdir("./logs/", 0700);
                 }
+                if (stat(dir_path, &st) == -1) 
+                {
+                    mkdir(dir_path, 0700);
+                }
+                if (stat(dir_edge_path, &st) == -1) 
+                {
+                    mkdir(dir_edge_path, 0700);
+                }
+
+                sprintf(file_name, "./logs/%s/edge_%d/%s_%s_%s_%s_Iter%d.csv", 
+                    dirname, 
+                    edge_id,
+                    prefix, 
+                    schedule_policy, 
+                    device_mode == DEV_SERVER ? "SERVER" : "EDGE",
+                    nasm_name, 
+                    log_idx_start+inf_num);
+            
+                FILE *log_fp = fopen(file_name, "w");
+                save_ninst_log(log_fp, target_nasm[edge_id]);
+
+                int total_received = 0;
+                for(int j = 0; j < target_nasm[edge_id]->num_ninst; j++)
+                {
+                    if(target_nasm[edge_id]->ninst_arr[j].received_time != 0)
+                        total_received++;
+                }
+                printf("\t[Edge %d] Total received : (%d/%d)\n", edge_id, total_received, target_nasm[edge_id]->num_ninst);
+                    // }
+                // }
             }
         }
     }

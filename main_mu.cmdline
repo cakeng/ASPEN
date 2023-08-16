@@ -15,7 +15,7 @@ option "target_nasm_dir" - "" string required
 option "target_input" - "" string required
 option "server_ip" - "" string required
 option "server_port" - "" int required
-option "schedule_policy" - "" string required values="partial","sequential","dynamic","local","conventional"
+option "schedule_policy" - "" string required values="partial","conventional+pipeline","dynamic","local","conventional","spinn","spinn+pipeline"
 option "sched_partial_ratio" - "" float optional
 option "sched_sequential_idx" - "" int optional
 option "dse_num" - "" int required
