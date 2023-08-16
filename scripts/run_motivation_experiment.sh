@@ -30,7 +30,7 @@ nasm_file="${dnn}_B${batch}_T${num_tile}.nasm"
 schedule_policy='conventional'
 
 
-dnn_list=("resnet50" "bert_base" "yolov3" "vgg16")
+dnn_list=("resnet50" "bert" "yolov3" "vgg16")
 bw_list=(10 50 80)
 server_dse_num_list=(1 4 8 16)
 edge_dse_num_list=(4 8)
@@ -66,7 +66,7 @@ do
 
     output_format="cnn"
     #If dnn is bert_base, change output_format to bert
-    if [ "$dnn" == "bert_base" ]; then
+    if [ "$dnn" == "bert" ]; then
         output_format="transformer"
     fi
     
@@ -112,7 +112,7 @@ do
 
                     eval $server_cmd 2>&1 | tee temp_server_out.tmp &
                     server_pid=$!
-                    sleep 2
+                    sleep 3
                     
                     #Run EDGE in foreground and store output in a temporary file
                     edge_pid_list=()
@@ -125,7 +125,7 @@ do
                         echo "    $(date +%T): edge PID: ${edge_pid_list[$i-1]}"
                     done
 
-                    wait_time=600
+                    wait_time=210
                     total_finish=0
                     while [ $wait_time -gt 0 ]; do
                         for edge_pid in "${edge_pid_list[@]}"

@@ -127,6 +127,41 @@ dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile,
     return dynamic_scheduler;
 }
 
+spinn_scheduler_t* init_spinn_scheduler(nasm_t** nasms, DEVICE_MODE device_mode, int device_idx, int num_edge_devices)    
+{
+    spinn_scheduler_t* spinn_scheduler = calloc(1, sizeof(spinn_scheduler_t));
+    
+    // Model Splitter : Find ReLU layers and store indices to split_candidates
+    for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
+    {
+        if(device_mode == DEV_SERVER || device_idx == edge_id)
+        {
+            spinn_model_splitter(spinn_scheduler, nasms[edge_id], edge_id);
+        }
+    }
+
+    return spinn_scheduler;
+}
+
+void spinn_model_splitter(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int device_idx)
+{
+    // ** TODO : Implement SPINN model splitter **
+    printf("[SPINN Model Splitter]\n");
+    printf("\tObtained split candidates: ");
+    int num_split_candidates = 0;
+    spinn_scheduler->split_candidates[device_idx] = calloc(nasm->num_ldata, sizeof(int));
+    for(int i = 0; i < nasm->num_ldata; i++)
+    {
+        if(nasm->ldata_arr[i].layer->type == ACTIVATION_LAYER)
+        {
+            spinn_scheduler->split_candidates[num_split_candidates] = i;
+            num_split_candidates++;
+            printf("%d ", i);
+        }
+    }
+    printf("\n");
+}
+
 float get_eft_edge(dynamic_scheduler_t* dynamic_scheduler, rpool_t* rpool, int device_idx, int num_dse, int num_child_ninsts)
 {
     unsigned int rpool_num_stored = atomic_load(&rpool->num_stored);
@@ -232,27 +267,6 @@ void init_sequential_offload(nasm_t *nasm, int split_layer, int from_dev, int to
         }
     }
 
-    // for (int i = 0; i < nasm->num_ldata; i++) 
-    // {
-    //     if (i < split_layer)
-    //     {
-    //         for (int j = 0; j < nasm->ldata_arr[i].num_ninst; j++) 
-    //         {
-    //             ninst_t *ninst = &(nasm->ldata_arr[i].ninst_arr_start[j]);
-    //             for (int k = 0; k < ninst->num_child_ninsts; k++)
-    //             {
-    //                 ninst_t *child_ninst = ninst->child_ninst_arr[k];
-    //                 if(atomic_load(&child_ninst->dev_to_compute[to_dev]) == 1)
-    //                 {
-    //                     printf("(N%d L%d) child: (N%d L%d)\n", ninst->ninst_idx, ninst->ldata->layer->layer_idx, child_ninst->ninst_idx, child_ninst->ldata->layer->layer_idx);
-    //                     ninst_set_compute_device(ninst, to_dev);
-    //                     ninst_set_send_target_device(ninst, to_dev);
-    //                     break;
-    //                 }
-    //             }   
-    //         }
-    //     }
-    // }
     nasm_set_ninst_send_target_using_child_compute_device (nasm);
     nasm_set_last_layer_ninst_send_target_device (nasm, from_dev);
 }

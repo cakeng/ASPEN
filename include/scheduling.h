@@ -52,6 +52,26 @@ struct dynamic_scheduler_t{
     float scheduling_latency[SCHEDULE_MAX_DEVICES]; // obtained by scheduling policy in cloud
 };
 
+struct spinn_scheduler_t{
+    // split candidates of SPINNN are ReLU layers
+    int *split_candidates[SCHEDULE_MAX_DEVICES];
+
+    // For network profile
+    float avg_bandwidth[SCHEDULE_MAX_DEVICES];
+    float rtt[SCHEDULE_MAX_DEVICES];
+    int *data_size_split_candidates[SCHEDULE_MAX_DEVICES];
+    
+    // For layer profile
+    float *server_offline_layer_latency[SCHEDULE_MAX_DEVICES];
+    float *server_real_latency[SCHEDULE_MAX_DEVICES];
+    float *edge_offline_layer_latency[SCHEDULE_MAX_DEVICES];
+    float *edge_real_latency[SCHEDULE_MAX_DEVICES];
+    
+    // SF = T_real / T_offline for all split candidates
+    float *edge_scaling_factors[SCHEDULE_MAX_DEVICES];
+    float *server_scaling_factors[SCHEDULE_MAX_DEVICES];
+};
+
 int is_offloaded(ninst_t *ninst);
 int is_dev_compute(ninst_t *ninst, int device_idx);
 void ninst_clear_compute_device(ninst_t *ninst);

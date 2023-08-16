@@ -118,6 +118,7 @@ typedef struct network_profile_t network_profile_t;
 typedef struct sched_task_t sched_task_t;
 typedef struct sched_processor_t sched_processor_t;
 typedef struct dynamic_scheduler_t dynamic_scheduler_t;
+typedef struct spinn_scheduler_t spinn_scheduler_t;
 
 aspen_dnn_t *apu_create_dnn(char *input_path, char *data_path);
 void apu_destroy_dnn(aspen_dnn_t *dnn);
