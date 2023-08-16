@@ -60,7 +60,7 @@ struct spinn_scheduler_t{
     int *split_candidates[SCHEDULE_MAX_DEVICES];
     int num_split_candidates[SCHEDULE_MAX_DEVICES];
 
-    int current_split_layer;
+    int current_split_layer[SCHEDULE_MAX_DEVICES];
 
     // For network profile
     float avg_bandwidth[SCHEDULE_MAX_DEVICES];
@@ -77,7 +77,7 @@ struct spinn_scheduler_t{
     float *server_offline_layer_latency[SCHEDULE_MAX_DEVICES]; //[SCHEDULE_MAX_DEVICES][MAX_LAYERS];
     float *server_real_latency[SCHEDULE_MAX_DEVICES];       //[SCHEDULE_MAX_DEVICES][MAX_LAYERS];
     float *edge_offline_layer_latency[SCHEDULE_MAX_DEVICES]; //[SCHEDULE_MAX_DEVICES][MAX_LAYERS];
-    float prev_server_latency[SCHEDULE_MAX_DEVICES];
+    float *edge_real_latency[SCHEDULE_MAX_DEVICES];       //[SCHEDULE_MAX_DEVICES][MAX_LAYERS];
     
     // SF = T_real / T_offline for all split candidates
     float *edge_scaling_factors[SCHEDULE_MAX_DEVICES]; //[SCHEDULE_MAX_DEVICES][MAX_LAYERS];
@@ -96,8 +96,8 @@ void ninst_copy_compute_device(ninst_t* target_ninst, ninst_t* ninst);
 dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, DEVICE_MODE device_mode, int device_idx, int num_edge_devices);
 spinn_scheduler_t* init_spinn_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, nasm_t** nasms, DEVICE_MODE device_mode, int device_idx, int num_edge_devices);
 
-void spinn_update_profile(spinn_scheduler_t* spinn_scheduler, avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile);
-int spinn_schedule_layer(spinn_scheduler_t* spinn_scheduler, int device_idx);
+void spinn_update_profile(spinn_scheduler_t* spinn_scheduler, float rtt, float avg_bandwidth, float avg_edge_latency, float avg_server_latency, int device_idx);
+int spinn_schedule_layer(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int device_idx);
 
 void init_full_local(nasm_t *nasm);
 void init_full_offload(nasm_t *nasm);
