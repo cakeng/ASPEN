@@ -547,10 +547,10 @@ void destroy_ninst (ninst_t *ninst)
         free (ninst->parent_ninst_idx_arr);
     if (ninst->child_ninst_arr != NULL)
         free (ninst->child_ninst_arr);
-    if (ninst->input_pos_idx_arr != NULL)
-        free (ninst->input_pos_idx_arr);
-    if (ninst->input_pos_ptr_arr_gpu != NULL && ninst->ldata->nasm->gpu_idx >= 0)
-        aspen_gpu_free (ninst->input_pos_ptr_arr_gpu, ninst->ldata->nasm->gpu_idx);
+    // if (ninst->input_pos_idx_arr != NULL)
+    //     free (ninst->input_pos_idx_arr);
+    // if (ninst->input_pos_ptr_arr_gpu != NULL && ninst->ldata->nasm->gpu_idx >= 0)
+    //     aspen_gpu_free (ninst->input_pos_ptr_arr_gpu, ninst->ldata->nasm->gpu_idx);
 }
 
 nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size,  unsigned int min_ninst_per_ldata, unsigned int transformer_seq_len)

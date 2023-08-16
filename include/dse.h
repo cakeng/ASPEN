@@ -11,7 +11,7 @@
 
 #define dse_NINST_CACHE_BALLANCE 1
 #define dse_NINST_CACHE_DIFF 0
-#define dse_SCRATCHPAD_SIZE 1024*1024*32 // 32 MB
+#define dse_SCRATCHPAD_SIZE 1024*512 // 512 KiB
 
 struct dse_group_t
 {
