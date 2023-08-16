@@ -292,7 +292,7 @@ void spinn_model_splitter(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int 
     
     
     printf("\n");
-    printf("\tTotal num split candidates: (%d/%d)\n", num_split_candidates, nasm->num_ldata);
+    // printf("\tTotal num split candidates: (%d/%d)\n", num_split_candidates, nasm->num_ldata);
 }
 
 float get_eft_edge(dynamic_scheduler_t* dynamic_scheduler, rpool_t* rpool, int device_idx, int num_dse, int num_child_ninsts)
