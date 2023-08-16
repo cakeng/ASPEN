@@ -183,8 +183,6 @@ int main(int argc, char **argv)
             read_n(client_sock_arr[i], &target_dnn_dir_len, sizeof(int));
             read_n(client_sock_arr[i], &target_input_len, sizeof(int));
 
-            printf("%d %d %d\n", target_nasm_dir_len, target_dnn_dir_len, target_input_len);
-
             target_nasm_dirs[i] = (char*)malloc(target_nasm_dir_len * sizeof(char));
             target_dnn_dirs[i] = (char*)malloc(target_dnn_dir_len  * sizeof(char));
             target_inputs[i] = (char*)malloc(target_input_len  * sizeof(char));
@@ -301,6 +299,21 @@ int main(int argc, char **argv)
     else if (!strcmp(schedule_policy, "spinn") || !strcmp(schedule_policy, "spinn+pipeline"))
     {
         spinn_scheduler = init_spinn_scheduler(ninst_profile, network_profile, target_nasm, device_mode, device_idx, num_edge_devices);
+
+        printf("\t[Device %d]Init SPINN scheduler\n", device_idx);
+        for(int i = 0; i < num_edge_devices; i++)
+        {
+            if(device_mode == DEV_SERVER || device_idx == i)
+            {
+                printf("\t[Device %d]Avg server ninst computation time: %fms\n", i, spinn_scheduler->avg_server_ninst_compute_time[i]*1000);
+                printf("\t[Device %d]Num serve dse: %d\n", i, spinn_scheduler->server_num_dse[i]);
+                printf("\t[Device %d]Avg edge ninst computation time:   %fms\n", i, spinn_scheduler->avg_edge_ninst_compute_time[i]*1000);
+                printf("\t[Device %d]Num edge dse: %d\n", i, spinn_scheduler->edge_num_dse[i]);
+                printf("\t[Device %d]Avg bandwidth: %fMbps\n", i, spinn_scheduler->avg_bandwidth[i]);
+                printf("\t[Device %d]RTT: %fms\n", i, spinn_scheduler->rtt[i] * 1000.0);
+            }
+        }
+
         for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
         {
             if(device_mode == DEV_SERVER || device_idx == edge_id)

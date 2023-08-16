@@ -136,7 +136,7 @@ float get_edge_offline_latency_to_split_layer(spinn_scheduler_t* spinn_scheduler
     for(int i = 0; i < split_layer; i++)
         num_ninsts += nasm->ldata_arr[i].num_ninst;
     
-    latency_sum = spinn_scheduler->avg_edge_ninst_compute_time[device_idx] * num_ninsts;
+    latency_sum = spinn_scheduler->avg_edge_ninst_compute_time[device_idx] * num_ninsts / spinn_scheduler->edge_num_dse[device_idx];
 
     return latency_sum;
 }
@@ -147,17 +147,14 @@ float get_server_offline_latency_to_split_layer(spinn_scheduler_t* spinn_schedul
     int data_size = 0;
     float latency_sum = 0.0;
     for(int i = split_layer; i < nasm->num_ldata; i++)
-    {
         num_ninsts += nasm->ldata_arr[i].num_ninst;
-        for(int j = 0; j < nasm->ldata_arr[i].num_ninst; j++)
-            data_size += nasm->ldata_arr[i].ninst_arr_start[j].tile_dims[OUT_W] * nasm->ldata_arr[i].ninst_arr_start[j].tile_dims[OUT_H] * sizeof(float);
-    }
-        
-    latency_sum = spinn_scheduler->avg_server_ninst_compute_time[device_idx] * num_ninsts + 
-                spinn_scheduler->rtt[device_idx] * num_ninsts + 
-                data_size * 8 / spinn_scheduler->avg_bandwidth[device_idx] / 1000000; // Transmission latency;
 
-    printf("%f %f %f\n", spinn_scheduler->avg_server_ninst_compute_time[device_idx] * num_ninsts, spinn_scheduler->rtt[device_idx] * num_ninsts, data_size * 8 / spinn_scheduler->avg_bandwidth[device_idx] / 1000000);
+    for(int j = 0; j < nasm->ldata_arr[split_layer-1].num_ninst; j++)
+        data_size += nasm->ldata_arr[split_layer-1].ninst_arr_start[j].tile_dims[OUT_W] * nasm->ldata_arr[split_layer-1].ninst_arr_start[j].tile_dims[OUT_H] * sizeof(float);
+        
+    latency_sum = spinn_scheduler->avg_server_ninst_compute_time[device_idx] * num_ninsts / spinn_scheduler->server_num_dse[device_idx] + 
+                spinn_scheduler->rtt[device_idx] + 
+                data_size * 8 / spinn_scheduler->avg_bandwidth[device_idx] / 1000000; // Transmission latency;
 
     return latency_sum;
 }

@@ -39,7 +39,7 @@ avg_ninst_profile_t *profile_computation(nasm_t *target_nasm, int dse_num, int d
     {
         result->avg_server_computation_time = 0;
         result->avg_edge_computation_time = avg_computation_time / num_repeat;
-        result->edge_num_dse;
+        result->edge_num_dse = dse_num;
     }
     result->num_ninsts = total;
 
@@ -151,6 +151,7 @@ void communicate_profiles_server(int client_sock, network_profile_t *network_pro
     read_n(client_sock, &ninst_profile->edge_num_dse, sizeof(int));
     write_n(client_sock, &ninst_profile->avg_server_computation_time, sizeof(float));
     write_n(client_sock, &ninst_profile->server_num_dse, sizeof(int));
+    printf("%d, %d\n", ninst_profile->edge_num_dse, ninst_profile->server_num_dse);
 }
 
 void communicate_profiles_edge(int server_sock, network_profile_t *network_profile, avg_ninst_profile_t *ninst_profile)
