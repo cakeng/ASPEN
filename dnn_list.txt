@@ -1,4 +1,4 @@
-bert_base
 yolov3
-resnet50
 vgg16
+resnet50
+bert_base
