@@ -490,6 +490,12 @@ int main(int argc, char **argv)
                                         max_recv_time = target_nasm[edge_id]->ninst_arr[i].received_time;
                                 }
                             }
+
+                            float temp = prev_server_latency;
+                            prev_server_latency = max_computed_time - min_computed_time;
+                            if(prev_server_latency < 0)
+                                prev_server_latency = temp;
+
                             prev_server_latency = max_computed_time - min_computed_time;
                             write_n(client_sock_arr[edge_id], &prev_server_latency, sizeof(float));
                             write_n(client_sock_arr[edge_id], &max_recv_time, sizeof(float));
@@ -516,11 +522,15 @@ int main(int argc, char **argv)
                                     break;
                                 }
                             }
+                            float temp = prev_edge_latency;
                             prev_edge_latency = max_computed_time - min_computed_time;
+                            if(prev_edge_latency < 0)
+                                prev_edge_latency = temp;
+                            
                             read_n(server_sock, &prev_server_latency, sizeof(float));
                             read_n(server_sock, &max_recv_time, sizeof(float));
 
-                            prev_bandwidth = spinn_scheduler->data_size_split_candidates[edge_id][idx] * 8 / (max_recv_time - min_sent_time) / 125000;
+                            prev_bandwidth = spinn_scheduler->data_size_split_candidates[edge_id][idx] / (max_recv_time - min_sent_time) / 125;
                             spinn_update_profile(spinn_scheduler, spinn_scheduler->rtt[edge_id], prev_bandwidth, prev_edge_latency, prev_server_latency, edge_id);
                         }
                     }

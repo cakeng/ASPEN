@@ -160,8 +160,10 @@ float get_data_transmission_latency(spinn_scheduler_t* spinn_scheduler, nasm_t* 
     for(int j = 0; j < nasm->ldata_arr[split_layer-1].num_ninst; j++)
         data_size += nasm->ldata_arr[split_layer-1].ninst_arr_start[j].tile_dims[OUT_W] * nasm->ldata_arr[split_layer-1].ninst_arr_start[j].tile_dims[OUT_H] * sizeof(float);
     
+    data_size = data_size * 8;
+    float bit_per_second = spinn_scheduler->avg_bandwidth[device_idx] * 1000000;
     latency_sum = spinn_scheduler->rtt[device_idx] + // RTT
-                data_size * 8 / spinn_scheduler->avg_bandwidth[device_idx] / 1000000000; // Transmission latency;
+                data_size / bit_per_second; // Transmission latency;
     return latency_sum;
 }
 
@@ -204,11 +206,12 @@ void spinn_update_profile(spinn_scheduler_t* spinn_scheduler, float rtt, float a
         printf("Error: Cannot find split layer %d in split candidates\n", current_split_layer);
         exit(1);
     }
-
-    printf("bw: %f -> %f\n", spinn_scheduler->avg_bandwidth[device_idx], avg_bandwidth);
     
     spinn_scheduler->rtt[device_idx] = rtt;
-    spinn_scheduler->avg_bandwidth[device_idx] = avg_bandwidth;
+    spinn_scheduler->avg_bandwidth[device_idx] = 0.85 * spinn_scheduler->avg_bandwidth[device_idx] + 0.15 * avg_bandwidth;
+    if(avg_edge_latency <= 0) avg_edge_latency = spinn_scheduler->edge_offline_layer_latency[device_idx][idx];
+    if(avg_server_latency <= 0) avg_server_latency = spinn_scheduler->server_offline_layer_latency[device_idx][idx];
+    
     spinn_scheduler->edge_real_latency[device_idx][idx] = avg_edge_latency;
     spinn_scheduler->server_real_latency[device_idx][idx] = avg_server_latency;
     spinn_scheduler->edge_scaling_factors[device_idx] = spinn_scheduler->edge_real_latency[device_idx][idx] / spinn_scheduler->edge_offline_layer_latency[device_idx][idx];
@@ -250,8 +253,17 @@ int spinn_schedule_layer(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int d
             spinn_scheduler->server_offline_layer_latency[device_idx][i] * spinn_scheduler->server_scaling_factors[device_idx] +
             get_data_transmission_latency(spinn_scheduler, nasm, device_idx, spinn_scheduler->split_candidates[device_idx][i]);
         
+        // printf("\tSplit Layer: %d, Edge: %fms, Server: %fms, Transmission: %fms\n",
+        //     spinn_scheduler->split_candidates[device_idx][i],
+        //     spinn_scheduler->edge_offline_layer_latency[device_idx][i] * spinn_scheduler->edge_scaling_factors[device_idx] * 1000.0,
+        //     spinn_scheduler->server_offline_layer_latency[device_idx][i] * spinn_scheduler->server_scaling_factors[device_idx] * 1000.0,
+        //     get_data_transmission_latency(spinn_scheduler, nasm, device_idx, spinn_scheduler->split_candidates[device_idx][i]) * 1000.0
+        // );
+        // printf("BW: %f\n", spinn_scheduler->avg_bandwidth[device_idx]);
+
         if(latency < min_latency)
         {
+            // printf("\tSplit Layer: %d, latency: %f, min_latency: %f\n", spinn_scheduler->split_candidates[device_idx][i], latency, min_latency);
             min_latency = latency;
             split_layer = spinn_scheduler->split_candidates[device_idx][i];
         }
