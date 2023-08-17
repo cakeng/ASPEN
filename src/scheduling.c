@@ -161,7 +161,7 @@ float get_data_transmission_latency(spinn_scheduler_t* spinn_scheduler, nasm_t* 
         data_size += nasm->ldata_arr[split_layer-1].ninst_arr_start[j].tile_dims[OUT_W] * nasm->ldata_arr[split_layer-1].ninst_arr_start[j].tile_dims[OUT_H] * sizeof(float);
     
     latency_sum = spinn_scheduler->rtt[device_idx] + // RTT
-                data_size * 8 / spinn_scheduler->avg_bandwidth[device_idx] / 1000000; // Transmission latency;
+                data_size * 8 / spinn_scheduler->avg_bandwidth[device_idx] / 1000000000; // Transmission latency;
     return latency_sum;
 }
 
@@ -248,7 +248,7 @@ int spinn_schedule_layer(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int d
             spinn_scheduler->server_offline_layer_latency[device_idx][i] * spinn_scheduler->server_scaling_factors[device_idx][i] +
             get_data_transmission_latency(spinn_scheduler, nasm, device_idx, spinn_scheduler->split_candidates[device_idx][i]);
         
-        if(latency < min_latency);
+        if(latency < min_latency)
         {
             min_latency = latency;
             split_layer = spinn_scheduler->split_candidates[device_idx][i];
