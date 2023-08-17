@@ -80,8 +80,8 @@ struct spinn_scheduler_t{
     float *edge_real_latency[SCHEDULE_MAX_DEVICES];       //[SCHEDULE_MAX_DEVICES][MAX_LAYERS];
     
     // SF = T_real / T_offline for all split candidates
-    float *edge_scaling_factors[SCHEDULE_MAX_DEVICES]; //[SCHEDULE_MAX_DEVICES][MAX_LAYERS];
-    float *server_scaling_factors[SCHEDULE_MAX_DEVICES]; //[SCHEDULE_MAX_DEVICES][MAX_LAYERS];
+    float edge_scaling_factors[SCHEDULE_MAX_DEVICES]; //[SCHEDULE_MAX_DEVICES];
+    float server_scaling_factors[SCHEDULE_MAX_DEVICES]; //[SCHEDULE_MAX_DEVICES];
 
 };
 

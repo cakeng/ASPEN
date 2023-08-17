@@ -174,8 +174,8 @@ void spinn_offline_profile(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int
         spinn_scheduler->server_offline_layer_latency[device_idx][i] = get_server_offline_latency_from_split_layer(spinn_scheduler, nasm, device_idx, split_layer);
         spinn_scheduler->edge_real_latency[device_idx][i] = spinn_scheduler->edge_offline_layer_latency[device_idx][i];
         spinn_scheduler->server_real_latency[device_idx][i] = spinn_scheduler->server_offline_layer_latency[device_idx][i];
-        spinn_scheduler->edge_scaling_factors[device_idx][i] = 1.0;
-        spinn_scheduler->server_scaling_factors[device_idx][i] = 1.0;
+        spinn_scheduler->edge_scaling_factors[device_idx] = 1.0;
+        spinn_scheduler->server_scaling_factors[device_idx] = 1.0;
 
         int data_size = 0;
         if (split_layer > 0)
@@ -204,13 +204,15 @@ void spinn_update_profile(spinn_scheduler_t* spinn_scheduler, float rtt, float a
         printf("Error: Cannot find split layer %d in split candidates\n", current_split_layer);
         exit(1);
     }
+
+    printf("bw: %f -> %f\n", spinn_scheduler->avg_bandwidth[device_idx], avg_bandwidth);
     
     spinn_scheduler->rtt[device_idx] = rtt;
     spinn_scheduler->avg_bandwidth[device_idx] = avg_bandwidth;
     spinn_scheduler->edge_real_latency[device_idx][idx] = avg_edge_latency;
     spinn_scheduler->server_real_latency[device_idx][idx] = avg_server_latency;
-    spinn_scheduler->edge_scaling_factors[device_idx][idx] = spinn_scheduler->edge_real_latency[device_idx][idx] / spinn_scheduler->edge_offline_layer_latency[device_idx][idx];
-    spinn_scheduler->server_scaling_factors[device_idx][idx] = spinn_scheduler->server_real_latency[device_idx][idx] / spinn_scheduler->server_offline_layer_latency[device_idx][idx];    
+    spinn_scheduler->edge_scaling_factors[device_idx] = spinn_scheduler->edge_real_latency[device_idx][idx] / spinn_scheduler->edge_offline_layer_latency[device_idx][idx];
+    spinn_scheduler->server_scaling_factors[device_idx] = spinn_scheduler->server_real_latency[device_idx][idx] / spinn_scheduler->server_offline_layer_latency[device_idx][idx];    
 }
 
 spinn_scheduler_t* init_spinn_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, nasm_t** nasms, DEVICE_MODE device_mode, int device_idx, int num_edge_devices)    
@@ -244,8 +246,8 @@ int spinn_schedule_layer(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int d
     float min_latency = 100000000.0;
     for(int i = 0; i < spinn_scheduler->num_split_candidates[device_idx]; i++)
     {
-        float latency = spinn_scheduler->edge_offline_layer_latency[device_idx][i] * spinn_scheduler->edge_scaling_factors[device_idx][i] + 
-            spinn_scheduler->server_offline_layer_latency[device_idx][i] * spinn_scheduler->server_scaling_factors[device_idx][i] +
+        float latency = spinn_scheduler->edge_offline_layer_latency[device_idx][i] * spinn_scheduler->edge_scaling_factors[device_idx] + 
+            spinn_scheduler->server_offline_layer_latency[device_idx][i] * spinn_scheduler->server_scaling_factors[device_idx] +
             get_data_transmission_latency(spinn_scheduler, nasm, device_idx, spinn_scheduler->split_candidates[device_idx][i]);
         
         if(latency < min_latency)
@@ -285,8 +287,8 @@ void spinn_model_splitter(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int 
     spinn_scheduler->server_real_latency[device_idx] = calloc(num_split_candidates, sizeof(float));
     spinn_scheduler->edge_offline_layer_latency[device_idx] = calloc(num_split_candidates, sizeof(float));
     spinn_scheduler->edge_real_latency[device_idx] = calloc(num_split_candidates, sizeof(float));
-    spinn_scheduler->edge_scaling_factors[device_idx] = calloc(num_split_candidates, sizeof(float));
-    spinn_scheduler->server_scaling_factors[device_idx] = calloc(num_split_candidates, sizeof(float));
+    // spinn_scheduler->edge_scaling_factors[device_idx] = calloc(num_split_candidates, sizeof(float));
+    // spinn_scheduler->server_scaling_factors[device_idx] = calloc(num_split_candidates, sizeof(float));
     spinn_scheduler->data_size_split_candidates[device_idx] = calloc(num_split_candidates, sizeof(int));
     spinn_scheduler->num_split_candidates[device_idx] = num_split_candidates;
     
