@@ -151,7 +151,6 @@ void communicate_profiles_server(int client_sock, network_profile_t *network_pro
     read_n(client_sock, &ninst_profile->edge_num_dse, sizeof(int));
     write_n(client_sock, &ninst_profile->avg_server_computation_time, sizeof(float));
     write_n(client_sock, &ninst_profile->server_num_dse, sizeof(int));
-    printf("%d, %d\n", ninst_profile->edge_num_dse, ninst_profile->server_num_dse);
 }
 
 void communicate_profiles_edge(int server_sock, network_profile_t *network_profile, avg_ninst_profile_t *ninst_profile)
