@@ -514,12 +514,12 @@ int main(int argc, char **argv)
                         if(device_mode == DEV_SERVER)
                         {
                             read_n(client_sock_arr[edge_id], &sched_sequential_idx, sizeof(int));
-                            printf("\t[Edge Device %d] Split Layer:(%d/%d)\n", edge_id, sched_sequential_idx, target_nasm[edge_id]->num_ldata);
+                            printf("\t[Edge Device %d] Split Layer:%d Total: %d\n", edge_id, sched_sequential_idx, target_nasm[edge_id]->num_ldata);
                         }
                         else if(device_mode == DEV_EDGE)
                         {
                             sched_sequential_idx = spinn_schedule_layer(spinn_scheduler, target_nasm[edge_id], edge_id);
-                            printf("\t[Edge Device %d] Split Layer: (%d/%d)\n", edge_id, sched_sequential_idx, target_nasm[edge_id]->num_ldata);
+                            printf("\t[Edge Device %d] Split Layer: %d Total: %d\n", edge_id, sched_sequential_idx, target_nasm[edge_id]->num_ldata);
                             write_n(server_sock, &sched_sequential_idx, sizeof(int));   
                         }
                         init_sequential_offload(target_nasm[edge_id], sched_sequential_idx, edge_id, num_edge_devices); // server idx == num_edge_devices

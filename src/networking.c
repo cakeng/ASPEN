@@ -236,6 +236,12 @@ void transmission(networking_engine *net_engine)
     int32_t payload_size = 0;
     char* buffer_ptr = (char*)net_engine->tx_buffer + sizeof(int32_t);
 
+    if(!net_engine->pipelined && net_engine->device_mode == DEV_SERVER)
+    {
+        if(!atomic_load(&net_engine->nasm->completed))
+            return;
+    }
+
     pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
     num_ninsts = pop_ninsts_from_net_queue(net_engine->tx_queue, target_ninst_list, 4);
     pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);

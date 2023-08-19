@@ -245,7 +245,7 @@ spinn_scheduler_t* init_spinn_scheduler(avg_ninst_profile_t **ninst_profile, net
 int spinn_schedule_layer(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int device_idx)
 {
     printf("\t[SPINN Scheduler]\n");
-    int split_layer = 0;
+    int split_layer = 1;
     float min_latency = 100000000.0;
     for(int i = 0; i < spinn_scheduler->num_split_candidates[device_idx]; i++)
     {
