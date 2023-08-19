@@ -273,6 +273,21 @@ int spinn_schedule_layer(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int d
     return split_layer;
 }
 
+int spinn_find_idx_by_split_layer(spinn_scheduler_t* spinn_scheduler, int device_idx)
+{
+    int current_split_layer = spinn_scheduler->current_split_layer[device_idx];
+    int idx = -1;
+    for (int i = 0; i < spinn_scheduler->num_split_candidates[device_idx]; i++)
+    {
+        if (spinn_scheduler->split_candidates[device_idx][i] == current_split_layer)
+        {
+            idx = i;
+            break;
+        }
+    }
+    return idx;
+}
+
 void spinn_model_splitter(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int device_idx)
 {
     printf("[SPINN Model Splitter]\n");

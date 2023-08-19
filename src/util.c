@@ -837,3 +837,61 @@ int connect_server_sock(char *server_ip, int server_port) {
 
     return server_sock;
 }
+
+float get_max_recv_time(nasm_t* nasm)
+{
+    float max_recv_time = 0;
+    for(int i = 0; i < nasm->num_ninst; i++)
+    {
+        if(nasm->ninst_arr[i].received_time != 0)
+        {
+            if(nasm->ninst_arr[i].received_time > max_recv_time)
+                max_recv_time = nasm->ninst_arr[i].received_time;
+        }
+    }
+    return max_recv_time;
+}
+
+float get_min_sent_time(nasm_t* nasm)
+{
+    float min_sent_time = 100000000;
+    for(int i = 0; i < nasm->num_ninst; i++)
+    {
+        if(nasm->ninst_arr[i].sent_time != 0)
+        {
+            if(nasm->ninst_arr[i].sent_time < min_sent_time)
+                min_sent_time = nasm->ninst_arr[i].received_time;
+        }
+    }
+    return min_sent_time;
+}
+
+float get_max_computed_time(nasm_t* nasm)
+{
+    float max_computed_time = 0;
+    
+    for(int i = 0; i < nasm->num_ninst; i++)
+    {
+        if(nasm->ninst_arr[i].computed_time != 0)
+        {
+            if(nasm->ninst_arr[i].computed_time > max_computed_time)
+                max_computed_time = nasm->ninst_arr[i].computed_time;
+        }
+    }
+    return max_computed_time;
+}
+
+float get_min_computed_time(nasm_t* nasm)
+{
+    float min_computed_time = 100000000;
+
+    for(int i = 0; i < nasm->num_ninst; i++)
+    {
+        if(nasm->ninst_arr[i].computed_time != 0)
+        {   
+            if(nasm->ninst_arr[i].computed_time < min_computed_time)
+                min_computed_time = nasm->ninst_arr[i].computed_time;
+        }
+    }
+    return min_computed_time;
+}

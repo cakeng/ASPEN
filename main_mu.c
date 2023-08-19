@@ -404,7 +404,6 @@ int main(int argc, char **argv)
             {
                 net_engine_arr[edge_id] = init_networking(target_nasm[edge_id], rpool_arr[edge_id], device_mode, server_ip, server_ports[edge_id], 0, !is_conventional);
                 dse_group_add_netengine_arr(dse_group, net_engine_arr[edge_id], edge_id);
-                // dse_group_set_device(dse_group, device_idx);
                 net_engine_arr[edge_id]->device_idx = edge_id;
                 net_engine_arr[edge_id]->dse_group = dse_group;
             }
@@ -413,6 +412,7 @@ int main(int argc, char **argv)
         float prev_edge_latency = 0.0;
         float prev_server_latency = 0.0;
         float prev_bandwidth = 0.0;
+        float max_recv_time, min_sent_time, max_computed_time, min_computed_time;
 
         for(int inf_num = 0; inf_num < inference_repeat_num; inf_num++)
         {
@@ -459,73 +459,33 @@ int main(int argc, char **argv)
                 }
             }
 
-            if(inf_num != 0)
+            // Communicate profiles
+            if(inf_num > 0)
             {
+                printf("\t[Communicate profiles]\n");
                 for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
                 {
                     if(!strcmp(schedule_policy, "spinn") || !strcmp(schedule_policy, "spinn+pipeline"))
                     {
-                        float max_computed_time = 0;
-                        float min_computed_time = 100000000;
-                        for(int i = 0; i < target_nasm[edge_id]->num_ninst; i++)
-                        {
-                            if(target_nasm[edge_id]->ninst_arr[i].computed_time != 0)
-                            {
-                                if(target_nasm[edge_id]->ninst_arr[i].computed_time > max_computed_time)
-                                    max_computed_time = target_nasm[edge_id]->ninst_arr[i].computed_time;
-                                
-                                if(target_nasm[edge_id]->ninst_arr[i].computed_time < min_computed_time)
-                                    min_computed_time = target_nasm[edge_id]->ninst_arr[i].computed_time;
-                            }
-                        }
+                        max_computed_time = get_max_computed_time(target_nasm[edge_id]);
+                        min_computed_time = get_min_computed_time(target_nasm[edge_id]);
 
                         if(device_mode == DEV_SERVER)
                         {
-                            float max_recv_time = 0;
-                            for(int i = 0; i < target_nasm[edge_id]->num_ninst; i++)
-                            {
-                                if(target_nasm[edge_id]->ninst_arr[i].received_time != 0)
-                                {
-                                    if(target_nasm[edge_id]->ninst_arr[i].received_time > max_recv_time)
-                                        max_recv_time = target_nasm[edge_id]->ninst_arr[i].received_time;
-                                }
-                            }
+                            max_recv_time = get_max_recv_time(target_nasm[edge_id]);
+                            if((max_computed_time - min_computed_time) > 0)
+                                prev_server_latency = max_computed_time - min_computed_time;
 
-                            float temp = prev_server_latency;
-                            prev_server_latency = max_computed_time - min_computed_time;
-                            if(prev_server_latency < 0)
-                                prev_server_latency = temp;
-
-                            prev_server_latency = max_computed_time - min_computed_time;
                             write_n(client_sock_arr[edge_id], &prev_server_latency, sizeof(float));
                             write_n(client_sock_arr[edge_id], &max_recv_time, sizeof(float));
                         }
                         else if (device_mode == DEV_EDGE && device_idx == edge_id)
                         {
-                            float max_recv_time;
-                            float min_sent_time = 100000000;
-                            for(int i = 0; i < target_nasm[edge_id]->num_ninst; i++)
-                            {
-                                if(target_nasm[edge_id]->ninst_arr[i].sent_time != 0)
-                                {
-                                    if(target_nasm[edge_id]->ninst_arr[i].sent_time < min_sent_time)
-                                        min_sent_time = target_nasm[edge_id]->ninst_arr[i].received_time;
-                                }
-                            }
-                            int current_split_layer = spinn_scheduler->current_split_layer[device_idx];
-                            int idx = -1;
-                            for (int i = 0; i < spinn_scheduler->num_split_candidates[device_idx]; i++)
-                            {
-                                if (spinn_scheduler->split_candidates[device_idx][i] == current_split_layer)
-                                {
-                                    idx = i;
-                                    break;
-                                }
-                            }
-                            float temp = prev_edge_latency;
-                            prev_edge_latency = max_computed_time - min_computed_time;
-                            if(prev_edge_latency < 0)
-                                prev_edge_latency = temp;
+                            min_sent_time = get_min_sent_time(target_nasm[edge_id]);
+                            int idx = spinn_find_idx_by_split_layer(spinn_scheduler, edge_id);
+
+                            if((max_computed_time - min_computed_time) > 0)
+                                prev_edge_latency = max_computed_time - min_computed_time;
                             
                             read_n(server_sock, &prev_server_latency, sizeof(float));
                             read_n(server_sock, &max_recv_time, sizeof(float));
@@ -537,6 +497,8 @@ int main(int argc, char **argv)
                 }
             }
 
+            // Reset nasm, net_engine, and rpool
+            // Initialize offloading scheduling
             for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
             {
                 if(device_mode == DEV_SERVER || device_idx == edge_id)
@@ -552,12 +514,12 @@ int main(int argc, char **argv)
                         if(device_mode == DEV_SERVER)
                         {
                             read_n(client_sock_arr[edge_id], &sched_sequential_idx, sizeof(int));
-                            printf("\t[Edge Device %d] Split Layer: %d\n", edge_id, sched_sequential_idx);
+                            printf("\t[Edge Device %d] Split Layer:(%d/%d)\n", edge_id, sched_sequential_idx, target_nasm[edge_id]->num_ldata);
                         }
                         else if(device_mode == DEV_EDGE)
                         {
                             sched_sequential_idx = spinn_schedule_layer(spinn_scheduler, target_nasm[edge_id], edge_id);
-                            printf("\t[Edge Device %d] Split Layer: %d\n", edge_id, sched_sequential_idx);
+                            printf("\t[Edge Device %d] Split Layer: (%d/%d)\n", edge_id, sched_sequential_idx, target_nasm[edge_id]->num_ldata);
                             write_n(server_sock, &sched_sequential_idx, sizeof(int));   
                         }
                         init_sequential_offload(target_nasm[edge_id], sched_sequential_idx, edge_id, num_edge_devices); // server idx == num_edge_devices
@@ -577,9 +539,7 @@ int main(int argc, char **argv)
             for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
             {
                 if(device_mode == DEV_SERVER || device_idx == edge_id)
-                {
                     net_engine_run (net_engine_arr[edge_id]);
-                }
             }
 
             if (!(device_mode == DEV_SERVER && is_conventional)) 
@@ -591,9 +551,7 @@ int main(int argc, char **argv)
             for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
             {
                 if(device_mode == DEV_SERVER || device_idx == edge_id)
-                {
                     dse_wait_for_nasm_completion (target_nasm[edge_id]);
-                }
             }
             
             get_elapsed_time ("run_aspen");
