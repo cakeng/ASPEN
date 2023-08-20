@@ -368,6 +368,69 @@ void init_full_offload(nasm_t *nasm) {
     nasm_set_ninst_send_target_using_child_compute_device(nasm);
 }
 
+void init_random_offload(nasm_t *nasm, float compute_ratio, int edge_id, int server_id)
+{
+    srand(time(NULL));
+    int total_num_ninst = nasm->num_ninst - nasm->ldata_arr[nasm->num_ldata-1].num_ninst;
+    int num_selected = (int)(compute_ratio * total_num_ninst);
+
+    if(num_selected > total_num_ninst)
+    {
+        printf("Error: num_selected > total_num_ninst\n");
+        exit(1);
+    }
+
+    // printf("\t[Random Offload] Selected ninsts: ");
+
+    int selected_ninst_idx[num_selected];
+    for(int i = 0; i < num_selected; i++)
+    {
+        selected_ninst_idx[i] = rand() % total_num_ninst;
+        // printf("%d ", selected_ninst_idx[i]);
+    }
+    // printf("\n");
+
+    
+    for(int i = 0; i < total_num_ninst; i++)
+    {
+        ninst_t* ninst = nasm->ninst_arr + i;
+        ninst_clear_compute_device(ninst);
+        ninst_clear_send_target_device(ninst);
+        if (ninst->ldata->layer->layer_idx == 0) {  // for the input data,
+            ninst_set_compute_device(ninst, edge_id);  // all inputs are generated from TX
+            ninst_set_send_target_device(ninst, edge_id);
+        }
+        else
+        {
+            ninst_set_compute_device(ninst, server_id);
+            for(int count = 0; count < num_selected; count++)
+            {
+                if(ninst->ninst_idx == selected_ninst_idx[count])
+                {
+                    ninst_clear_compute_device(ninst);
+                    ninst_set_compute_device(ninst, edge_id);
+                    break;
+                }
+            }
+        }
+    }
+
+    // for(int i = 0; i < total_num_ninst; i++)
+    // {
+    //     ninst_t* ninst = nasm->ninst_arr + i;
+    //     printf("%d: %d, %d\n", ninst->ninst_idx, ninst->dev_to_compute[server_id], ninst->dev_to_compute[edge_id]);
+    // }
+
+    nasm_set_ninst_send_target_using_child_compute_device(nasm);
+    nasm_set_last_layer_ninst_send_target_device(nasm, edge_id);
+
+    // for(int i = 0; i < total_num_ninst; i++)
+    // {
+    //     ninst_t* ninst = nasm->ninst_arr + i;
+    //     printf("%d: %d, %d\n", ninst->ninst_idx, ninst->dev_send_target[server_id], ninst->dev_send_target[edge_id]);
+    // }
+}
+
 void init_partial_offload(nasm_t *nasm, int split_layer, float compute_ratio, int edge_id, int server_id) {
     int layer_start_ninst_idx = nasm->ldata_arr[split_layer].ninst_arr_start[0].ninst_idx;
     int layer_end_ninst_idx = layer_start_ninst_idx + nasm->ldata_arr[split_layer].num_ninst;

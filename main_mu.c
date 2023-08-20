@@ -295,6 +295,17 @@ int main(int argc, char **argv)
             }
         }
     }
+    else if (!strcmp(schedule_policy, "random"))
+    {
+        printf("\t[Random Offloading] Sched Partial Ratio: %f\n", sched_partial_ratio);
+        for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
+        {
+            if(device_mode == DEV_SERVER || device_idx == edge_id)
+            {
+                init_random_offload(target_nasm[edge_id], sched_partial_ratio, edge_id, num_edge_devices);
+            }
+        }
+    }
     else if (!strcmp(schedule_policy, "conventional") || !strcmp(schedule_policy, "conventional+pipeline"))
     {
         for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
@@ -541,8 +552,17 @@ int main(int argc, char **argv)
                         {
                             if(device_mode == DEV_SERVER || device_idx == edge_id)
                             {
-                                printf("%d\n", sched_sequential_idx);
                                 init_partial_offload(target_nasm[edge_id], sched_sequential_idx, sched_partial_ratio, edge_id, num_edge_devices);
+                            }
+                        }
+                    }
+                    if (!strcmp(schedule_policy, "random"))
+                    {
+                        for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
+                        {
+                            if(device_mode == DEV_SERVER || device_idx == edge_id)
+                            {
+                                init_random_offload(target_nasm[edge_id], sched_partial_ratio, edge_id, num_edge_devices);
                             }
                         }
                     }

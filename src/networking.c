@@ -941,8 +941,8 @@ void add_input_rpool_reverse (networking_engine *net_engine, nasm_t* nasm, char 
             if (i == net_engine->device_idx) continue;
             if (ninst->dev_send_target[i]) 
             {
-                // printf ("\tninst idx %d (L%d), target device: %d, current device: %d, desired device%d\n", 
-                // ninst->ninst_idx, ninst->ldata->layer->layer_idx, i, dse->device_idx,
+                // printf ("\tninst idx %d (L%d), target device: %d, current device: %d, desired device %d\n", 
+                // ninst->ninst_idx, ninst->ldata->layer->layer_idx, i, net_engine->device_idx,
                 // ninst->dev_send_target[i]);
                 create_network_buffer_for_ninst (ninst);
                 pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);

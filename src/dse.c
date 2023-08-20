@@ -122,7 +122,7 @@ void dse_schedule (dse_t *dse)
         //                                                                                     ninst->dev_to_compute[dse->device_idx]);
         if (is_dev_compute(ninst, dse->device_idx) || dse->profile_compute)    // It's mine, so compute
         {
-            //printf("\t[Device %d] Compute ninst (N%d L%d)\n", target_device, ninst->ninst_idx, ninst->ldata->layer->layer_idx);
+            // printf("\t[Device %d] Compute ninst (N%d L%d)\n", target_device, ninst->ninst_idx, ninst->ldata->layer->layer_idx);
             if (dse->profile_compute) ninst->compute_start = get_time_secs_offset ();
             switch (ninst->ldata->layer->type)
             {
