@@ -101,7 +101,7 @@ int spinn_schedule_layer(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int d
 
 void init_full_local(nasm_t *nasm);
 void init_full_offload(nasm_t *nasm);
-void init_partial_offload(nasm_t *nasm, float compute_ratio, int edge_id, int server_id);
+void init_partial_offload(nasm_t *nasm, int split_layer, float compute_ratio, int edge_id, int server_id);
 void init_sequential_offload(nasm_t *nasm, int split_layer, int from_dev, int to_dev);
 void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode, int device_idx, int server_idx);
 void init_conventional_offload(nasm_t *nasm);

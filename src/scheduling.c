@@ -368,9 +368,9 @@ void init_full_offload(nasm_t *nasm) {
     nasm_set_ninst_send_target_using_child_compute_device(nasm);
 }
 
-void init_partial_offload(nasm_t *nasm, float compute_ratio, int edge_id, int server_id) {
-    int layer_start_ninst_idx = nasm->ldata_arr[1].ninst_arr_start[0].ninst_idx;
-    int layer_end_ninst_idx = layer_start_ninst_idx + nasm->ldata_arr[1].num_ninst;
+void init_partial_offload(nasm_t *nasm, int split_layer, float compute_ratio, int edge_id, int server_id) {
+    int layer_start_ninst_idx = nasm->ldata_arr[split_layer].ninst_arr_start[0].ninst_idx;
+    int layer_end_ninst_idx = layer_start_ninst_idx + nasm->ldata_arr[split_layer].num_ninst;
     
     int division_idx = layer_start_ninst_idx + (1-compute_ratio) * (layer_end_ninst_idx - layer_start_ninst_idx);
     printf("division idx: %d\n", division_idx);
@@ -402,7 +402,7 @@ void init_partial_offload(nasm_t *nasm, float compute_ratio, int edge_id, int se
         }
     }
     nasm_set_ninst_send_target_using_child_compute_device(nasm);
-    nasm_set_last_layer_ninst_send_target_device(nasm, server_id);
+    nasm_set_last_layer_ninst_send_target_device(nasm, edge_id);
 }
 
 void init_sequential_offload(nasm_t *nasm, int split_layer, int from_dev, int to_dev) 
