@@ -380,7 +380,10 @@ void init_partial_offload(nasm_t *nasm, int split_layer, float compute_ratio, in
         if (ninst->ldata->layer->layer_idx == 0) {  // for the input data,
             ninst_set_compute_device(ninst, edge_id);  // all inputs are generated from TX
         }
-        else if (ninst->ldata->layer->layer_idx == 1) { // for the first computation layer,
+        else if (ninst->ldata->layer->layer_idx < split_layer) { 
+            ninst_set_compute_device(ninst, edge_id);
+        }
+        else if (ninst->ldata->layer->layer_idx == split_layer) {
             if (ninst->ninst_idx < division_idx) {  // front ninsts are for RX
                 ninst_set_compute_device(ninst, server_id);
             }
@@ -392,12 +395,8 @@ void init_partial_offload(nasm_t *nasm, int split_layer, float compute_ratio, in
                 ninst_set_compute_device(ninst, edge_id);
             }
         }
-        else if (ninst->ldata->layer->layer_idx != nasm->num_ldata - 1) {   // intermediate layers are for RX
-            ninst_set_compute_device(ninst, server_id);
-        }
-        else {  // final layer is for TX -> main.c has its own logic handling final layer
-            // ninst->dev_to_compute[0] = DEV_EDGE;
-            // ninst_set_compute_device(ninst, DEV_EDGE);
+        else
+        {
             ninst_set_compute_device(ninst, server_id);
         }
     }

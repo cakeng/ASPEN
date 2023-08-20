@@ -541,6 +541,7 @@ int main(int argc, char **argv)
                         {
                             if(device_mode == DEV_SERVER || device_idx == edge_id)
                             {
+                                printf("%d\n", sched_sequential_idx);
                                 init_partial_offload(target_nasm[edge_id], sched_sequential_idx, sched_partial_ratio, edge_id, num_edge_devices);
                             }
                         }
