@@ -1,5 +1,5 @@
 version "0.1"
-package "main_scheduling"
+package "main_mu"
 purpose "Experiment with multiple scheduling choices."
 
 # Options

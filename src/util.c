@@ -617,12 +617,12 @@ void set_time_offset(double offset, DEVICE_MODE device_mode)
 {
     if(device_mode == DEV_SERVER)
     {
-        time_offset = -offset/2;
+        time_offset = -offset;
     }
-    if(device_mode == DEV_EDGE)
-    {
-        time_offset = offset/2;
-    }
+    // if(device_mode == DEV_EDGE)
+    // {
+    //     time_offset = offset;
+    // }
 }
 
 void get_elapsed_time (char *name)

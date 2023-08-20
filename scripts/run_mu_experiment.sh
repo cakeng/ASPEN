@@ -1,5 +1,9 @@
 source ./scripts/param_mu.sh
 
+dnn="vgg16"
+batch=1
+num_tile=100
+
 server_cmd="./main_mu \
     --device_mode=0   \
     --dirname=${DIRNAME}  \
@@ -103,7 +107,7 @@ done <<< "$server_out"
 for i in $(seq 1 $NUM_EDGE_DEVICES)
 do
     edge_out=$(cat temp_edge_out$i.tmp)
-    # rm temp_edge_out$i.tmp
+    rm temp_edge_out$i.tmp
     edge_time_taken=$(echo $edge_out | grep -oEi "Time measurement run_aspen \([0-9]+\): [0-9.]+ - ([0-9.]+) secs elapsed" | grep -oEi "([0-9.]+) secs elapsed" | grep -oE "[0-9.]+")
     echo "${edge_time_taken}" > time.temp
     total_edge_time=$(awk '{ sum += $1 } END { printf "%f", sum }' time.temp)
@@ -122,3 +126,23 @@ do
     echo "$(date +%T): edge $i took $avg_edge_time seconds with total received $average_received"
     # echo "$(date +%T): edge $i took $avg_edge_time seconds with total received ${edge_totals[$i-1]}"
 done
+
+for ((i=0; i<NUM_EDGE_DEVICES; i++));
+do
+    for ((iter_num=0; iter_num<INFERENCE_REPEAT_NUM; iter_num++)); 
+    do
+        remote_path="kmbin/pipelining/aspen/logs/${DIRNAME}/edge_${i}/"
+        local_path="logs/${DIRNAME}/edge_${i}/"
+        local_visual_path="logs/visual/${DIRNAME}/edge_${i}/"
+        mkdir -p $local_visual_path
+        
+        remote_filename="${PREFIX}_${SCHEDULE_POLICY}_EDGE_${dnn}_B${batch}_T${num_tile}_Iter${iter_num}.csv"
+        local_filename="${PREFIX}_${SCHEDULE_POLICY}_SERVER_${dnn}_B${batch}_T${num_tile}_Iter${iter_num}.csv"
+        
+        cp -f ${local_path}${local_filename} ${local_visual_path}${local_filename}
+
+        sftp "$EDGE_CREDIT:${remote_path}${remote_filename}" "${local_visual_path}${remote_filename}"
+    done
+done
+
+

@@ -368,7 +368,7 @@ void init_full_offload(nasm_t *nasm) {
     nasm_set_ninst_send_target_using_child_compute_device(nasm);
 }
 
-void init_partial_offload(nasm_t *nasm, float compute_ratio) {
+void init_partial_offload(nasm_t *nasm, float compute_ratio, int edge_id, int server_id) {
     int layer_start_ninst_idx = nasm->ldata_arr[1].ninst_arr_start[0].ninst_idx;
     int layer_end_ninst_idx = layer_start_ninst_idx + nasm->ldata_arr[1].num_ninst;
     
@@ -378,31 +378,31 @@ void init_partial_offload(nasm_t *nasm, float compute_ratio) {
         ninst_t *ninst = nasm->ninst_arr + i;
         ninst_clear_compute_device(ninst);
         if (ninst->ldata->layer->layer_idx == 0) {  // for the input data,
-            ninst_set_compute_device(ninst, DEV_EDGE);  // all inputs are generated from TX
+            ninst_set_compute_device(ninst, edge_id);  // all inputs are generated from TX
         }
         else if (ninst->ldata->layer->layer_idx == 1) { // for the first computation layer,
             if (ninst->ninst_idx < division_idx) {  // front ninsts are for RX
-                ninst_set_compute_device(ninst, DEV_SERVER);
+                ninst_set_compute_device(ninst, server_id);
             }
             else if (ninst->ninst_idx > division_idx) { // behind ninsts are for TX
-                ninst_set_compute_device(ninst, DEV_EDGE);
+                ninst_set_compute_device(ninst, edge_id);
             }
             else {  // division ninst is for the both
-                ninst_set_compute_device(ninst, DEV_SERVER);
-                ninst_set_compute_device(ninst, DEV_EDGE);
+                ninst_set_compute_device(ninst, server_id);
+                ninst_set_compute_device(ninst, edge_id);
             }
         }
         else if (ninst->ldata->layer->layer_idx != nasm->num_ldata - 1) {   // intermediate layers are for RX
-            ninst_set_compute_device(ninst, DEV_SERVER);
+            ninst_set_compute_device(ninst, server_id);
         }
         else {  // final layer is for TX -> main.c has its own logic handling final layer
             // ninst->dev_to_compute[0] = DEV_EDGE;
             // ninst_set_compute_device(ninst, DEV_EDGE);
-            ninst_set_compute_device(ninst, DEV_SERVER);
+            ninst_set_compute_device(ninst, server_id);
         }
     }
-    // nasm_set_ninst_send_target_using_child_compute_device(nasm);
-    nasm_set_last_layer_ninst_send_target_device(nasm, DEV_EDGE);
+    nasm_set_ninst_send_target_using_child_compute_device(nasm);
+    nasm_set_last_layer_ninst_send_target_device(nasm, server_id);
 }
 
 void init_sequential_offload(nasm_t *nasm, int split_layer, int from_dev, int to_dev) 

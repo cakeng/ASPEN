@@ -26,6 +26,13 @@ void dse_schedule (dse_t *dse)
     int target_device = dse->device_idx;
     if(dse->device_mode == DEV_LOCAL || dse->profile_compute)
         dse->target_device = target_device;
+    else if (dse->device_mode == DEV_SERVER)
+    {
+        int min_value = 0;
+        int max_value = dse->num_edge_devices - 1;
+        target_device = rand() % (max_value - min_value + 1) + min_value;
+        dse->target_device = target_device;
+    }
     if (dse->target == NULL)
     {
         if (dse->is_multiuser_case)
@@ -39,7 +46,6 @@ void dse_schedule (dse_t *dse)
             }
             else
             {
-                target_device = rand() % (dse->num_edge_devices);
                 rpool_fetch_ninsts (dse->rpool_arr[target_device], &dse->target, 1, 0);
                 dse->target_device = target_device;
                 
@@ -112,11 +118,11 @@ void dse_schedule (dse_t *dse)
         // printf("[Device: %d] Fetched ninst %d, dev_to_compute[DEV_SERVER]: %d, dev_to_compute[DEV_EDGE]: %d\n", 
         //                                                                                     target_device,
         //                                                                                     ninst->ninst_idx, 
-        //                                                                                     ninst->dev_to_compute[DEV_SERVER],
+        //                                                                                     ninst->dev_to_compute[dse->num_edge_devices],
         //                                                                                     ninst->dev_to_compute[dse->device_idx]);
         if (is_dev_compute(ninst, dse->device_idx) || dse->profile_compute)    // It's mine, so compute
         {
-            // printf("\t[Device: %d] Compute ninst (N%d L%d)\n", target_device, ninst->ninst_idx, ninst->ldata->layer->layer_idx);
+            //printf("\t[Device %d] Compute ninst (N%d L%d)\n", target_device, ninst->ninst_idx, ninst->ldata->layer->layer_idx);
             if (dse->profile_compute) ninst->compute_start = get_time_secs_offset ();
             switch (ninst->ldata->layer->type)
             {

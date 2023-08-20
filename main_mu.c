@@ -284,9 +284,18 @@ int main(int argc, char **argv)
 
     /** STAGE: SCHEDULING **/
     printf ("STAGE: SCHEDULING - %s\n", schedule_policy);
-    if (!strcmp(schedule_policy, "partial")) 
-        init_partial_offload(target_nasm[device_idx], 0.0);
-    if (!strcmp(schedule_policy, "conventional") || !strcmp(schedule_policy, "conventional+pipeline"))
+    if (!strcmp(schedule_policy, "partial"))
+    {
+        printf("\t[Partial Offloading] Sched Partial Ratio: %f\n", sched_partial_ratio);
+        for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
+        {
+            if(device_mode == DEV_SERVER || device_idx == edge_id)
+            {
+                init_partial_offload(target_nasm[edge_id], sched_partial_ratio, edge_id, num_edge_devices);
+            }
+        }
+    }
+    else if (!strcmp(schedule_policy, "conventional") || !strcmp(schedule_policy, "conventional+pipeline"))
     {
         for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
         {
@@ -324,8 +333,6 @@ int main(int argc, char **argv)
             }
         }
     }
-    else if (!strcmp(schedule_policy, "partial")) 
-        init_partial_offload(target_nasm[device_idx], 0.0);
     else if (!strcmp(schedule_policy, "dynamic")) 
     {
         // Initialized scheduler
@@ -387,15 +394,16 @@ int main(int argc, char **argv)
     {
         dse_group_set_multiuser (dse_group, 1);
         if (device_mode == DEV_SERVER) {
-            if (!strcmp(schedule_policy, "conventional") || !strcmp(schedule_policy, "conventional+pipeline") || 
-                        !strcmp(schedule_policy, "spinn") || !strcmp(schedule_policy, "spinn+pipeline")) 
-                dse_group_init_enable_device(dse_group, num_edge_devices);
-            else 
-            {
-                for (int edge_id = 0; edge_id < num_edge_devices; edge_id++) {
-                    dse_group_set_enable_device(dse_group, edge_id, 1);
-                }
-            }
+            // if (!strcmp(schedule_policy, "conventional") || !strcmp(schedule_policy, "conventional+pipeline") || 
+            //             !strcmp(schedule_policy, "spinn") || !strcmp(schedule_policy, "spinn+pipeline")) 
+            //     dse_group_init_enable_device(dse_group, num_edge_devices);
+            // else 
+            // {
+            //     for (int edge_id = 0; edge_id < num_edge_devices; edge_id++) {
+            //         dse_group_set_enable_device(dse_group, edge_id, 1);
+            //     }
+            // }
+            dse_group_init_enable_device(dse_group, num_edge_devices);
         }
 
         for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
@@ -406,6 +414,7 @@ int main(int argc, char **argv)
                 dse_group_add_netengine_arr(dse_group, net_engine_arr[edge_id], edge_id);
                 net_engine_arr[edge_id]->device_idx = edge_id;
                 net_engine_arr[edge_id]->dse_group = dse_group;
+                net_engine_arr[edge_id]->server_idx = num_edge_devices;
             }
         }
 
@@ -467,11 +476,11 @@ int main(int argc, char **argv)
                 {
                     if(!strcmp(schedule_policy, "spinn") || !strcmp(schedule_policy, "spinn+pipeline"))
                     {
-                        max_computed_time = get_max_computed_time(target_nasm[edge_id]);
-                        min_computed_time = get_min_computed_time(target_nasm[edge_id]);
 
                         if(device_mode == DEV_SERVER)
                         {
+                            max_computed_time = get_max_computed_time(target_nasm[edge_id]);
+                            min_computed_time = get_min_computed_time(target_nasm[edge_id]);
                             max_recv_time = get_max_recv_time(target_nasm[edge_id]);
                             if((max_computed_time - min_computed_time) > 0)
                                 prev_server_latency = max_computed_time - min_computed_time;
@@ -481,6 +490,8 @@ int main(int argc, char **argv)
                         }
                         else if (device_mode == DEV_EDGE && device_idx == edge_id)
                         {
+                            max_computed_time = get_max_computed_time(target_nasm[edge_id]);
+                            min_computed_time = get_min_computed_time(target_nasm[edge_id]);
                             min_sent_time = get_min_sent_time(target_nasm[edge_id]);
                             int idx = spinn_find_idx_by_split_layer(spinn_scheduler, edge_id);
 
@@ -523,7 +534,17 @@ int main(int argc, char **argv)
                             write_n(server_sock, &sched_sequential_idx, sizeof(int));   
                         }
                         init_sequential_offload(target_nasm[edge_id], sched_sequential_idx, edge_id, num_edge_devices); // server idx == num_edge_devices
-                    } 
+                    }
+                    if (!strcmp(schedule_policy, "partial"))
+                    {
+                        for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
+                        {
+                            if(device_mode == DEV_SERVER || device_idx == edge_id)
+                            {
+                                init_partial_offload(target_nasm[edge_id], sched_partial_ratio, edge_id, num_edge_devices);
+                            }
+                        }
+                    }
 
                     set_nasm_inference_id(target_nasm[edge_id], connection_key);
                     add_inference_whitelist(net_engine_arr[edge_id], target_nasm[edge_id]->inference_id);
@@ -531,7 +552,6 @@ int main(int argc, char **argv)
                 }
             }
             
-
             if(device_mode == DEV_EDGE)
                 add_input_rpool_reverse (net_engine_arr[device_idx], target_nasm[device_idx], target_inputs[device_idx]);
 

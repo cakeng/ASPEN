@@ -65,6 +65,7 @@ struct networking_engine
 
     // for multiuser case
     int device_idx;
+    int server_idx;
     unsigned int inference_whitelist[SCHEDULE_MAX_DEVICES];
 };
 
