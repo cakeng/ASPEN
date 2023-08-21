@@ -327,7 +327,6 @@ void spinn_model_splitter(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int 
 float get_eft_edge(dynamic_scheduler_t* dynamic_scheduler, rpool_t* rpool, int device_idx, int num_dse, int num_child_ninsts)
 {
     unsigned int rpool_num_stored = atomic_load(&rpool->num_stored);
-    // printf("%d, %d, %d\n", rpool_num_stored, num_child_ninsts, num_dse);
     float eft_edge = (float)(rpool_num_stored + num_child_ninsts) * dynamic_scheduler->avg_edge_ninst_compute_time[device_idx] / num_dse;
     return eft_edge;
 }
@@ -499,11 +498,11 @@ void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode, int device_idx,
 {
     for (int i = 0; i < nasm->num_ldata; i++) 
     {
-        for (int j = 0; j<nasm->ldata_arr[i].num_ninst; j++) 
+        for (int j = 0; j < nasm->ldata_arr[i].num_ninst; j++) 
         {
             ninst_clear_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]));
             ninst_clear_send_target_device(&(nasm->ldata_arr[i].ninst_arr_start[j]));
-            atomic_store(&nasm->ldata_arr[i].ninst_arr_start[j].offloaded, 0);
+            
             if(device_mode == DEV_SERVER)
                 ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), server_idx);
             else if(device_mode == DEV_EDGE)

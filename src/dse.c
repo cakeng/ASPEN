@@ -167,21 +167,31 @@ void dse_schedule (dse_t *dse)
                     break;
             }
 
+            //For logging
             ninst->computed_time = get_time_secs_offset ();
             if (dse->profile_compute) ninst->compute_end = ninst->computed_time;
-
             ninst->dse_idx = dse->thread_id;
 
             // For dynamic offloading
             if(dse->is_dynamic_scheduling)
             {
                 // For edge side offloading decision
-                if(dse->device_mode != DEV_SERVER)
+                if(dse->device_mode == DEV_EDGE)
                 {
+                    // Check all childs
+                    // Offload ninst when one of child's parent is allocated to server
                     for(int i = 0; i < ninst->num_child_ninsts; i++)
                     {
                         ninst_t* child_ninst = ninst->child_ninst_arr[i];
-                        ninst_set_compute_device(child_ninst, dse->device_idx);
+                        for(int j = 0; j < child_ninst->num_parent_ninsts; j++)
+                        {
+                            int parent_idx = child_ninst->parent_ninst_idx_arr[j];
+                            if(atomic_load(&dse->net_engine_arr[dse->device_idx]->nasm->ninst_arr[parent_idx].dev_to_compute[dse->num_edge_devices]))
+                            {
+                                ninst_set_compute_device(child_ninst, dse->num_edge_devices);
+                                break;
+                            }
+                        }
                     }
                     
                     float eft_edge = get_eft_edge(dse->dynamic_scheduler, dse->rpool_arr[target_device], dse->device_idx, dse->net_engine_arr[target_device]->dse_group->num_ases, ninst->num_child_ninsts);
@@ -192,14 +202,31 @@ void dse_schedule (dse_t *dse)
                     ninst->eft_server = eft_server;
 
                     if(eft_server <= eft_edge)
-                        ninst_set_send_target_device(ninst, dse->num_edge_devices);
+                    {
+                        for(int i = 0; i < ninst->num_child_ninsts; i++)
+                        {
+                            ninst_t* child_ninst = ninst->child_ninst_arr[i];
+                            ninst_set_compute_device(child_ninst, dse->num_edge_devices);
+                        }
+                    }
+                    else
+                    {
+                        for(int i = 0; i < ninst->num_child_ninsts; i++)
+                        {
+                            ninst_t* child_ninst = ninst->child_ninst_arr[i];
+                            ninst_set_compute_device(child_ninst, dse->device_idx);
+                        }
+                    }
+
+                    // Update send target after setting compute device
+                    nasm_set_ninst_send_target_using_child_compute_device(dse->net_engine_arr[dse->device_idx]->nasm);
                 }
                 else // For server
                 {
                     for(int i = 0; i < ninst->num_child_ninsts; i++)
                     {
                         ninst_t* child_ninst = ninst->child_ninst_arr[i];
-                        ninst_set_compute_device(child_ninst, dse->device_idx);
+                        ninst_set_compute_device(child_ninst, dse->num_edge_devices);
                     }
                 }
             }
@@ -259,11 +286,11 @@ void dse_schedule (dse_t *dse)
                         else continue;
                         create_network_buffer_for_ninst (ninst);
                         pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
-                        if(!is_offloaded(ninst))
-                        {
+                        // if(!is_offloaded(ninst))
+                        // {
                             push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
-                            atomic_store(&ninst->offloaded, 1);
-                        }
+                            // atomic_store(&ninst->offloaded, 1);
+                        // }
                             
                         pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
                     }
@@ -282,11 +309,11 @@ void dse_schedule (dse_t *dse)
                         else continue;
                         create_network_buffer_for_ninst (ninst);
                         pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
-                        if(!is_offloaded(ninst))
-                        {
+                        // if(!is_offloaded(ninst))
+                        // {
                             push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
-                            atomic_store(&ninst->offloaded, 1);
-                        }
+                            // atomic_store(&ninst->offloaded, 1);
+                        // }
                         pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
                     }
                 }

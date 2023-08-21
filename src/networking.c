@@ -362,7 +362,7 @@ void receive(networking_engine *net_engine)
             buffer_ptr += sizeof(int);
             unsigned int data_size = *(unsigned int*)buffer_ptr;
             buffer_ptr += sizeof(unsigned int);
-            #ifdef DEBUG
+            // #ifdef DEBUG
             if (net_engine->nasm->inference_id != inference_id)
             {
                 PRT("Warning: Received inference_id %d is not matched with ninst_idx %d\n", inference_id, ninst_idx);
@@ -373,10 +373,10 @@ void receive(networking_engine *net_engine)
                 PRT("Warning: Received ninst_idx %d is not found in nasm\n", ninst_idx);
                 continue;
             }
-            #endif
+            // #endif
             ninst_t* target_ninst = &net_engine->nasm->ninst_arr[ninst_idx];
             if (!is_inference_whitelist(net_engine, inference_id))
-                continue;
+                // continue;
             if (atomic_exchange (&target_ninst->state, NINST_COMPLETED) == NINST_COMPLETED) 
                 continue;
                 
