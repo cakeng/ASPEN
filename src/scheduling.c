@@ -1,9 +1,9 @@
 #include "scheduling.h"
 
-int is_offloaded(ninst_t *ninst)
-{
-    return atomic_load(&ninst->offloaded);
-}
+// int is_offloaded(ninst_t *ninst)
+// {
+//     return atomic_load(&ninst->offloaded);
+// }
 
 int is_dev_compute(ninst_t *ninst, int device_idx)
 {
@@ -503,19 +503,19 @@ void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode, int device_idx,
             ninst_clear_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]));
             ninst_clear_send_target_device(&(nasm->ldata_arr[i].ninst_arr_start[j]));
             
-            if(device_mode == DEV_SERVER)
-                ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), server_idx);
-            else if(device_mode == DEV_EDGE)
-                ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), device_idx);
-            else
-                assert(0);
+            // if(device_mode == DEV_SERVER)
+            //     ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), server_idx);
+            // else if(device_mode == DEV_EDGE)
+            //     ninst_set_compute_device(&(nasm->ldata_arr[i].ninst_arr_start[j]), device_idx);
+            // else
+            //     assert(0);
         }
     }
     
     for (int i = 0; i < nasm->ldata_arr[0].num_ninst; i++)
     {
         ninst_set_compute_device(&(nasm->ldata_arr[0].ninst_arr_start[i]), device_idx);
-        ninst_set_send_target_device(&(nasm->ldata_arr[0].ninst_arr_start[i]), server_idx);
+        // ninst_set_send_target_device(&(nasm->ldata_arr[0].ninst_arr_start[i]), server_idx);
     }
 
     // Set last layer to edge as default
