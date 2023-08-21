@@ -20,7 +20,7 @@ server_cmd="./main_mu \
     --inference_repeat_num=${INFERENCE_REPEAT_NUM} \
     --num_edge_devices=${NUM_EDGE_DEVICES}"
 
-shell_cmd="ssh ${EDGE_CREDIT}"
+shell_cmd="ssh ${EDGE_CREDIT} -p 61103"
 
 edge_exec_cmd="./main_mu \
     --device_mode=1   \
@@ -38,7 +38,7 @@ edge_exec_cmd="./main_mu \
     --inference_repeat_num=${INFERENCE_REPEAT_NUM} \
     --num_edge_devices=${NUM_EDGE_DEVICES}"
 
-edge_cmd="$shell_cmd 'cd ./kmbin/pipelining/aspen && $edge_exec_cmd'"
+edge_cmd="$shell_cmd 'cd ./workspace/pipelining/aspen && $edge_exec_cmd'"
 echo "    $(date +%T): server command: ${server_cmd}"
 eval $server_cmd 2>&1 | tee temp_server_out.tmp &
 server_pid=$!
@@ -127,22 +127,22 @@ do
     # echo "$(date +%T): edge $i took $avg_edge_time seconds with total received ${edge_totals[$i-1]}"
 done
 
-for ((i=0; i<NUM_EDGE_DEVICES; i++));
-do
-    for ((iter_num=0; iter_num<INFERENCE_REPEAT_NUM; iter_num++)); 
-    do
-        remote_path="kmbin/pipelining/aspen/logs/${DIRNAME}/edge_${i}/"
-        local_path="logs/${DIRNAME}/edge_${i}/"
-        local_visual_path="logs/visual/${DIRNAME}/edge_${i}/"
-        mkdir -p $local_visual_path
+# for ((i=0; i<NUM_EDGE_DEVICES; i++));
+# do
+#     for ((iter_num=0; iter_num<INFERENCE_REPEAT_NUM; iter_num++)); 
+#     do
+#         remote_path="workspace/pipelining/aspen/logs/${DIRNAME}/edge_${i}/"
+#         local_path="logs/${DIRNAME}/edge_${i}/"
+#         local_visual_path="logs/visual/${DIRNAME}/edge_${i}/"
+#         mkdir -p $local_visual_path
         
-        remote_filename="${PREFIX}_${SCHEDULE_POLICY}_EDGE_${dnn}_B${batch}_T${num_tile}_Iter${iter_num}.csv"
-        local_filename="${PREFIX}_${SCHEDULE_POLICY}_SERVER_${dnn}_B${batch}_T${num_tile}_Iter${iter_num}.csv"
+#         remote_filename="${PREFIX}_${SCHEDULE_POLICY}_EDGE_${dnn}_B${batch}_T${num_tile}_Iter${iter_num}.csv"
+#         local_filename="${PREFIX}_${SCHEDULE_POLICY}_SERVER_${dnn}_B${batch}_T${num_tile}_Iter${iter_num}.csv"
         
-        cp -f ${local_path}${local_filename} ${local_visual_path}${local_filename}
+#         cp -f ${local_path}${local_filename} ${local_visual_path}${local_filename}
 
-        sftp "$EDGE_CREDIT:${remote_path}${remote_filename}" "${local_visual_path}${remote_filename}"
-    done
-done
+#         sftp "$EDGE_CREDIT:${remote_path}${remote_filename}" "${local_visual_path}${remote_filename}"
+#     done
+# done
 
 
