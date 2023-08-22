@@ -11,6 +11,7 @@ void *net_tx_thread_runtime (void* thread_info)
         if(!net_engine->tx_run)
             pthread_cond_wait (&net_engine->tx_thread_cond, &net_engine->tx_thread_mutex);
     }
+    return NULL;
 }
 
 void *net_rx_thread_runtime (void* thread_info) 
@@ -24,6 +25,7 @@ void *net_rx_thread_runtime (void* thread_info)
         if(!net_engine->rx_run) 
             pthread_cond_wait (&net_engine->rx_thread_cond, &net_engine->rx_thread_mutex);
     }
+    return NULL;
 }
 
 void init_networking_queue (networking_queue_t *networking_queue)
@@ -199,15 +201,6 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE de
     if (nasm->data == NULL)
     {
         nasm->data = aspen_calloc (total_mem_req, 1);
-        
-        nasm_ldata_t *ldata = &nasm->ldata_arr[0];
-        aspen_layer_t *layer = ldata->layer;
-        size_t num_cols = 0;
-        if (layer->params[OUT_H] != 0 && layer->params[OUT_W] != 0)
-            num_cols = nasm->batch_size * layer->params[OUT_H] * layer->params[OUT_W];
-        else if (layer->params[MAT_M] != 0)
-            num_cols = nasm->batch_size * nasm->tr_seq_len;
-            
         if (nasm->data == NULL)
         {
             FPRT (stderr, "Error: nasm->data == NULL\n");
@@ -219,7 +212,6 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE de
             set_ldata_out_mat_mem_pos (ldata);
         }
     }
-
     net_engine->rx_thread_cond = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
     net_engine->rx_thread_mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
     net_engine->tx_thread_cond = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
@@ -399,8 +391,6 @@ void receive(networking_engine *net_engine)
             #endif
             
             unsigned int num_ninst_completed = atomic_fetch_add (&target_ninst->ldata->num_ninst_completed , 1);
-            int num_ase = net_engine->rpool->ref_dses > 0 ? net_engine->rpool->ref_dses : 1;
-
             if(net_engine->device_mode == DEV_SERVER)
             {
                 for(int i = 0; i < target_ninst->num_child_ninsts; i++)
@@ -418,8 +408,8 @@ void receive(networking_engine *net_engine)
                     for(int j = 0; j < parent_ninst->num_child_ninsts; j++)
                     {
                         ninst_t* parent_child_ninst = parent_ninst->child_ninst_arr[j];
-                        int temp = parent_child_ninst->dev_to_compute[net_engine->server_idx];
                         ninst_set_compute_device(parent_child_ninst, net_engine->server_idx);
+                        // int temp = parent_child_ninst->dev_to_compute[net_engine->server_idx];
                         // printf("\t\tParent Child: (N%d L%d) Dev_to_compute[%d]: %d -> %d\n",parent_child_ninst->ninst_idx, parent_child_ninst->ldata->layer->layer_idx, net_engine->server_idx, temp, parent_child_ninst->dev_to_compute[net_engine->server_idx]);
                     }
                     
@@ -859,9 +849,6 @@ void add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_f
     {
         ninst_t *ninst = &ldata->ninst_arr_start[i];
         atomic_store (&ninst->state, NINST_COMPLETED);
-        // atomic_store (&ninst->state, NINST_READY);
-        int num_ase = net_engine->rpool->ref_dses > 0 ? net_engine->rpool->ref_dses : 1;
-        // rpool_push_ninsts(net_engine->rpool, &ninst, 1, num_ase);
         update_children (net_engine->rpool, ninst);
         for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++) 
         {
@@ -935,9 +922,6 @@ void add_input_rpool_reverse (networking_engine *net_engine, nasm_t* nasm, char 
     {
         ninst_t *ninst = &ldata->ninst_arr_start[ldata->num_ninst - i - 1];
         atomic_store (&ninst->state, NINST_COMPLETED);
-        // atomic_store (&ninst->state, NINST_READY);
-        int num_ase = net_engine->rpool->ref_dses > 0 ? net_engine->rpool->ref_dses : 1;
-        // rpool_push_ninsts(net_engine->rpool, &ninst, 1, num_ase);
         update_children (net_engine->rpool, ninst);
         for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++) 
         {

@@ -706,7 +706,7 @@ nasm_t *apu_generate_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned in
             min_num_ninst = num_ninst;
         }
         PRT ("\tMin time = %f sec, min num ninst = %ld\n", min_time, min_num_ninst);
-        if (num_ninst <= num_old*1.10 && num_ninst >= num_old*0.90 || num_ninst <= 1)
+        if (((num_ninst <= num_old*1.10) && (num_ninst >= num_old*0.90)) || (num_ninst <= 1))
             break;
     }
     apu_destroy_nasm (new_nasm);

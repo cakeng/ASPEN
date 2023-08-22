@@ -119,6 +119,8 @@ void gen_rank_downward(nasm_t *nasm, float *W_avg, float **C_avg, int **dependen
 float calc_rank_upward_rec(nasm_t *nasm, float *W_avg, float **C_avg, int **dependency, float *rank_upward, int target_idx);
 float calc_rank_downward_rec(nasm_t *nasm, float *W_avg, float **C_avg, int **dependency, float *rank_downward, int target_idx);
 
+void spinn_model_splitter(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int device_idx);
+
 sched_processor_t *heft_init_processor(int num_processor);
 sched_task_t *heft_init_task(int num_ninst);
 float heft_earliest_idle(sched_processor_t *sched_processor, float min_limit, float duration);
