@@ -98,6 +98,20 @@ void aspen_free (void *ptr)
         #endif
     }
 }
+
+void *aspen_dynamic_calloc (size_t num, size_t size)
+{
+    return aspen_calloc (num, size);
+}
+void *aspen_dynamic_malloc (size_t num, size_t size)
+{
+    return aspen_malloc (num, size);
+}
+void aspen_dynamic_free (void *ptr)
+{
+    aspen_free (ptr);
+}
+
 void *aspen_gpu_calloc (size_t num, size_t size, int gpu_idx)
 {
     if (num*size <= 0)

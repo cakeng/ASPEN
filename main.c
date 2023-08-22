@@ -138,7 +138,7 @@ int main (int argc, char **argv)
     double start_time = get_sec();
     for (int i = 0; i < number_of_iterations; i++)
     {
-        rpool_reset (rpool);
+        rpool_reset_queue (rpool);
         rpool_reset_nasm (rpool, target_nasm);
         dse_group_run (dse_group);
         dse_wait_for_nasm_completion (target_nasm);

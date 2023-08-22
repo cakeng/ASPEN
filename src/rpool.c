@@ -288,7 +288,7 @@ void rpool_finish_nasm (rpool_t *rpool, nasm_t *nasm)
     rpool_pop_all (rpool);
 }
 
-void rpool_reset (rpool_t *rpool)
+void rpool_reset_queue (rpool_t *rpool)
 {
     rpool_pop_all (rpool);
 }

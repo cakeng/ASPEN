@@ -15,7 +15,7 @@
 #define RX_TIMEOUT_USEC (1000) // 1ms
 #define RX_STOP_SIGNAL (-19960930)
 #define NET_INIT_QUEUE_SIZE (1024 * 32)
-#define NETQUEUE_BUFFER_SIZE (1024 * 1024 * 32) // 32MiB
+#define NETQUEUE_BUFFER_SIZE (1024 * 1024 * 4) // 4MiB
 
 struct networking_queue_t
 {

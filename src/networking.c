@@ -212,6 +212,8 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE de
             set_ldata_out_mat_mem_pos (ldata);
         }
     }
+    
+
     net_engine->rx_thread_cond = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
     net_engine->rx_thread_mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
     net_engine->tx_thread_cond = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
@@ -425,27 +427,32 @@ void receive(networking_engine *net_engine)
             {
                 // printf ("\t\tNet engine completed layer %d of nasm %d\n", 
                 //     target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->nasm_id);
+                for (int pidx = 0; pidx < NUM_PARENT_ELEMENTS; pidx++)
+                {
+                    if (target_ninst->ldata->parent_ldata_idx_arr[pidx] == -1)
+                        continue;
+                    nasm_ldata_t *parent_ldata = &target_ninst->ldata->nasm->ldata_arr[target_ninst->ldata->parent_ldata_idx_arr[pidx]];
+                    unsigned int num_child_ldata_completed = atomic_fetch_add (&parent_ldata->num_child_ldata_completed, 1);
+                    if (num_child_ldata_completed == parent_ldata->num_child_ldata && (parent_ldata != parent_ldata->nasm->ldata_arr))
+                        free_ldata_out_mat (parent_ldata);
+                }
+
                 atomic_fetch_add (&net_engine->nasm->num_ldata_completed, 1);
-                if (net_engine->device_mode == DEV_EDGE)
+                // If the last layer of the nasm is completed, signal the nasm thread.
+                if(target_ninst->ldata->layer->layer_idx == net_engine->nasm->num_ldata - 1) 
                 {
-                    if(target_ninst->ldata->layer->layer_idx == net_engine->nasm->num_ldata - 1) 
-                    {
-                        atomic_store(&net_engine->nasm->num_ldata_completed, net_engine->nasm->num_ldata);
-                        pthread_mutex_lock (&net_engine->nasm->nasm_mutex);
-                        pthread_cond_signal (&net_engine->nasm->nasm_cond);
-                        pthread_mutex_unlock (&net_engine->nasm->nasm_mutex);
-                    }
+                    atomic_store(&net_engine->nasm->num_ldata_completed, net_engine->nasm->num_ldata);
+                    pthread_mutex_lock (&net_engine->nasm->nasm_mutex);
+                    pthread_cond_signal (&net_engine->nasm->nasm_cond);
+                    pthread_mutex_unlock (&net_engine->nasm->nasm_mutex);
                 }
-                else
+                if(!net_engine->pipelined)
                 {
-                    if(!net_engine->pipelined)
-                    {
-                        // Run SERVER DSEs when all layer DSEs are downloaded. (Conventional mode)
-                        dse_group_set_enable_device(net_engine->dse_group, net_engine->device_idx, 1);
-                        dse_group_add_prioritize_rpool(net_engine->dse_group, net_engine->device_idx);
-                        dse_group_run(net_engine->dse_group);
-                    } 
-                }
+                    // Run SERVER DSEs when all ninst of a layer are downloaded. (Conventional mode)
+                    dse_group_set_enable_device(net_engine->dse_group, net_engine->device_idx, 1);
+                    dse_group_add_prioritize_rpool(net_engine->dse_group, net_engine->device_idx);
+                    dse_group_run(net_engine->dse_group);
+                } 
             }
         }
         #ifdef DEBUG

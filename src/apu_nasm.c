@@ -658,7 +658,7 @@ double test_nasm_time_sec (nasm_t *nasm, unsigned int num_iter, int gpu_idx)
     for (int i = 0; i < num_iter; i++)
     {
         dse_group_run_until_nasm_completion (dse_group, nasm);
-        rpool_reset (rpool);
+        rpool_reset_queue (rpool);
         rpool_reset_nasm (rpool, nasm);
     }
     total_time = (double)get_time_secs() - start;
@@ -841,6 +841,8 @@ void apu_reset_nasm (nasm_t *nasm)
         nasm_ldata_t *ldata = &nasm->ldata_arr[i];
         atomic_store (&ldata->num_ninst_completed, 0);
         atomic_store (&ldata->num_child_ldata_completed, 0);
+        if (i != 0)
+            free_ldata_out_mat (ldata);
         for (int j = 0; j < ldata->num_ninst; j++)
         {
             ninst_t *ninst = &ldata->ninst_arr_start[j];
@@ -875,6 +877,44 @@ void set_nasm_to_finished (nasm_t *nasm)
             ninst->state = NINST_COMPLETED;
             atomic_store (&ninst->num_parent_ninsts_completed, ninst->num_parent_ninsts);
         }
+    }
+}
+
+void copy_ldata_out_mat_to_buffer (nasm_ldata_t *ldata, void *buffer)
+{
+    #ifdef DEBUG
+    if (ldata == NULL || buffer == NULL)
+    {
+        PRT ("ERROR: ldata or buffer is NULL.\n");
+        exit (1);
+    }
+    #endif
+    char* out_mat = ninst->out_mat;
+    const unsigned int W = ninst->tile_dims[OUT_W];
+    const unsigned int H = ninst->tile_dims[OUT_H];
+    const unsigned int stride = ninst->ldata->out_mat_stride;
+    for(int w = 0; w < W; w++) 
+    {
+        memcpy(buffer + w * H * sizeof(float), out_mat + w * stride * sizeof(float), H * sizeof(float));
+    }
+}
+
+void copy_buffer_to_ldata_out_mat (nasm_ldata_t *ldata, void *buffer)
+{
+    #ifdef DEBUG
+    if (ldata == NULL || buffer == NULL)
+    {
+        PRT ("ERROR: ldata or buffer is NULL.\n");
+        exit (1);
+    }
+    #endif
+    char* out_mat = ninst->out_mat;
+    const unsigned int W = ninst->tile_dims[OUT_W];
+    const unsigned int H = ninst->tile_dims[OUT_H];
+    const unsigned int stride = ninst->ldata->out_mat_stride;
+    for(int w = 0; w < W; w++) 
+    {
+        memcpy(out_mat + w * stride * sizeof(float), buffer + w * H * sizeof(float), H * sizeof(float));
     }
 }
 
@@ -916,6 +956,72 @@ void copy_buffer_to_ninst_data (ninst_t *ninst, void *buffer)
     }
 }
 
+void alloc_ldata_out_mat (nasm_ldata_t *ldata)
+{
+    if (ldata->out_mat == NULL)
+    {
+        ldata->out_mat = aspen_dynamic_malloc (1, ldata->out_mat_mem_size);
+    }
+}
+
+void free_ldata_out_mat (nasm_ldata_t *ldata)
+{
+    if (ldata->out_mat != NULL)
+    {
+        aspen_dynamic_free (ldata->out_mat);
+        ldata->out_mat = NULL;
+    }
+}
+
+void set_ldata_out_mat_mem_pos (nasm_ldata_t *ldata)
+{
+    #ifdef DEBUG
+    if (ldata == NULL)
+    {
+        FPRT (stderr, "Error: Invalid arguments to set_ldata_out_mat_mem_pos()\n");
+        assert (0);
+    }
+    #endif
+    nasm_t *nasm = ldata->nasm;
+    if (nasm->data == NULL)
+    {
+        FPRT (stderr, "Error: nasm->data == NULL in set_ldata_out_mat_mem_pos()\n");
+        assert (0);
+    }
+    char *out_mat_mem_pos = nasm->data;
+    for (int i = 0; i < ldata - nasm->ldata_arr; i++)
+    {
+        nasm_ldata_t *prev_ldata = &nasm->ldata_arr[i];
+        out_mat_mem_pos += prev_ldata->out_mat_mem_size;
+    }
+    ldata->out_mat = out_mat_mem_pos;
+    for (int i = 0; i < ldata->num_ninst; i++)
+    {
+        ninst_t *ninst = &ldata->ninst_arr_start[i];
+        set_ninst_out_mat_mem_pos (ninst);
+    }
+}
+
+void set_ninst_out_mat_mem_pos (ninst_t *ninst)
+{
+    #ifdef DEBUG
+    if (ninst == NULL)
+    {
+        FPRT (stderr, "Error: Invalid arguments to set_ninst_out_mat_mem_pos()\n");
+        assert (0);
+    }
+    #endif
+    nasm_ldata_t *ldata = ninst->ldata;
+    if (ninst->ldata->out_mat == NULL)
+    {
+        FPRT (stderr, "Error: ninst->ldata->out_mat == NULL in set_ninst_out_mat_mem_pos()\n");
+        assert (0);
+    }
+    ninst->out_mat = (char*)ninst->ldata->out_mat 
+        + (ninst->out_mat_pos[OUT_W]*ldata->out_mat_stride + ninst->out_mat_pos[OUT_H])
+            *ldata->nasm->dnn->element_size;
+    
+}
 
 void destroy_nasm_ldata (nasm_ldata_t *ldata)
 {
@@ -923,6 +1029,7 @@ void destroy_nasm_ldata (nasm_ldata_t *ldata)
         return;
     if (ldata->child_ldata_idx_arr != NULL)
         free(ldata->child_ldata_idx_arr);
+    free_ldata_out_mat (ldata);
     for (int i = 0; i < ldata->num_ninst; i++)
     {
         destroy_ninst(&ldata->ninst_arr_start[i]);
@@ -952,13 +1059,6 @@ void apu_destroy_nasm (nasm_t *nasm)
     destroy_nasm_ldata_arr(nasm->ldata_arr, nasm->num_ldata);
     if (nasm->ninst_arr != NULL)
         free(nasm->ninst_arr);
-    if (nasm->data != NULL)
-    {
-        if (nasm->gpu_idx >= 0)
-            aspen_gpu_free (nasm->data, nasm->gpu_idx);
-        else
-            aspen_free (nasm->data);
-    }
     if (nasm->gpu_null_data != NULL)
     {
         if (nasm->gpu_idx >= 0)
@@ -1097,6 +1197,7 @@ void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata_ptr, aspen_layer_t *laye
                 {
                     ldata_ptr->parent_ldata_idx_arr [i] = lidx;
                     parent_ldata->num_child_ldata++;
+                    break;
                 }
             }
         }
