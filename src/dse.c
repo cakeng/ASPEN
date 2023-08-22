@@ -193,11 +193,9 @@ void dse_schedule (dse_t *dse)
             unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
             if (num_ninst_completed == ninst->ldata->num_ninst - 1)
             {
+                // printf ("\t\t ldata %d completed\n", ninst->ldata->layer->layer_idx);
                 nasm_t *nasm = ninst->ldata->nasm;
-                // unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
                 atomic_fetch_add (&nasm->num_ldata_completed, 1);
-                // if (num_ldata_completed == nasm->num_ldata - 1)
-
                 if (ninst->ldata == &nasm->ldata_arr[nasm->num_ldata - 1])
                 {
                     // printf ("\t\tSignaling nasm completion...\n");

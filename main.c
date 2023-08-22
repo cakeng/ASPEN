@@ -107,32 +107,34 @@ int main (int argc, char **argv)
     char nasm_file_name [1024] = {0};
     sprintf (nasm_file_name, "data/%s_B%d_T%d.nasm", dnn, batch_size, num_tiles);
 
-    aspen_dnn_t *target_dnn = apu_create_dnn(target_cfg, target_data);
-    apu_save_dnn_to_file (target_dnn, target_aspen);
-    nasm_t *target_nasm = apu_create_nasm (target_dnn, num_tiles, batch_size);
-    apu_save_nasm_to_file (target_nasm, nasm_file_name);
+    // aspen_dnn_t *target_dnn = apu_create_dnn(target_cfg, target_data);
+    // apu_save_dnn_to_file (target_dnn, target_aspen);
+    // nasm_t *target_nasm = apu_create_nasm (target_dnn, num_tiles, batch_size);
+    // apu_save_nasm_to_file (target_nasm, nasm_file_name);
 
-    // aspen_dnn_t *target_dnn = apu_load_dnn_from_file (target_aspen);
-    // if (target_dnn == NULL)
-    // {
-    //     printf ("Unable to load dnn file\n");
-    //     exit (0);
-    // }
-    // nasm_t *target_nasm = apu_load_nasm_from_file (nasm_file_name, target_dnn);
-    // if (target_nasm == NULL)
-    // {
-    //     printf ("Unable to load nasm file\n");
-    //     exit (0);
-    // }
+    aspen_dnn_t *target_dnn = apu_load_dnn_from_file (target_aspen);
+    if (target_dnn == NULL)
+    {
+        printf ("Unable to load dnn file\n");
+        exit (0);
+    }
+    nasm_t *target_nasm = apu_load_nasm_from_file (nasm_file_name, target_dnn);
+    if (target_nasm == NULL)
+    {
+        printf ("Unable to load nasm file\n");
+        exit (0);
+    }
   
     rpool_t *rpool = rpool_init (gpu_idx);
     dse_group_t *dse_group = dse_group_init (num_cores, gpu_idx);
     dse_group_set_rpool (dse_group, rpool);
+    dse_group_set_device_mode (dse_group, DEV_LOCAL);
     dse_group_set_device (dse_group, 0);
-    init_sequential_offload (target_nasm, 0, 0, 0);
+    init_full_local (target_nasm, 0);
 
     rpool_add_nasm (rpool, target_nasm, "data/batched_input_128.bin");
 
+    printf ("Running %d iterations\n", number_of_iterations);
     double start_time = get_sec();
     for (int i = 0; i < number_of_iterations; i++)
     {

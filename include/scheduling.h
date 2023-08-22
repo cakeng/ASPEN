@@ -99,13 +99,13 @@ spinn_scheduler_t* init_spinn_scheduler(avg_ninst_profile_t **ninst_profile, net
 void spinn_update_profile(spinn_scheduler_t* spinn_scheduler, float rtt, float avg_bandwidth, float avg_edge_latency, float avg_server_latency, int device_idx);
 int spinn_schedule_layer(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int device_idx);
 
-void init_full_local(nasm_t *nasm);
-void init_full_offload(nasm_t *nasm);
+void init_full_local(nasm_t *nasm, int dev_idx);
+void init_full_offload(nasm_t *nasm, int edge_id, int server_id);
 void init_partial_offload(nasm_t *nasm, int split_layer, float compute_ratio, int edge_id, int server_id);
 void init_random_offload(nasm_t *nasm, float compute_ratio, int edge_id, int server_id);
-void init_sequential_offload(nasm_t *nasm, int split_layer, int from_dev, int to_dev);
-void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode, int device_idx, int server_idx);
-void init_conventional_offload(nasm_t *nasm);
+void init_sequential_offload(nasm_t *nasm, int split_layer, int edge_id, int server_id);
+void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode, int edge_id, int server_id);
+void init_conventional_offload(nasm_t *nasm, int edge_id, int server_id);
 sched_processor_t *init_heft(char *target_dnn_dir, char *target_nasm_dir, ninst_profile_t **ninst_profile, network_profile_t *network_profile, int num_device);
 
 void heft_gen_dependency(nasm_t *nasm, int **dependency);
