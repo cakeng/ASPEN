@@ -376,9 +376,9 @@ void receive(networking_engine *net_engine)
             #endif
             ninst_t* target_ninst = &net_engine->nasm->ninst_arr[ninst_idx];
             if (!is_inference_whitelist(net_engine, inference_id))
-                continue;
+                return;
             if (atomic_exchange (&target_ninst->state, NINST_COMPLETED) == NINST_COMPLETED) 
-                continue;
+                return;
                 
             #ifdef DEBUG
             if (data_size != target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float))
