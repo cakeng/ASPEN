@@ -97,6 +97,7 @@ dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile,
 spinn_scheduler_t* init_spinn_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, nasm_t** nasms, DEVICE_MODE device_mode, int device_idx, int num_edge_devices);
 
 void spinn_update_profile(spinn_scheduler_t* spinn_scheduler, float rtt, float avg_bandwidth, float avg_edge_latency, float avg_server_latency, int device_idx);
+void spinn_model_splitter(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int device_idx);
 int spinn_schedule_layer(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int device_idx);
 
 void init_full_local(nasm_t *nasm);

@@ -811,7 +811,7 @@ int connect_server_sock(char *server_ip, int server_port) {
     struct sockaddr_in server_addr;
 
     // connect to server
-    server_sock = socket(PF_INET, SOCK_STREAM, 0);
+    server_sock = socket(AF_INET, SOCK_STREAM, 0);
     if (server_sock == -1) {
         printf("Error: socket() returned -1\n");
         assert(0);
@@ -822,10 +822,10 @@ int connect_server_sock(char *server_ip, int server_port) {
     server_addr.sin_addr.s_addr = inet_addr(server_ip);
     server_addr.sin_port = htons(server_port);
 
-
     size_t num_tries = 0;
     while (connect(server_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) 
     {
+        printf("Connecting...\n");
         if (num_tries > 120000) 
         {
             printf("Error: connect() returned -1\n");
