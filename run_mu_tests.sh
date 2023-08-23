@@ -70,6 +70,15 @@ if [ -f "passwd_list.txt" ]; then
     done < "passwd_list.txt"
 fi
 
+port_list=()
+# Append the EDGE credentials passwd from a file named passwd_list.txt
+if [ -f "port_list.txt" ]; then
+    while read -r line; do
+        echo $line
+        port_list+=("$line")
+    done < "port_list.txt"
+fi
+
 bandwidth_list=()
 # Append the bandwidths from a file named bandwidth_list.txt
 if [ -f "bandwidth_list.txt" ]; then
@@ -156,7 +165,7 @@ do
                         count=0
                         for edge_cred in "${edge_list[@]}";
                         do
-                            shell_cmd="ssh $edge_cred"
+                            shell_cmd="ssh $edge_cred -p ${port_list[${count}]}"
                             edge_name=$(echo $edge_cred | cut -d' ' -f1)
                             echo "//////////    Set TC in EDGE    //////////" >> $output_log
                             tc_reset_cmd_wo_ssh="echo ${passwd_list[${count}]} | sudo -S tc qdisc del dev wlan0 root"
@@ -185,7 +194,7 @@ do
                                 output_format="transformer"
                             fi
 
-                            dir_name="Test_SERVER_${server_name}_EDGE_${edge_name}_${start_time}"
+                            dir_name="Test_SERVER_${server_name}_${start_time}"
                             server_cmd="./$1 --device_mode=0 --dirname=$dir_name --target_nasm_dir="data/$nasm_file" --target_dnn_dir="data/${dnn}_base.aspen" --target_input=data/batched_input_128.bin --prefix="$dnn" --server_ip="$server_ip" --server_port="$server_port" --schedule_policy="$sched_policy" --sched_sequential_idx=1 --dse_num=$server_dse_num --output_order="${output_format}" --inference_repeat_num=$3 --num_edge_devices=${num_edge_devices}"
                             
                             echo "//////////    SERVER command    //////////" >> $output_log
@@ -193,23 +202,24 @@ do
                             
                             eval $server_cmd 2>&1 | tee temp_server_out.tmp &
                             server_pid=$!
-                            sleep 3
+                            sleep 1
 
                             edge_pid_list=()
                             edge_out_list=()
                             for i in $(seq 0 $((num_edge_devices-1)))
                             do
-                                shell_cmd="ssh ${edge_list[i]}"
+                                shell_cmd="ssh ${edge_list[i]} -p ${port_list[i]}"
                                 edge_cmd_wo_ssh="./$1 --device_mode=1 --dirname=$dir_name --target_nasm_dir="data/$nasm_file" --target_dnn_dir="data/${dnn}_base.aspen" --target_input=data/batched_input_128.bin --prefix="$dnn" --server_ip="$server_ip" --server_port="$server_port" --schedule_policy="$sched_policy" --sched_sequential_idx=1 --dse_num=$edge_dse_num --output_order="${output_format}" --inference_repeat_num=$3 --num_edge_devices=${num_edge_devices}"
                                 edge_cmd="$shell_cmd 'cd ~/kmbin/pipelining/aspen && $edge_cmd_wo_ssh'"
                                 echo "//////////    EDGE command    //////////" >> $output_log
                                 echo "    $edge_cmd" >> $output_log
-                                echo "    $(date +%T): Running $dnn with $server_dse_num DSEs on server, $edge_dse_num DSEs on edge, batch size $batch, and $num_tile tiles, with EDGE $edge_cred BW ${bandwidth} ($current_run/$total_runs)"
-                                echo "    $(date +%T): Running $dnn with $server_dse_num DSEs on server, $edge_dse_num DSEs on edge, batch size $batch, and $num_tile tiles, with EDGE $edge_cred BW ${bandwidth} ($current_run/$total_runs)" >> $output_log
+                                echo "    $(date +%T): Running $dnn with $server_dse_num DSEs on server, $edge_dse_num DSEs on edge, batch size $batch, and $num_tile tiles, with EDGE ${edge_list[i]} BW ${bandwidth} ($current_run/$total_runs)"
+                                echo "    $(date +%T): Running $dnn with $server_dse_num DSEs on server, $edge_dse_num DSEs on edge, batch size $batch, and $num_tile tiles, with EDGE ${edge_list[i]} BW ${bandwidth} ($current_run/$total_runs)" >> $output_log
                                 echo "    $(date +%T): edge command: ${edge_cmd}"
                                 eval $edge_cmd 2>&1 | tee temp_edge_out${i}.tmp &
                                 edge_pid_list+=($!)
                                 echo "    $(date +%T): edge PID: ${edge_pid_list[$i]}"
+                                sleep 1
                             done
 
                             #Wait max of 10 minutes for EDGE to finish
@@ -305,9 +315,29 @@ do
                                 echo "$(date +%T): edge $i took $avg_edge_time seconds with total received $edge_average_received"
                                 echo "$(date +%T): edge $i took $avg_edge_time seconds with total received $edge_average_received" >> $output_log
                                 # echo "$(date +%T): edge $i took $avg_edge_time seconds with total received ${edge_totals[$i-1]}"
-                                echo "${edge_cred},${sched_policy},${dnn},${batch},${num_tile},${edge_dse_num},${server_dse_num},${bandwidth},${avg_server_time},${avg_edge_time},${server_average_received},${edge_average_received}" >> $output_csv
+                                echo "${edge_list[i]},${sched_policy},${dnn},${batch},${num_tile},${edge_dse_num},${server_dse_num},${bandwidth},${avg_server_time},${avg_edge_time},${server_average_received},${edge_average_received}" >> $output_csv
+
+                                inference_repeat_num=$3
+                                for ((iter_num=0; iter_num<inference_repeat_num; iter_num++)); 
+                                do
+                                    remote_path="kmbin/pipelining/aspen/logs/${dir_name}/edge_${i}/"
+                                    local_log_path="logs/${dir_name}/edge_${i}"
+                                    local_path="logs/${dir_name}/edge_${i}/bw${bandwidth}_server_dse${server_dse_num}_edge_dse${edge_dse_num}/"
+                                    
+                                    mkdir -p $local_path
+                                    remote_filename="${dnn}_${sched_policy}_EDGE_${dnn}_B${batch}_T${num_tile}_Iter${iter_num}.csv"
+                                    local_server_filename="${dnn}_${sched_policy}_SERVER_${dnn}_B${batch}_T${num_tile}_Iter${iter_num}.csv"
+                                    local_edge_filename="${dnn}_${sched_policy}_EDGE_${dnn}_B${batch}_T${num_tile}_Iter${iter_num}.csv"
+
+                                    mv $local_log_path/$local_server_filename $local_path
+                                    echo "${edge_list[i]} -p ${port_list[i]}"
+                                    sftp -oPort=${port_list[i]} "${edge_list[i]}:${remote_path}${remote_filename}" "${local_path}${local_edge_filename}"
+                                    sleep 0.1
+                                done
                             done
                             sleep $2
+                            eval "killall main_mu"
+                            eval "$shell_cmd 'killall main_mu'"
 
                         done
                     done
