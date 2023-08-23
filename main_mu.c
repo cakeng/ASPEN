@@ -574,7 +574,7 @@ int main(int argc, char **argv)
             }
             
             if(device_mode == DEV_EDGE)
-                add_input_rpool_reverse (net_engine_arr[device_idx], target_nasm[device_idx], target_inputs[device_idx]);
+                net_engine_add_input_rpool_reverse (net_engine_arr[device_idx], target_nasm[device_idx], target_inputs[device_idx]);
 
             set_elapsed_time_start ();
             for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)

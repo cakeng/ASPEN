@@ -15,7 +15,7 @@
 #define RX_TIMEOUT_USEC (1000) // 1ms
 #define RX_STOP_SIGNAL (-19960930)
 #define NET_INIT_QUEUE_SIZE (1024 * 32)
-#define NETQUEUE_BUFFER_SIZE (1024 * 1024 * 4) // 4MiB
+#define NETQUEUE_BUFFER_SIZE (1024 * 1024 * 2) // 2MiB
 
 struct networking_queue_t
 {
@@ -91,8 +91,8 @@ void net_engine_wait_for_tx_queue_completion (networking_engine *net_engine);
 void create_network_buffer_for_ninst (ninst_t *target_ninst);
 unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ninst_t **ninst_ptr_list, unsigned int max_ninsts_to_get);
 void push_ninsts_to_net_queue (networking_queue_t *networking_queue, ninst_t **ninst_ptr_list, unsigned int num_ninsts);
-void add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_filename);
-void add_input_rpool_reverse (networking_engine *net_engine, nasm_t* nasm, char *input_filename);
+void net_engine_add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_filename);
+void net_engine_add_input_rpool_reverse (networking_engine *net_engine, nasm_t* nasm, char *input_filename);
 void net_engine_destroy(networking_engine* net_engine);
 
 #endif /* _NETWORKING_ */

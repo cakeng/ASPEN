@@ -886,13 +886,13 @@ void copy_ldata_out_mat_to_buffer (nasm_ldata_t *ldata, void *buffer)
     if (ldata == NULL || buffer == NULL)
     {
         PRT ("ERROR: ldata or buffer is NULL.\n");
-        exit (1);
+        assert(0);
     }
     #endif
-    char* out_mat = ninst->out_mat;
-    const unsigned int W = ninst->tile_dims[OUT_W];
-    const unsigned int H = ninst->tile_dims[OUT_H];
-    const unsigned int stride = ninst->ldata->out_mat_stride;
+    char* out_mat = ldata->out_mat;
+    const unsigned int W = ldata->out_mat_dims[OUT_W];
+    const unsigned int H = ldata->out_mat_dims[OUT_H];
+    const unsigned int stride = ldata->out_mat_stride;
     for(int w = 0; w < W; w++) 
     {
         memcpy(buffer + w * H * sizeof(float), out_mat + w * stride * sizeof(float), H * sizeof(float));
@@ -905,13 +905,13 @@ void copy_buffer_to_ldata_out_mat (nasm_ldata_t *ldata, void *buffer)
     if (ldata == NULL || buffer == NULL)
     {
         PRT ("ERROR: ldata or buffer is NULL.\n");
-        exit (1);
+        assert(0);
     }
     #endif
-    char* out_mat = ninst->out_mat;
-    const unsigned int W = ninst->tile_dims[OUT_W];
-    const unsigned int H = ninst->tile_dims[OUT_H];
-    const unsigned int stride = ninst->ldata->out_mat_stride;
+    char* out_mat = ldata->out_mat;
+    const unsigned int W = ldata->out_mat_dims[OUT_W];
+    const unsigned int H = ldata->out_mat_dims[OUT_H];
+    const unsigned int stride = ldata->out_mat_stride;
     for(int w = 0; w < W; w++) 
     {
         memcpy(out_mat + w * stride * sizeof(float), buffer + w * H * sizeof(float), H * sizeof(float));
@@ -920,14 +920,19 @@ void copy_buffer_to_ldata_out_mat (nasm_ldata_t *ldata, void *buffer)
 
 void copy_ninst_data_to_buffer (ninst_t *ninst, void *buffer)
 {
+    char* out_mat = get_ninst_out_mem_without_alloc  (ninst);
     #ifdef DEBUG
     if (ninst == NULL || buffer == NULL)
     {
         PRT ("ERROR: ninst or buffer is NULL.\n");
-        exit (1);
+        assert(0);
+    }
+    if (out_mat == NULL)
+    {
+        PRT ("ERROR: ninst out_mat is NULL.\n");
+        assert(0);
     }
     #endif
-    char* out_mat = ninst->out_mat;
     const unsigned int W = ninst->tile_dims[OUT_W];
     const unsigned int H = ninst->tile_dims[OUT_H];
     const unsigned int stride = ninst->ldata->out_mat_stride;
@@ -943,10 +948,10 @@ void copy_buffer_to_ninst_data (ninst_t *ninst, void *buffer)
     if (ninst == NULL || buffer == NULL)
     {
         PRT ("ERROR: ninst or buffer is NULL.\n");
-        exit (1);
+        assert(0);
     }
     #endif
-    char* out_mat = ninst->out_mat;
+    char* out_mat = get_ninst_out_mem (ninst);
     const unsigned int W = ninst->tile_dims[OUT_W];
     const unsigned int H = ninst->tile_dims[OUT_H];
     const unsigned int stride = ninst->ldata->out_mat_stride;
@@ -958,69 +963,43 @@ void copy_buffer_to_ninst_data (ninst_t *ninst, void *buffer)
 
 void alloc_ldata_out_mat (nasm_ldata_t *ldata)
 {
-    if (ldata->out_mat == NULL)
+    pthread_mutex_lock (&ldata->out_mat_mutex);
+    if (ldata->out_mat != NULL)
     {
-        ldata->out_mat = aspen_dynamic_malloc (1, ldata->out_mat_mem_size);
+        pthread_mutex_unlock (&ldata->out_mat_mutex);
+        return;
     }
+    // printf ("allocating memory for ldata %d\n", ldata->layer->layer_idx);
+    ldata->out_mat = aspen_dynamic_malloc (1, ldata->out_mat_mem_size);
+    pthread_mutex_unlock (&ldata->out_mat_mutex);
 }
 
 void free_ldata_out_mat (nasm_ldata_t *ldata)
 {
     if (ldata->out_mat != NULL)
     {
+        // printf ("freeing memory for ldata %d\n", ldata->layer->layer_idx);
         aspen_dynamic_free (ldata->out_mat);
         ldata->out_mat = NULL;
     }
 }
 
-void set_ldata_out_mat_mem_pos (nasm_ldata_t *ldata)
+void *get_ninst_out_mem (ninst_t *ninst)
 {
-    #ifdef DEBUG
-    if (ldata == NULL)
-    {
-        FPRT (stderr, "Error: Invalid arguments to set_ldata_out_mat_mem_pos()\n");
-        assert (0);
-    }
-    #endif
-    nasm_t *nasm = ldata->nasm;
-    if (nasm->data == NULL)
-    {
-        FPRT (stderr, "Error: nasm->data == NULL in set_ldata_out_mat_mem_pos()\n");
-        assert (0);
-    }
-    char *out_mat_mem_pos = nasm->data;
-    for (int i = 0; i < ldata - nasm->ldata_arr; i++)
-    {
-        nasm_ldata_t *prev_ldata = &nasm->ldata_arr[i];
-        out_mat_mem_pos += prev_ldata->out_mat_mem_size;
-    }
-    ldata->out_mat = out_mat_mem_pos;
-    for (int i = 0; i < ldata->num_ninst; i++)
-    {
-        ninst_t *ninst = &ldata->ninst_arr_start[i];
-        set_ninst_out_mat_mem_pos (ninst);
-    }
+    if (ninst->ldata->out_mat == NULL)
+        alloc_ldata_out_mat (ninst->ldata);
+    return (char*)ninst->ldata->out_mat
+        + (ninst->out_mat_pos[OUT_W]*ninst->ldata->out_mat_stride + ninst->out_mat_pos[OUT_H])
+            *ninst->ldata->nasm->dnn->element_size;
 }
 
-void set_ninst_out_mat_mem_pos (ninst_t *ninst)
+void *get_ninst_out_mem_without_alloc (ninst_t *ninst)
 {
-    #ifdef DEBUG
-    if (ninst == NULL)
-    {
-        FPRT (stderr, "Error: Invalid arguments to set_ninst_out_mat_mem_pos()\n");
-        assert (0);
-    }
-    #endif
-    nasm_ldata_t *ldata = ninst->ldata;
     if (ninst->ldata->out_mat == NULL)
-    {
-        FPRT (stderr, "Error: ninst->ldata->out_mat == NULL in set_ninst_out_mat_mem_pos()\n");
-        assert (0);
-    }
-    ninst->out_mat = (char*)ninst->ldata->out_mat 
-        + (ninst->out_mat_pos[OUT_W]*ldata->out_mat_stride + ninst->out_mat_pos[OUT_H])
-            *ldata->nasm->dnn->element_size;
-    
+        return NULL;
+    return (char*)ninst->ldata->out_mat
+        + (ninst->out_mat_pos[OUT_W]*ninst->ldata->out_mat_stride + ninst->out_mat_pos[OUT_H])
+            *ninst->ldata->nasm->dnn->element_size;
 }
 
 void destroy_nasm_ldata (nasm_ldata_t *ldata)
@@ -1185,6 +1164,7 @@ void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata_ptr, aspen_layer_t *laye
 {
     ldata_ptr->nasm = nasm;
     ldata_ptr->layer = layer;
+    ldata_ptr->out_mat_mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
     for (LAYER_PARENTS i = 0; i < NUM_PARENT_ELEMENTS; i++)
     {
         ldata_ptr->parent_ldata_idx_arr[i] = -1;
@@ -1620,9 +1600,9 @@ void print_ninst_info (ninst_t *ninst, int print_data)
         return;
     }
     printf ("Ninst Idx: %d, State: %s", ninst->ninst_idx, ninst_state_str[ninst->state]);
-    if (ninst->out_mat != NULL)
+    if (get_ninst_out_mem_without_alloc (ninst) != NULL)
     {
-        printf (", Output Matrix: %p\n", ninst->out_mat);
+        printf (", Output Matrix: %p\n", get_ninst_out_mem_without_alloc (ninst));
     }
     else
     {
@@ -1709,7 +1689,8 @@ void print_ninst_info (ninst_t *ninst, int print_data)
     if (print_data)
     {
         printf("\n\t\tData:");
-        if (ninst->out_mat == NULL)
+        void* out_mat = get_ninst_out_mem_without_alloc (ninst);
+        if (out_mat == NULL)
         {
             printf("\n\t\t\tError: Output matrix is NULL.\n");
         }
@@ -1720,7 +1701,7 @@ void print_ninst_info (ninst_t *ninst, int print_data)
             {
                 unsigned int output_mat_h = ninst->out_mat_pos[OUT_H] + h;
                 unsigned int output_mat_w = ninst->out_mat_pos[OUT_W] + w;
-                printf("%3.2f ", *((float*)ninst->out_mat 
+                printf("%3.2f ", *((float*)out_mat 
                     + output_mat_w*ninst->ldata->out_mat_stride + output_mat_h));
             }
         }

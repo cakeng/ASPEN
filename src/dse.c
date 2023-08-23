@@ -200,7 +200,7 @@ void dse_schedule (dse_t *dse)
                         continue;
                     nasm_ldata_t *parent_ldata = &ninst->ldata->nasm->ldata_arr[ninst->ldata->parent_ldata_idx_arr[pidx]];
                     unsigned int num_child_ldata_completed = atomic_fetch_add (&parent_ldata->num_child_ldata_completed, 1);
-                    if (num_child_ldata_completed == parent_ldata->num_child_ldata && (parent_ldata != parent_ldata->nasm->ldata_arr))
+                    if (num_child_ldata_completed + 1 == parent_ldata->num_child_ldata && (parent_ldata != parent_ldata->nasm->ldata_arr))
                         free_ldata_out_mat (parent_ldata);
                 }
 
@@ -698,7 +698,7 @@ void update_children (rpool_t *rpool, ninst_t *ninst)
                 #endif
                 atomic_store (&child_ninst->state, old_state);
             }
-            if (child_ninst->out_mat == NULL)
+            if (child_ninst->ldata->out_mat == NULL)
                 alloc_ldata_out_mat (child_ninst->ldata);
         }
     }
@@ -744,7 +744,7 @@ void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst)
                 #endif
                 atomic_store (&child_ninst->state, old_state);
             }
-            if (child_ninst->out_mat == NULL)
+            if (child_ninst->ldata->out_mat == NULL)
                 alloc_ldata_out_mat (child_ninst->ldata);
         }
     }
@@ -793,7 +793,7 @@ void update_children_but_prioritize_dse_target (rpool_t *rpool, ninst_t *ninst, 
                 #endif
                 atomic_store (&child_ninst->state, old_state);
             }
-            if (child_ninst->out_mat == NULL)
+            if (child_ninst->ldata->out_mat == NULL)
                 alloc_ldata_out_mat (child_ninst->ldata);
         }
     }
@@ -843,7 +843,7 @@ void update_children_to_cache_but_prioritize_dse_target (rpool_queue_t *cache, n
                 #endif
                 atomic_store (&child_ninst->state, old_state);
             }
-            if (child_ninst->out_mat == NULL)
+            if (child_ninst->ldata->out_mat == NULL)
                 alloc_ldata_out_mat (child_ninst->ldata);
         }
     }

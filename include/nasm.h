@@ -59,6 +59,7 @@ struct nasm_ldata_t
     unsigned int out_mat_stride;
     size_t out_mat_mem_size;
     void *out_mat;
+    pthread_mutex_t out_mat_mutex;
     unsigned int ninst_tile_dims [2];
     ninst_t *ninst_arr_start;
     
@@ -84,7 +85,6 @@ struct ninst_t
     int *input_pos_idx_arr;
     void **input_pos_ptr_arr_gpu;
     unsigned int num_input_pos;
-    void *out_mat;
     void *network_buf;
     rpool_t *affinity_pool;
 
@@ -123,16 +123,16 @@ void set_nasm_inference_id (nasm_t *nasm, int inference_id);
 void destroy_nasm_ldata_arr (nasm_ldata_t *ldata_arr, int num_ldata);
 void set_nasm_to_finished (nasm_t *nasm);
 
-void copy_ldata_out_mat_to_buffer (nasm_ldata_t *ldata, void *buffer)
-void copy_buffer_to_ldata_out_mat (nasm_ldata_t *ldata, void *buffer)
+void copy_ldata_out_mat_to_buffer (nasm_ldata_t *ldata, void *buffer);
+void copy_buffer_to_ldata_out_mat (nasm_ldata_t *ldata, void *buffer);
 void copy_ninst_data_to_buffer (ninst_t *ninst, void *buffer);
 void copy_buffer_to_ninst_data (ninst_t *ninst, void *buffer);
 
 void alloc_ldata_out_mat (nasm_ldata_t *ldata);
 void free_ldata_out_mat (nasm_ldata_t *ldata);
 
-void set_ldata_out_mat_mem_pos (nasm_ldata_t *ldata);
-void set_ninst_out_mat_mem_pos (ninst_t *ninst);
+void *get_ninst_out_mem (ninst_t *ninst);
+void *get_ninst_out_mem_without_alloc (ninst_t *ninst);
 
 unsigned int get_tensor_idx_from_pos (aspen_tensor_t *tensor, unsigned int *pos);
 void get_tensor_pos_from_idx (aspen_tensor_t *tensor, unsigned int idx, unsigned int *pos);
