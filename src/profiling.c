@@ -3,7 +3,7 @@
 avg_ninst_profile_t *profile_computation(nasm_t *target_nasm, int dse_num, int device_idx, char *target_input, DEVICE_MODE device_mode, int gpu, int num_repeat) 
 {
     float avg_computation_time = 0.0;
-    int total;
+    int total = 0;
 
     for (int i = 0; i < num_repeat; i++) {
         rpool_t *rpool = rpool_init (gpu);
@@ -28,7 +28,7 @@ avg_ninst_profile_t *profile_computation(nasm_t *target_nasm, int dse_num, int d
         rpool_destroy (rpool);
     }
 
-    avg_ninst_profile_t *result = calloc(1, sizeof(ninst_profile_t));
+    avg_ninst_profile_t *result = calloc(1, sizeof(avg_ninst_profile_t));
     if(device_mode == DEV_SERVER)
     {
         result->avg_server_computation_time = avg_computation_time / num_repeat;
@@ -47,7 +47,7 @@ avg_ninst_profile_t *profile_computation(nasm_t *target_nasm, int dse_num, int d
 }
 
 network_profile_t *profile_network(DEVICE_MODE device_mode, int edge_device_idx, int server_sock, int client_sock) {
-    network_profile_t *network_profile = malloc(sizeof(network_profile_t));
+    network_profile_t *network_profile = calloc(1, sizeof(network_profile_t));
     
     const int num_repeat = PROFILE_REPEAT;
 
@@ -57,7 +57,7 @@ network_profile_t *profile_network(DEVICE_MODE device_mode, int edge_device_idx,
 
     float long_send_timestamp;
     float long_recv_timestamp;
-    float transmit_rate;
+    float transmit_rate = 0.0;
 
     if (device_mode == DEV_SERVER) { 
         printf("\tprofiling as SERVER...\n");
@@ -71,7 +71,7 @@ network_profile_t *profile_network(DEVICE_MODE device_mode, int edge_device_idx,
         read_n(client_sock, &t3, sizeof(float));
 
         // Profile Bandwidth
-        char* profile_message = malloc(PROFILE_LONG_MESSAGE_SIZE);
+        char* profile_message = calloc(1, PROFILE_LONG_MESSAGE_SIZE);
         for(int i = 0; i < num_repeat; i++)
         {
             read_n(client_sock, profile_message, PROFILE_LONG_MESSAGE_SIZE);
@@ -92,7 +92,7 @@ network_profile_t *profile_network(DEVICE_MODE device_mode, int edge_device_idx,
         write_n(server_sock, &t3, sizeof(float));
 
         // Profile Bandwidth
-        char *profile_message = malloc(PROFILE_LONG_MESSAGE_SIZE);
+        char *profile_message = calloc(1, PROFILE_LONG_MESSAGE_SIZE);
         for(int i = 0; i < num_repeat; i++)
         {
             long_send_timestamp = get_time_secs();
@@ -116,12 +116,14 @@ network_profile_t *profile_network(DEVICE_MODE device_mode, int edge_device_idx,
     return network_profile;
 }
 
-float profile_network_sync(DEVICE_MODE device_mode, int server_sock, int client_sock) {
+float profile_network_sync(DEVICE_MODE device_mode, int server_sock, int client_sock) 
+{
     float time_offset = 0;
     float t0, t1, t2, t3;
-    float rtt = 0.0;
+    // float rtt = 0.0;
 
-    if (device_mode == DEV_SERVER) {
+    if (device_mode == DEV_SERVER) 
+    {
         printf("\tprofiling as SERVER...\n");
         read_n(client_sock, &t0, sizeof(float));
         t1 = get_time_secs();
@@ -130,7 +132,8 @@ float profile_network_sync(DEVICE_MODE device_mode, int server_sock, int client_
         write_n(client_sock, &t2, sizeof(float));
         read_n(client_sock, &t3, sizeof(float));
     }
-    else {
+    else 
+    {
         printf("\tprofiling as EDGE...\n");
         t0 = get_time_secs();
         write_n(server_sock, &t0, sizeof(float));
@@ -139,7 +142,7 @@ float profile_network_sync(DEVICE_MODE device_mode, int server_sock, int client_
         read_n(server_sock, &t2, sizeof(float));
         write_n(server_sock, &t3, sizeof(float));
     }
-    rtt = (t3 - t0) - (t2 - t1);
+    // rtt = (t3 - t0) - (t2 - t1);
     time_offset = ((t1 - t0) + (t2 - t3))/2;
     return time_offset;
 }
@@ -168,9 +171,9 @@ float extract_profile_from_ninsts(nasm_t *nasm) {
     for (int i=0; i<nasm->num_ninst; i++) {
         ninst_t *target_ninst = &(nasm->ninst_arr[i]);
 
-        const unsigned int W = target_ninst->tile_dims[OUT_W];
-        const unsigned int H = target_ninst->tile_dims[OUT_H];    
-        const unsigned int total_bytes = W * H * sizeof(float);
+        // const unsigned int W = target_ninst->tile_dims[OUT_W];
+        // const unsigned int H = target_ninst->tile_dims[OUT_H];    
+        // const unsigned int total_bytes = W * H * sizeof(float);
 
         double elapsed_time = (target_ninst->compute_end - target_ninst->compute_start);
         if (elapsed_time > 0.0) {
@@ -205,7 +208,7 @@ ninst_profile_t *merge_computation_profile(ninst_profile_t **ninst_profiles, int
 
 void save_computation_profile(ninst_profile_t *profile, char *file_path) {
     int num_ninst = profile[0].total;
-    void *temp = malloc(sizeof(int) + sizeof(ninst_profile_t) * num_ninst);
+    void *temp = calloc(1, sizeof(int) + sizeof(ninst_profile_t) * num_ninst);
     *((int *)temp) = num_ninst;
     memcpy((int *)temp + 1, profile, sizeof(ninst_profile_t) * num_ninst);
     save_arr(temp, file_path, sizeof(int) + sizeof(ninst_profile_t) * num_ninst);
@@ -218,7 +221,7 @@ ninst_profile_t *load_computation_profile(char *file_path) {
     int num_ninst = *(int *)temp;
     free(temp);
 
-    ninst_profile_t *result = malloc(sizeof(ninst_profile_t) * num_ninst);
+    ninst_profile_t *result = calloc(1, sizeof(ninst_profile_t) * num_ninst);
     temp = load_arr(file_path, sizeof(int) + sizeof(ninst_profile_t) * num_ninst);
     memcpy(result, (int *)temp + 1, sizeof(ninst_profile_t) * num_ninst);
     free(temp);

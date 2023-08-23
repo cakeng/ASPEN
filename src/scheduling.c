@@ -33,7 +33,7 @@ void ninst_copy_compute_device(ninst_t* target_ninst, ninst_t* ninst)
     // ninst --> target_ninst
     for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++) 
     {
-        atomic_exchange(&target_ninst->dev_to_compute[i], &ninst->dev_to_compute[i]);
+        atomic_store(&(target_ninst->dev_to_compute[i]), ninst->dev_to_compute[i]);
         // target_ninst->dev_to_compute[i] = ninst->dev_to_compute[i];
     }
 }
@@ -587,7 +587,7 @@ sched_processor_t *init_heft(char *target_dnn_dir, char *target_nasm_dir, ninst_
 
     float *EST = calloc(num_device, sizeof(float));
     float *EFT = calloc(num_device, sizeof(float));
-    int *alloc_dev = calloc(num_ninst, sizeof(int));    // TODO: use for convenience!
+    // int *alloc_dev = calloc(num_ninst, sizeof(int));    // TODO: use for convenience!
 
     for (int i=0; i<num_ninst; i++) {
         ninst_t *target_ninst = queue_by_rank_upward[i];
@@ -616,8 +616,8 @@ sched_processor_t *init_heft(char *target_dnn_dir, char *target_nasm_dir, ninst_
                 }
             }
 
-            if (min_EFT_proc == -1) {
-                PRT("init_heft: min_EFT_proc is -1\n");
+            if (min_EFT_proc < 0) {
+                FPRT(stderr, "ERROR: init_heft - min_EFT_proc < 0\n");
                 assert(0);
             }
 
@@ -634,7 +634,7 @@ sched_processor_t *init_heft(char *target_dnn_dir, char *target_nasm_dir, ninst_
         else {
             // case of normal task
             float min_EFT = FLT_MAX;
-            int min_EFT_proc;
+            int min_EFT_proc = -1;
 
             for (int proc=0; proc<num_device; proc++) {
                 float max_dependency_time = 0;
@@ -658,7 +658,11 @@ sched_processor_t *init_heft(char *target_dnn_dir, char *target_nasm_dir, ninst_
                     min_EFT_proc = proc;
                 }
             }
-
+            if (min_EFT_proc < 0)
+            {
+                FPRT(stderr, "ERROR: init_heft - min_EFT_proc < 0\n");
+                assert(0);
+            }
             // push task into processor min_EFT_proc at time EST[min_EFT_proc]
             // record AFT[i] = min_EFT_proc : recorded at sched_task_arr[i]
             /* TODO */
@@ -850,7 +854,7 @@ sched_task_t *heft_init_task(int num_ninst) {
         result_task_arr[i].idx = i;
         result_task_arr[i].next = NULL;
         result_task_arr[i].prev = NULL;
-        result_task_arr[i].processor = -1;
+        result_task_arr[i].processor = NULL;
     }
 
     return result_task_arr;
@@ -917,71 +921,72 @@ void save_schedule(sched_processor_t *sched_processor_arr, int num_device, char 
     fclose (fptr);
 }
 
-sched_processor_t *load_schedule(char *file_path) {
-
+sched_processor_t *load_schedule(char *file_path) 
+{
+    return NULL;
 }
 
 void share_schedule(sched_processor_t **sched_processor_arr, int num_device, DEVICE_MODE device_mode, int server_sock, int client_sock) {
     
-    if (device_mode == DEV_SERVER) {
+    // if (device_mode == DEV_SERVER) {
 
-        for (int i=0; i<num_device; i++) {
-            printf("send %dth device schedule\n", i);
-            write_n(client_sock, &((*sched_processor_arr)[i].num_task), sizeof(int));
+    //     for (int i=0; i<num_device; i++) {
+    //         printf("send %dth device schedule\n", i);
+    //         write_n(client_sock, &((*sched_processor_arr)[i].num_task), sizeof(int));
 
-            sched_task_t *iter_task = (*sched_processor_arr)[i].task_list->next;
-            for (int j=0; j<(*sched_processor_arr)[i].num_task; j++) {
-                write_n(client_sock, &(iter_task->idx), sizeof(int));
-                write_n(client_sock, &(iter_task->start_time), sizeof(float));
-                write_n(client_sock, &(iter_task->end_time), sizeof(float));
-                iter_task = iter_task->next;
-            }
-        }
-    }
-    else if (device_mode == DEV_EDGE) {
-        *sched_processor_arr = heft_init_processor(num_device);
+    //         sched_task_t *iter_task = (*sched_processor_arr)[i].task_list->next;
+    //         for (int j=0; j<(*sched_processor_arr)[i].num_task; j++) {
+    //             write_n(client_sock, &(iter_task->idx), sizeof(int));
+    //             write_n(client_sock, &(iter_task->start_time), sizeof(float));
+    //             write_n(client_sock, &(iter_task->end_time), sizeof(float));
+    //             iter_task = iter_task->next;
+    //         }
+    //     }
+    // }
+    // else if (device_mode == DEV_EDGE) {
+    //     *sched_processor_arr = heft_init_processor(num_device);
 
-        for (int i=0; i<num_device; i++) {
-            /* TODO: read integer from server, then create and push task into sched_proccessor_arr */
-            printf("receive %dth device schedule\n", i);
-            sched_processor_t *processor = *sched_processor_arr + i;
-            sched_task_t *iter_task = processor->task_list;
+    //     for (int i=0; i<num_device; i++) {
+    //         /* TODO: read integer from server, then create and push task into sched_proccessor_arr */
+    //         printf("receive %dth device schedule\n", i);
+    //         sched_processor_t *processor = *sched_processor_arr + i;
+    //         sched_task_t *iter_task = processor->task_list;
             
-            read_n(server_sock, &(processor->num_task), sizeof(int));
-            for (int j=0; j<processor->num_task; j++) {
-                sched_task_t *new_task = calloc(1, sizeof(sched_task_t));
-                iter_task->next = new_task;
-                new_task->prev = iter_task;
-                new_task->next = NULL;
-                new_task->processor = i;
+    //         read_n(server_sock, &(processor->num_task), sizeof(int));
+    //         for (int j=0; j<processor->num_task; j++) {
+    //             sched_task_t *new_task = calloc(1, sizeof(sched_task_t));
+    //             iter_task->next = new_task;
+    //             new_task->prev = iter_task;
+    //             new_task->next = NULL;
+    //             new_task->processor = i;
 
-                read_n(server_sock, &(new_task->idx), sizeof(int));
-                read_n(server_sock, &(new_task->start_time), sizeof(float));
-                read_n(server_sock, &(new_task->end_time), sizeof(float));
+    //             read_n(server_sock, &(new_task->idx), sizeof(int));
+    //             read_n(server_sock, &(new_task->start_time), sizeof(float));
+    //             read_n(server_sock, &(new_task->end_time), sizeof(float));
 
-                iter_task = new_task;
-            }
-        }
-    }
+    //             iter_task = new_task;
+    //         }
+    //     }
+    // }
 }
 
 void apply_schedule_to_nasm(nasm_t *nasm, sched_processor_t *sched_processor, int num_device, DEVICE_MODE device_mode) {
-    ninst_t *ninst_arr = nasm->ninst_arr;
-    int num_ninst = nasm->num_ninst;
+    // ninst_t *ninst_arr = nasm->ninst_arr;
+    // int num_ninst = nasm->num_ninst;
 
-    for (int dev=0; dev<num_device; dev++) {
-        sched_task_t *iter_task = sched_processor[dev].task_list->next;
-        for (int i=0; i<sched_processor[dev].num_task; i++) {
-            ninst_arr[iter_task->idx].dev_to_compute[dev] = 1;
-            iter_task = iter_task->next;
-        }
-    }
+    // for (int dev=0; dev<num_device; dev++) {
+    //     sched_task_t *iter_task = sched_processor[dev].task_list->next;
+    //     for (int i=0; i<sched_processor[dev].num_task; i++) {
+    //         ninst_arr[iter_task->idx].dev_to_compute[dev] = 1;
+    //         iter_task = iter_task->next;
+    //     }
+    // }
 
-    // last array is always for RX
-    nasm_ldata_t *last_layer = &(nasm->ldata_arr[nasm->num_ldata-1]);
-    for (int i=0; i<last_layer->num_ninst; i++) {
-        last_layer->ninst_arr_start[i].dev_to_compute[DEV_SERVER] = 1;
-    }
+    // // last array is always for RX
+    // nasm_ldata_t *last_layer = &(nasm->ldata_arr[nasm->num_ldata-1]);
+    // for (int i=0; i<last_layer->num_ninst; i++) {
+    //     last_layer->ninst_arr_start[i].dev_to_compute[DEV_SERVER] = 1;
+    // }
 
-    nasm_set_ninst_send_target_using_child_compute_device(nasm);
+    // nasm_set_ninst_send_target_using_child_compute_device(nasm);
 }

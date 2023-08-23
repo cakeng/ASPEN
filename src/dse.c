@@ -934,9 +934,10 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
             nasm_ldata_t *ldata = &nasm->ldata_arr[i];
             set_ldata_out_mat_mem_pos (ldata);
         }
+        #ifdef GPU
         for (int i = 0; i < nasm->num_ninst; i++)
         {
-            #ifdef GPU
+            
             ninst_t *ninst = &nasm->ninst_arr[i];
             if (ninst->num_input_pos != 0 && rpool->gpu_idx >= 0)
             {
@@ -954,8 +955,8 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
                         ninst->num_input_pos * sizeof (void*), rpool->gpu_idx);
                 aspen_free (idx_ptr_temp);
             }
-            #endif
         }
+        #endif
     }
     // if (rpool->gpu_idx >= 0)
     //     generate_cudagraph (nasm);
@@ -970,7 +971,7 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
         }
         ninst->state = NINST_COMPLETED;
         atomic_fetch_add (&ninst->ldata->num_ninst_completed , 1);
-        int num_ase = rpool->ref_dses > 0 ? rpool->ref_dses : 1;
+        // int num_ase = rpool->ref_dses > 0 ? rpool->ref_dses : 1;
         // update_children (rpool, ninst, i/(1 + ldata->num_ninst/num_ase));
         update_children (rpool, ninst);
     }
@@ -1037,7 +1038,6 @@ size_t dse_get_ldata_size (nasm_t *nasm, unsigned int ldata_idx)
     nasm_ldata_t *ldata = &nasm->ldata_arr[ldata_idx];
     if (ldata->layer->type == YOLO_LAYER)
     {
-        void *output = NULL;
         size_t output_size = 0;
         for (int i = 0; i < nasm->num_ldata; i++)
         {
