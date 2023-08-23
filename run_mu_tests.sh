@@ -166,22 +166,34 @@ do
                         for edge_cred in "${edge_list[@]}";
                         do
                             shell_cmd="ssh $edge_cred -p ${port_list[${count}]}"
+                            android_shell_cmd="ssh nxc@147.46.130.51 -p 61103 \"adb -s ${edge_cred} shell su -c"
+                            
                             edge_name=$(echo $edge_cred | cut -d' ' -f1)
                             echo "//////////    Set TC in EDGE    //////////" >> $output_log
                             tc_reset_cmd_wo_ssh="echo ${passwd_list[${count}]} | sudo -S tc qdisc del dev wlan0 root"
                             tc_reset_cmd="$shell_cmd '$tc_reset_cmd_wo_ssh'"
-                            echo "     $tc_reset_cmd" >> $output_log
+                            
                             tc_set_cmd_wo_ssh="echo ${passwd_list[${count}]} | sudo -S tc qdisc add dev wlan0 root handle 1: htb default 6"
                             tc_set_cmd="$shell_cmd '$tc_set_cmd_wo_ssh'"
-                            echo "     $tc_set_cmd" >> $output_log
+                            
                             tc_set_bw_cmd_wo_ssh="echo ${passwd_list[${count}]} | sudo -S tc class add dev wlan0 parent 1: classid 1:6 htb rate ${bandwidth}mbit"
                             tc_set_bw_cmd="$shell_cmd '$tc_set_bw_cmd_wo_ssh'"
+                            
+                            pattern="^[^@]+@[^@]+$"
+                            if [[ ! $edge_cred =~ $pattern ]]; then
+                                tc_reset_cmd="$android_shell_cmd 'tc qdisc del dev wlan0 root'\""
+                                tc_set_cmd="$android_shell_cmd 'tc qdisc add dev wlan0 root handle 1: htb default 6'\""
+                                tc_set_bw_cmd="$android_shell_cmd 'tc class add dev wlan0 parent 1: classid 1:6 htb rate ${bandwidth}mbit'\""
+                            fi
+
+                            echo "     $tc_reset_cmd" >> $output_log
+                            echo "     $tc_set_cmd" >> $output_log
                             echo "     $tc_set_bw_cmd" >> $output_log
 
                             eval $tc_reset_cmd
                             eval $tc_set_cmd
                             eval $tc_set_bw_cmd
-                            count+=1
+                            count=$((count+1))
                         done
                         for sched_policy in "${policy_list[@]}";    
                         do
@@ -200,6 +212,7 @@ do
                             echo "//////////    SERVER command    //////////" >> $output_log
                             echo "    $server_cmd" >> $output_log
                             
+                            eval "killall main_mu"
                             eval $server_cmd 2>&1 | tee temp_server_out.tmp &
                             server_pid=$!
                             sleep 1
@@ -209,8 +222,24 @@ do
                             for i in $(seq 0 $((num_edge_devices-1)))
                             do
                                 shell_cmd="ssh ${edge_list[i]} -p ${port_list[i]}"
+                                eval "$shell_cmd 'killall main_mu'"
+                                android_shell_cmd="ssh nxc@147.46.130.51 -p 61103 \"adb -s ${edge_cred} shell"
                                 edge_cmd_wo_ssh="./$1 --device_mode=1 --dirname=$dir_name --target_nasm_dir="data/$nasm_file" --target_dnn_dir="data/${dnn}_base.aspen" --target_input=data/batched_input_128.bin --prefix="$dnn" --server_ip="$server_ip" --server_port="$server_port" --schedule_policy="$sched_policy" --sched_sequential_idx=1 --dse_num=$edge_dse_num --output_order="${output_format}" --inference_repeat_num=$3 --num_edge_devices=${num_edge_devices}"
-                                edge_cmd="$shell_cmd 'cd ~/kmbin/pipelining/aspen && $edge_cmd_wo_ssh'"
+                                if [ "${edge_list[i]}" = "nxc@147.46.130.58" ]; then
+                                    edge_cmd_wo_ssh="./$1 --device_mode=1 --dirname=$dir_name --target_nasm_dir="data/$nasm_file" --target_dnn_dir="data/${dnn}_base.aspen" --target_input=data/batched_input_128.bin --prefix="$dnn" --server_ip="$server_ip" --server_port="$server_port" --schedule_policy="$sched_policy" --sched_sequential_idx=1 --dse_num=4 --output_order="${output_format}" --inference_repeat_num=$3 --num_edge_devices=${num_edge_devices}"
+                                fi
+                                if [[ ! "${edge_list[i]}" =~ $pattern ]]; then
+                                    # eval "$android_shell_cmd 'killall main_mu'\""
+                                    edge_cmd_wo_ssh="./$1 --device_mode=1 --dirname=$dir_name --target_nasm_dir="data/$nasm_file" --target_dnn_dir="data/${dnn}_base.aspen" --target_input=data/batched_input_128.bin --prefix="$dnn" --server_ip="$server_ip" --server_port="$server_port" --schedule_policy="$sched_policy" --sched_sequential_idx=1 --dse_num=$edge_dse_num --output_order="${output_format}" --inference_repeat_num=$3 --num_edge_devices=${num_edge_devices}"
+                                    edge_cmd="$android_shell_cmd 'cd /data/local/tmp/aspen/ && $edge_cmd_wo_ssh'\""
+                                else
+                                    edge_cmd_wo_ssh="./$1 --device_mode=1 --dirname=$dir_name --target_nasm_dir="data/$nasm_file" --target_dnn_dir="data/${dnn}_base.aspen" --target_input=data/batched_input_128.bin --prefix="$dnn" --server_ip="$server_ip" --server_port="$server_port" --schedule_policy="$sched_policy" --sched_sequential_idx=1 --dse_num=$edge_dse_num --output_order="${output_format}" --inference_repeat_num=$3 --num_edge_devices=${num_edge_devices}"
+                                    if [ "${edge_list[i]}" = "nxc@147.46.130.58" ]; then
+                                        edge_cmd_wo_ssh="./$1 --device_mode=1 --dirname=$dir_name --target_nasm_dir="data/$nasm_file" --target_dnn_dir="data/${dnn}_base.aspen" --target_input=data/batched_input_128.bin --prefix="$dnn" --server_ip="$server_ip" --server_port="$server_port" --schedule_policy="$sched_policy" --sched_sequential_idx=1 --dse_num=4 --output_order="${output_format}" --inference_repeat_num=$3 --num_edge_devices=${num_edge_devices}"
+                                    fi
+                                    edge_cmd="$shell_cmd 'cd ~/kmbin/pipelining/aspen && $edge_cmd_wo_ssh'"
+                                fi
+                                # edge_cmd="$shell_cmd 'cd ~/kmbin/pipelining/aspen && $edge_cmd_wo_ssh'"
                                 echo "//////////    EDGE command    //////////" >> $output_log
                                 echo "    $edge_cmd" >> $output_log
                                 echo "    $(date +%T): Running $dnn with $server_dse_num DSEs on server, $edge_dse_num DSEs on edge, batch size $batch, and $num_tile tiles, with EDGE ${edge_list[i]} BW ${bandwidth} ($current_run/$total_runs)"
@@ -317,27 +346,26 @@ do
                                 # echo "$(date +%T): edge $i took $avg_edge_time seconds with total received ${edge_totals[$i-1]}"
                                 echo "${edge_list[i]},${sched_policy},${dnn},${batch},${num_tile},${edge_dse_num},${server_dse_num},${bandwidth},${avg_server_time},${avg_edge_time},${server_average_received},${edge_average_received}" >> $output_csv
 
-                                inference_repeat_num=$3
-                                for ((iter_num=0; iter_num<inference_repeat_num; iter_num++)); 
-                                do
-                                    remote_path="kmbin/pipelining/aspen/logs/${dir_name}/edge_${i}/"
-                                    local_log_path="logs/${dir_name}/edge_${i}"
-                                    local_path="logs/${dir_name}/edge_${i}/bw${bandwidth}_server_dse${server_dse_num}_edge_dse${edge_dse_num}/"
+                                # inference_repeat_num=$3
+                                # for ((iter_num=0; iter_num<inference_repeat_num; iter_num++)); 
+                                # do
+                                #     remote_path="kmbin/pipelining/aspen/logs/${dir_name}/edge_${i}/"
+                                #     local_log_path="logs/${dir_name}/edge_${i}"
+                                #     local_path="logs/${dir_name}/edge_${i}/bw${bandwidth}_server_dse${server_dse_num}_edge_dse${edge_dse_num}/"
                                     
-                                    mkdir -p $local_path
-                                    remote_filename="${dnn}_${sched_policy}_EDGE_${dnn}_B${batch}_T${num_tile}_Iter${iter_num}.csv"
-                                    local_server_filename="${dnn}_${sched_policy}_SERVER_${dnn}_B${batch}_T${num_tile}_Iter${iter_num}.csv"
-                                    local_edge_filename="${dnn}_${sched_policy}_EDGE_${dnn}_B${batch}_T${num_tile}_Iter${iter_num}.csv"
+                                #     mkdir -p $local_path
+                                #     remote_filename="${dnn}_${sched_policy}_EDGE_${dnn}_B${batch}_T${num_tile}_Iter${iter_num}.csv"
+                                #     local_server_filename="${dnn}_${sched_policy}_SERVER_${dnn}_B${batch}_T${num_tile}_Iter${iter_num}.csv"
+                                #     local_edge_filename="${dnn}_${sched_policy}_EDGE_${dnn}_B${batch}_T${num_tile}_Iter${iter_num}.csv"
 
-                                    mv $local_log_path/$local_server_filename $local_path
-                                    echo "${edge_list[i]} -p ${port_list[i]}"
-                                    sftp -oPort=${port_list[i]} "${edge_list[i]}:${remote_path}${remote_filename}" "${local_path}${local_edge_filename}"
-                                    sleep 0.1
-                                done
+                                #     mv $local_log_path/$local_server_filename $local_path
+                                #     echo "${edge_list[i]} -p ${port_list[i]}"
+                                #     sftp -oPort=${port_list[i]} "${edge_list[i]}:${remote_path}${remote_filename}" "${local_path}${local_edge_filename}"
+                                #     sleep 0.1
+                                # done
                             done
                             sleep $2
-                            eval "killall main_mu"
-                            eval "$shell_cmd 'killall main_mu'"
+                            
 
                         done
                     done

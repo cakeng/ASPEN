@@ -1,5 +1,3 @@
 dynamic
 conventional
 conventional+pipeline
-spinn
-spinn+pipeline
