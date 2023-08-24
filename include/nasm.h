@@ -7,6 +7,13 @@
 #include <stdatomic.h>
 #include <netinet/in.h>
 
+#define APU_GENERATION_COEFF ((double)0.8)
+#define APU_GENERATION_NUM_NINST 512
+#define APU_GENERATION_COEFF_GPU ((double)0.8)
+#define APU_GENERATION_NUM_NINST_GPU 50
+#define APU_GENERATION_NUM_FLOPS 5e8
+#define INIT_NUM_PARENT_LDATA 2
+
 struct nasm_t
 {
     unsigned int nasm_id;
@@ -24,7 +31,6 @@ struct nasm_t
     size_t total_flops;
     
     int gpu_idx;
-    void *data;
 
     pthread_mutex_t nasm_mutex;
     pthread_cond_t nasm_cond;
@@ -53,6 +59,7 @@ struct nasm_ldata_t
     unsigned int out_mat_stride;
     size_t out_mat_mem_size;
     void *out_mat;
+    pthread_mutex_t out_mat_mutex;
     unsigned int ninst_tile_dims [2];
     ninst_t *ninst_arr_start;
     
@@ -78,7 +85,6 @@ struct ninst_t
     int *input_pos_idx_arr;
     void **input_pos_ptr_arr_gpu;
     unsigned int num_input_pos;
-    void *out_mat;
     void *network_buf;
     rpool_t *affinity_pool;
 
@@ -108,37 +114,37 @@ struct ninst_t
     // #endif
 };
 
-struct aspen_dnn_t
-{
-    char name [MAX_STRING_LEN];
-    unsigned int element_size;
-    aspen_layer_t *layers;
-    unsigned int num_layers;
-    _Atomic unsigned int ref_nasms;
-    
-};
+nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size,  unsigned int min_ninst_per_ldata, unsigned int transformer_seq_len);
 
-struct aspen_tensor_t
-{
-    unsigned int num_dims;
-    LAYER_PARAMS data_dim_order[MAX_TENSOR_DIMS];
-    unsigned int dims[NUM_PARAM_ELEMENTS];
-    unsigned int num_elements;
-    unsigned int element_size;
-    void *data;
-    void *data_gpu[MAX_NUM_GPUS];
-};
+double test_nasm_time_sec (nasm_t *nasm, unsigned int num_iter, int gpu_idx);
 
-struct aspen_layer_t
-{
-    aspen_dnn_t* dnn;
-    unsigned int layer_idx;
+void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata, aspen_layer_t *layer);
+void set_nasm_inference_id (nasm_t *nasm, int inference_id);
+void destroy_nasm_ldata_arr (nasm_ldata_t *ldata_arr, int num_ldata);
+void set_nasm_to_finished (nasm_t *nasm);
 
-    LAYER_TYPE type;
-    LAYER_ACT activation;
-    aspen_layer_t *parent_layers [NUM_PARENT_ELEMENTS];
-    unsigned int params [NUM_PARAM_ELEMENTS];
-    aspen_tensor_t *tensors [NUM_TENSORS];
-};
+void copy_ldata_out_mat_to_buffer (nasm_ldata_t *ldata, void *buffer);
+void copy_buffer_to_ldata_out_mat (nasm_ldata_t *ldata, void *buffer);
+void copy_ninst_data_to_buffer (ninst_t *ninst, void *buffer);
+void copy_buffer_to_ninst_data (ninst_t *ninst, void *buffer);
+
+void alloc_ldata_out_mat (nasm_ldata_t *ldata);
+void free_ldata_out_mat (nasm_ldata_t *ldata);
+
+void *get_ninst_out_mem (ninst_t *ninst);
+void *get_ninst_out_mem_without_alloc (ninst_t *ninst);
+
+unsigned int get_tensor_idx_from_pos (aspen_tensor_t *tensor, unsigned int *pos);
+void get_tensor_pos_from_idx (aspen_tensor_t *tensor, unsigned int idx, unsigned int *pos);
+ninst_t *get_ninst_from_tensor_pos (nasm_ldata_t *ldata, unsigned int *tensor_pos);
+ninst_t *get_ninst_from_out_mat_pos (nasm_ldata_t *ldata, unsigned int h, unsigned int w);
+void get_out_mat_pos_from_nist (nasm_ldata_t *ldata, ninst_t *ninst, unsigned int *out_mat_pos);
+void get_out_mat_pos_from_tensor_pos (nasm_ldata_t *ldata, unsigned int *tensor_pos, unsigned int *out_mat_pos);
+void get_tensor_pos_from_out_mat_pos (nasm_ldata_t *ldata, unsigned int *out_mat_pos, unsigned int *tensor_pos);
+void get_tensor_pos_from_nist (nasm_ldata_t *ldata, ninst_t *ninst, unsigned int *tensor_pos);
+
+void *get_packed_ldata_output_colwise (nasm_ldata_t *ldata);
+void *get_packed_ldata_output_rowwise (nasm_ldata_t *ldata);
+void *get_ldata_output (nasm_ldata_t *ldata, LAYER_PARAMS *order);
 
 #endif /* _NASM_H_ */

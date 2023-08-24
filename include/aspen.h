@@ -138,7 +138,7 @@ rpool_t *rpool_init (int gpu_idx);
 void rpool_destroy (rpool_t *rpool);
 void rpool_add_nasm_raw_input (rpool_t *rpool, nasm_t* nasm, void* input_data);
 void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, char *input_filename);
-void rpool_reset (rpool_t *rpool);
+void rpool_reset_queue (rpool_t *rpool);
 void rpool_reset_nasm (rpool_t *rpool, nasm_t *nasm);
 
 dse_group_t *dse_group_init (unsigned int num_ase, int gpu_idx);

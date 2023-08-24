@@ -21,7 +21,7 @@ void dse_schedule (dse_t *dse)
     // print_rpool_info (dse->rpool);
     // print_rpool_queue_info (dse->ninst_cache);
     
-    // if ((dse->ninst_cache->num_stored < dse_NINST_CACHE_BALLANCE - dse_NINST_CACHE_DIFF) || 
+    // if ((dse->ninst_cache->num_stored < DSE_NINST_CACHE_BALLANCE - DSE_NINST_CACHE_DIFF) || 
     //     dse->ninst_cache->num_stored == 0)
     int target_device = dse->device_idx;
     if(dse->device_mode == DEV_LOCAL || dse->profile_compute)
@@ -60,7 +60,7 @@ void dse_schedule (dse_t *dse)
                 return;
         }
         // unsigned int fetch_num = 
-        //     rpool_fetch_ninsts (dse->rpool, dse->scratchpad, dse_NINST_CACHE_BALLANCE - dse->ninst_cache->num_stored);
+        //     rpool_fetch_ninsts (dse->rpool, dse->scratchpad, DSE_NINST_CACHE_BALLANCE - dse->ninst_cache->num_stored);
         // push_ninsts_to_queue (dse->ninst_cache, dse->scratchpad, fetch_num);
         // PRT ("Thread %d fetched %d ninsts from rpool\n", dse->thread_id, fetch_num);
         // #ifdef DEBUG
@@ -69,11 +69,11 @@ void dse_schedule (dse_t *dse)
         // print_rpool_queue_info (dse->ninst_cache);
         // #endif
     }
-    // else if (dse->ninst_cache->num_stored > dse_NINST_CACHE_BALLANCE + dse_NINST_CACHE_DIFF)
+    // else if (dse->ninst_cache->num_stored > DSE_NINST_CACHE_BALLANCE + DSE_NINST_CACHE_DIFF)
     // if (dse->ninst_cache->num_stored > 0)
     // {
     //     // unsigned int push_num = 
-    //     //     pop_ninsts_from_queue_back (dse->ninst_cache, dse->scratchpad, dse->ninst_cache->num_stored - dse_NINST_CACHE_BALLANCE);
+    //     //     pop_ninsts_from_queue_back (dse->ninst_cache, dse->scratchpad, dse->ninst_cache->num_stored - DSE_NINST_CACHE_BALLANCE);
     //     rpool_push_ninsts (dse->rpool, dse->ninst_cache->ninst_ptr_arr, dse->ninst_cache->num_stored);
     //     dse->ninst_cache->num_stored = 0;
     //     dse->ninst_cache->idx_end = 0;
@@ -193,11 +193,19 @@ void dse_schedule (dse_t *dse)
             unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
             if (num_ninst_completed == ninst->ldata->num_ninst - 1)
             {
-                nasm_t *nasm = ninst->ldata->nasm;
-                // unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
-                atomic_fetch_add (&nasm->num_ldata_completed, 1);
-                // if (num_ldata_completed == nasm->num_ldata - 1)
+                // printf ("\t\t ldata %d completed\n", ninst->ldata->layer->layer_idx);
+                for (int pidx = 0; pidx < NUM_PARENT_ELEMENTS; pidx++)
+                {
+                    if (ninst->ldata->parent_ldata_idx_arr[pidx] == -1)
+                        continue;
+                    nasm_ldata_t *parent_ldata = &ninst->ldata->nasm->ldata_arr[ninst->ldata->parent_ldata_idx_arr[pidx]];
+                    unsigned int num_child_ldata_completed = atomic_fetch_add (&parent_ldata->num_child_ldata_completed, 1);
+                    if (num_child_ldata_completed + 1 == parent_ldata->num_child_ldata && (parent_ldata != parent_ldata->nasm->ldata_arr))
+                        free_ldata_out_mat (parent_ldata);
+                }
 
+                nasm_t *nasm = ninst->ldata->nasm;
+                atomic_fetch_add (&nasm->num_ldata_completed, 1);
                 if (ninst->ldata == &nasm->ldata_arr[nasm->num_ldata - 1])
                 {
                     // printf ("\t\tSignaling nasm completion...\n");
@@ -505,9 +513,9 @@ void dse_init (dse_group_t *dse_group, dse_t *dse, int gpu_idx)
     dse->thread_id = atomic_fetch_add (&dse_thread_id_counter, 1);
     dse->rpool = NULL;
     dse->gpu_idx = gpu_idx;
-    dse->scratchpad = aspen_calloc (dse_SCRATCHPAD_SIZE, 1);
+    dse->scratchpad = aspen_calloc (DSE_SCRATCHPAD_SIZE, 1);
     if (gpu_idx >= 0)
-        dse->gpu_scratchpad = aspen_gpu_calloc (dse_SCRATCHPAD_SIZE, 1, gpu_idx);
+        dse->gpu_scratchpad = aspen_gpu_calloc (DSE_SCRATCHPAD_SIZE, 1, gpu_idx);
     dse->thread_mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
     dse->thread_cond = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
     dse->ninst_cache = calloc (1, sizeof (rpool_queue_t));
@@ -690,6 +698,8 @@ void update_children (rpool_t *rpool, ninst_t *ninst)
                 #endif
                 atomic_store (&child_ninst->state, old_state);
             }
+            if (child_ninst->ldata->out_mat == NULL)
+                alloc_ldata_out_mat (child_ninst->ldata);
         }
     }
 }
@@ -734,6 +744,8 @@ void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst)
                 #endif
                 atomic_store (&child_ninst->state, old_state);
             }
+            if (child_ninst->ldata->out_mat == NULL)
+                alloc_ldata_out_mat (child_ninst->ldata);
         }
     }
 }
@@ -781,8 +793,9 @@ void update_children_but_prioritize_dse_target (rpool_t *rpool, ninst_t *ninst, 
                 #endif
                 atomic_store (&child_ninst->state, old_state);
             }
+            if (child_ninst->ldata->out_mat == NULL)
+                alloc_ldata_out_mat (child_ninst->ldata);
         }
-
     }
     rpool_push_ninsts (rpool, cache, num_cache, 0);
 }
@@ -830,6 +843,8 @@ void update_children_to_cache_but_prioritize_dse_target (rpool_queue_t *cache, n
                 #endif
                 atomic_store (&child_ninst->state, old_state);
             }
+            if (child_ninst->ldata->out_mat == NULL)
+                alloc_ldata_out_mat (child_ninst->ldata);
         }
     }
 }
@@ -887,80 +902,11 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
         FPRT (stderr, "Error: Invalid arguments to dse_push_first_layer_to_rpool()\n");
         assert (0);
     }
-    #endif
-
-    // Static Tensor Memory Allocation code
-    // TODO: optimize memory usage by dynamically allocating memory only for the live ninsts.
-    // Get sum of all memory requirements of a nasm
-    size_t total_mem_req = 0;
-    for (int i = 0; i < nasm->num_ldata; i++)
-    {
-        nasm_ldata_t *ldata = &nasm->ldata_arr[i];
-        total_mem_req += ldata->out_mat_mem_size;
-    }
-    if (nasm->data == NULL)
-    {
-        nasm->data = aspen_calloc (total_mem_req, 1);
-        if (input_data != NULL)
-        {
-            nasm_ldata_t *ldata = &nasm->ldata_arr[0];
-            aspen_layer_t *layer = ldata->layer;
-            size_t num_cols = 0;
-            if (layer->params[OUT_H] != 0 && layer->params[OUT_W] != 0)
-                num_cols = nasm->batch_size * layer->params[OUT_H] * layer->params[OUT_W];
-            else if (layer->params[MAT_M] != 0)
-                num_cols = nasm->batch_size * nasm->tr_seq_len;
-            for (int i = 0; i < num_cols; i++)
-                memcpy 
-                    ((char*)nasm->data + i * ldata->out_mat_stride * nasm->dnn->element_size, 
-                    (char*)input_data + i * ldata->out_mat_dims[OUT_H] * nasm->dnn->element_size, 
-                    ldata->out_mat_dims[OUT_H] * nasm->dnn->element_size);
-        }
-        if (rpool->gpu_idx >= 0)
-        {
-            void *temp_gpu_data = aspen_gpu_calloc (total_mem_req, 1, rpool->gpu_idx);
-            nasm->gpu_null_data = aspen_gpu_calloc (dse_SCRATCHPAD_SIZE, 1, rpool->gpu_idx);
-            aspen_host_to_gpu_async_memcpy (temp_gpu_data, nasm->data, nasm->ldata_arr[0].out_mat_mem_size, rpool->gpu_idx);
-            aspen_free(nasm->data);
-            nasm->data = temp_gpu_data;
-        }
-        if (nasm->data == NULL)
-        {
-            FPRT (stderr, "Error: nasm->data == NULL in dse_push_first_layer_to_rpool()\n");
-            assert (0);
-        }
-        for (int i = 0; i < nasm->num_ldata; i++)
-        {
-            nasm_ldata_t *ldata = &nasm->ldata_arr[i];
-            set_ldata_out_mat_mem_pos (ldata);
-        }
-        #ifdef GPU
-        for (int i = 0; i < nasm->num_ninst; i++)
-        {
-            
-            ninst_t *ninst = &nasm->ninst_arr[i];
-            if (ninst->num_input_pos != 0 && rpool->gpu_idx >= 0)
-            {
-                nasm_ldata_t *ldata = ninst->ldata;
-                aspen_layer_t *layer = ninst->ldata->layer;
-                nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
-                const unsigned int input_pos_per_n = ninst->num_input_pos/ninst->tile_dims[OUT_W];
-                size_t pos_arr_range = ninst->num_input_pos + input_pos_per_n*_BLOCK_N_SIZE;
-                ninst->input_pos_ptr_arr_gpu = 
-                    aspen_gpu_calloc (pos_arr_range, sizeof (void*), rpool->gpu_idx);
-                void **idx_ptr_temp = aspen_calloc (pos_arr_range, sizeof (void*));
-                prepare_gpu_im2col (ninst, idx_ptr_temp, pos_arr_range);
-                aspen_host_to_gpu_memcpy 
-                    (ninst->input_pos_ptr_arr_gpu, idx_ptr_temp, 
-                        ninst->num_input_pos * sizeof (void*), rpool->gpu_idx);
-                aspen_free (idx_ptr_temp);
-            }
-        }
-        #endif
-    }
-    // if (rpool->gpu_idx >= 0)
-    //     generate_cudagraph (nasm);
+    #endif    
     nasm_ldata_t *ldata = &nasm->ldata_arr[0];
+    alloc_ldata_out_mat (ldata);
+    if (input_data != NULL)
+        copy_buffer_to_ldata_out_mat (ldata, input_data);
     for (int i = 0; i < ldata->num_ninst; i++)
     {
         ninst_t *ninst = &ldata->ninst_arr_start[i];
@@ -978,63 +924,8 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
     atomic_fetch_add (&nasm->num_ldata_completed, 1);
 }
 
-void set_ldata_out_mat_mem_pos (nasm_ldata_t *ldata)
-{
-    #ifdef DEBUG
-    if (ldata == NULL)
-    {
-        FPRT (stderr, "Error: Invalid arguments to set_ldata_out_mat_mem_pos()\n");
-        assert (0);
-    }
-    #endif
-    nasm_t *nasm = ldata->nasm;
-    if (nasm->data == NULL)
-    {
-        FPRT (stderr, "Error: nasm->data == NULL in set_ldata_out_mat_mem_pos()\n");
-        assert (0);
-    }
-    char *out_mat_mem_pos = nasm->data;
-    for (int i = 0; i < ldata - nasm->ldata_arr; i++)
-    {
-        nasm_ldata_t *prev_ldata = &nasm->ldata_arr[i];
-        out_mat_mem_pos += prev_ldata->out_mat_mem_size;
-    }
-    ldata->out_mat = out_mat_mem_pos;
-    for (int i = 0; i < ldata->num_ninst; i++)
-    {
-        ninst_t *ninst = &ldata->ninst_arr_start[i];
-        set_ninst_out_mat_mem_pos (ninst);
-    }
-}
-
-void set_ninst_out_mat_mem_pos (ninst_t *ninst)
-{
-    #ifdef DEBUG
-    if (ninst == NULL)
-    {
-        FPRT (stderr, "Error: Invalid arguments to set_ninst_out_mat_mem_pos()\n");
-        assert (0);
-    }
-    #endif
-    nasm_ldata_t *ldata = ninst->ldata;
-    if (ninst->ldata->out_mat == NULL)
-    {
-        FPRT (stderr, "Error: ninst->ldata->out_mat == NULL in set_ninst_out_mat_mem_pos()\n");
-        assert (0);
-    }
-    ninst->out_mat = (char*)ninst->ldata->out_mat 
-        + (ninst->out_mat_pos[OUT_W]*ldata->out_mat_stride + ninst->out_mat_pos[OUT_H])
-            *ldata->nasm->dnn->element_size;
-    
-}
-
 size_t dse_get_ldata_size (nasm_t *nasm, unsigned int ldata_idx)
 {
-    if (nasm->data == NULL)
-    {
-        FPRT (stderr, "Error: nasm->data == NULL in dse_get_ldata_result()\n");
-        assert (0);
-    }
     nasm_ldata_t *ldata = &nasm->ldata_arr[ldata_idx];
     if (ldata->layer->type == YOLO_LAYER)
     {
@@ -1057,11 +948,6 @@ size_t dse_get_ldata_size (nasm_t *nasm, unsigned int ldata_idx)
 
 void *dse_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS *order)
 {
-    if (nasm->data == NULL)
-    {
-        FPRT (stderr, "Error: nasm->data == NULL in dse_get_ldata_result()\n");
-        assert (0);
-    }
     nasm_ldata_t *ldata = &nasm->ldata_arr[ldata_idx];
     if (ldata->layer->type == YOLO_LAYER)
     {

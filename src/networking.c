@@ -156,7 +156,6 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE de
     atomic_store (&net_engine->tx_kill, 0);
     atomic_store (&net_engine->rx_kill, 0);
 
-
     net_engine->nasm = nasm;
     net_engine->rpool = rpool;
     net_engine->pipelined = pipelined;
@@ -192,26 +191,6 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE de
     nasm->gpu_idx = rpool->gpu_idx;
     rpool_add_queue_group (rpool, info_str, num_queues, NULL, whitelist);
 
-    size_t total_mem_req = 0;
-    for (int i = 0; i < nasm->num_ldata; i++)
-    {
-        nasm_ldata_t *ldata = &nasm->ldata_arr[i];
-        total_mem_req += ldata->out_mat_mem_size;
-    }
-    if (nasm->data == NULL)
-    {
-        nasm->data = aspen_calloc (total_mem_req, 1);
-        if (nasm->data == NULL)
-        {
-            FPRT (stderr, "Error: nasm->data == NULL\n");
-            assert (0);
-        }
-        for (int i = 0; i < nasm->num_ldata; i++)
-        {
-            nasm_ldata_t *ldata = &nasm->ldata_arr[i];
-            set_ldata_out_mat_mem_pos (ldata);
-        }
-    }
     net_engine->rx_thread_cond = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
     net_engine->rx_thread_mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
     net_engine->tx_thread_cond = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
@@ -425,27 +404,32 @@ void receive(networking_engine *net_engine)
             {
                 // printf ("\t\tNet engine completed layer %d of nasm %d\n", 
                 //     target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->nasm_id);
+                for (int pidx = 0; pidx < NUM_PARENT_ELEMENTS; pidx++)
+                {
+                    if (target_ninst->ldata->parent_ldata_idx_arr[pidx] == -1)
+                        continue;
+                    nasm_ldata_t *parent_ldata = &target_ninst->ldata->nasm->ldata_arr[target_ninst->ldata->parent_ldata_idx_arr[pidx]];
+                    unsigned int num_child_ldata_completed = atomic_fetch_add (&parent_ldata->num_child_ldata_completed, 1);
+                    if (num_child_ldata_completed == parent_ldata->num_child_ldata && (parent_ldata != parent_ldata->nasm->ldata_arr))
+                        free_ldata_out_mat (parent_ldata);
+                }
+
                 atomic_fetch_add (&net_engine->nasm->num_ldata_completed, 1);
-                if (net_engine->device_mode == DEV_EDGE)
+                // If the last layer of the nasm is completed, signal the nasm thread.
+                if(target_ninst->ldata->layer->layer_idx == net_engine->nasm->num_ldata - 1) 
                 {
-                    if(target_ninst->ldata->layer->layer_idx == net_engine->nasm->num_ldata - 1) 
-                    {
-                        atomic_store(&net_engine->nasm->num_ldata_completed, net_engine->nasm->num_ldata);
-                        pthread_mutex_lock (&net_engine->nasm->nasm_mutex);
-                        pthread_cond_signal (&net_engine->nasm->nasm_cond);
-                        pthread_mutex_unlock (&net_engine->nasm->nasm_mutex);
-                    }
+                    atomic_store(&net_engine->nasm->num_ldata_completed, net_engine->nasm->num_ldata);
+                    pthread_mutex_lock (&net_engine->nasm->nasm_mutex);
+                    pthread_cond_signal (&net_engine->nasm->nasm_cond);
+                    pthread_mutex_unlock (&net_engine->nasm->nasm_mutex);
                 }
-                else
+                if(!net_engine->pipelined)
                 {
-                    if(!net_engine->pipelined)
-                    {
-                        // Run SERVER DSEs when all layer DSEs are downloaded. (Conventional mode)
-                        dse_group_set_enable_device(net_engine->dse_group, net_engine->device_idx, 1);
-                        dse_group_add_prioritize_rpool(net_engine->dse_group, net_engine->device_idx);
-                        dse_group_run(net_engine->dse_group);
-                    } 
-                }
+                    // Run SERVER DSEs when all ninst of a layer are downloaded. (Conventional mode)
+                    dse_group_set_enable_device(net_engine->dse_group, net_engine->device_idx, 1);
+                    dse_group_add_prioritize_rpool(net_engine->dse_group, net_engine->device_idx);
+                    dse_group_run(net_engine->dse_group);
+                } 
             }
         }
         #ifdef DEBUG
@@ -796,11 +780,11 @@ void push_ninsts_to_net_queue_front (networking_queue_t *networking_queue, ninst
     //     atomic_fetch_add (&networking_queue->queue_group->num_ninsts, num_ninsts);
 }
 
-void add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_filename)
+void net_engine_add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_filename)
 {
     aspen_dnn_t *dnn = nasm->dnn;
     aspen_layer_t *first_layer = &dnn->layers[0];
-    void *data = NULL;
+    void *input_data = NULL;
     unsigned int input_params[NUM_PARAM_ELEMENTS] = {0};
     input_params[BATCH] = nasm->batch_size;
     if (first_layer->params[OUT_C] != 0 && first_layer->params[OUT_H] != 0 && first_layer->params[OUT_W] != 0)
@@ -808,43 +792,26 @@ void add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_f
         input_params[OUT_C] = first_layer->params[OUT_C];
         input_params[OUT_H] = first_layer->params[OUT_H];
         input_params[OUT_W] = first_layer->params[OUT_W];
-        data = aspen_load_input_NHWC (input_filename, input_params, sizeof(float));
+        input_data = aspen_load_input_NHWC (input_filename, input_params, sizeof(float));
     }
     else if (first_layer->params[MAT_M] != 0)
     {
         input_params[MAT_M] = first_layer->params[MAT_M];
         input_params[MAT_N] = nasm->tr_seq_len;
-        data = aspen_load_input (input_filename, input_params, sizeof(float));
+        input_data = aspen_load_input (input_filename, input_params, sizeof(float));
     }
     else
     {
-        FPRT (stderr, "ERROR: rpool_add_nasm: first layer of dnn \"%s\" does not have output dimensions. Cannot add nasm \"%s_nasm_%d\".\n", 
+        FPRT (stderr, "ERROR: net_engine_add_input_rpool: first layer of dnn \"%s\" does not have output dimensions. Cannot add nasm \"%s_nasm_%d\".\n", 
             dnn->name, dnn->name, nasm->nasm_id);
         return;
     }
 
-    if (data != NULL)
-    {
-        nasm_ldata_t *ldata = &nasm->ldata_arr[0];
-        aspen_layer_t *layer = ldata->layer;
-        size_t num_cols = 0;
-        if (layer->params[OUT_H] != 0 && layer->params[OUT_W] != 0)
-            num_cols = nasm->batch_size * layer->params[OUT_H] * layer->params[OUT_W];
-        else if (layer->params[MAT_M] != 0)
-            num_cols = nasm->batch_size * nasm->tr_seq_len;
-        for (int i = 0; i < num_cols; i++)
-            memcpy 
-                ((char*)nasm->data + i * ldata->out_mat_stride * nasm->dnn->element_size, 
-                (char*)data + i * ldata->out_mat_dims[OUT_H] * nasm->dnn->element_size, 
-                ldata->out_mat_dims[OUT_H] * nasm->dnn->element_size);
-    }
-    if (nasm->data == NULL)
-    {
-        FPRT (stderr, "Error: nasm->data == NULL in add_input_rpool()\n");
-        assert (0);
-    }
-
     nasm_ldata_t *ldata = &nasm->ldata_arr[0];
+    alloc_ldata_out_mat (ldata);
+    if (input_data != NULL)
+        copy_buffer_to_ldata_out_mat (ldata, input_data);
+
     for (int i = 0; i < ldata->num_ninst; i++)
     {
         ninst_t *ninst = &ldata->ninst_arr_start[i];
@@ -865,15 +832,14 @@ void add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_f
             }
         }
     }
-    
-    aspen_free (data); 
+    aspen_free (input_data); 
 }
 
-void add_input_rpool_reverse (networking_engine *net_engine, nasm_t* nasm, char *input_filename)
+void net_engine_add_input_rpool_reverse (networking_engine *net_engine, nasm_t* nasm, char *input_filename)
 {
     aspen_dnn_t *dnn = nasm->dnn;
     aspen_layer_t *first_layer = &dnn->layers[0];
-    void *data = NULL;
+    void *input_data = NULL;
     unsigned int input_params[NUM_PARAM_ELEMENTS] = {0};
     input_params[BATCH] = nasm->batch_size;
     if (first_layer->params[OUT_C] != 0 && first_layer->params[OUT_H] != 0 && first_layer->params[OUT_W] != 0)
@@ -881,43 +847,26 @@ void add_input_rpool_reverse (networking_engine *net_engine, nasm_t* nasm, char 
         input_params[OUT_C] = first_layer->params[OUT_C];
         input_params[OUT_H] = first_layer->params[OUT_H];
         input_params[OUT_W] = first_layer->params[OUT_W];
-        data = aspen_load_input_NHWC (input_filename, input_params, sizeof(float));
+        input_data = aspen_load_input_NHWC (input_filename, input_params, sizeof(float));
     }
     else if (first_layer->params[MAT_M] != 0)
     {
         input_params[MAT_M] = first_layer->params[MAT_M];
         input_params[MAT_N] = nasm->tr_seq_len;
-        data = aspen_load_input (input_filename, input_params, sizeof(float));
+        input_data = aspen_load_input (input_filename, input_params, sizeof(float));
     }
     else
     {
-        FPRT (stderr, "ERROR: rpool_add_nasm: first layer of dnn \"%s\" does not have output dimensions. Cannot add nasm \"%s_nasm_%d\".\n", 
+        FPRT (stderr, "ERROR: net_engine_add_input_rpool_reverse: first layer of dnn \"%s\" does not have output dimensions. Cannot add nasm \"%s_nasm_%d\".\n", 
             dnn->name, dnn->name, nasm->nasm_id);
         return;
     }
 
-    if (data != NULL)
-    {
-        nasm_ldata_t *ldata = &nasm->ldata_arr[0];
-        aspen_layer_t *layer = ldata->layer;
-        size_t num_cols = 0;
-        if (layer->params[OUT_H] != 0 && layer->params[OUT_W] != 0)
-            num_cols = nasm->batch_size * layer->params[OUT_H] * layer->params[OUT_W];
-        else if (layer->params[MAT_M] != 0)
-            num_cols = nasm->batch_size * nasm->tr_seq_len;
-        for (int i = 0; i < num_cols; i++)
-            memcpy 
-                ((char*)nasm->data + i * ldata->out_mat_stride * nasm->dnn->element_size, 
-                (char*)data + i * ldata->out_mat_dims[OUT_H] * nasm->dnn->element_size, 
-                ldata->out_mat_dims[OUT_H] * nasm->dnn->element_size);
-    }
-    if (nasm->data == NULL)
-    {
-        FPRT (stderr, "Error: nasm->data == NULL in add_input_rpool_reverse()\n");
-        assert (0);
-    }
-
     nasm_ldata_t *ldata = &nasm->ldata_arr[0];
+    alloc_ldata_out_mat (ldata);
+    if (input_data != NULL)
+        copy_buffer_to_ldata_out_mat (ldata, input_data);
+
     for (int i = 0; i < ldata->num_ninst; i++)
     {
         ninst_t *ninst = &ldata->ninst_arr_start[ldata->num_ninst - i - 1];
@@ -938,7 +887,6 @@ void add_input_rpool_reverse (networking_engine *net_engine, nasm_t* nasm, char 
             }
         }
     }
-    
-    aspen_free (data); 
+    aspen_free (input_data); 
 }
 

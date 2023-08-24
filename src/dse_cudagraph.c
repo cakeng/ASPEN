@@ -102,7 +102,7 @@ void add_cudagraph_node_conv2d (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_
     unsigned int ldc = ldata->out_mat_stride;
     void *A = (char*)layer->tensors[WEIGHT_TENSOR]->data + ninst->out_mat_pos[OUT_H] * lda * layer->dnn->element_size;
     // void *B = dse->scratchpad;
-    void *C = ninst->out_mat;
+    void *C = get_ninst_out_mem (ninst);
     unsigned int rem_n = N % _TILE_SIZE_N;
     unsigned int rem_m = M % _TILE_SIZE_M;
     unsigned int rem_k = K % _TILE_SIZE_K;
@@ -125,7 +125,7 @@ void add_cudagraph_node_matmul (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_
     void *A = (char*)layer->tensors[WEIGHT_TENSOR]->data_gpu[gpu_idx] 
         + (ninst->out_mat_pos[OUT_H] * lda * layer->dnn->element_size);
     void *B = (char*)p_ldata->out_mat + (ninst->out_mat_pos[OUT_W] * ldb * layer->dnn->element_size);
-    void *C = ninst->out_mat;
+    void *C = get_ninst_out_mem (ninst);
 
     float *bias = (float*)layer->tensors[BIAS_TENSOR]->data_gpu[gpu_idx] + ninst->out_mat_pos[OUT_H];
 
@@ -177,7 +177,7 @@ void add_cudagraph_node_maxpool2d (cudaGraph_t cuda_graph, ninst_t *ninst, int g
     unsigned int M = ninst->tile_dims[OUT_H];
     unsigned int N = ninst->tile_dims[OUT_W];
     unsigned int ldc = ldata->out_mat_stride;
-    void *C = ninst->out_mat;
+    void *C = get_ninst_out_mem (ninst);
 
     
 
@@ -192,7 +192,7 @@ void add_cudagraph_node_avgpool2d (cudaGraph_t cuda_graph, ninst_t *ninst, int g
     unsigned int M = ninst->tile_dims[OUT_H];
     unsigned int N = ninst->tile_dims[OUT_W];
     unsigned int ldc = ldata->out_mat_stride;
-    void *C = ninst->out_mat;
+    void *C = get_ninst_out_mem (ninst);
 
     
 
@@ -211,7 +211,7 @@ void add_cudagraph_node_residual (cudaGraph_t cuda_graph, ninst_t *ninst, int gp
     unsigned int M = ninst->tile_dims[OUT_H];
     unsigned int N = ninst->tile_dims[OUT_W];
     unsigned int ldc = ldata->out_mat_stride;
-    void *C = ninst->out_mat;
+    void *C = get_ninst_out_mem (ninst);
     unsigned int w_pos = ninst->out_mat_pos[OUT_W];
     float *input_0 = (float*)p0_ldata->out_mat + w_pos * p0_ldata->out_mat_stride + ninst->out_mat_pos[OUT_H];
     float *input_1 = (float*)p1_ldata->out_mat + w_pos * p1_ldata->out_mat_stride + ninst->out_mat_pos[OUT_H];
@@ -261,7 +261,7 @@ void add_cudagraph_node_softmax (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu
     unsigned int M = ninst->tile_dims[OUT_H];
     unsigned int N = ninst->tile_dims[OUT_W];
     unsigned int ldc = ldata->out_mat_stride;
-    void *C = ninst->out_mat;
+    void *C = get_ninst_out_mem (ninst);
 
     
     
@@ -279,7 +279,7 @@ void add_cudagraph_node_layernorm (cudaGraph_t cuda_graph, ninst_t *ninst, int g
     float *weight = (float*)layer->tensors[WEIGHT_TENSOR]->data_gpu[gpu_idx] + ninst->out_mat_pos[OUT_H];
     float *bias =(float*)layer->tensors[BIAS_TENSOR]->data_gpu[gpu_idx] + ninst->out_mat_pos[OUT_H];
     void *B = (char*)p_ldata->out_mat + (ninst->out_mat_pos[OUT_W] * ldb * layer->dnn->element_size);
-    void *C = ninst->out_mat;
+    void *C = get_ninst_out_mem (ninst);
 
     // dim3 prob_gridDim (N/_BLOCK_LAYERNORM_SIZE + ((N%_BLOCK_LAYERNORM_SIZE) > 0), 1, 1);
     // dim3 prob_blockDim (_BLOCK_LAYERNORM_SIZE, 1, 1);
@@ -342,7 +342,7 @@ void add_cudagraph_node_k_attention (cudaGraph_t cuda_graph, ninst_t *ninst, int
         (batch * ldk * M + head * K + ninst->out_mat_pos[OUT_H]);
     void *B_head = (float*)p_ldata->out_mat + (batch * ldb * num_seq + head * hidden_per_head +
         + (ninst->out_mat_pos[OUT_W] % num_seq) * ldb);
-    void *C_head = ninst->out_mat;
+    void *C_head = get_ninst_out_mem (ninst);
     
     unsigned int n = 0;
 
@@ -433,7 +433,7 @@ void add_cudagraph_node_v_attention (cudaGraph_t cuda_graph, ninst_t *ninst, int
     float *val_head = (float*)pv_ldata->out_mat + batch * ldv * num_seq + ninst->out_mat_pos[OUT_H];
     void *B_head = (float*)p_ldata->out_mat + (batch * num_heads * num_seq + head * num_seq +
         + (ninst->out_mat_pos[OUT_W] % num_seq)) * ldb;
-    void *C_head = ninst->out_mat; 
+    void *C_head = get_ninst_out_mem (ninst);
 
     // dim3 gridDim (M/_BLOCK_M_SIZE + ((M%_BLOCK_M_SIZE) > 0), N/_BLOCK_N_SIZE + ((N%_BLOCK_N_SIZE) > 0), 1);
     // dim3 blockDim ((_BLOCK_M_SIZE / _THREAD_M_SIZE), (_BLOCK_N_SIZE / _THREAD_N_SIZE), 1);

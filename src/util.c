@@ -40,6 +40,159 @@ char *rpool_cond_str [NUM_RPOOL_CONDS] =
     [RPOOL_DNN] = "RPOOL_DNN", [RPOOL_LAYER_TYPE] = "RPOOL_LAYER_TYPE", [RPOOL_LAYER_IDX] = "RPOOL_LAYER_IDX", [RPOOL_NASM] = "RPOOL_NASM", [RPOOL_ASE] = "RPOOL_ASE"
 };
 
+unsigned int dynamic_mem_init = 0;
+void **dynamic_arr[DYNAMIC_ALLOC_RANGE] = {NULL};
+size_t dynamic_arr_mem_size[DYNAMIC_ALLOC_RANGE] = {0};
+unsigned int dynamic_arr_max_num[DYNAMIC_ALLOC_RANGE] = {0};
+pthread_mutex_t dynamic_mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
+
+void init_dynamic_mem ()
+{
+    pthread_mutex_lock (&dynamic_mutex);
+    if (dynamic_mem_init == 1)
+    {
+        pthread_mutex_unlock (&dynamic_mutex);
+        return;
+    }
+    for (int i = 0; i < DYNAMIC_ALLOC_RANGE; i++)
+    {
+        dynamic_arr[i] = calloc (DYNAMIC_ALLOC_ARR_INIT_SIZE, sizeof(void*));
+        dynamic_arr_max_num[i] = DYNAMIC_ALLOC_ARR_INIT_SIZE;
+        dynamic_arr_mem_size[i] = (DYNAMIC_ALLOC_MIN_SIZE) * (pow (DYNAMIC_ALLOC_RANGE_SCALE, i));
+    }
+    dynamic_mem_init = 1;
+    // print_dynamic_mem_arr();
+    pthread_mutex_unlock (&dynamic_mutex);
+}
+
+void increase_dynamic_mem_arr (int idx)
+{
+    void **temp = calloc (dynamic_arr_max_num[idx] + DYNAMIC_ALLOC_ARR_INIT_SIZE, sizeof(void*));
+    memcpy (temp, dynamic_arr[idx], dynamic_arr_max_num[idx]*sizeof(void*));
+    free (dynamic_arr[idx]);
+    dynamic_arr[idx] = temp;
+    dynamic_arr_max_num[idx] += DYNAMIC_ALLOC_ARR_INIT_SIZE;
+}
+
+void print_dynamic_mem_arr()
+{
+    if (dynamic_mem_init == 0)
+        init_dynamic_mem ();
+    for (size_t i = 0; i < DYNAMIC_ALLOC_RANGE; i++)
+    {
+        printf ("\t[%ld KiB]\t\t", dynamic_arr_mem_size[i]/1024);
+        int count = 0;
+        for (int j = 0; j < dynamic_arr_max_num[i]; j++)
+        {
+            if (dynamic_arr[i][j] != NULL)
+                count++;
+        }
+        printf ("%d/%d\n", count, dynamic_arr_max_num[i]);
+    }
+}
+
+void *aspen_dynamic_calloc (size_t num, size_t size)
+{
+    void *ptr = aspen_dynamic_malloc (num, size);
+    if (ptr == NULL)
+        bzero (ptr, num * size);
+    return ptr;
+}
+
+void *aspen_dynamic_malloc (size_t num, size_t size)
+{
+    if (dynamic_mem_init == 0)
+        init_dynamic_mem ();
+    if (num*size <= 0)
+        return NULL;
+    #ifdef DEBUG
+    else if (num*size > dynamic_arr_mem_size[DYNAMIC_ALLOC_RANGE-1])
+    {
+        FPRT (stderr, "Error: Requested memory size %ld KiB is too large.\n", num*size/1024);
+        assert (0);
+    }
+    #endif
+    void* ptr = NULL;
+    size_t i = 0;
+    for (; i < DYNAMIC_ALLOC_RANGE; i++)
+    {
+        if (dynamic_arr_mem_size[i] >= num*size)
+            break;
+    }
+    pthread_mutex_lock (&dynamic_mutex);
+    for (int j = 0; j < dynamic_arr_max_num[i]; j++)
+    {
+        if (dynamic_arr[i][j] != NULL)
+        {
+            ptr = dynamic_arr[i][j];
+            dynamic_arr[i][j] = NULL;
+            break;
+        }
+    }
+    pthread_mutex_unlock (&dynamic_mutex);
+    if (ptr == NULL)
+    {
+        ptr = aspen_malloc (1, dynamic_arr_mem_size[i]);
+    }
+    return ptr;
+}
+
+void aspen_dynamic_free (void *ptr, size_t num, size_t size)
+{
+    if (dynamic_mem_init == 0)
+        init_dynamic_mem ();
+    if (num*size <= 0)
+        return;
+    #ifdef DEBUG
+    else if (num*size > dynamic_arr_mem_size[DYNAMIC_ALLOC_RANGE-1])
+    {
+        FPRT (stderr, "Error: Requested memory size %ld KiB is too large.\n", num*size/1024);
+        assert (0);
+    }
+    #endif
+    size_t i = 0, j = 0;
+    for (; i < DYNAMIC_ALLOC_RANGE; i++)
+    {
+        if (dynamic_arr_mem_size[i] >= num*size)
+            break;
+    }
+    pthread_mutex_lock (&dynamic_mutex);
+    for (; j < dynamic_arr_max_num[i]; j++)
+    {
+        if (dynamic_arr[i][j] == NULL)
+        {
+            dynamic_arr[i][j] = ptr;
+            break;
+        }
+    }
+    if (j == dynamic_arr_max_num[i])
+    {
+        increase_dynamic_mem_arr (i);
+        dynamic_arr[i][j] = ptr;
+    }
+    // print_dynamic_mem_arr();
+    pthread_mutex_unlock (&dynamic_mutex);
+}
+
+void aspen_flush_dynamic_memory ()
+{
+    if (dynamic_mem_init == 0)
+        return;
+    pthread_mutex_lock (&dynamic_mutex);
+    for (int i = 0; i < DYNAMIC_ALLOC_RANGE; i++)
+    {
+        for (int j = 0; j < dynamic_arr_max_num[i]; j++)
+        {
+            if (dynamic_arr[i][j] != NULL)
+            {
+                aspen_free (dynamic_arr[i][j]);
+                dynamic_arr[i][j] = NULL;
+            }
+        }
+    }
+    pthread_mutex_unlock (&dynamic_mutex);
+}
+
 void *aspen_calloc (size_t num, size_t size)
 {
     if (num*size <= 0)
@@ -98,6 +251,7 @@ void aspen_free (void *ptr)
         #endif
     }
 }
+
 void *aspen_gpu_calloc (size_t num, size_t size, int gpu_idx)
 {
     if (num*size <= 0)

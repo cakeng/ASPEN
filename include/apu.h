@@ -9,11 +9,38 @@
 #include "cuda_kernels.h"
 #include "profiling.h"
 
-#define APU_GENERATION_COEFF ((double)0.8)
-#define APU_GENERATION_NUM_NINST 512
-#define APU_GENERATION_COEFF_GPU ((double)0.8)
-#define APU_GENERATION_NUM_NINST_GPU 50
-#define APU_GENERATION_NUM_FLOPS 5e8
+struct aspen_dnn_t
+{
+    char name [MAX_STRING_LEN];
+    unsigned int element_size;
+    aspen_layer_t *layers;
+    unsigned int num_layers;
+    _Atomic unsigned int ref_nasms;
+    
+};
+
+struct aspen_tensor_t
+{
+    unsigned int num_dims;
+    LAYER_PARAMS data_dim_order[MAX_TENSOR_DIMS];
+    unsigned int dims[NUM_PARAM_ELEMENTS];
+    unsigned int num_elements;
+    unsigned int element_size;
+    void *data;
+    void *data_gpu[MAX_NUM_GPUS];
+};
+
+struct aspen_layer_t
+{
+    aspen_dnn_t* dnn;
+    unsigned int layer_idx;
+
+    LAYER_TYPE type;
+    LAYER_ACT activation;
+    aspen_layer_t *parent_layers [NUM_PARENT_ELEMENTS];
+    unsigned int params [NUM_PARAM_ELEMENTS];
+    aspen_tensor_t *tensors [NUM_TENSORS];
+};
 
 void aspen_init_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data, int gpu_idx);
 void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data, int gpu_idx);
@@ -47,32 +74,4 @@ void sync_output_data_to_host_layer (aspen_layer_t *layer, int gpu_idx);
 void sync_output_data_to_host_dnn (aspen_dnn_t *dnn, int gpu_idx);
 void sync_output_data_to_gpu_layer (aspen_layer_t *layer, int gpu_idx);
 void sync_output_data_to_gpu_dnn (aspen_dnn_t *dnn, int gpu_idx);
-
-double test_nasm_time_sec (nasm_t *nasm, unsigned int num_iter, int gpu_idx);
-
-nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size,  unsigned int min_ninst_per_ldata, unsigned int transformer_seq_len);
-
-void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata, aspen_layer_t *layer);
-void set_nasm_inference_id (nasm_t *nasm, int inference_id);
-void destroy_nasm_ldata_arr (nasm_ldata_t *ldata_arr, int num_ldata);
-void set_nasm_to_finished (nasm_t *nasm);
-
-void copy_tensor_data_to_nasm_data (aspen_tensor_t *tensor, nasm_ldata_t *ldata);
-void copy_nasm_data_to_tensor_data (nasm_ldata_t *ldata, aspen_tensor_t *tensor);
-
-void copy_ninst_data_to_buffer (ninst_t *ninst, void *buffer);
-void copy_buffer_to_ninst_data (ninst_t *ninst, void *buffer);
-
-unsigned int get_tensor_idx_from_pos (aspen_tensor_t *tensor, unsigned int *pos);
-void get_tensor_pos_from_idx (aspen_tensor_t *tensor, unsigned int idx, unsigned int *pos);
-ninst_t *get_ninst_from_tensor_pos (nasm_ldata_t *ldata, unsigned int *tensor_pos);
-ninst_t *get_ninst_from_out_mat_pos (nasm_ldata_t *ldata, unsigned int h, unsigned int w);
-void get_out_mat_pos_from_nist (nasm_ldata_t *ldata, ninst_t *ninst, unsigned int *out_mat_pos);
-void get_out_mat_pos_from_tensor_pos (nasm_ldata_t *ldata, unsigned int *tensor_pos, unsigned int *out_mat_pos);
-void get_tensor_pos_from_out_mat_pos (nasm_ldata_t *ldata, unsigned int *out_mat_pos, unsigned int *tensor_pos);
-void get_tensor_pos_from_nist (nasm_ldata_t *ldata, ninst_t *ninst, unsigned int *tensor_pos);
-
-void *get_packed_ldata_output_colwise (nasm_ldata_t *ldata);
-void *get_packed_ldata_output_rowwise (nasm_ldata_t *ldata);
-void *get_ldata_output (nasm_ldata_t *ldata, LAYER_PARAMS *order);
 #endif /* _APU_H_ */

@@ -383,7 +383,7 @@ int main(int argc, char **argv)
     printf("STAGE: INFERENCE\n");
     if (!strcmp(schedule_policy, "local"))
     {
-        rpool_reset(rpool_arr[device_idx]);
+        rpool_reset_queue(rpool_arr[device_idx]);
         apu_reset_nasm(target_nasm[device_idx]);
 
         rpool_add_nasm (rpool_arr[device_idx], target_nasm[device_idx], target_inputs[device_idx]);
@@ -391,7 +391,7 @@ int main(int argc, char **argv)
         double start_time = get_time_secs();
         for (int i = 0; i < inference_repeat_num; i++)
         {
-            rpool_reset (rpool_arr[device_idx]);
+            rpool_reset_queue (rpool_arr[device_idx]);
             rpool_reset_nasm (rpool_arr[device_idx], target_nasm[device_idx]);
             dse_group_run (dse_group);
             dse_wait_for_nasm_completion (target_nasm[device_idx]);
@@ -527,7 +527,7 @@ int main(int argc, char **argv)
                 {
                     remove_inference_whitelist(net_engine_arr[edge_id], target_nasm[edge_id]->inference_id);
                     net_engine_reset(net_engine_arr[edge_id]);
-                    rpool_reset(rpool_arr[edge_id]);
+                    rpool_reset_queue(rpool_arr[edge_id]);
                     apu_reset_nasm(target_nasm[edge_id]);
 
                     if (!strcmp(schedule_policy, "dynamic")) init_dynamic_offload(target_nasm[edge_id], device_mode, edge_id, num_edge_devices);
@@ -574,7 +574,7 @@ int main(int argc, char **argv)
             }
             
             if(device_mode == DEV_EDGE)
-                add_input_rpool_reverse (net_engine_arr[device_idx], target_nasm[device_idx], target_inputs[device_idx]);
+                net_engine_add_input_rpool_reverse (net_engine_arr[device_idx], target_nasm[device_idx], target_inputs[device_idx]);
 
             set_elapsed_time_start ();
             for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
