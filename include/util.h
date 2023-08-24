@@ -11,6 +11,11 @@
 #define GPU_NAIVE_RUN_STREAM (32)
 #define GPU_RUN_STREAM_NUM (32)
 #define CUDAGRAPH_MAX_ARG_NUM (16)
+#define DYNAMIC_ALLOC_MIN_SIZE (64UL*1024) // 64KiB
+#define DYNAMIC_ALLOC_RANGE_SCALE (1.414213562373)
+#define DYNAMIC_ALLOC_RANGE (33) // 64KiB ~ 4GiB
+#define DYNAMIC_ALLOC_ARR_INIT_SIZE (8)
+
 extern int use_gpu; // Default: 1
 extern int aspen_num_gpus;
 
@@ -19,7 +24,8 @@ void *aspen_malloc (size_t num, size_t size);
 void aspen_free (void *ptr);
 void *aspen_dynamic_calloc (size_t num, size_t size);
 void *aspen_dynamic_malloc (size_t num, size_t size);
-void aspen_dynamic_free (void *ptr);
+void aspen_dynamic_free (void *ptr, size_t num, size_t size);
+void aspen_flush_dynamic_memory ();
 void *aspen_gpu_calloc (size_t num, size_t size, int gpu_idx);
 void aspen_gpu_memset (void *ptr, int val, size_t size, int gpu_idx);
 void *aspen_gpu_malloc (size_t num, size_t size, int gpu_idx);

@@ -969,7 +969,7 @@ void alloc_ldata_out_mat (nasm_ldata_t *ldata)
         pthread_mutex_unlock (&ldata->out_mat_mutex);
         return;
     }
-    // printf ("allocating memory for ldata %d\n", ldata->layer->layer_idx);
+    // printf ("allocating %ld KiB of memory for ldata %d\n", ldata->out_mat_mem_size/1024, ldata->layer->layer_idx);
     ldata->out_mat = aspen_dynamic_malloc (1, ldata->out_mat_mem_size);
     pthread_mutex_unlock (&ldata->out_mat_mutex);
 }
@@ -978,8 +978,8 @@ void free_ldata_out_mat (nasm_ldata_t *ldata)
 {
     if (ldata->out_mat != NULL)
     {
-        // printf ("freeing memory for ldata %d\n", ldata->layer->layer_idx);
-        aspen_dynamic_free (ldata->out_mat);
+        // printf ("freeing %ld KiB of memory for ldata %d\n", ldata->out_mat_mem_size/1024, ldata->layer->layer_idx);
+        aspen_dynamic_free (ldata->out_mat, 1, ldata->out_mat_mem_size);
         ldata->out_mat = NULL;
     }
 }

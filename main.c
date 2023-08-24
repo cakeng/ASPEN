@@ -144,9 +144,9 @@ int main (int argc, char **argv)
         dse_wait_for_nasm_completion (target_nasm);
         dse_group_stop (dse_group);
     }
-
     double end_time = get_sec();
     printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);
+    aspen_flush_dynamic_memory ();
 
     if (strcmp(dnn, "bert_base") != 0)
     {
