@@ -21,7 +21,7 @@ void dse_schedule (dse_t *dse)
     // print_rpool_info (dse->rpool);
     // print_rpool_queue_info (dse->ninst_cache);
     
-    // if ((dse->ninst_cache->num_stored < dse_NINST_CACHE_BALLANCE - dse_NINST_CACHE_DIFF) || 
+    // if ((dse->ninst_cache->num_stored < DSE_NINST_CACHE_BALLANCE - DSE_NINST_CACHE_DIFF) || 
     //     dse->ninst_cache->num_stored == 0)
     int target_device = dse->device_idx;
     if(dse->device_mode == DEV_LOCAL || dse->profile_compute)
@@ -60,7 +60,7 @@ void dse_schedule (dse_t *dse)
                 return;
         }
         // unsigned int fetch_num = 
-        //     rpool_fetch_ninsts (dse->rpool, dse->scratchpad, dse_NINST_CACHE_BALLANCE - dse->ninst_cache->num_stored);
+        //     rpool_fetch_ninsts (dse->rpool, dse->scratchpad, DSE_NINST_CACHE_BALLANCE - dse->ninst_cache->num_stored);
         // push_ninsts_to_queue (dse->ninst_cache, dse->scratchpad, fetch_num);
         // PRT ("Thread %d fetched %d ninsts from rpool\n", dse->thread_id, fetch_num);
         // #ifdef DEBUG
@@ -69,11 +69,11 @@ void dse_schedule (dse_t *dse)
         // print_rpool_queue_info (dse->ninst_cache);
         // #endif
     }
-    // else if (dse->ninst_cache->num_stored > dse_NINST_CACHE_BALLANCE + dse_NINST_CACHE_DIFF)
+    // else if (dse->ninst_cache->num_stored > DSE_NINST_CACHE_BALLANCE + DSE_NINST_CACHE_DIFF)
     // if (dse->ninst_cache->num_stored > 0)
     // {
     //     // unsigned int push_num = 
-    //     //     pop_ninsts_from_queue_back (dse->ninst_cache, dse->scratchpad, dse->ninst_cache->num_stored - dse_NINST_CACHE_BALLANCE);
+    //     //     pop_ninsts_from_queue_back (dse->ninst_cache, dse->scratchpad, dse->ninst_cache->num_stored - DSE_NINST_CACHE_BALLANCE);
     //     rpool_push_ninsts (dse->rpool, dse->ninst_cache->ninst_ptr_arr, dse->ninst_cache->num_stored);
     //     dse->ninst_cache->num_stored = 0;
     //     dse->ninst_cache->idx_end = 0;
@@ -513,9 +513,9 @@ void dse_init (dse_group_t *dse_group, dse_t *dse, int gpu_idx)
     dse->thread_id = atomic_fetch_add (&dse_thread_id_counter, 1);
     dse->rpool = NULL;
     dse->gpu_idx = gpu_idx;
-    dse->scratchpad = aspen_calloc (dse_SCRATCHPAD_SIZE, 1);
+    dse->scratchpad = aspen_calloc (DSE_SCRATCHPAD_SIZE, 1);
     if (gpu_idx >= 0)
-        dse->gpu_scratchpad = aspen_gpu_calloc (dse_SCRATCHPAD_SIZE, 1, gpu_idx);
+        dse->gpu_scratchpad = aspen_gpu_calloc (DSE_SCRATCHPAD_SIZE, 1, gpu_idx);
     dse->thread_mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
     dse->thread_cond = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
     dse->ninst_cache = calloc (1, sizeof (rpool_queue_t));

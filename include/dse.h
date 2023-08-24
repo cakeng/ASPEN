@@ -11,9 +11,9 @@
 #include "networking.h"
 #include "scheduling.h"
 
-#define dse_NINST_CACHE_BALLANCE 1
-#define dse_NINST_CACHE_DIFF 0
-#define dse_SCRATCHPAD_SIZE 1024*1024*2 // 2 MiB
+#define DSE_NINST_CACHE_BALLANCE 1
+#define DSE_NINST_CACHE_DIFF 0
+#define DSE_SCRATCHPAD_SIZE 1024*1024*2 // 2 MiB
 
 struct dse_group_t
 {
