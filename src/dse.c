@@ -324,18 +324,18 @@ void dse_wait_for_nasm_completion (nasm_t *nasm)
 
 void dse_cudagraph_run (rpool_t *rpool, nasm_t *nasm)
 {
-    if (nasm == NULL)
-    {
-        FPRT (stderr, "ERROR: dse_cudagraph_run: nasm is NULL\n");
-        assert (0);
-    }
-    if (nasm->gpu_idx < 0)
-    {
-        FPRT (stderr, "ERROR: dse_cudagraph_run: gpu not initialized.\n");
-        assert (0);
-    }
-    rpool_finish_nasm (rpool, nasm);
-    run_cudagraph (nasm);
+    // if (nasm == NULL)
+    // {
+    //     FPRT (stderr, "ERROR: dse_cudagraph_run: nasm is NULL\n");
+    //     assert (0);
+    // }
+    // if (nasm->gpu_idx < 0)
+    // {
+    //     FPRT (stderr, "ERROR: dse_cudagraph_run: gpu not initialized.\n");
+    //     assert (0);
+    // }
+    // rpool_finish_nasm (rpool, nasm);
+    // run_cudagraph (nasm);
 }
 
 void dse_run (dse_t *dse)
