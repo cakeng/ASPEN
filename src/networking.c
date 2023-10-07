@@ -363,7 +363,7 @@ void receive(networking_engine *net_engine)
             atomic_store(&target_ninst->state, NINST_COMPLETED);
             target_ninst->received_time = get_time_secs_offset ();
             #ifdef DEBUG
-            PRT("\t[Device %d] (N%d L%d I%d %ldB) state: %d",
+            PRT("\t[Device %d] (N%d L%d I%d %ldB) state: %d\n",
                 net_engine->device_idx,
                 target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->inference_id, 
                 target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float), atomic_load(&target_ninst->state));

@@ -458,9 +458,9 @@ void apu_save_dnn_to_file(aspen_dnn_t *dnn, char *filename)
         for (unsigned int j = 0; j < NUM_PARENT_ELEMENTS; j++)
         {
             if (layer->parent_layers[j] != NULL)
-                FPRT(fp, "\t\t%d %d\n", j, layer->parent_layers[j]->layer_idx);
+                FPRT(fp, "\t\t%d %d\n", j, layer->parent_layers[j]->layer_idx)
             else
-                FPRT(fp, "\t\t%d -1\n", j);
+                FPRT(fp, "\t\t%d -1\n", j)
         }
         FPRT(fp, "\tLAYER_PARENTS_END\n");
         FPRT(fp, "\tLAYER_PARAMS:\n");

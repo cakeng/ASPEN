@@ -4,11 +4,11 @@ SUBTARGET=main_mu
 ALIB=libaspen.a
 OBJECTS=build_info.o apu.o apu_nasm.o apu_file_io.o input_parser.o darknet_parser.o util.o 
 OBJECTS+=rpool.o dse.o naive_kernels.o tiled_kernels.o avx2_kernels.o neon_kernels.o networking.o scheduling.o profiling.o #dse_cudagraph.o
-AVX2=0
-NEON=1
+AVX2=1
+NEON=0
 GPU=0
-ANDROID=1
-DEBUG=0
+ANDROID=0
+DEBUG=1
 SUPPRESS_OUTPUT=1
 
 CC=gcc

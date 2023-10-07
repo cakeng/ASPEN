@@ -40,7 +40,7 @@
 
 #if SUPPRESS_OUTPUT == 0
 #define PRT(...) printf(__VA_ARGS__) 
-#define FPRT(...) fprintf(__VA_ARGS__) 
+#define FPRT(...) {fprintf(stderr, "\033[0;31m"); fprintf(__VA_ARGS__); fprintf(stderr, "\033[0m");}
 #else
 #define PRT(...)
 #define FPRT(...) fprintf(stderr, "////An error has occurred////\n") 
