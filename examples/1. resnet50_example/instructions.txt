@@ -1,0 +1,57 @@
+///////////////////////////////////////////////////////////////////////////////////////////
+
+TLDR - Run the following commands to execute ResNet-50 using ASPEN:
+
+1. sudo apt install python3 python3-pip
+2. pip3 install torch torchvision
+3. python3 preprocess_image.py ../files/dog.jpg ./dog.tensor
+4. python3 pytorch_execute.py ./dog.tensor 100
+5. gcc -o aspen_generate aspen_generate.c -I../../include -L../../ -laspen -lgomp -lm
+6. ./aspen_generate 20
+7. gcc -o aspen_execute aspen_execute.c -I../../include -L../../ -laspen -lgomp -lm
+8. ./aspen_execute ./dog.tensor 100
+
+///////////////////////////////////////////////////////////////////////////////////////////
+
+1.  This example guides you through the process of executing the ResNet-50 DNN model using ASPEN.
+    We will be classifying the included "dog.jpg" image in the "files" directory using the ResNet-50 model.
+
+2.  Before running ResNet-50 using ASPEN, we must pre-process "dog.jpg" image into a tensor input that ResNet-50 expects using the "preprocess_image.py" script.
+    You must install Python3, PyTorch, and TorchVision on your system to run this script.
+    Run "python3 preprocess_image.py <input_img_dir> <output_tensor_dir>" to pre-process the image.
+    In our case, use "python3 preprocess_image.py ../files/dog.jpg ./dog.tensor" to pre-process "dog.jpg" into "dog.tensor".
+
+3.  You can use "pytorch_execute.py" script to test ResNet-50 on the pre-processed image.
+    Run "python3 pytorch_execute.py <input_tensor_dir> <number_of_iterations>" to execute ResNet-50 on the pre-processed image using PyTorch.
+    In our case, use "python3 pytorch_execute.py ./dog.tensor 100" to execute ResNet-50 on "dog.tensor" for 100 iterations.
+    The results should be:
+    Batch  1  results:
+        1: Samoyed - 86.79%
+        2: Pomeranian - 2.99%
+        3: white wolf - 2.24%
+        4: Eskimo dog - 1.04%
+        5: keeshond - 0.98%
+
+4.  There are two ASPEN example codes in this directory: "aspen_generate.c" and "aspen_execute.c".
+
+5.  The "aspen_generate.c" provides an example of generating an ASPEN graph using the Automated Parallelism Unit (APU) component of the ASPEN system.
+    APU parses DNN model specification from .cfg files and model weights from .bin files.
+    We have included the .cfg and .bin files for ResNet-50 in the files directory for this example. 
+    (How to create custom .cfg and .bin files will be covered in "3. custom_example".)
+    Run "gcc -o aspen_generate aspen_generate.c -I../../include -L../../ -laspen -lgomp -lm" to compile the code.
+    Run "./aspen_generate <num_iter>" to generate the ASPEN graph. Specify the number of iterations for the APU as arguments.
+    In our case, use "./aspen_generate 20" to generate the ASPEN graph for 20 iterations. Files "resnet50.aspen" and "resnet50_B1.nasm" will be generated.
+    The source file "aspen_generate.c" contains more information.
+
+6.  The "aspen_execute.c" code provides an example to executing the ASPEN graph using the Ready Pool and DSE components of the ASPEN system.
+    Run "gcc -o aspen_execute aspen_execute.c -I../../include -L../../ -laspen -lgomp -lm" to compile the code.
+    Run "./aspen_execute <input_tensor_dir> <number_of_iterations>" to execute ResNet-50 on the pre-processed image using ASPEN.
+    In our case, use "./aspen_execute ./dog.tensor 100" to execute ResNet-50 with "dog.tensor" as input for 100 iterations.
+    The results should be:
+    Batch  1  results:
+        1: Samoyed - 86.79%
+        2: Pomeranian - 2.99%
+        3: white wolf - 2.24%
+        4: Eskimo dog - 1.04%
+        5: keeshond - 0.98%
+    The source file "aspen_execute.c" contains more information.

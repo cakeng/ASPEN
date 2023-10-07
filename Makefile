@@ -1,14 +1,12 @@
-TARGET=main
 ALIB=libaspen.a
 OBJECTS=build_info.o apu.o apu_nasm.o apu_file_io.o input_parser.o darknet_parser.o util.o 
-OBJECTS+=rpool.o dse.o naive_kernels.o tiled_kernels.o avx2_kernels.o neon_kernels.o dse_cudagraph.o
+OBJECTS+=rpool.o dse.o naive_kernels.o tiled_kernels.o avx2_kernels.o neon_kernels.o
 AVX2=1
 NEON=0
-DEBUG=1
+DEBUG=0
 SUPPRESS_OUTPUT=0
 
 CC=gcc
-NVCC=nvcc
 
 OBJDIR=./obj/
 VPATH=./src 
@@ -25,7 +23,7 @@ COMMON= -Iinclude/
 ifeq ($(DEBUG), 1) 
 OPTS=-O0 -g -DDEBUG
 endif
-CFLAGS= -Wall -fopenmp
+CFLAGS= -Wall -Wno-unused-variable -fopenmp
 ARFLAGS=rcs
 ifeq ($(AVX2), 1)
 OPTS+=-mavx2 -mfma -DAVX2
@@ -39,13 +37,8 @@ endif
 INFO_FLAGS= -DBUILD_INFO_TIME="\"$(BUILD_INFO_TIME)"\" -DBUILD_INFO_GCC="\"$(BUILD_INFO_GCC)\"" -DBUILD_INFO_UNAME="\"$(BUILD_INFO_UNAME)\"" -DBUILD_INFO_BRANCH="\"$(BUILD_INFO_BRANCH)\""
 INFO_FLAGS+= -DBUILD_INFO_FLAGS="\"$(COMMON) $(LDFLAGS) $(CFLAGS) $(OPTS)"\"
 OBJS= $(addprefix $(OBJDIR), $(OBJECTS))
-EXEOBJSA= $(addsuffix .o, $(TARGET))
-EXEOBJS= $(addprefix $(OBJDIR), $(EXEOBJSA))
 
-all: obj $(TARGET)
-
-$(TARGET): $(EXEOBJS) $(ALIB) 
-	$(CC) $(COMMON) $(CFLAGS) $(OPTS) $^ -o $@ $(LDFLAGS) $(ALIB)
+all: obj $(ALIB)
 
 $(ALIB): $(OBJS)
 	$(AR) $(ARFLAGS) $@ $^
@@ -56,12 +49,9 @@ $(OBJDIR)build_info.o: build_info.c $(DEPS)
 $(OBJDIR)%.o: %.c $(DEPS)
 	$(CC) $(COMMON) $(CFLAGS) $(OPTS) -c $< -o $@
 
-$(OBJDIR)%.o: %.cu $(DEPS)
-	$(NVCC) $(ARCH) $(COMMON) --compiler-options "$(CFLAGS)" -c $< -o $@
-
 obj:
 	mkdir -p obj
 
 clean:
-	rm -rf $(TARGET) $(OBJS)
+	rm -rf $(ALIB) $(OBJS) $(OBJDIR)
 

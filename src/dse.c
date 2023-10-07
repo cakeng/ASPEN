@@ -323,22 +323,6 @@ void dse_wait_for_nasm_completion (nasm_t *nasm)
     pthread_mutex_unlock (&nasm->nasm_mutex);
 }
 
-void dse_cudagraph_run (rpool_t *rpool, nasm_t *nasm)
-{
-    if (nasm == NULL)
-    {
-        FPRT (stderr, "ERROR: dse_cudagraph_run: nasm is NULL\n");
-        assert (0);
-    }
-    if (nasm->gpu_idx < 0)
-    {
-        FPRT (stderr, "ERROR: dse_cudagraph_run: gpu not initialized.\n");
-        assert (0);
-    }
-    rpool_finish_nasm (rpool, nasm);
-    run_cudagraph (nasm);
-}
-
 void dse_run (dse_t *dse)
 {
     if (dse == NULL)
@@ -604,8 +588,6 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
             #endif
         }
     }
-    if (rpool->gpu_idx >= 0)
-        generate_cudagraph (nasm);
     nasm_ldata_t *ldata = &nasm->ldata_arr[0];
     for (int i = 0; i < ldata->num_ninst; i++)
     {

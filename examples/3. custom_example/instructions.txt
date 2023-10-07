@@ -1,0 +1,117 @@
+///////////////////////////////////////////////////////////////////////////////////////////
+
+TLDR -  Run the following commands to migrate your custom DNN to ASPEN:
+
+1. python3 custom_net.py
+2. gcc -o aspen_custom aspen_custom.c -I../../include -L../../ -laspen -lgomp -lm
+3. ./aspen_custom 20
+
+///////////////////////////////////////////////////////////////////////////////////////////
+
+1.  This example guides you through the steps of migrating your custom DNN to ASPEN.
+    "custom_net.py" defines a small, custom Cifar-10-based network on PyTorch. 
+    The network consists of 7 layers:
+        Layer 1: A convolution layer with 32 filters of size 5x5, stride 1 and pad 2, and a ReLU activation.
+        Layer 2: A maxpool layer with size 2x2 and stride 2.
+        Layer 3: A convolution layer with 64 filters of size 3x3, stride 1 and pad 1, and a ReLU activation.
+        Layer 4: A maxpool layer with size 2x2 and stride 2.
+        Layer 5: A fully connected (linear) layer with 256 filters and a ReLU activation.
+        Layer 6: A fully connected (linear) layer with 128 filters and a ReLU activation.
+        Layer 7: A fully connected (linear) layer with 10 filters and a linear (no) activation.
+    Run "python3 custom_net.py" to train the network on Cifar-10. It will automatically download the datasets,
+    train the network, and save the trained model to "custom.pth". It will also run inference on 10 images.
+    The results should be:
+        Ground Truth:  cat ship ship plane frog frog car frog cat car 
+        Predicted:  cat ship ship plane frog frog car deer cat car (The prediction results may vary slightly depending on PyTorch version.)
+    This custom network is not very accurate, but it is good enough for this example. 
+    We will use it to demonstrate how to migrate a custom DNN to ASPEN.
+
+2.  Running "custom_net.py" automatically generates the "custom_weight.bin" file for ASPEN. 
+    Weight binaries for ASPEN must have the following format:
+        ASPEN_DATA
+        LAYER:<layer_idx>
+        TENSOR_TYPE:<tensor_type>
+        DATA_SIZE:<data_size>
+        DATA_START:
+        <data>
+        DATA_END
+        LAYER_END
+        ...
+        LAYER:<layer_idx>
+        TENSOR_TYPE:<tensor_type>
+        DATA_SIZE:<data_size>
+        DATA_START:
+        <data>
+        DATA_END
+        LAYER_END
+        
+    "LAYER:<layer_idx>" to "LAYER_END" are repeated for all tensors in the network.
+    You can open "custom_weight.bin" with a hex editor to see the format.
+
+3.  The .cfg file for model specification must also be provided for ASPEN. This process is manual.
+    Model specification files for ASPEN must have the following format:
+        [net]
+        <input specifications>
+
+        [<layer_type>]
+        <layer specifications>
+        ...
+        [<layer_type>]
+        <layer specifications>
+    [net] layer details the input specifications for the network, which is followed by the specifications for actual computation layers.
+    This format follows that of the Darknet model specification framework. (https://github.com/pjreddie/darknet)
+    The layer types currently supported by the included ASPEN library are detailed in the "LAYER_TYPE" enum in "files/aspen.h".
+    For our custom network, create "custom.cfg" with the following contents:
+        [net] 
+        height=32
+        width=32
+        channels=3
+
+        [convolutional]
+        filters=32
+        size=5
+        stride=1
+        pad=2
+        activation=relu
+
+        [maxpool]
+        size=2
+        stride=2
+
+        [convolutional]
+        filters=64
+        size=3
+        stride=1
+        pad=1
+        activation=relu
+
+        [maxpool]
+        size=2
+        stride=2
+
+        [connected]
+        output=256
+        activation=relu
+
+        [connected]
+        output=128
+        activation=relu
+
+        [connected]
+        output=10
+        activation=linear
+    "custom.cfg" with the correct format is included in the "files" directory.
+     You can also reference other .cfg files in the "files" directory for more information.
+
+4.  Now that we have the weight binary and model specification file, we can run our custom network using ASPEN.
+    As with the "1. resnet50_example" and "2. batched_execution_example", we need to generate the ASPEN graph and run it using ASPEN runtime.
+    We combined the graph generation and runtime into a single executable in "aspen_custom.c"
+    Run "gcc -o aspen_custom aspen_custom.c -I../../include -L../../ -laspen -lgomp -lm" to compile the executable.
+    Run "./aspen_custom <num_iter>" to generate the ASPEN graph for <num_iter> iterations, and run the custom network on ASPEN.
+    In our case, use "./aspen_generate 20" to generate the ASPEN graph for 20 iterations. 
+    The results should be:
+        Predicted:  cat ship ship plane frog frog car deer cat car
+    Or the same as your results from "custom_net.py".
+    The source file "aspen_custom.c" contains more information.
+
+

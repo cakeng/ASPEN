@@ -1,0 +1,99 @@
+///////////////////////////////////////////////////////////////////////////////////////////
+
+TLDR -  Run the following commands to execute batched inference and multi-DNN co-inference using ASPEN:
+
+1. python3 preprocess_image.py
+2. python3 vgg16_pytorch.py
+3. gcc -o aspen_generate aspen_generate.c -I../../include -L../../ -laspen -lgomp -lm
+4. ./aspen_generate 20
+5. gcc -o aspen_execute aspen_execute.c -I../../include -L../../ -laspen -lgomp -lm
+6. ./aspen_execute 100
+
+///////////////////////////////////////////////////////////////////////////////////////////
+
+1.  This example guides you through the steps of executing batched inference and multi-DNN co-inference using ASPEN.
+    We assume you have completed the steps in the "1. resnet50_example" directory, and have the necessary dependencies installed.
+
+2.  We will first pre-process the images in the "files" directory, using "preprocess_image.py".
+    This script is a slightly modified version of the script in the "1. resnet50_example" directory.
+    Run "python3 preprocess_image.py" to pre-process the images in the "files" directory, and create
+    "dog.tensor", "cat.tensor", "batched_input.tensor" files.
+
+3.  We will now download and create a weight binary for ASPEN from a PyTorch implementation of VGG-16.
+    Run "python3 ./vgg16_pytorch.py" to download the PyTorch implementation and weights of VGG-16 from TorchVision.
+    It will also execute VGG-16 classification on "dog.tensor" and "cat.tensor". 
+    The results should be:
+    Batch  1  results:
+        1: Samoyed - 83.84%
+        2: Pomeranian - 3.65%
+        3: Eskimo dog - 1.52%
+        4: white wolf - 1.46%
+        5: Great Pyrenees - 1.12%
+    Batch  2  results:
+        1: Angora - 95.28%
+        2: Persian cat - 3.92%
+        3: hamster - 0.19%
+        4: wood rabbit - 0.09%
+        5: hamper - 0.05%
+    The .cfg file for VGG-16 is stored in "files/vgg16_aspen.cfg". The weights .bin should be automatically stored in "vgg16_weight.bin". 
+    (How to create custom .cfg and .bin files will be covered in "3. custom_example".)
+
+4.  We will now generate the ASPEN graphs for ResNet-50 and VGG-16, similarly to "1. resnet50_example".
+    There are two ways to execute batched inference in ASPEN:
+        1.  Create a batched graph for the DNN, and execute it.
+        2.  Create multiple graphs with smaller batch sizes, and execute them simultaneously.
+    We will demonstrate both methods in this example:
+        1.  We will create a batched graph for ResNet-50, with a batch size of 4.
+        2.  We will create a singular graph for VGG-16, with a batch size of 1, and execute two of them simultaneously.
+    We will do 1. and 2. simultaneously, to demonstrate multi-DNN co-execution in ASPEN.
+    
+5.  The "aspen_generate.c" provides an example of generating an ASPEN graph for both the batched Resnet-50 and single VGG-16 graph.
+    Run "gcc -o aspen_generate aspen_generate.c -I../../include -L../../ -laspen -lgomp -lm" to compile the code.
+    Run "./aspen_generate" to generate the ASPEN graph. Number of nodes per layer is fixed to 100 in this example, but can be changed for better performance.
+    Files "resnet50.aspen", "resnet50_B4.nasm", "vgg16.aspen", and "vgg16_B1.nasm" should be generated.
+    The source file "aspen_generate.c" contains more information.
+
+6.  The "aspen_execute.c" code provides an example for running batched multi-dnn co-execution of ASPEN.
+    Run "gcc -o aspen_execute aspen_execute.c -I../../include -L../../ -laspen -lgomp -lm" to compile the code.
+    Run "./aspen_execute <num_iter>" to execute batched multi-dnn co-execution of ASPEN. Specify the number of iterations as arguments.
+    In our case, use "./aspen_execute 100" to co-execute ResNet-50 with a batch size of 4 and VGG-16 with a batch size of 2 for 100 iterations. 
+    The results should be:
+    Resnet50 (Batch of 4):
+    Batch 1 results:
+            1: Samoyed - 86.79%
+            2: Pomeranian - 2.99%
+            3: white wolf - 2.24%
+            4: Eskimo dog - 1.04%
+            5: keeshond - 0.98%
+    Batch 2 results:
+            1: Persian cat - 81.12%
+            2: Angora - 18.20%
+            3: Samoyed - 0.18%
+            4: lynx - 0.15%
+            5: Pomeranian - 0.12%
+    Batch 3 results:
+            1: king penguin - 96.50%
+            2: goose - 0.51%
+            3: albatross - 0.28%
+            4: ice bear - 0.16%
+            5: partridge - 0.12%
+    Batch 4 results:
+            1: hare - 75.72%
+            2: wood rabbit - 16.97%
+            3: Angora - 6.39%
+            4: hamster - 0.17%
+            5: wallaby - 0.05%
+    VGG-16 (Batch of 2):
+    Batch 1 results:
+            1: Samoyed - 83.84%
+            2: Pomeranian - 3.65%
+            3: Eskimo dog - 1.52%
+            4: white wolf - 1.46%
+            5: Great Pyrenees - 1.12%
+    Batch 2 results:
+            1: Angora - 95.28%
+            2: Persian cat - 3.92%
+            3: hamster - 0.19%
+            4: wood rabbit - 0.09%
+            5: hamper - 0.05%
+    The source file "aspen_execute.c" contains more information.
