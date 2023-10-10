@@ -603,11 +603,11 @@ void cuda_tiled_k_attention (
 {
     #ifdef DEBUG
     if (input_1 == NULL)
-        FPRT (stderr, "Error in naive_k_attention: input_1 is NULL.\n");
+        ERROR_PRTF ("Error in naive_k_attention: input_1 is NULL.\n");
     if (input_2 == NULL)
-        FPRT (stderr, "Error in naive_k_attention: input_2 is NULL.\n");
+        ERROR_PRTF ("Error in naive_k_attention: input_2 is NULL.\n");
     if (output == NULL)
-        FPRT (stderr, "Error in naive_k_attention: output is NULL.\n");
+        ERROR_PRTF ("Error in naive_k_attention: output is NULL.\n");
     #endif
     #ifdef DEBUG
     if (!(((_BLOCK_K_SIZE*_BLOCK_M_SIZE)%_THREAD_NUM) == 0 && ((_BLOCK_K_SIZE*_BLOCK_N_SIZE)%_THREAD_NUM) == 0))

@@ -39,11 +39,19 @@
 #define CUDAGRAPH_MAX_ARG_NUM (16)
 
 #if SUPPRESS_OUTPUT == 0
-#define PRT(...) printf(__VA_ARGS__) 
-#define FPRT(...) {fprintf(stderr, "\033[0;31m"); fprintf(__VA_ARGS__); fprintf(stderr, "\033[0m");}
+#define PRTF(...) printf(__VA_ARGS__) 
+#define ERROR_PRTF(...) {fprintf(stderr, "\033[0;31m"); fprintf(stderr, "(%s:%d)", __FILE__, __LINE__); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\033[0m");}
+#define RED_PRTF(...) {printf("\033[0;31m"); printf(__VA_ARGS__); printf("\033[0m");}
+#define GREEN_PRTF(...) {printf("\033[0;32m"); printf(__VA_ARGS__); printf("\033[0m");}
+#define YELLOW_PRTF(...) {printf("\033[0;33m"); printf(__VA_ARGS__); printf("\033[0m");}
+#define BLUE_PRTF(...) {printf("\033[0;34m"); printf(__VA_ARGS__); printf("\033[0m");}
 #else
-#define PRT(...)
-#define FPRT(...) fprintf(stderr, "////An error has occurred////\n") 
+#define PRTF(...)
+#define ERROR_PRTF(...) {fprintf(stderr, "\033[0;31m"); fprintf(stderr, "ASPEN: An error has occured."); fprintf(stderr, "\033[0m");}
+#define RED_PRTF(...)
+#define GREEN_PRTF(...)
+#define YELLOW_PRTF(...)
+#define BLUE_PRTF(...)
 #endif
 
 #ifdef GPU
@@ -53,7 +61,7 @@ static inline cudaError_t check_CUDA(cudaError_t result)
 #if defined(DEBUG) || defined(_DEBUG)
   if (result != cudaSuccess) 
   {
-    FPRT(stderr, "CUDA Runtime Error: %s\n", cudaGetErrorString(result));
+    ERROR_PRTF ( "CUDA Runtime Error: %s\n", cudaGetErrorString(result));
   }
 #endif
   return result;

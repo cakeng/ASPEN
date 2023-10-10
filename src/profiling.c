@@ -25,6 +25,7 @@ avg_ninst_profile_t *profile_computation(nasm_t *target_nasm, int dse_num, int d
         avg_computation_time += extract_profile_from_ninsts(target_nasm);
 
         dse_group_destroy (dse_group);
+        rpool_reset_nasm (rpool, target_nasm);
         rpool_destroy (rpool);
     }
 

@@ -787,11 +787,11 @@ void cuda_k_attention (const float *input_1, const float *input_2, float *output
 {
     #ifdef DEBUG
     if (input_1 == NULL)
-        FPRT (stderr, "Error in naive_k_attention: input_1 is NULL.\n");
+        ERROR_PRTF ("Error in naive_k_attention: input_1 is NULL.\n");
     if (input_2 == NULL)
-        FPRT (stderr, "Error in naive_k_attention: input_2 is NULL.\n");
+        ERROR_PRTF ("Error in naive_k_attention: input_2 is NULL.\n");
     if (output == NULL)
-        FPRT (stderr, "Error in naive_k_attention: output is NULL.\n");
+        ERROR_PRTF ("Error in naive_k_attention: output is NULL.\n");
     #endif
     const unsigned int hidden_per_head = num_hidden / num_heads;
     const unsigned int M = num_seq;

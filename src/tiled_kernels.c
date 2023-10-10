@@ -40,7 +40,7 @@ void *prepare_im2col (ninst_t *ninst, void *buffer)
     }
     else
     {
-        FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
+        ERROR_PRTF ( "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
         assert (0);
     }
     return (void *) (input_ptr_arr + num_idx);
