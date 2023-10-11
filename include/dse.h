@@ -17,7 +17,7 @@
 
 struct dse_group_t
 {
-    unsigned int num_ases;
+    unsigned int num_dess;
     dse_t *dse_arr;
     int gpu_idx;
 };

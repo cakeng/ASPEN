@@ -183,7 +183,7 @@ void dse_schedule (dse_t *dse)
                 if(dse->device_mode == DEV_EDGE)
                 {
                     
-                    float eft_edge = get_eft_edge(dse->dynamic_scheduler, dse->rpool_arr[target_device], dse->device_idx, dse->net_engine_arr[target_device]->dse_group->num_ases, ninst->num_child_ninsts);
+                    float eft_edge = get_eft_edge(dse->dynamic_scheduler, dse->rpool_arr[target_device], dse->device_idx, dse->net_engine_arr[target_device]->dse_group->num_dess, ninst->num_child_ninsts);
                     float eft_server = get_eft_server(dse->dynamic_scheduler, dse->net_engine_arr[target_device], dse->device_idx, ninst->tile_dims[OUT_H] * ninst->tile_dims[OUT_W] * sizeof(float));
                     
                     ninst->eft_edge = eft_edge;
@@ -287,7 +287,7 @@ void dse_schedule (dse_t *dse)
     // }
 }
 
-dse_group_t *dse_group_init (unsigned int num_ase, int gpu_idx)
+dse_group_t *dse_group_init (unsigned int num_des, int gpu_idx)
 {
     if (gpu_idx >= 0 && gpu_idx >= aspen_num_gpus)
     {
@@ -296,16 +296,16 @@ dse_group_t *dse_group_init (unsigned int num_ase, int gpu_idx)
     }
     else if (gpu_idx >= 0 && gpu_idx < aspen_num_gpus)
     {
-        num_ase = num_ase > GPU_RUN_STREAM_NUM ? GPU_RUN_STREAM_NUM : num_ase;
+        num_des = num_des > GPU_RUN_STREAM_NUM ? GPU_RUN_STREAM_NUM : num_des;
     }
     dse_group_t *dse_group = (dse_group_t *) calloc (1, sizeof (dse_group_t));
-    dse_group->num_ases = num_ase;
+    dse_group->num_dess = num_des;
     if (gpu_idx < 0)
         dse_group->gpu_idx = -1;
     else
         dse_group->gpu_idx = gpu_idx;
-    dse_group->dse_arr = (dse_t *) calloc (num_ase, sizeof (dse_t));
-    for (int i = 0; i < num_ase; i++)
+    dse_group->dse_arr = (dse_t *) calloc (num_des, sizeof (dse_t));
+    for (int i = 0; i < num_des; i++)
     {
         dse_init (dse_group, &dse_group->dse_arr[i], dse_group->gpu_idx);
     }
@@ -329,11 +329,11 @@ void dse_group_set_rpool (dse_group_t *dse_group, rpool_t *rpool)
         ERROR_PRTF ("ERROR: dse_group_set_rpool: dse_group->gpu_idx %d != rpool->gpu_idx %d\n", dse_group->gpu_idx, rpool->gpu_idx);
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_ases; i++)
+    for (int i = 0; i < dse_group->num_dess; i++)
     {
         dse_group->dse_arr[i].rpool = rpool;
     }
-    add_ref_dses (rpool, dse_group->num_ases);
+    add_ref_dses (rpool, dse_group->num_dess);
 }
 
 void dse_group_set_net_engine (dse_group_t *dse_group, networking_engine *net_engine)
@@ -348,7 +348,7 @@ void dse_group_set_net_engine (dse_group_t *dse_group, networking_engine *net_en
         ERROR_PRTF ("ERROR: dse_group_set_net_engine: net_engine is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_ases; i++)
+    for (int i = 0; i < dse_group->num_dess; i++)
     {
         dse_group->dse_arr[i].net_engine = net_engine;
     }
@@ -361,7 +361,7 @@ void dse_group_set_device_mode (dse_group_t *dse_group, DEVICE_MODE device_mode)
         ERROR_PRTF ("ERROR: dse_group_set_device_mode: dse_group is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_ases; i++)
+    for (int i = 0; i < dse_group->num_dess; i++)
     {
         dse_group->dse_arr[i].device_mode = device_mode;
     }
@@ -374,7 +374,7 @@ void dse_group_set_device (dse_group_t *dse_group, int device_idx)
         ERROR_PRTF ("ERROR: dse_group_set_device: dse_group is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_ases; i++)
+    for (int i = 0; i < dse_group->num_dess; i++)
     {
         dse_group->dse_arr[i].device_idx = device_idx;
     }
@@ -387,7 +387,7 @@ void dse_group_set_num_edge_devices (dse_group_t *dse_group, int num_edge_device
         ERROR_PRTF ("ERROR: dse_group_set_num_edge_devices: dse_group is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_ases; i++)
+    for (int i = 0; i < dse_group->num_dess; i++)
     {
         dse_group->dse_arr[i].num_edge_devices = num_edge_devices;
     }
@@ -400,7 +400,7 @@ void dse_group_set_profile (dse_group_t *dse_group, int profile_compute)
         ERROR_PRTF ("ERROR: dse_group_set_device: dse_group is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_ases; i++)
+    for (int i = 0; i < dse_group->num_dess; i++)
     {
         dse_group->dse_arr[i].profile_compute = profile_compute;
     }
@@ -413,7 +413,7 @@ void dse_group_set_dynamic_scheduler (dse_group_t *dse_group, dynamic_scheduler_
         ERROR_PRTF ("ERROR: dse_group_set_scheduler: dse_group is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_ases; i++)
+    for (int i = 0; i < dse_group->num_dess; i++)
     {
         dse_group->dse_arr[i].dynamic_scheduler = dynamic_scheduler;
         dse_group->dse_arr[i].is_dynamic_scheduling = 1;
@@ -426,14 +426,14 @@ void dse_group_set_multiuser (dse_group_t *dse_group, int is_multiuser_case) {
         ERROR_PRTF ("ERROR: dse_group_set_multiuser: dse_group is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_ases; i++)
+    for (int i = 0; i < dse_group->num_dess; i++)
     {
         dse_group->dse_arr[i].is_multiuser_case = is_multiuser_case;
     }
 }
 
 void dse_group_add_prioritize_rpool (dse_group_t *dse_group, int device_idx) {
-    for (int i=0; i<dse_group->num_ases; i++) {
+    for (int i=0; i<dse_group->num_dess; i++) {
         for (int j=0; j<SCHEDULE_MAX_DEVICES; j++) {
             if (dse_group->dse_arr[i].prioritize_rpool[j] == -1)
                 dse_group->dse_arr[i].prioritize_rpool[j] = device_idx;
@@ -442,14 +442,14 @@ void dse_group_add_prioritize_rpool (dse_group_t *dse_group, int device_idx) {
 }
 
 void dse_group_init_enable_device(dse_group_t *dse_group, int num_edge_devices) {
-    for (int i = 0; i < dse_group->num_ases; i++) {
+    for (int i = 0; i < dse_group->num_dess; i++) {
         for (int j = 1; j <= num_edge_devices; j++)
         dse_group->dse_arr[i].enabled_device[j] = 0;
     }
 }
 
 void dse_group_set_enable_device(dse_group_t *dse_group, int device_idx, int enable) {
-    for (int i = 0; i < dse_group->num_ases; i++) {
+    for (int i = 0; i < dse_group->num_dess; i++) {
         dse_group->dse_arr[i].enabled_device[device_idx] = enable;
     }
 }
@@ -460,7 +460,7 @@ void dse_group_add_rpool_arr(dse_group_t *dse_group, rpool_t *rpool, int device_
         ERROR_PRTF ("ERROR: dse_group_add_rpool_arr: rpool is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_ases; i++) {
+    for (int i = 0; i < dse_group->num_dess; i++) {
         dse_group->dse_arr[i].rpool_arr[device_idx] = rpool;
     }
 }
@@ -471,7 +471,7 @@ void dse_group_init_netengine_arr (dse_group_t *dse_group) {
         ERROR_PRTF ("ERROR: dse_group_init_netengine_arr: dse_group is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_ases; i++) {
+    for (int i = 0; i < dse_group->num_dess; i++) {
         for (int j=0; j<SCHEDULE_MAX_DEVICES; j++) {
             dse_group->dse_arr[i].net_engine_arr[j] = NULL;
         }
@@ -484,7 +484,7 @@ void dse_group_add_netengine_arr (dse_group_t *dse_group, networking_engine *net
         ERROR_PRTF ("ERROR: dse_group_add_netengine_arr: dse_group is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_ases; i++) {
+    for (int i = 0; i < dse_group->num_dess; i++) {
         dse_group->dse_arr[i].net_engine_arr[device_idx] = net_engine;
         dse_group->dse_arr[i].rpool_arr[device_idx] = net_engine->rpool;
     }
@@ -494,7 +494,7 @@ void dse_group_destroy (dse_group_t *dse_group)
 {
     if (dse_group == NULL)
         return;
-    for (int i = 0; i < dse_group->num_ases; i++)
+    for (int i = 0; i < dse_group->num_dess; i++)
     {
         if (dse_group->dse_arr[i].rpool != NULL)
             atomic_fetch_sub (&dse_group->dse_arr[i].rpool->ref_dses, 1);
@@ -601,7 +601,7 @@ void dse_group_run (dse_group_t *dse_group)
         ERROR_PRTF ("ERROR: dse_group_run: dse_group is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_ases; i++)
+    for (int i = 0; i < dse_group->num_dess; i++)
     {
         dse_run (&dse_group->dse_arr[i]);
     }
@@ -614,7 +614,7 @@ void dse_group_stop (dse_group_t *dse_group)
         ERROR_PRTF ("ERROR: dse_group_stop: dse_group is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_ases; i++)
+    for (int i = 0; i < dse_group->num_dess; i++)
     {
         dse_stop (&dse_group->dse_arr[i]);
     }
@@ -947,8 +947,8 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
         }
         ninst->state = NINST_COMPLETED;
         atomic_fetch_add (&ninst->ldata->num_ninst_completed , 1);
-        // int num_ase = rpool->ref_dses > 0 ? rpool->ref_dses : 1;
-        // update_children (rpool, ninst, i/(1 + ldata->num_ninst/num_ase));
+        // int num_des = rpool->ref_dses > 0 ? rpool->ref_dses : 1;
+        // update_children (rpool, ninst, i/(1 + ldata->num_ninst/num_des));
         update_children (rpool, ninst);
     }
     atomic_fetch_add (&nasm->num_ldata_completed, 1);

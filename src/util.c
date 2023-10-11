@@ -37,7 +37,7 @@ char *activation_type_str [NUM_ACTIVATIONS] =
 
 char *rpool_cond_str [NUM_RPOOL_CONDS] = 
 {
-    [RPOOL_DNN] = "RPOOL_DNN", [RPOOL_LAYER_TYPE] = "RPOOL_LAYER_TYPE", [RPOOL_LAYER_IDX] = "RPOOL_LAYER_IDX", [RPOOL_NASM] = "RPOOL_NASM", [RPOOL_ASE] = "RPOOL_ASE"
+    [RPOOL_DNN] = "RPOOL_DNN", [RPOOL_LAYER_TYPE] = "RPOOL_LAYER_TYPE", [RPOOL_LAYER_IDX] = "RPOOL_LAYER_IDX", [RPOOL_NASM] = "RPOOL_NASM", [RPOOL_DSE] = "RPOOL_DSE"
 };
 
 unsigned int dynamic_mem_init = 0;

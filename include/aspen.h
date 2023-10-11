@@ -89,7 +89,7 @@ typedef enum {NULL_TENSOR, OUTPUT_TENSOR, INPUT_TENSOR, WEIGHT_TENSOR, BIAS_TENS
     BN_VAR_TENSOR, BN_MEAN_TENSOR, BN_WEIGHT_TENSOR, NUM_TENSORS} LAYER_TENSORS;
 typedef enum {PARENT_NONE, PARENT_0, PARENT_1, PARENT_WEIGHT, NUM_PARENT_ELEMENTS} LAYER_PARENTS;
 typedef enum {NO_ACTIVATION, SIGMOID, LINEAR, TANH, RELU, LEAKY_RELU, ELU, SELU, GELU, GELU_ACCURATE, NUM_ACTIVATIONS} LAYER_ACT;
-typedef enum {RPOOL_DNN, RPOOL_LAYER_TYPE, RPOOL_LAYER_IDX, RPOOL_NASM, RPOOL_ASE, NUM_RPOOL_CONDS} RPOOL_CONDS;
+typedef enum {RPOOL_DNN, RPOOL_LAYER_TYPE, RPOOL_LAYER_IDX, RPOOL_NASM, RPOOL_DSE, NUM_RPOOL_CONDS} RPOOL_CONDS;
 
 typedef enum DEVICE_MODE {DEV_SERVER, DEV_EDGE, DEV_LOCAL} DEVICE_MODE;
 
@@ -149,7 +149,7 @@ void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, char *input_filename);
 void rpool_reset_queue (rpool_t *rpool);
 void rpool_reset_nasm (rpool_t *rpool, nasm_t *nasm);
 
-dse_group_t *dse_group_init (unsigned int num_ase, int gpu_idx);
+dse_group_t *dse_group_init (unsigned int num_des, int gpu_idx);
 void dse_group_set_rpool (dse_group_t *dse_group, rpool_t *rpool);
 void dse_group_destroy (dse_group_t *dse_group);
 void dse_group_run (dse_group_t *dse_group);

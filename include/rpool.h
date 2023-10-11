@@ -11,7 +11,7 @@
 #define MAX_NUM_QUEUES (1024*4)
 #define NINST_PUSH_BATCH_SIZE 16
 #define NUM_QUEUE_PER_LAYER ((float)0.5)
-#define NUM_LAYERQUEUE_PER_ASE ((float)0.1)
+#define NUM_LAYERQUEUE_PER_DSE ((float)0.1)
 
 struct rpool_queue_t
 {
@@ -68,7 +68,7 @@ void rpool_set_nasm_weight (rpool_t *rpool, nasm_t* nasm, float weight);
 
 void set_queue_group_weight (rpool_t *rpool, rpool_queue_group_t *rpool_queue_group, float weight);
 void queue_group_add_queues (rpool_queue_group_t *rpool_queue_group, unsigned int num_queues);
-void add_ref_dses (rpool_t *rpool, unsigned int num_ases);
+void add_ref_dses (rpool_t *rpool, unsigned int num_dess);
 unsigned int check_blacklist_cond (void **blacklist, void **input_cond);
 unsigned int check_whitelist_cond (void **whitelist, void **input_cond);
 

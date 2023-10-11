@@ -184,7 +184,7 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE de
     void *whitelist[NUM_RPOOL_CONDS] = {NULL};
     whitelist [RPOOL_NASM] = nasm;
     sprintf (info_str, "%s_%s_%d", nasm->dnn->name, "nasm", nasm->nasm_id);
-    float queue_per_layer = rpool->ref_dses * NUM_LAYERQUEUE_PER_ASE * NUM_QUEUE_PER_LAYER;
+    float queue_per_layer = rpool->ref_dses * NUM_LAYERQUEUE_PER_DSE * NUM_QUEUE_PER_LAYER;
     unsigned int num_queues = nasm->dnn->num_layers*queue_per_layer;
     if (num_queues < 1)
         num_queues = 1;
