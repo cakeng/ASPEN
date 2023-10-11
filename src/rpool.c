@@ -47,22 +47,12 @@ void rpool_destroy_queue_group (rpool_queue_group_t *rpool_queue_group)
 
 rpool_t *rpool_init ()
 {
-    int gpu_idx = -1;
-    if (gpu_idx >= 0 && gpu_idx >= aspen_num_gpus)
-    {
-        ERROR_PRTF ("ERROR: rpool_init: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);
-        gpu_idx = -1;
-    }
     rpool_t *rpool = calloc (1, sizeof(rpool_t));
     rpool->ref_dses = 0;
     rpool->num_groups = 0;
     rpool->queue_group_weight_sum = 0;
     bzero (rpool->queue_group_weight_arr, sizeof(float)*MAX_QUEUE_GROUPS);
     rpool_init_queue (&rpool->default_queue);
-    if (gpu_idx < 0)
-        rpool->gpu_idx = -1;
-    else
-        rpool->gpu_idx = gpu_idx;
     // unsigned int num_queues = rpool->ref_dses * NUM_LAYERQUEUE_PER_DSE * 100 *  NUM_QUEUE_PER_LAYER;
     // if (num_queues < 1)
     //     num_queues = 1;
@@ -212,7 +202,6 @@ void rpool_add_nasm_raw_input (rpool_t *rpool, nasm_t* nasm, void* input_data)
         unsigned int num_queues = rpool->ref_dses * NUM_LAYERQUEUE_PER_DSE * 150 *  NUM_QUEUE_PER_LAYER;
         if (num_queues < 1)
             num_queues = 1;
-        nasm->gpu_idx = rpool->gpu_idx;
         rpool_add_queue_group (rpool, "default", num_queues, NULL, NULL);
     }
     push_first_layer_to_rpool (rpool, nasm, input_data);
@@ -815,7 +804,6 @@ void print_rpool_info (rpool_t *rpool)
     printf("//////// Printing Ready Pool Info ////////\n");
     printf("Number of referencing dses: %d\n", ref_dses);
     printf("Number of Queue Groups: %d\n", num_groups);
-    printf("GPU index: %d\n", rpool->gpu_idx);
     printf("Sum of Queue Weight: %4.4f\nWeights: ", rpool->queue_group_weight_sum);
     for (int i = 0; i < num_groups; i++)
     {

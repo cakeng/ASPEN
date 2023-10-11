@@ -20,19 +20,9 @@ struct nasm_t
     unsigned int flop_per_ninst;
     size_t total_flops;
     
-    int gpu_idx;
     void *data;
-    
-
     pthread_mutex_t nasm_mutex;
     pthread_cond_t nasm_cond;
-
-    void *gpu_null_data;
-    #ifdef GPU
-    cudaGraph_t cuda_graph;
-    cudaGraphExec_t cuda_graph_exec; 
-    int cudagraph_instantiated;
-    #endif
 };
 
 struct nasm_ldata_t
@@ -71,15 +61,8 @@ struct ninst_t
 
     ninst_t **child_ninst_arr;
     _Atomic unsigned int num_child_ninsts;
-    
-    // int *input_pos_idx_arr;
-    // void **input_pos_ptr_arr_gpu;
-    unsigned int num_input_pos;
-    // rpool_t *affinity_pool;
 
-    #ifdef GPU
-    cudaGraphNode_t cudagraph_node;
-    #endif
+    unsigned int num_input_pos;
 };
 
 nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size,  unsigned int min_ninst_per_ldata, unsigned int transformer_seq_len);

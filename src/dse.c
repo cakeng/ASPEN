@@ -167,27 +167,11 @@ void dse_schedule (dse_t *dse)
 
 dse_group_t *dse_group_init (unsigned int num_dse)
 {
-    int gpu_idx = -1;
-    if (gpu_idx >= 0 && gpu_idx >= aspen_num_gpus)
-    {
-        ERROR_PRTF ("ERROR: dse_group_init: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);
-        gpu_idx = -1;
-    }
-    else if (gpu_idx >= 0 && gpu_idx < aspen_num_gpus)
-    {
-        num_dse = num_dse > GPU_RUN_STREAM_NUM ? GPU_RUN_STREAM_NUM : num_dse;
-    }
     dse_group_t *dse_group = (dse_group_t *) calloc (1, sizeof (dse_group_t));
     dse_group->num_dses = num_dse;
-    if (gpu_idx < 0)
-        dse_group->gpu_idx = -1;
-    else
-        dse_group->gpu_idx = gpu_idx;
     dse_group->dse_arr = (dse_t *) calloc (num_dse, sizeof (dse_t));
     for (int i = 0; i < num_dse; i++)
-    {
-        dse_init (&dse_group->dse_arr[i], dse_group->gpu_idx);
-    }
+        dse_init (&dse_group->dse_arr[i]);
     return dse_group;
 }
 
@@ -201,11 +185,6 @@ void dse_group_set_rpool (dse_group_t *dse_group, rpool_t *rpool)
     if (rpool == NULL)
     {
         ERROR_PRTF ("ERROR: dse_group_set_rpool: rpool is NULL\n");
-        assert (0);
-    }
-    if (dse_group->gpu_idx != rpool->gpu_idx)
-    {
-        ERROR_PRTF ("ERROR: dse_group_set_rpool: dse_group->gpu_idx %d != rpool->gpu_idx %d\n", dse_group->gpu_idx, rpool->gpu_idx);
         assert (0);
     }
     for (int i = 0; i < dse_group->num_dses; i++)
@@ -229,24 +208,16 @@ void dse_group_destroy (dse_group_t *dse_group)
     free (dse_group);
 }
 
-void dse_init (dse_t *dse, int gpu_idx)
+void dse_init (dse_t *dse)
 {
     if (dse == NULL)
     {
         ERROR_PRTF ("ERROR: dse_init: dse is NULL\n");
         assert (0);
     }
-    if (gpu_idx >= 0 && gpu_idx >= aspen_num_gpus)
-    {
-        ERROR_PRTF ("ERROR: dse_init: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);
-        gpu_idx = -1;
-    }
     dse->thread_id = atomic_fetch_add (&dse_thread_id_counter, 1);
     dse->rpool = NULL;
-    dse->gpu_idx = gpu_idx;
     dse->scratchpad = aspen_calloc (DSE_SCRATCHPAD_SIZE, 1);
-    if (gpu_idx >= 0)
-        dse->gpu_scratchpad = aspen_gpu_calloc (DSE_SCRATCHPAD_SIZE, 1, gpu_idx);
     dse->thread_mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
     dse->thread_cond = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
     dse->ninst_cache = calloc (1, sizeof (rpool_queue_t));
@@ -272,8 +243,6 @@ void dse_destroy (dse_t *dse)
     pthread_cond_destroy (&dse->thread_cond);
     if (dse->scratchpad != NULL)
         aspen_free (dse->scratchpad);
-    if (dse->gpu_scratchpad != NULL)
-        aspen_gpu_free (dse->gpu_scratchpad, dse->gpu_idx);
     rpool_destroy_queue (dse->ninst_cache);
     free (dse->ninst_cache);
 }

@@ -5,7 +5,6 @@ int main (int argc, char* argv[])
     //Take number of generation iteration from args
     int batch_size = 1;
     int num_iter = 1;
-    int gpu = -1;
     if (argc == 2)
     {
         num_iter = atoi(argv[1]);
@@ -32,7 +31,7 @@ int main (int argc, char* argv[])
     // by iterating through different number of nodes per layer. 
     // Takes batch size and number of iterations as arguments.
     // May take quite some time depending on your machine.
-    nasm_t *aspen_nasm = apu_generate_nasm (aspen_dnn, batch_size, num_iter, gpu);
+    nasm_t *aspen_nasm = apu_generate_nasm (aspen_dnn, batch_size, num_iter);
 
     // // If apu_generate_nasm() takes too long, use apu_create_nasm() instead,
     // // to create a NASM using a fixed number of nodes per layer.

@@ -7,7 +7,6 @@
 #include "rpool.h"
 #include "util.h"
 #include "kernels.h"
-#include "cuda_kernels.h"
 
 #define DSE_NINST_CACHE_BALLANCE 1
 #define DSE_NINST_CACHE_DIFF 0
@@ -17,7 +16,6 @@ struct dse_group_t
 {
     unsigned int num_dses;
     dse_t *dse_arr;
-    int gpu_idx;
 };
 
 struct dse_t
@@ -26,18 +24,15 @@ struct dse_t
     _Atomic int kill;
     unsigned int thread_id;
     void *scratchpad;
-    void *gpu_scratchpad;
     pthread_t thread;
     pthread_mutex_t thread_mutex;
     pthread_cond_t thread_cond;
     ninst_t *target;
     rpool_queue_t *ninst_cache;
     rpool_t *rpool;
-
-    int gpu_idx;
 };
 
-void dse_init (dse_t *dse, int gpu_idx);
+void dse_init (dse_t *dse);
 void dse_destroy (dse_t *dse);
 
 void dse_run (dse_t *dse);

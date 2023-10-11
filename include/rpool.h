@@ -45,7 +45,6 @@ struct rpool_t
     float queue_group_weight_sum;
     rpool_queue_t default_queue;
     _Atomic unsigned int ref_dses;
-    int gpu_idx;
 };
 
 void rpool_init_queue (rpool_queue_t *rpool_queue);

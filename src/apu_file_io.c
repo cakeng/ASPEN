@@ -256,7 +256,7 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
                     }
                 }
                 if (layer->tensors[WEIGHT_TENSOR]->num_elements*layer->tensors[WEIGHT_TENSOR]->element_size == data_size)
-                    copy_ptr_to_aspen_tensor (layer->tensors[WEIGHT_TENSOR], buffer);
+                    copy_buffer_to_aspen_tensor (layer->tensors[WEIGHT_TENSOR], buffer);
                 else
                 {
                     ERROR_PRTF ("ASPEN DNN file %s parse error: Layer %d WEIGHT_TENSOR size mismatch.\nTensor: %d, File: %ld.\n", input_path, layer_num,
@@ -312,7 +312,7 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
                 }
                 
                 if (layer->tensors[BIAS_TENSOR]->num_elements*layer->tensors[BIAS_TENSOR]->element_size == data_size)
-                    copy_ptr_to_aspen_tensor (layer->tensors[BIAS_TENSOR], buffer);
+                    copy_buffer_to_aspen_tensor (layer->tensors[BIAS_TENSOR], buffer);
                 else
                 {
                     ERROR_PRTF ("ASPEN DNN file %s parse error: Layer %d BIAS_TENSOR size mismatch:\
@@ -766,14 +766,6 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
                         ERROR_PRTF ("ASPEN DNN file %s parse error: Failed to read tensor data.\n", filename);
                         apu_destroy_dnn(dnn);
                         return NULL;
-                    }
-                    if (aspen_num_gpus > 0)
-                    {
-                        calloc_aspen_gpu_tensors (tensor);
-                        for (unsigned int k = 0; k < aspen_num_gpus; k++)
-                        {
-                            copy_aspen_tensor_to_gpu (tensor, k);
-                        }
                     }
                 }
                 else

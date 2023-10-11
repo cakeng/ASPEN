@@ -79,7 +79,6 @@ int main (int argc, char **argv)
     int number_of_iterations = 1;
     int num_cores = 1;
     int num_tiles = 50;
-    int gpu_idx = -1;
 
     if (argc > 5)
     {

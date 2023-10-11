@@ -27,7 +27,6 @@
 #define MAX_TENSOR_DIMS 8
 #define MAX_STRING_LEN 256
 #define MAX_PARENT_NINST_NUM (1<<16) // 65536
-#define MAX_NUM_GPUS 16
 #define NINST_H_MIN (64)
 #define NINST_W_MIN (12)
 #define MEM_ALIGN 32

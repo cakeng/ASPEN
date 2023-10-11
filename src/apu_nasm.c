@@ -547,10 +547,6 @@ void destroy_ninst (ninst_t *ninst)
         free (ninst->parent_ninst_idx_arr);
     if (ninst->child_ninst_arr != NULL)
         free (ninst->child_ninst_arr);
-    // if (ninst->input_pos_idx_arr != NULL)
-    //     free (ninst->input_pos_idx_arr);
-    // if (ninst->input_pos_ptr_arr_gpu != NULL && ninst->ldata->nasm->gpu_idx >= 0)
-    //     aspen_gpu_free (ninst->input_pos_ptr_arr_gpu, ninst->ldata->nasm->gpu_idx);
 }
 
 nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size,  unsigned int min_ninst_per_ldata, unsigned int transformer_seq_len)
@@ -567,7 +563,6 @@ nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigne
     new_nasm->batch_size = batch_size > 0? batch_size : 1;
     new_nasm->nasm_id = nasm_num;
     new_nasm->min_ninst_per_ldata = min_ninst_per_ldata;
-    new_nasm->gpu_idx = -1;
     atomic_store (&new_nasm->completed, 0);
     nasm_num++;
     for (int i = 0; i < dnn->num_layers; i++)
@@ -1013,17 +1008,7 @@ void apu_destroy_nasm (nasm_t *nasm)
     if (nasm->ninst_arr != NULL)
         free(nasm->ninst_arr);
     if (nasm->data != NULL)
-    {
-        if (nasm->gpu_idx >= 0)
-            aspen_gpu_free (nasm->data, nasm->gpu_idx);
-        else
-            aspen_free (nasm->data);
-    }
-    if (nasm->gpu_null_data != NULL)
-    {
-        if (nasm->gpu_idx >= 0)
-            aspen_gpu_free (nasm->gpu_null_data, nasm->gpu_idx);
-    }
+        aspen_free (nasm->data);
     nasm->dnn->ref_nasms--;
     free(nasm);
 }
@@ -1428,20 +1413,11 @@ void *get_packed_ldata_output_colwise (nasm_ldata_t *ldata)
         return NULL;
     }
     void *out_mat = ldata->out_mat;
-    if (ldata->nasm->gpu_idx >= 0)
-    {
-        out_mat = aspen_calloc (ldata->out_mat_mem_size, 1);
-        aspen_gpu_to_host_memcpy (out_mat, ldata->out_mat, ldata->out_mat_mem_size, ldata->nasm->gpu_idx);
-    }
     for (unsigned int w = 0; w < ldata->out_mat_dims[OUT_W]; w++)
     {
         void *packed_ptr = packed_data + w * ldata->out_mat_dims[OUT_H] * elem_size;
         void *input_ptr = out_mat + w * ldata->out_mat_stride * elem_size;
         memcpy (packed_ptr, input_ptr, ldata->out_mat_dims[OUT_H] * elem_size);
-    }
-    if (ldata->nasm->gpu_idx >= 0)
-    {
-        aspen_free (out_mat);
     }
     return packed_data;
 }

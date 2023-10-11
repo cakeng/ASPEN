@@ -3,12 +3,6 @@
 #include "nasm.h"
 #include "input_parser.h"
 
-int use_gpu = 1;
-int aspen_num_gpus = 0;
-
-#ifdef GPU
-cudaStream_t aspen_CUDA_streams[MAX_NUM_GPUS][GPU_MEM_STREAM_HOST_TO_GPU+1];
-#endif
 aspen_dnn_t *apu_create_dnn (char *input_path, char *weight_path)
 {
     aspen_dnn_t *new_dnn = parse_input (input_path);
@@ -47,7 +41,6 @@ aspen_dnn_t *apu_create_dnn (char *input_path, char *weight_path)
             params[MAT_M] = (layer->params[MAT_M] + params[SUB_M] - 1) / params[SUB_M];
             reorder_aspen_tensor (&layer->tensors[WEIGHT_TENSOR], params, weight_dim_order, 3);
         }
-        sync_dnn_data_to_gpu_layer (layer);
     }
     return new_dnn;
 }
@@ -80,28 +73,6 @@ aspen_dnn_t *init_aspen_dnn (unsigned int num_layers, char* name)
     #ifdef AVX2
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
     _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
-    #endif
-    #ifdef GPU
-    if (use_gpu == 1 && aspen_num_gpus == 0)
-    {
-        if (check_CUDA(cudaGetDeviceCount(&aspen_num_gpus)) != 0)
-        {
-            ERROR_PRTF ("Error getting number of CUDA devices.\n");
-        }
-        #ifdef DEBUG
-        PRTF ("Found %d CUDA device(s).\n", aspen_num_gpus);
-        #endif
-        for (int i = 0; i < aspen_num_gpus; i++)
-        {
-            for (int j = 0; j < GPU_MEM_STREAM_HOST_TO_GPU+1; j++)
-            {
-                if (check_CUDA(cudaStreamCreateWithFlags(&aspen_CUDA_streams[i][j], cudaStreamNonBlocking)) != 0)
-                {
-                    ERROR_PRTF ("Error creating CUDA stream.\n");
-                }
-            }
-        }
-    }
     #endif
     return new_dnn;
 }
@@ -174,43 +145,18 @@ void calloc_aspen_tensor (aspen_tensor_t *tensor)
     tensor->data = aspen_calloc(size, tensor->element_size);
 }
 
-void calloc_aspen_gpu_tensors (aspen_tensor_t *tensor)
-{
-    if (tensor == NULL)
-        return;
-    if (tensor->num_elements == 0 || tensor->element_size == 0)
-    {
-        ERROR_PRTF ("Cannot calloc tensor with 0 elements or 0 element size.\n");
-        assert (0);
-    }
-    size_t size = 1;
-    for (int i = 0; i < tensor->num_dims; i++)
-    {
-        if (i == tensor->num_dims - 1)
-            size *= get_smallest_dividable (tensor->dims[tensor->data_dim_order[i]], _VEC_SIZE_M);
-        else
-            size *= tensor->dims[tensor->data_dim_order[i]];
-    }
-    for (int i = 0; i < aspen_num_gpus; i++)
-    {
-        if (tensor->data_gpu[i] != NULL)
-            aspen_gpu_free (tensor->data_gpu[i], i);
-        tensor->data_gpu[i] = aspen_gpu_calloc (size, tensor->element_size, i);
-    }
-}
-
-void copy_ptr_to_aspen_tensor  (aspen_tensor_t *tensor, void *ptr)
+void copy_buffer_to_aspen_tensor  (aspen_tensor_t *tensor, void *buffer)
 {
     if (tensor == NULL || tensor->data == NULL)
         return;
-    memcpy (tensor->data, ptr, tensor->num_elements * tensor->element_size);
+    memcpy (tensor->data, buffer, tensor->num_elements * tensor->element_size);
 }
 
-void copy_aspen_tensor_to_ptr  (aspen_tensor_t *tensor, void *ptr)
+void copy_aspen_tensor_to_buffer  (aspen_tensor_t *tensor, void *buffer)
 {
     if (tensor == NULL || tensor->data == NULL)
         return;
-    memcpy (ptr, tensor->data, tensor->num_elements * tensor->element_size);
+    memcpy (buffer, tensor->data, tensor->num_elements * tensor->element_size);
 }
 
 void copy_aspen_tensor_to_tensor  (aspen_tensor_t *dst, aspen_tensor_t *src)
@@ -232,24 +178,6 @@ void copy_aspen_tensor_to_tensor  (aspen_tensor_t *dst, aspen_tensor_t *src)
     memcpy (dst->data, src->data, dst->num_elements * dst->element_size);
 }
 
-void copy_aspen_tensor_to_gpu  (aspen_tensor_t *tensor, int gpu_idx)
-{
-    if (tensor == NULL || tensor->data == NULL)
-        return;
-    if (gpu_idx < 0 || gpu_idx >= aspen_num_gpus)
-        return;
-    aspen_host_to_gpu_memcpy (tensor->data_gpu[gpu_idx], tensor->data, tensor->num_elements * tensor->element_size, gpu_idx);
-}
-
-void copy_aspen_tensor_to_host  (aspen_tensor_t *tensor, int gpu_idx)
-{
-    if (tensor == NULL || tensor->data == NULL)
-        return;
-    if (gpu_idx < 0 || gpu_idx >= aspen_num_gpus)
-        return;
-    aspen_gpu_to_host_memcpy (tensor->data, tensor->data_gpu[gpu_idx], tensor->num_elements * tensor->element_size, gpu_idx);
-}
-
 void reorder_aspen_tensor (aspen_tensor_t **tensor_ptr, unsigned int *params_arr, LAYER_PARAMS *order, int num_dims)
 {
     aspen_tensor_t *tensor = *tensor_ptr;
@@ -260,7 +188,6 @@ void reorder_aspen_tensor (aspen_tensor_t **tensor_ptr, unsigned int *params_arr
         assert (0);
     }
     calloc_aspen_tensor (new_tensor);
-    calloc_aspen_gpu_tensors (new_tensor);
     unsigned int pos[NUM_PARAM_ELEMENTS] = {0};
     for (int idx = 0; idx < tensor->num_elements; idx++)
     {
@@ -283,15 +210,11 @@ void reorder_aspen_tensor (aspen_tensor_t **tensor_ptr, unsigned int *params_arr
     destroy_aspen_tensor (tensor);
 }
 
-void *get_aspen_tensor_data (aspen_tensor_t *tensor, LAYER_PARAMS *output_order, int gpu_idx)
+void *get_aspen_tensor_data (aspen_tensor_t *tensor, LAYER_PARAMS *output_order)
 {
     void *output = calloc (tensor->num_elements, tensor->element_size);
     aspen_tensor_t *new_tensor = init_aspen_tensor (tensor->dims, output_order, tensor->num_dims, tensor->element_size);
     unsigned int pos[NUM_PARAM_ELEMENTS] = {0};
-    if (gpu_idx >= 0)
-    {
-        copy_aspen_tensor_to_host (tensor, gpu_idx);
-    }
     for (int idx = 0; idx < tensor->num_elements; idx++)
     {
         get_tensor_pos_from_idx (tensor, idx, pos);
@@ -433,11 +356,6 @@ void destroy_aspen_tensor(aspen_tensor_t *tensor)
         return;
     if (tensor->data != NULL)
         aspen_free(tensor->data);
-    for (int i = 0; i < aspen_num_gpus; i++)
-    {
-        if (tensor->data_gpu[i] != NULL)
-            aspen_gpu_free (tensor->data_gpu[i], i);
-    }
     free(tensor);
 }
 
@@ -449,45 +367,40 @@ void create_layer_tensors (aspen_layer_t *layer)
         LAYER_PARAMS weight_dim_order[] = {OUT_C, WEIGHT_H, WEIGHT_W, IN_C};
         layer->tensors [WEIGHT_TENSOR] = init_aspen_tensor (layer->params, weight_dim_order, 4, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [WEIGHT_TENSOR]);
-        calloc_aspen_gpu_tensors (layer->tensors [WEIGHT_TENSOR]);
-        
+
         LAYER_PARAMS bias_dim_order[] = {OUT_C};
         layer->tensors [BIAS_TENSOR] = init_aspen_tensor (layer->params, bias_dim_order, 1, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [BIAS_TENSOR]);
-        calloc_aspen_gpu_tensors (layer->tensors [BIAS_TENSOR]);
     }
     else if (layer->type == FC_LAYER)
     {
         LAYER_PARAMS weight_dim_order[] = {OUT_C, IN_C, IN_H, IN_W};
         layer->tensors [WEIGHT_TENSOR] = init_aspen_tensor (layer->params, weight_dim_order, 4, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [WEIGHT_TENSOR]);
-        calloc_aspen_gpu_tensors (layer->tensors [WEIGHT_TENSOR]);
+
         LAYER_PARAMS bias_dim_order[] = {OUT_C};
         layer->tensors [BIAS_TENSOR] = init_aspen_tensor (layer->params, bias_dim_order, 1, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [BIAS_TENSOR]);
-        calloc_aspen_gpu_tensors (layer->tensors [BIAS_TENSOR]);
     }
     else if (layer->type == MATMUL_LAYER)
     {
         LAYER_PARAMS weight_dim_order[] = {MAT_M, MAT_K};
         layer->tensors [WEIGHT_TENSOR] = init_aspen_tensor (layer->params, weight_dim_order, 2, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [WEIGHT_TENSOR]);
-        calloc_aspen_gpu_tensors (layer->tensors [WEIGHT_TENSOR]);
+
         LAYER_PARAMS bias_dim_order[] = {MAT_M};
         layer->tensors [BIAS_TENSOR] = init_aspen_tensor (layer->params, bias_dim_order, 1, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [BIAS_TENSOR]);
-        calloc_aspen_gpu_tensors (layer->tensors [BIAS_TENSOR]);
     }
     else if (layer->type == LAYERNORM_LAYER)
     {
         LAYER_PARAMS weight_dim_order[] = {MAT_M};
         layer->tensors [WEIGHT_TENSOR] = init_aspen_tensor (layer->params, weight_dim_order, 1, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [WEIGHT_TENSOR]);
-        calloc_aspen_gpu_tensors (layer->tensors [WEIGHT_TENSOR]);
+
         LAYER_PARAMS bias_dim_order[] = {MAT_M};
         layer->tensors [BIAS_TENSOR] = init_aspen_tensor (layer->params, bias_dim_order, 1, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [BIAS_TENSOR]);
-        calloc_aspen_gpu_tensors (layer->tensors [BIAS_TENSOR]);
     }
     else if (layer->type == INPUT_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER || layer->type == SOFTMAX_LAYER || layer->type == YOLO_LAYER || layer->type == APPEND_LAYER
         || layer->type == RESIDUAL_LAYER || layer->type == LAYERNORM_LAYER || layer->type == K_ATTENTION_LAYER || layer->type == V_ATTENTION_LAYER)
@@ -506,7 +419,7 @@ void create_layer_tensors (aspen_layer_t *layer)
 }
 
 // Change to add a new layer type
-void create_layer_output_tensor (aspen_layer_t *layer, int gpu_idx)
+void create_layer_output_tensor (aspen_layer_t *layer)
 {
     if (layer->type == CONV_LAYER || layer->type == INPUT_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER 
         || layer->type == FC_LAYER || layer->type == RESIDUAL_LAYER || layer->type == YOLO_LAYER || layer->type == APPEND_LAYER)
@@ -516,16 +429,12 @@ void create_layer_output_tensor (aspen_layer_t *layer, int gpu_idx)
             LAYER_PARAMS dim_order[] = {BATCH, OUT_H, OUT_W, OUT_C};
             layer->tensors [OUTPUT_TENSOR] = init_aspen_tensor (layer->params, dim_order, 4, layer->dnn->element_size);
             calloc_aspen_tensor (layer->tensors [OUTPUT_TENSOR]);
-            if (gpu_idx >= 0)
-                calloc_aspen_gpu_tensors (layer->tensors [OUTPUT_TENSOR]);
         }
         else
         {
             LAYER_PARAMS dim_order[] = {BATCH, MAT_N, MAT_M};
             layer->tensors [OUTPUT_TENSOR] = init_aspen_tensor (layer->params, dim_order, 3, layer->dnn->element_size);
             calloc_aspen_tensor (layer->tensors [OUTPUT_TENSOR]);
-            if (gpu_idx >= 0)
-                calloc_aspen_gpu_tensors (layer->tensors [OUTPUT_TENSOR]);
         }
     }
     else if (layer->type == FC_LAYER || layer->type == SOFTMAX_LAYER)
@@ -533,8 +442,6 @@ void create_layer_output_tensor (aspen_layer_t *layer, int gpu_idx)
         LAYER_PARAMS dim_order[] = {BATCH, OUT_C};
         layer->tensors [OUTPUT_TENSOR] = init_aspen_tensor (layer->params, dim_order, 2, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [OUTPUT_TENSOR]);
-        if (gpu_idx >= 0)
-            calloc_aspen_gpu_tensors (layer->tensors [OUTPUT_TENSOR]);
     }
     else if (layer->type == LAYERNORM_LAYER
         || layer->type == V_ATTENTION_LAYER || layer->type == MATMUL_LAYER)
@@ -542,16 +449,12 @@ void create_layer_output_tensor (aspen_layer_t *layer, int gpu_idx)
         LAYER_PARAMS dim_order[] = {BATCH, MAT_N, MAT_M};
         layer->tensors [OUTPUT_TENSOR] = init_aspen_tensor (layer->params, dim_order, 3, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [OUTPUT_TENSOR]);
-        if (gpu_idx >= 0)
-            calloc_aspen_gpu_tensors (layer->tensors [OUTPUT_TENSOR]);
     }
     else if (layer->type == K_ATTENTION_LAYER)
     {
         LAYER_PARAMS dim_order[] = {BATCH, NUM_HEAD, MAT_N, MAT_M};
         layer->tensors [OUTPUT_TENSOR] = init_aspen_tensor (layer->params, dim_order, 4, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [OUTPUT_TENSOR]);
-        if (gpu_idx >= 0)
-            calloc_aspen_gpu_tensors (layer->tensors [OUTPUT_TENSOR]);
     }
     else
     {
@@ -603,141 +506,19 @@ void layer_find_input_pos_idx (aspen_layer_t *layer)
 }
 
 // Change to add a new layer type
-void create_layer_col_idx_tensor (aspen_layer_t *layer, int gpu_idx)
+void create_layer_col_idx_tensor (aspen_layer_t *layer)
 {
     if (layer->type == CONV_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER)
     {
         LAYER_PARAMS dim_order[] = {BATCH, OUT_H, OUT_W, WEIGHT_H, WEIGHT_W};
         layer->tensors [COL_IDX_TENSOR] = init_aspen_tensor (layer->params, dim_order, 5, sizeof(int));
         calloc_aspen_tensor (layer->tensors [COL_IDX_TENSOR]);
-        if (gpu_idx >= 0)
-            calloc_aspen_gpu_tensors (layer->tensors [COL_IDX_TENSOR]);
         layer_find_input_pos_idx (layer);
-        copy_aspen_tensor_to_gpu (layer->tensors [COL_IDX_TENSOR], gpu_idx);
     }
     #ifdef DEBUG
     // fill_tensor_with_nums (layer->tensors[OUTPUT_TENSOR]);
     fill_tensor_with_fixed_nums (layer->tensors[OUTPUT_TENSOR], 0);
     #endif
-}
-
-
-void sync_dnn_data_to_gpu_layer (aspen_layer_t *layer)
-{
-    if (layer == NULL)
-    {
-        ERROR_PRTF ("ERROR in sync_dnn_data_to_gpu_layer: layer is NULL, at line %d in file %s.\n", 0, " ");
-        assert (0);
-    }
-    for (int i = 0; i < NUM_TENSORS; i++)
-    {
-        if (layer->tensors[i] != NULL)
-        {
-            if (i == WEIGHT_TENSOR || i == BIAS_TENSOR)
-            {
-                for (int j = 0; j < aspen_num_gpus; j++)
-                {
-                    copy_aspen_tensor_to_gpu (layer->tensors[i], j);
-                }
-            }
-        }
-    }
-    for (int j = 0; j < aspen_num_gpus; j++)
-    {
-        aspen_sync_gpu (j);
-    }
-}
-void sync_dnn_data_to_gpu_dnn (aspen_dnn_t *dnn)
-{
-    if (dnn == NULL)
-    {
-        ERROR_PRTF ("ERROR in sync_dnn_data_to_gpu_dnn: dnn is NULL, at line %d in file %s.\n", 0, " ");
-        assert (0);
-    }
-    for (int i = 0; i < dnn->num_layers; i++)
-    {
-        sync_dnn_data_to_gpu_layer (&dnn->layers[i]);
-    }
-    for (int j = 0; j < aspen_num_gpus; j++)
-    {
-        aspen_sync_gpu (j);
-    }
-}
-void sync_output_data_to_host_layer (aspen_layer_t *layer, int gpu_idx)
-{
-    if (layer == NULL)
-    {
-        ERROR_PRTF ("ERROR in sync_output_data_to_host_layer: layer is NULL, at line %d in file %s.\n", 0, " ");
-        assert (0);
-    }
-    for (int i = 0; i < NUM_TENSORS; i++)
-    {
-        if (layer->tensors[i] != NULL)
-        {
-            if (i == OUTPUT_TENSOR)
-            {
-                copy_aspen_tensor_to_host (layer->tensors[i], gpu_idx);
-            }
-        }
-    }
-    for (int j = 0; j < aspen_num_gpus; j++)
-    {
-        aspen_sync_gpu (j);
-    }
-}
-void sync_output_data_to_host_dnn (aspen_dnn_t *dnn, int gpu_idx)
-{
-    if (dnn == NULL)
-    {
-        ERROR_PRTF ("ERROR in sync_output_data_to_host_dnn: dnn is NULL, at line %d in file %s.\n", 0, " ");
-        assert (0);
-    }
-    for (int i = 0; i < dnn->num_layers; i++)
-    {
-        sync_output_data_to_host_layer (&dnn->layers[i], gpu_idx);
-    }
-    for (int j = 0; j < aspen_num_gpus; j++)
-    {
-        aspen_sync_gpu (j);
-    }
-}
-void sync_output_data_to_gpu_layer (aspen_layer_t *layer, int gpu_idx)
-{
-    if (layer == NULL)
-    {
-        ERROR_PRTF ("ERROR in sync_output_data_to_gpu_layer: layer is NULL, at line %d in file %s.\n", 0, " ");
-        assert (0);
-    }
-    for (int i = 0; i < NUM_TENSORS; i++)
-    {
-        if (layer->tensors[i] != NULL)
-        {
-            if (i == OUTPUT_TENSOR)
-            {
-                copy_aspen_tensor_to_gpu (layer->tensors[i], gpu_idx);
-            }
-        }
-    }
-    for (int j = 0; j < aspen_num_gpus; j++)
-    {
-        aspen_sync_gpu (j);
-    }
-}
-void sync_output_data_to_gpu_dnn (aspen_dnn_t *dnn, int gpu_idx)
-{
-    if (dnn == NULL)
-    {
-        ERROR_PRTF ("ERROR in sync_output_data_to_gpu_dnn: dnn is NULL, at line %d in file %s.\n", 0, " ");
-        assert (0);
-    }
-    for (int i = 0; i < dnn->num_layers; i++)
-    {
-        sync_output_data_to_gpu_layer (&dnn->layers[i], gpu_idx);
-    }
-    for (int j = 0; j < aspen_num_gpus; j++)
-    {
-        aspen_sync_gpu (j);
-    }
 }
 
 void print_dnn_info (aspen_dnn_t *dnn, int print_data)
@@ -811,12 +592,6 @@ void print_tensor_info (aspen_tensor_t *tensor, int print_data)
     printf("\n\t\tNum Elements: %d\n", tensor->num_elements);
     printf("\t\tElement Size: %d\n", tensor->element_size);
     printf("\t\tIs CPU data allocated? %s (%p)\n", tensor->data ? "Yes" : "No", tensor->data);
-    printf("\t\tIs GPU data allocated? %s\n", tensor->data_gpu[0] ? "Yes" : "No");
-    for (int i = 0; i < aspen_num_gpus; i++)
-    {
-        if (tensor->data_gpu[i])
-            printf("\t\t\tGPU %d: %p\n", i, tensor->data_gpu[i]);
-    }
     if (print_data)
     {
         int new_line_num = 0;
@@ -910,16 +685,10 @@ void *aspen_load_input(char *input_filename, unsigned int *input_dims, unsigned 
 
 void aspen_init_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data)
 {
-    int gpu_idx = -1;
     if (dnn == NULL)
     {
         ERROR_PRTF ("Error: DNN is NULL.\n");
         assert (0);
-    }
-    if (gpu_idx >= aspen_num_gpus)
-    {
-        ERROR_PRTF ("ERROR: aspen_init_naive: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);
-        gpu_idx = -1;
     }
     // Create output tensors
     for (int i = 0; i < dnn->num_layers; i++)
@@ -937,231 +706,110 @@ void aspen_init_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input
             layer->params[MAT_M] = (input_params[NUM_SEQ]);
             layer->params[MAT_K] = (input_params[NUM_HIDDEN] / layer->params[NUM_HEAD]);
         }
-        create_layer_output_tensor (layer, gpu_idx);
-        create_layer_col_idx_tensor (layer, gpu_idx);
+        create_layer_output_tensor (layer);
+        create_layer_col_idx_tensor (layer);
     }
     // print_dnn_info (dnn, 0);
     memcpy (dnn->layers[0].tensors[OUTPUT_TENSOR]->data, input_data, 
         dnn->layers[0].tensors[OUTPUT_TENSOR]->num_elements * dnn->layers[0].tensors[OUTPUT_TENSOR]->element_size);
-    if (gpu_idx >= 0)
-        copy_aspen_tensor_to_gpu (dnn->layers[0].tensors[OUTPUT_TENSOR], gpu_idx);
 }
 // Change to add a new layer type
 void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_data)
 {
-    int gpu_idx = -1;
     if (dnn == NULL)
     {
         ERROR_PRTF ("Error: DNN is NULL.\n");
         assert (0);
     }
-    if (gpu_idx >= aspen_num_gpus)
+    for (int i = 1; i < dnn->num_layers; i++)
     {
-        ERROR_PRTF ("ERROR: aspen_run_naive: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);
-        gpu_idx = -1;
-    }
-    if (gpu_idx < 0)
-    {
-        for (int i = 1; i < dnn->num_layers; i++)
+        aspen_layer_t *layer = &dnn->layers[i];
+        float *input = (float*)layer->parent_layers[PARENT_0]->tensors[OUTPUT_TENSOR]->data;
+        float *input2 = NULL;
+        if (layer->parent_layers[PARENT_1] != NULL)
         {
-            aspen_layer_t *layer = &dnn->layers[i];
-            float *input = (float*)layer->parent_layers[PARENT_0]->tensors[OUTPUT_TENSOR]->data;
-            float *input2 = NULL;
-            if (layer->parent_layers[PARENT_1] != NULL)
+            input2 = (float*)layer->parent_layers[PARENT_1]->tensors[OUTPUT_TENSOR]->data;
+        }
+        float *output = (float*)layer->tensors[OUTPUT_TENSOR]->data;
+        if (layer->type == CONV_LAYER)
+        {
+            naive_conv2d (input, layer->tensors[WEIGHT_TENSOR]->data, layer->tensors[BIAS_TENSOR]->data, output,
+                layer->params[BATCH], layer->params[IN_C], layer->params[IN_H], layer->params[IN_W],
+                layer->params[OUT_C], layer->params[WEIGHT_H], layer->params[WEIGHT_W],
+                layer->params[STRIDE], layer->params[PADDING]);
+        }
+        else if (layer->type == MAXPOOL_LAYER)
+        {
+            naive_maxpool2d (input, output, layer->params[BATCH], layer->params[IN_C], layer->params[IN_H], layer->params[IN_W],
+                layer->params[WEIGHT_H], layer->params[WEIGHT_W], layer->params[STRIDE], layer->params[PADDING]);
+        }
+        else if (layer->type == AVGPOOL_LAYER)
+        {
+            naive_avgpool2d (input, output, layer->params[BATCH], layer->params[IN_C], layer->params[IN_H], layer->params[IN_W],
+                layer->params[WEIGHT_H], layer->params[WEIGHT_W], layer->params[STRIDE], layer->params[PADDING]);
+        }
+        else if (layer->type == SOFTMAX_LAYER)
+        {
+            naive_softmax (input, output, layer->params[BATCH], layer->tensors[OUTPUT_TENSOR]->num_elements/ layer->params[BATCH]);
+        }
+        else if (layer->type == FC_LAYER)
+        {
+            naive_fully_connected (input, layer->tensors[WEIGHT_TENSOR]->data, layer->tensors[BIAS_TENSOR]->data, output,
+                layer->params[BATCH], layer->params[IN_C]*layer->params[IN_H]*layer->params[IN_W], layer->params[OUT_C]);
+        }
+        else if (layer->type == RESIDUAL_LAYER)
+        {
+            naive_residual (input, input2, output, layer->tensors[OUTPUT_TENSOR]->num_elements);
+        }
+        else if (layer->type == MATMUL_LAYER)
+        {
+            memset (output, 0, layer->tensors[OUTPUT_TENSOR]->num_elements * layer->tensors[OUTPUT_TENSOR]->element_size);
+            SGEMM_KERNEL_OMP (layer->params[MAT_M], layer->params[MAT_N]*layer->params[BATCH], layer->params[MAT_K], 
+                layer->tensors[WEIGHT_TENSOR]->data, layer->params[MAT_K], input, layer->params[MAT_K], 
+                    output, layer->params[MAT_M]);
+            for (int j = 0; j < layer->params[MAT_N]*layer->params[BATCH]; j++)
             {
-                input2 = (float*)layer->parent_layers[PARENT_1]->tensors[OUTPUT_TENSOR]->data;
-            }
-            float *output = (float*)layer->tensors[OUTPUT_TENSOR]->data;
-            if (layer->type == CONV_LAYER)
-            {
-                naive_conv2d (input, layer->tensors[WEIGHT_TENSOR]->data, layer->tensors[BIAS_TENSOR]->data, output,
-                    layer->params[BATCH], layer->params[IN_C], layer->params[IN_H], layer->params[IN_W],
-                    layer->params[OUT_C], layer->params[WEIGHT_H], layer->params[WEIGHT_W],
-                    layer->params[STRIDE], layer->params[PADDING]);
-            }
-            else if (layer->type == MAXPOOL_LAYER)
-            {
-                naive_maxpool2d (input, output, layer->params[BATCH], layer->params[IN_C], layer->params[IN_H], layer->params[IN_W],
-                    layer->params[WEIGHT_H], layer->params[WEIGHT_W], layer->params[STRIDE], layer->params[PADDING]);
-            }
-            else if (layer->type == AVGPOOL_LAYER)
-            {
-                naive_avgpool2d (input, output, layer->params[BATCH], layer->params[IN_C], layer->params[IN_H], layer->params[IN_W],
-                    layer->params[WEIGHT_H], layer->params[WEIGHT_W], layer->params[STRIDE], layer->params[PADDING]);
-            }
-            else if (layer->type == SOFTMAX_LAYER)
-            {
-                naive_softmax (input, output, layer->params[BATCH], layer->tensors[OUTPUT_TENSOR]->num_elements/ layer->params[BATCH]);
-            }
-            else if (layer->type == FC_LAYER)
-            {
-                naive_fully_connected (input, layer->tensors[WEIGHT_TENSOR]->data, layer->tensors[BIAS_TENSOR]->data, output,
-                    layer->params[BATCH], layer->params[IN_C]*layer->params[IN_H]*layer->params[IN_W], layer->params[OUT_C]);
-            }
-            else if (layer->type == RESIDUAL_LAYER)
-            {
-                naive_residual (input, input2, output, layer->tensors[OUTPUT_TENSOR]->num_elements);
-            }
-            else if (layer->type == MATMUL_LAYER)
-            {
-                memset (output, 0, layer->tensors[OUTPUT_TENSOR]->num_elements * layer->tensors[OUTPUT_TENSOR]->element_size);
-                SGEMM_KERNEL_OMP (layer->params[MAT_M], layer->params[MAT_N]*layer->params[BATCH], layer->params[MAT_K], 
-                    layer->tensors[WEIGHT_TENSOR]->data, layer->params[MAT_K], input, layer->params[MAT_K], 
-                        output, layer->params[MAT_M]);
-                for (int j = 0; j < layer->params[MAT_N]*layer->params[BATCH]; j++)
+                for (int k = 0; k < layer->params[MAT_M]; k++)
                 {
-                    for (int k = 0; k < layer->params[MAT_M]; k++)
-                    {
-                        output[j*layer->params[MAT_M] + k] += ((float*)layer->tensors[BIAS_TENSOR]->data)[k];
-                    }
+                    output[j*layer->params[MAT_M] + k] += ((float*)layer->tensors[BIAS_TENSOR]->data)[k];
                 }
             }
-            else if (layer->type == K_ATTENTION_LAYER)
-            {
-                naive_k_attention (input, input2, output
-                    , layer->params[BATCH], layer->params[NUM_HEAD], layer->params[NUM_HIDDEN], layer->params[NUM_SEQ], layer->params[MASKED]);
-            }
-            else if (layer->type == V_ATTENTION_LAYER)
-            {
-                naive_v_attention (input, input2, output
-                    , layer->params[BATCH], layer->params[NUM_HEAD], layer->params[NUM_HIDDEN], layer->params[NUM_SEQ]);
-            }
-            else if (layer->type == LAYERNORM_LAYER)
-            {
-                naive_layernorm (input, layer->tensors[WEIGHT_TENSOR]->data, layer->tensors[BIAS_TENSOR]->data, output, 
-                    layer->params[BATCH]*layer->params[MAT_N], layer->params[MAT_M]);
-            }
-            else if (layer->type == YOLO_LAYER)
-            {
-                naive_yolo (input, layer->tensors[ANCHOR_TENSOR]->data,
-                    output, layer->params[OUT_C], layer->params[IN_H], layer->params[IN_W], layer->params[IN_C], layer->params[STRIDE]);
-            }
-            else if (layer->type == APPEND_LAYER)
-            {
-                naive_append (input, input2, output,
-                    layer->params[STRIDE], layer->params[IN_C], layer->params[OUT_C] - layer->params[IN_C], layer->params[OUT_H], layer->params[OUT_W]);
-            }
-            else if (layer->type == INPUT_LAYER)
-            {
-                // Do nothing
-            }
-            else 
-            {
-                ERROR_PRTF ("Error: Layer type not supported.\n");
-                assert (0);
-            }
-            naive_activate (output, layer->tensors[OUTPUT_TENSOR]->num_elements, layer->activation);
-            // PRTF ("apu_run_naive: Layer %d done.\n", i);
         }
-    }
-    else
-    {
-        for (int i = 1; i < dnn->num_layers; i++)
+        else if (layer->type == K_ATTENTION_LAYER)
         {
-            #ifdef GPU
-            aspen_layer_t *layer = &dnn->layers[i];
-            float *input = (float*)layer->parent_layers[PARENT_0]->tensors[OUTPUT_TENSOR]->data_gpu[gpu_idx];
-            float *input2 = NULL;
-            if (layer->parent_layers[PARENT_1] != NULL)
-            {
-                input2 = (float*)layer->parent_layers[PARENT_1]->tensors[OUTPUT_TENSOR]->data_gpu[gpu_idx];
-            }
-            float *output = (float*)layer->tensors[OUTPUT_TENSOR]->data_gpu[gpu_idx];
-            if (layer->type == CONV_LAYER)
-            {   
-                cuda_conv2d (
-                    layer->params[OUT_C],
-                    layer->params[BATCH]*layer->params[OUT_H]*layer->params[OUT_W], 
-                    layer->tensors[COL_IDX_TENSOR]->data_gpu[gpu_idx], 
-                    layer->params[WEIGHT_H]*layer->params[WEIGHT_H], 
-                    layer->params[IN_C],
-                    layer->tensors[WEIGHT_TENSOR]->data_gpu[gpu_idx], 
-                    layer->params[IN_C]*layer->params[WEIGHT_H]*layer->params[WEIGHT_W],
-                    input,  
-                    layer->params[IN_C], 
-                    output, 
-                    layer->params[OUT_C], 
-                    layer->tensors[BIAS_TENSOR]->data_gpu[gpu_idx], 
-                    layer->activation, 
-                    aspen_CUDA_streams[gpu_idx][GPU_NAIVE_RUN_STREAM]);
-            }
-            else if (layer->type == MAXPOOL_LAYER)
-            {
-                cuda_maxpool (
-                    layer->params[OUT_C], 
-                    layer->params[BATCH]*layer->params[OUT_H]*layer->params[OUT_W], 
-                    layer->tensors[COL_IDX_TENSOR]->data_gpu[gpu_idx], 
-                    layer->params[WEIGHT_H]*layer->params[WEIGHT_H], 
-                    input,  
-                    layer->params[IN_C], 
-                    output, 
-                    layer->params[OUT_C], 
-                    layer->activation,
-                    aspen_CUDA_streams[gpu_idx][GPU_NAIVE_RUN_STREAM]);
-            }
-            else if (layer->type == AVGPOOL_LAYER)
-            {
-                cuda_avgpool (
-                    layer->params[OUT_C], 
-                    layer->params[BATCH]*layer->params[OUT_H]*layer->params[OUT_W], 
-                    layer->tensors[COL_IDX_TENSOR]->data_gpu[gpu_idx], 
-                    layer->params[WEIGHT_H]*layer->params[WEIGHT_H], 
-                    input,  
-                    layer->params[IN_C], 
-                    output, 
-                    layer->params[OUT_C], 
-                    layer->activation,
-                    aspen_CUDA_streams[gpu_idx][GPU_NAIVE_RUN_STREAM]);
-            }
-            else if (layer->type == SOFTMAX_LAYER)
-            {
-            }
-            else if (layer->type == FC_LAYER)
-            {
-
-            }
-            else if (layer->type == RESIDUAL_LAYER)
-            {
-                cuda_residual (input, input2, output, layer->tensors[OUTPUT_TENSOR]->num_elements, 
-                layer->activation, aspen_CUDA_streams[gpu_idx][GPU_NAIVE_RUN_STREAM]);
-            }
-            else if (layer->type == MATMUL_LAYER)
-            {
-                cuda_matmul (layer->params[MAT_M], layer->params[MAT_N]*layer->params[BATCH], layer->params[MAT_K], 
-                    layer->tensors[WEIGHT_TENSOR]->data_gpu[gpu_idx], layer->params[MAT_K], input, layer->params[MAT_K], 
-                    output, layer->params[MAT_M], layer->tensors[BIAS_TENSOR]->data_gpu[gpu_idx], 
-                    layer->activation, aspen_CUDA_streams[gpu_idx][GPU_NAIVE_RUN_STREAM]);
-            }
-            else if (layer->type == K_ATTENTION_LAYER)
-            {
-                cuda_k_attention (input, input2, output
-                    , layer->params[BATCH], layer->params[NUM_HEAD], layer->params[NUM_HIDDEN], layer->params[NUM_SEQ], 
-                    aspen_CUDA_streams[gpu_idx][GPU_NAIVE_RUN_STREAM]);
-            }
-            else if (layer->type == V_ATTENTION_LAYER)
-            {
-                cuda_v_attention (input, input2, output
-                    , layer->params[BATCH], layer->params[NUM_HEAD], layer->params[NUM_HIDDEN], layer->params[NUM_SEQ], 
-                    aspen_CUDA_streams[gpu_idx][GPU_NAIVE_RUN_STREAM]);
-            }
-            else if (layer->type == LAYERNORM_LAYER)
-            {
-                cuda_layernorm (input, layer->tensors[WEIGHT_TENSOR]->data_gpu[gpu_idx], layer->tensors[BIAS_TENSOR]->data_gpu[gpu_idx], output, 
-                    layer->params[BATCH]*layer->params[MAT_N], layer->params[MAT_M], layer->params[MAT_M], layer->params[MAT_M], 
-                    aspen_CUDA_streams[gpu_idx][GPU_NAIVE_RUN_STREAM]);
-            }
-            else if (layer->type == INPUT_LAYER)
-            {
-                // Do nothing
-            }
-            else 
-            {
-                ERROR_PRTF ("Error: Layer type not supported.\n");
-                assert (0);
-            }
-            // PRTF ("apu_run_naive: Layer %d done.\n", i);
-            #endif
-            aspen_sync_gpu_stream (gpu_idx, GPU_NAIVE_RUN_STREAM);
+            naive_k_attention (input, input2, output
+                , layer->params[BATCH], layer->params[NUM_HEAD], layer->params[NUM_HIDDEN], layer->params[NUM_SEQ], layer->params[MASKED]);
         }
+        else if (layer->type == V_ATTENTION_LAYER)
+        {
+            naive_v_attention (input, input2, output
+                , layer->params[BATCH], layer->params[NUM_HEAD], layer->params[NUM_HIDDEN], layer->params[NUM_SEQ]);
+        }
+        else if (layer->type == LAYERNORM_LAYER)
+        {
+            naive_layernorm (input, layer->tensors[WEIGHT_TENSOR]->data, layer->tensors[BIAS_TENSOR]->data, output, 
+                layer->params[BATCH]*layer->params[MAT_N], layer->params[MAT_M]);
+        }
+        else if (layer->type == YOLO_LAYER)
+        {
+            naive_yolo (input, layer->tensors[ANCHOR_TENSOR]->data,
+                output, layer->params[OUT_C], layer->params[IN_H], layer->params[IN_W], layer->params[IN_C], layer->params[STRIDE]);
+        }
+        else if (layer->type == APPEND_LAYER)
+        {
+            naive_append (input, input2, output,
+                layer->params[STRIDE], layer->params[IN_C], layer->params[OUT_C] - layer->params[IN_C], layer->params[OUT_H], layer->params[OUT_W]);
+        }
+        else if (layer->type == INPUT_LAYER)
+        {
+            // Do nothing
+        }
+        else 
+        {
+            ERROR_PRTF ("Error: Layer type not supported.\n");
+            assert (0);
+        }
+        naive_activate (output, layer->tensors[OUTPUT_TENSOR]->num_elements, layer->activation);
+        // PRTF ("apu_run_naive: Layer %d done.\n", i);
     }
 }
