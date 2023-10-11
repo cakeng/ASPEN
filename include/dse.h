@@ -9,9 +9,9 @@
 #include "kernels.h"
 #include "cuda_kernels.h"
 
-#define dse_NINST_CACHE_BALLANCE 1
-#define dse_NINST_CACHE_DIFF 0
-#define dse_SCRATCHPAD_SIZE 1024*512 // 512 KiB
+#define DSE_NINST_CACHE_BALLANCE 1
+#define DSE_NINST_CACHE_DIFF 0
+#define DSE_SCRATCHPAD_SIZE 1024*1024 // 1 MiB
 
 struct dse_group_t
 {
@@ -42,6 +42,8 @@ void dse_destroy (dse_t *dse);
 
 void dse_run (dse_t *dse);
 void dse_stop (dse_t *dse);
+
+void dse_schedule (dse_t *dse);
 
 void update_children_to_cache_but_prioritize_dse_target (rpool_queue_t *cache, ninst_t *ninst, ninst_t **dse_target);
 void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst);

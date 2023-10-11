@@ -6,159 +6,163 @@ void *dse_thread_runtime (void* thread_info)
 {
     dse_t *dse = (dse_t*) thread_info;
     pthread_mutex_lock(&dse->thread_mutex);
-    while (dse->kill == 0)
+    pthread_cond_wait(&dse->thread_cond, &dse->thread_mutex); 
+    while (dse->kill == 0 || dse->target != NULL)
     {
-        // print_rpool_info (dse->rpool);
-        // print_rpool_queue_info (dse->ninst_cache);
-        if (dse->run == 0)
-        {   
+        dse_schedule (dse);
+        if (dse->run == 0 && dse->target == NULL)
             pthread_cond_wait(&dse->thread_cond, &dse->thread_mutex); 
-        }
-        // if ((dse->ninst_cache->num_stored < dse_NINST_CACHE_BALLANCE - dse_NINST_CACHE_DIFF) || 
-        //     dse->ninst_cache->num_stored == 0)
-        if (dse->target == NULL)
-        {
-            rpool_fetch_ninsts (dse->rpool, &dse->target, 1, 0);
-            if (dse->target == NULL)
-                continue;
-            // unsigned int fetch_num = 
-            //     rpool_fetch_ninsts (dse->rpool, dse->scratchpad, dse_NINST_CACHE_BALLANCE - dse->ninst_cache->num_stored);
-            // push_ninsts_to_queue (dse->ninst_cache, dse->scratchpad, fetch_num);
-            // PRTF ("Thread %d fetched %d ninsts from rpool\n", dse->thread_id, fetch_num);
-            // #ifdef DEBUG
-            // PRTF ("Thread %d fetched %d ninsts from rpool\n", dse->thread_id, fetch_num);
-            // print_rpool_info (dse->rpool);
-            // print_rpool_queue_info (dse->ninst_cache);
-            // #endif
-        }
-        // else if (dse->ninst_cache->num_stored > dse_NINST_CACHE_BALLANCE + dse_NINST_CACHE_DIFF)
-        // if (dse->ninst_cache->num_stored > 0)
-        // {
-        //     // unsigned int push_num = 
-        //     //     pop_ninsts_from_queue_back (dse->ninst_cache, dse->scratchpad, dse->ninst_cache->num_stored - dse_NINST_CACHE_BALLANCE);
-        //     rpool_push_ninsts (dse->rpool, dse->ninst_cache->ninst_ptr_arr, dse->ninst_cache->num_stored);
-        //     dse->ninst_cache->num_stored = 0;
-        //     dse->ninst_cache->idx_end = 0;
-        //     // PRTF ("Thread %d pushed %d ninsts to rpool\n", dse->thread_id, push_num);
-        //     // #ifdef DEBUG
-        //     // PRTF ("Thread %d pushed %d ninsts to rpool\n", dse->thread_id, push_num);
-        //     // print_rpool_info (dse->rpool);
-        //     // print_rpool_queue_info (dse->ninst_cache);
-        //     // #endif
-        // }
-
-        // unsigned int num_ninsts = dse->ninst_cache->num_stored;
-        // for (int i = 0; i < num_ninsts; i++)
-        // {
-        //     ninst_t *ninst;
-        //     pop_ninsts_from_queue (dse->ninst_cache, &ninst, 1);
-            // PRTF ("Thread %d running ninst #%d - N%d:L%d:%d\n", dse->thread_id, i,
-            //         ninst->ldata->nasm->nasm_id, ninst->ldata->layer->layer_idx, ninst->ninst_idx);
-            // #ifdef DEBUG
-            // if (ninst == NULL)
-            // {
-            //     ERROR_PRTF ("ERROR: dse_thread_runtime: ninst is NULL\n");
-            //     assert (0);
-            // }
-            // else 
-            // {
-            //     PRTF ("Thread %d running ninst #%d - N%d:L%d:%d\n", dse->thread_id, i,
-            //         ninst->ldata->nasm->nasm_id, ninst->ldata->layer->layer_idx, ninst->ninst_idx);
-            // }
-            // if (ninst->state != NINST_READY)
-            // {
-            //     ERROR_PRTF ("ERROR: dse_thread_runtime: ninst->state != NINST_READY\n");
-            //     assert (0);
-            // }
-            // #endif
-            // Execute.
-            ninst_t *ninst = dse->target;
-            dse->target = NULL;
-            #ifdef DEBUG 
-            if (ninst->state != NINST_READY)
-            {
-                ERROR_PRTF ("Error: ninst->state != NINST_READY in dse_thread_runtime()\n");
-                assert (0);
-            }
-            #endif
-            switch (ninst->ldata->layer->type)
-            {
-                case CONV_LAYER:
-                    tiled_conv2d (ninst, dse);
-                    break;
-                case MAXPOOL_LAYER:
-                    tiled_maxpool2d (ninst, dse);
-                    break;
-                case AVGPOOL_LAYER:
-                    tiled_avgpool2d (ninst, dse);
-                    break;
-                case FC_LAYER:
-                    tiled_fully_connected (ninst, dse);
-                    break;
-                case RESIDUAL_LAYER:
-                    tiled_residual (ninst, dse);
-                    break;
-                case SOFTMAX_LAYER:
-                    tiled_softmax (ninst, dse);
-                    break;
-                case YOLO_LAYER:
-                    tiled_yolo (ninst, dse);
-                    break;
-                case APPEND_LAYER:
-                    tiled_append (ninst, dse);
-                    break;
-                case MATMUL_LAYER:
-                    tiled_matmul (ninst, dse);
-                    break;
-                case LAYERNORM_LAYER:
-                    tiled_layernorm (ninst, dse);
-                    break;
-                case K_ATTENTION_LAYER:
-                    tiled_k_attention (ninst, dse);
-                    break;
-                case V_ATTENTION_LAYER:
-                    tiled_v_attention (ninst, dse);
-                    break;
-                default:
-                    // ERROR_PRTF ("ERROR: dse_thread_runtime: layer type %s is not supported\n", layer_type_str[ninst->ldata->layer->type]);
-                    break;
-            }
-            ninst->state = NINST_COMPLETED;
-            unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
-            if (num_ninst_completed == ninst->ldata->num_ninst - 1)
-            {
-                // printf ("\t\tThread %d completed layer %d of nasm %d\n", 
-                //     dse->thread_id, ninst->ldata->layer->layer_idx, ninst->ldata->nasm->nasm_id);
-                for (int pidx = 0; pidx < NUM_PARENT_ELEMENTS; pidx++)
-                {
-                    if (ninst->ldata->parent_ldata_idx_arr[pidx] == -1)
-                        continue;
-                    nasm_ldata_t *parent_ldata = &ninst->ldata->nasm->ldata_arr[ninst->ldata->parent_ldata_idx_arr[pidx]];
-                    unsigned int num_child_ldata_completed = atomic_fetch_add (&parent_ldata->num_child_ldata_completed, 1);
-                    if (num_child_ldata_completed + 1 == parent_ldata->num_child_ldata && (parent_ldata != parent_ldata->nasm->ldata_arr))
-                        free_ldata_out_mat (parent_ldata);
-                }
-                
-                nasm_t *nasm = ninst->ldata->nasm;
-                unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
-                if (num_ldata_completed == nasm->num_ldata - 1)
-                {
-                    // printf ("\t\tSignaling nasm completion for %d (%s)...\n", nasm->nasm_id, nasm->dnn->name);
-                    // All layers of the nasm is completed.
-                    atomic_store (&nasm->completed, 1);
-                    rpool_queue_group_t *rpool_queue_group 
-                        = get_queue_group_from_nasm (dse->rpool, ninst->ldata->nasm);
-                    // set_queue_group_weight (dse->rpool, rpool_queue_group, 0);
-                    pthread_mutex_lock (&nasm->nasm_mutex);
-                    pthread_cond_signal (&nasm->nasm_cond);
-                    pthread_mutex_unlock (&nasm->nasm_mutex);
-                }
-            }
-            // update_children_to_cache (dse->ninst_cache, ninst);
-            update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
-        // }
     }
     return NULL;
+}
+
+void dse_schedule (dse_t *dse)
+{
+    // print_rpool_info (dse->rpool);
+    // print_rpool_queue_info (dse->ninst_cache);
+    // if ((dse->ninst_cache->num_stored < DSE_NINST_CACHE_BALLANCE - DSE_NINST_CACHE_DIFF) || 
+    //     dse->ninst_cache->num_stored == 0)
+    if (dse->target == NULL && (dse->run != 0 && dse->kill == 0))
+    {
+        rpool_fetch_ninsts (dse->rpool, &dse->target, 1, 0);
+        // unsigned int fetch_num = 
+        //     rpool_fetch_ninsts (dse->rpool, dse->scratchpad, DSE_NINST_CACHE_BALLANCE - dse->ninst_cache->num_stored);
+        // push_ninsts_to_queue (dse->ninst_cache, dse->scratchpad, fetch_num);
+        // PRTF ("Thread %d fetched %d ninsts from rpool\n", dse->thread_id, fetch_num);
+        // #ifdef DEBUG
+        // PRTF ("Thread %d fetched %d ninsts from rpool\n", dse->thread_id, fetch_num);
+        // print_rpool_info (dse->rpool);
+        // print_rpool_queue_info (dse->ninst_cache);
+        // #endif
+    }
+    if (dse->target == NULL)
+        return;
+    // else if (dse->ninst_cache->num_stored > DSE_NINST_CACHE_BALLANCE + DSE_NINST_CACHE_DIFF)
+    // if (dse->ninst_cache->num_stored > 0)
+    // {
+    //     // unsigned int push_num = 
+    //     //     pop_ninsts_from_queue_back (dse->ninst_cache, dse->scratchpad, dse->ninst_cache->num_stored - dse_NINST_CACHE_BALLANCE);
+    //     rpool_push_ninsts (dse->rpool, dse->ninst_cache->ninst_ptr_arr, dse->ninst_cache->num_stored);
+    //     dse->ninst_cache->num_stored = 0;
+    //     dse->ninst_cache->idx_end = 0;
+    //     // PRTF ("Thread %d pushed %d ninsts to rpool\n", dse->thread_id, push_num);
+    //     // #ifdef DEBUG
+    //     // PRTF ("Thread %d pushed %d ninsts to rpool\n", dse->thread_id, push_num);
+    //     // print_rpool_info (dse->rpool);
+    //     // print_rpool_queue_info (dse->ninst_cache);
+    //     // #endif
+    // }
+
+    // unsigned int num_ninsts = dse->ninst_cache->num_stored;
+    // for (int i = 0; i < num_ninsts; i++)
+    // {
+    //     ninst_t *ninst;
+    //     pop_ninsts_from_queue (dse->ninst_cache, &ninst, 1);
+        // PRTF ("Thread %d running ninst #%d - N%d:L%d:%d\n", dse->thread_id, i,
+        //         ninst->ldata->nasm->nasm_id, ninst->ldata->layer->layer_idx, ninst->ninst_idx);
+        // #ifdef DEBUG
+        // if (ninst == NULL)
+        // {
+        //     ERROR_PRTF ("ERROR: dse_thread_runtime: ninst is NULL\n");
+        //     assert (0);
+        // }
+        // else 
+        // {
+        //     PRTF ("Thread %d running ninst #%d - N%d:L%d:%d\n", dse->thread_id, i,
+        //         ninst->ldata->nasm->nasm_id, ninst->ldata->layer->layer_idx, ninst->ninst_idx);
+        // }
+        // if (ninst->state != NINST_READY)
+        // {
+        //     ERROR_PRTF ("ERROR: dse_thread_runtime: ninst->state != NINST_READY\n");
+        //     assert (0);
+        // }
+        // #endif
+        // Execute.
+        ninst_t *ninst = dse->target;
+        dse->target = NULL;
+        #ifdef DEBUG 
+        if (ninst->state != NINST_READY)
+        {
+            ERROR_PRTF ("Error: ninst->state != NINST_READY in dse_thread_runtime()\n");
+            assert (0);
+        }
+        #endif
+        switch (ninst->ldata->layer->type)
+        {
+            case CONV_LAYER:
+                tiled_conv2d (ninst, dse);
+                break;
+            case MAXPOOL_LAYER:
+                tiled_maxpool2d (ninst, dse);
+                break;
+            case AVGPOOL_LAYER:
+                tiled_avgpool2d (ninst, dse);
+                break;
+            case FC_LAYER:
+                tiled_fully_connected (ninst, dse);
+                break;
+            case RESIDUAL_LAYER:
+                tiled_residual (ninst, dse);
+                break;
+            case SOFTMAX_LAYER:
+                tiled_softmax (ninst, dse);
+                break;
+            case YOLO_LAYER:
+                tiled_yolo (ninst, dse);
+                break;
+            case APPEND_LAYER:
+                tiled_append (ninst, dse);
+                break;
+            case MATMUL_LAYER:
+                tiled_matmul (ninst, dse);
+                break;
+            case LAYERNORM_LAYER:
+                tiled_layernorm (ninst, dse);
+                break;
+            case K_ATTENTION_LAYER:
+                tiled_k_attention (ninst, dse);
+                break;
+            case V_ATTENTION_LAYER:
+                tiled_v_attention (ninst, dse);
+                break;
+            default:
+                // ERROR_PRTF ("ERROR: dse_thread_runtime: layer type %s is not supported\n", layer_type_str[ninst->ldata->layer->type]);
+                break;
+        }
+        ninst->state = NINST_COMPLETED;
+        unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
+        if (num_ninst_completed == ninst->ldata->num_ninst - 1)
+        {
+            // printf ("\t\tThread %d completed layer %d of nasm %d\n", 
+            //     dse->thread_id, ninst->ldata->layer->layer_idx, ninst->ldata->nasm->nasm_id);
+            for (int pidx = 0; pidx < NUM_PARENT_ELEMENTS; pidx++)
+            {
+                if (ninst->ldata->parent_ldata_idx_arr[pidx] == -1)
+                    continue;
+                nasm_ldata_t *parent_ldata = &ninst->ldata->nasm->ldata_arr[ninst->ldata->parent_ldata_idx_arr[pidx]];
+                unsigned int num_child_ldata_completed = atomic_fetch_add (&parent_ldata->num_child_ldata_completed, 1);
+                if (num_child_ldata_completed + 1 == parent_ldata->num_child_ldata && (parent_ldata != parent_ldata->nasm->ldata_arr))
+                    free_ldata_out_mat (parent_ldata);
+            }
+            
+            nasm_t *nasm = ninst->ldata->nasm;
+            unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
+            if (num_ldata_completed == nasm->num_ldata - 1)
+            {
+                // printf ("\t\tSignaling nasm completion for %d (%s)...\n", nasm->nasm_id, nasm->dnn->name);
+                // All layers of the nasm is completed.
+                atomic_store (&nasm->completed, 1);
+                rpool_queue_group_t *rpool_queue_group 
+                    = get_queue_group_from_nasm (dse->rpool, ninst->ldata->nasm);
+                // set_queue_group_weight (dse->rpool, rpool_queue_group, 0);
+                pthread_mutex_lock (&nasm->nasm_mutex);
+                pthread_cond_signal (&nasm->nasm_cond);
+                pthread_mutex_unlock (&nasm->nasm_mutex);
+            }
+        }
+        // update_children_to_cache (dse->ninst_cache, ninst);
+        update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
+    // }
 }
 
 dse_group_t *dse_group_init (unsigned int num_dse)
@@ -240,16 +244,15 @@ void dse_init (dse_t *dse, int gpu_idx)
     dse->thread_id = atomic_fetch_add (&dse_thread_id_counter, 1);
     dse->rpool = NULL;
     dse->gpu_idx = gpu_idx;
-    dse->scratchpad = aspen_calloc (dse_SCRATCHPAD_SIZE, 1);
+    dse->scratchpad = aspen_calloc (DSE_SCRATCHPAD_SIZE, 1);
     if (gpu_idx >= 0)
-        dse->gpu_scratchpad = aspen_gpu_calloc (dse_SCRATCHPAD_SIZE, 1, gpu_idx);
+        dse->gpu_scratchpad = aspen_gpu_calloc (DSE_SCRATCHPAD_SIZE, 1, gpu_idx);
     dse->thread_mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
     dse->thread_cond = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
     dse->ninst_cache = calloc (1, sizeof (rpool_queue_t));
     atomic_store (&dse->run, 0);
     atomic_store (&dse->kill, 0);
     rpool_init_queue (dse->ninst_cache);
-    pthread_mutex_lock(&dse->thread_mutex);
     pthread_create (&dse->thread, NULL, dse_thread_runtime, (void*)dse);
 }
 
@@ -273,6 +276,45 @@ void dse_destroy (dse_t *dse)
         aspen_gpu_free (dse->gpu_scratchpad, dse->gpu_idx);
     rpool_destroy_queue (dse->ninst_cache);
     free (dse->ninst_cache);
+}
+
+void dse_run (dse_t *dse)
+{
+    if (dse == NULL)
+    {
+        ERROR_PRTF ("ERROR: dse_run: dse is NULL\n");
+        return;
+    }
+    unsigned int state = atomic_exchange (&dse->run, 1);
+    if (state == 1)
+    {
+        return;
+    }
+    else 
+    {
+        pthread_mutex_lock (&dse->thread_mutex);
+        pthread_cond_signal (&dse->thread_cond);
+        pthread_mutex_unlock (&dse->thread_mutex);
+    }
+}
+
+void dse_stop (dse_t *dse)
+{
+    if (dse == NULL)
+    {
+        ERROR_PRTF ("ERROR: dse_stop: dse is NULL\n");
+        return;
+    }
+    unsigned int state = atomic_exchange (&dse->run, 0);
+    if (state == 0)
+    {
+        return;
+    }
+    else 
+    {
+        pthread_mutex_lock (&dse->thread_mutex);
+        pthread_mutex_unlock (&dse->thread_mutex);
+    }
 }
 
 void dse_group_run (dse_group_t *dse_group)
@@ -330,43 +372,6 @@ void dse_wait_for_nasm_completion (nasm_t *nasm)
     }
     pthread_cond_wait (&nasm->nasm_cond, &nasm->nasm_mutex);
     pthread_mutex_unlock (&nasm->nasm_mutex);
-}
-
-void dse_run (dse_t *dse)
-{
-    if (dse == NULL)
-    {
-        ERROR_PRTF ("ERROR: dse_run: dse is NULL\n");
-        return;
-    }
-    unsigned int state = atomic_exchange (&dse->run, 1);
-    if (state == 1)
-    {
-        return;
-    }
-    else 
-    {
-        pthread_cond_signal (&dse->thread_cond);
-        pthread_mutex_unlock (&dse->thread_mutex);
-    }
-}
-
-void dse_stop (dse_t *dse)
-{
-    if (dse == NULL)
-    {
-        ERROR_PRTF ("ERROR: dse_stop: dse is NULL\n");
-        return;
-    }
-    unsigned int state = atomic_exchange (&dse->run, 0);
-    if (state == 0)
-    {
-        return;
-    }
-    else 
-    {
-        pthread_mutex_lock (&dse->thread_mutex);
-    }
 }
 
 void update_children (rpool_t *rpool, ninst_t *ninst, unsigned int dse_idx)
