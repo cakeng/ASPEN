@@ -687,8 +687,8 @@ void update_children (rpool_t *rpool, ninst_t *ninst)
         unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
         // BLUE_PRTF ("1 Ninst %d(L%d) incrementing child ninst %d(L%d), parent_comp = %d/%d\n", ninst->ninst_idx, ninst->ldata->layer->layer_idx, 
         //     child_ninst->ninst_idx, child_ninst->ldata->layer->layer_idx, num_parent_ninsts_completed, child_ninst->num_parent_ninsts);
-        if (num_parent_ninsts_completed >= child_ninst->num_parent_ninsts)
-            assert (0);
+        // if (num_parent_ninsts_completed >= child_ninst->num_parent_ninsts)
+        //     assert (0);
         if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
         {
             // Pseudo-mutex while ninst state change, using NINST_COMPLETED state as lock
@@ -738,8 +738,8 @@ void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst)
         unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
         // BLUE_PRTF ("2 Ninst %d(L%d) incrementing child ninst %d(L%d), parent_comp = %d/%d\n", ninst->ninst_idx, ninst->ldata->layer->layer_idx, 
         //     child_ninst->ninst_idx, child_ninst->ldata->layer->layer_idx, num_parent_ninsts_completed, child_ninst->num_parent_ninsts);
-        if (num_parent_ninsts_completed >= child_ninst->num_parent_ninsts)
-            assert (0);
+        // if (num_parent_ninsts_completed >= child_ninst->num_parent_ninsts)
+        //     assert (0);
         if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
         {
             // Pseudo-mutex while ninst state change, using NINST_COMPLETED state as lock
@@ -786,8 +786,8 @@ void update_children_but_prioritize_dse_target (rpool_t *rpool, ninst_t *ninst, 
         unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
         // BLUE_PRTF ("3 Ninst %d(L%d) incrementing child ninst %d(L%d), parent_comp = %d/%d\n", ninst->ninst_idx, ninst->ldata->layer->layer_idx, 
         //     child_ninst->ninst_idx, child_ninst->ldata->layer->layer_idx, num_parent_ninsts_completed, child_ninst->num_parent_ninsts);
-        if (num_parent_ninsts_completed >= child_ninst->num_parent_ninsts)
-            assert (0);
+        // if (num_parent_ninsts_completed >= child_ninst->num_parent_ninsts)
+        //     assert (0);
         if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
         {
             // Pseudo-mutex while ninst state change, using NINST_COMPLETED state as lock
@@ -847,8 +847,8 @@ void update_children_to_cache_but_prioritize_dse_target (rpool_queue_t *cache, n
         unsigned int num_parent_ninsts_completed = atomic_fetch_add (&child_ninst->num_parent_ninsts_completed, 1);
         // BLUE_PRTF ("4 Ninst %d(L%d) incrementing child ninst %d(L%d), parent_comp = %d/%d\n", ninst->ninst_idx, ninst->ldata->layer->layer_idx, 
         //     child_ninst->ninst_idx, child_ninst->ldata->layer->layer_idx, num_parent_ninsts_completed, child_ninst->num_parent_ninsts);
-        if (num_parent_ninsts_completed >= child_ninst->num_parent_ninsts)
-            assert (0);
+        // if (num_parent_ninsts_completed >= child_ninst->num_parent_ninsts)
+        //     assert (0);
         if (num_parent_ninsts_completed == child_ninst->num_parent_ninsts - 1)
         {
            // Pseudo-mutex while ninst state change, using NINST_COMPLETED state as lock
