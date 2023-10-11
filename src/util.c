@@ -61,7 +61,6 @@ void init_dynamic_mem ()
         dynamic_arr_mem_size[i] = (DYNAMIC_ALLOC_MIN_SIZE) * (pow (DYNAMIC_ALLOC_RANGE_SCALE, i));
     }
     dynamic_mem_init = 1;
-    // print_dynamic_mem_arr();
     pthread_mutex_unlock (&dynamic_mutex);
 }
 
@@ -170,7 +169,6 @@ void aspen_dynamic_free (void *ptr, size_t num, size_t size)
         increase_dynamic_mem_arr (i);
         dynamic_arr[i][j] = ptr;
     }
-    // print_dynamic_mem_arr();
     pthread_mutex_unlock (&dynamic_mutex);
 }
 
@@ -371,7 +369,6 @@ int compare_float_array (float *input1, float* input2, int num_to_compare, float
 {
     int num = 0;
     printf ("Compare_array_f32 running...\n");
-    // #pragma omp parallel for
     for (int i = 0; i < num_to_compare; i++)
     {
         float delta = fabsf(*(input1 + i) - *(input2 + i));
@@ -397,7 +394,6 @@ int compare_float_tensor (float *input1, float* input2, int n, int c, int h ,int
 {
     int num = 0;
     printf ("Compare_tensor_f32 running...\n");
-    // #pragma omp parallel for
     for (int ni = 0; ni < n; ni++)
     {
         for (int ci = 0; ci < c; ci++)
@@ -421,11 +417,6 @@ int compare_float_tensor (float *input1, float* input2, int n, int c, int h ,int
                             printf ("\tToo many errors... (More than %d)\n", skip_val);
                         }
                     }
-                    // else
-                    // {
-                    //     printf ("\t\tCompare passed at index (%d, %d, %d, %d). Value1: %3.3e, Value2: %3.3e, Diff: %1.2e (%2.2e%%)\n"
-                    //         , ni, ci, hi, wi, *(input1 + i), *(input2 + i), delta, delta*100.0/(*(input1 + i)<0? -*(input1 + i):*(input1 + i)));
-                    // }
                 }
             }
         }
@@ -504,7 +495,6 @@ double get_time_secs ()
     {
         initiallized = 1;
         gettimeofday (&zero_time, NULL);
-        // printf ("Program clock initialized to zero.\n");
     }
     
     struct timeval now;

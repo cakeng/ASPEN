@@ -16,7 +16,6 @@
 struct rpool_queue_t
 {
     rpool_queue_group_t* queue_group;
-    // _Atomic unsigned int occupied;
     pthread_mutex_t occupied_mutex;
     unsigned int idx_start;
     unsigned int idx_end;
@@ -33,8 +32,6 @@ struct rpool_queue_group_t
     void* whitelist_conds [NUM_RPOOL_CONDS];
     rpool_queue_t queue_arr[MAX_NUM_QUEUES];
     _Atomic unsigned int num_queues;
-    // _Atomic unsigned int num_ninsts;
-    // _Atomic unsigned int num_fetched;
 };
 
 struct rpool_t

@@ -13,7 +13,6 @@ aspen_dnn_t *apu_create_dnn (char *input_path, char *weight_path)
         aspen_layer_t *layer = new_dnn->layers + i;
         if (layer->type == CONV_LAYER)
         {
-            // printf ("Reordering weight tensor for layer %d\n", i);
             LAYER_PARAMS weight_dim_order[] = {OUT_C, WEIGHT_H, WEIGHT_W, IN_C, SUB_C};
             unsigned int params[NUM_PARAM_ELEMENTS] = {0};
             memcpy (params, layer->params, sizeof(unsigned int) * NUM_PARAM_ELEMENTS);
@@ -23,7 +22,6 @@ aspen_dnn_t *apu_create_dnn (char *input_path, char *weight_path)
         }
         else if (layer->type == FC_LAYER)
         {
-            // printf ("Reordering weight tensor for layer %d\n", i);
             LAYER_PARAMS weight_dim_order[] = {OUT_C, IN_H, IN_W, IN_C, SUB_C};
             unsigned int params[NUM_PARAM_ELEMENTS] = {0};
             memcpy (params, layer->params, sizeof(unsigned int) * NUM_PARAM_ELEMENTS);
@@ -33,7 +31,6 @@ aspen_dnn_t *apu_create_dnn (char *input_path, char *weight_path)
         }
         else if (layer->type == MATMUL_LAYER)
         {
-            // printf ("Reordering weight tensor for layer %d\n", i);
             LAYER_PARAMS weight_dim_order[] = {MAT_M, MAT_K, SUB_M};
             unsigned int params[NUM_PARAM_ELEMENTS] = {0};
             memcpy (params, layer->params, sizeof(unsigned int) * NUM_PARAM_ELEMENTS);
@@ -463,7 +460,6 @@ void create_layer_output_tensor (aspen_layer_t *layer)
     }
     
     #ifdef DEBUG
-    // fill_tensor_with_nums (layer->tensors[OUTPUT_TENSOR]);
     fill_tensor_with_fixed_nums (layer->tensors[OUTPUT_TENSOR], 0);
     #endif
 }
@@ -516,7 +512,6 @@ void create_layer_col_idx_tensor (aspen_layer_t *layer)
         layer_find_input_pos_idx (layer);
     }
     #ifdef DEBUG
-    // fill_tensor_with_nums (layer->tensors[OUTPUT_TENSOR]);
     fill_tensor_with_fixed_nums (layer->tensors[OUTPUT_TENSOR], 0);
     #endif
 }
@@ -620,7 +615,6 @@ void print_tensor_info (aspen_tensor_t *tensor, int print_data)
             {
                 if (i % new_line_num == 0)
                 {
-                    // printf("\n%d:", i);
                     printf("\n\t\t\t");
                     for (int j = 0; j < tensor->num_dims; j++)
                     {
@@ -709,7 +703,6 @@ void aspen_init_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input
         create_layer_output_tensor (layer);
         create_layer_col_idx_tensor (layer);
     }
-    // print_dnn_info (dnn, 0);
     memcpy (dnn->layers[0].tensors[OUTPUT_TENSOR]->data, input_data, 
         dnn->layers[0].tensors[OUTPUT_TENSOR]->num_elements * dnn->layers[0].tensors[OUTPUT_TENSOR]->element_size);
 }
@@ -810,6 +803,5 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
             assert (0);
         }
         naive_activate (output, layer->tensors[OUTPUT_TENSOR]->num_elements, layer->activation);
-        // PRTF ("apu_run_naive: Layer %d done.\n", i);
     }
 }

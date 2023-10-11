@@ -381,17 +381,7 @@ metadata get_metadata(char *file)
 
 void parse_input_layer_options (list *options, aspen_layer_t *layer)
 {
-    // net->batch = option_find_int(options, "batch",1);
-    // int subdivs = option_find_int(options, "subdivisions",1);
-    // net->batch /= subdivs;
-    // net->batch *= net->time_steps;
-    // net->subdivisions = subdivs;
 
-    // net->h = option_find_int_quiet(options, "height",0);
-    // net->w = option_find_int_quiet(options, "width",0);
-    // net->c = option_find_int_quiet(options, "channels",0);
-    // net->inputs = option_find_int_quiet(options, "inputs", net->h * net->w * net->c);
-    // if(!net->inputs && !(net->h && net->w && net->c)) error("No input parameters supplied");
 }
 
 int is_network(section *s)
@@ -553,7 +543,6 @@ void parse_section (section *s, aspen_layer_t *layer)
             ((float*)layer->tensors[ANCHOR_TENSOR]->data)[i*2] = anchors[masks[i]*2];
             ((float*)layer->tensors[ANCHOR_TENSOR]->data)[i*2 + 1] = anchors[masks[i]*2 + 1];
         }
-        // print_tensor_info (layer->tensors [ANCHOR_TENSOR], 1);
         if (masks)
             free (masks);
         if (anchors)

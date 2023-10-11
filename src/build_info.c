@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include "aspen.h"
 
-// char* time_info = BUILD_INFO_TIME;
 char* gcc_info = BUILD_INFO_GCC;
 char* uname_info = BUILD_INFO_UNAME;
 char* branch_info = BUILD_INFO_BRANCH;
