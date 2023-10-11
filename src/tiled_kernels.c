@@ -40,7 +40,7 @@ void *prepare_input (ninst_t *ninst, void *buffer)
     }
     else
     {
-        FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
+        ERROR_PRTF ("ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
         assert (0);
     }
     return (void *) (input_ptr_arr + num_idx);
@@ -178,7 +178,7 @@ void tiled_conv2d (ninst_t *ninst, dse_t *dse)
     const unsigned int ldc = ldata->out_mat_stride;
     const void *A = (float*)layer->tensors[WEIGHT_TENSOR]->data + ninst->out_mat_pos[OUT_H] * lda;
     void *B = (char *) scratchpad;
-    void *C = ninst->out_mat;
+    void *C = get_ninst_out_mem (ninst);
     const unsigned int rem_n = N % _TILE_SIZE_N;
     const unsigned int rem_m = M % _TILE_SIZE_M;
     const unsigned int rem_k = K % _TILE_SIZE_K;
@@ -338,7 +338,7 @@ void tiled_matmul (ninst_t *ninst, dse_t *dse)
     const unsigned int ldc = ldata->out_mat_stride;
     const void *A = (char*)layer->tensors[WEIGHT_TENSOR]->data + (ninst->out_mat_pos[OUT_H] * lda * layer->dnn->element_size);
     const void *B = (char*)p_ldata->out_mat + (ninst->out_mat_pos[OUT_W] * ldb * layer->dnn->element_size);
-    void *C = ninst->out_mat;
+    void *C = get_ninst_out_mem (ninst);
     if (dse->gpu_idx < 0)
     {
         const unsigned int rem_n = N % _TILE_SIZE_N;
@@ -474,7 +474,7 @@ void tiled_maxpool2d (ninst_t *ninst, dse_t *dse)
     const unsigned int M = ninst->tile_dims[OUT_H];
     const unsigned int N = ninst->tile_dims[OUT_W];
     const unsigned int ldc = ldata->out_mat_stride;
-    void *C = ninst->out_mat;
+    void *C = get_ninst_out_mem (ninst);
     if (dse->gpu_idx < 0)
     {
         for (int n = 0; n < N; n++)
@@ -527,7 +527,7 @@ void tiled_avgpool2d (ninst_t *ninst, dse_t *dse)
     const unsigned int M = ninst->tile_dims[OUT_H];
     const unsigned int N = ninst->tile_dims[OUT_W];
     const unsigned int ldc = ldata->out_mat_stride;
-    void *C = ninst->out_mat;
+    void *C = get_ninst_out_mem (ninst);
     if (dse->gpu_idx < 0)
     {
         for (int n = 0; n < N; n++)
@@ -584,7 +584,7 @@ void tiled_fully_connected (ninst_t *ninst, dse_t *dse)
     const unsigned int ldc = ldata->out_mat_stride;
     const void *A = (char*)layer->tensors[WEIGHT_TENSOR]->data + (ninst->out_mat_pos[OUT_H] * lda * layer->dnn->element_size);
     const void *B = (char*)p_ldata->out_mat + (ninst->out_mat_pos[OUT_W] * ldb * layer->dnn->element_size);
-    void *C = ninst->out_mat;
+    void *C = get_ninst_out_mem (ninst);
     if (dse->gpu_idx < 0)
     {
         const unsigned int rem_n = N % _TILE_SIZE_N;
@@ -718,7 +718,7 @@ void tiled_residual (ninst_t *ninst, dse_t *dse)
     const unsigned int M = ninst->tile_dims[OUT_H];
     const unsigned int N = ninst->tile_dims[OUT_W];
     const unsigned int ldc = ldata->out_mat_stride;
-    void *C = ninst->out_mat;
+    void *C = get_ninst_out_mem (ninst);
     if (dse->gpu_idx < 0)
     {
         for (int n = 0; n < N; n++)
@@ -756,7 +756,7 @@ void tiled_softmax (ninst_t *ninst, dse_t *dse)
     const unsigned int M = ninst->tile_dims[OUT_H];
     const unsigned int N = ninst->tile_dims[OUT_W];
     const unsigned int ldc = ldata->out_mat_stride;
-    void *C = ninst->out_mat;
+    void *C = get_ninst_out_mem (ninst);
     memset (C, 0, M * N * sizeof(float));
     if (dse->gpu_idx < 0)
     {
@@ -800,7 +800,7 @@ void tiled_yolo (ninst_t *ninst, dse_t *dse)
     const unsigned int N = ninst->tile_dims[OUT_W];
     const unsigned int ldc = ldata->out_mat_stride;
     const float *anchors = (float*)layer->tensors[ANCHOR_TENSOR]->data;
-    void *C = ninst->out_mat;
+    void *C = get_ninst_out_mem (ninst);
     if (dse->gpu_idx < 0)
     {
         for (int n = 0; n < N; n++)
@@ -843,7 +843,7 @@ void tiled_append (ninst_t *ninst, dse_t *dse)
     nasm_ldata_t *p1_ldata = (ldata->parent_ldata_idx_arr[PARENT_1] + ldata->nasm->ldata_arr);
     const unsigned int N = ninst->tile_dims[OUT_W];
     const unsigned int ldc = ldata->out_mat_stride;
-    void *C = ninst->out_mat;
+    void *C = get_ninst_out_mem (ninst);
     #ifdef DEBUG
     assert (layer->params[IN_W] == (layer->params[OUT_W] / layer->params[STRIDE]));
     #endif
@@ -891,7 +891,7 @@ void tiled_layernorm (ninst_t *ninst, dse_t *dse)
     if (layer->tensors[BIAS_TENSOR] != NULL)
         bias = (float*)layer->tensors[BIAS_TENSOR]->data + ninst->out_mat_pos[OUT_H];
     const void *B = (char*)p_ldata->out_mat + (ninst->out_mat_pos[OUT_W] * ldb * layer->dnn->element_size);
-    void *C = ninst->out_mat;
+    void *C = get_ninst_out_mem (ninst);
     if (dse->gpu_idx < 0)
     {
         for (int n = 0; n < N; n++)
@@ -954,7 +954,7 @@ void tiled_k_attention (ninst_t *ninst, dse_t *dse)
         (batch * ldk * M + head * K + ninst->out_mat_pos[OUT_H]);
     const void *B_head = (float*)p_ldata->out_mat + (batch * ldb * num_seq + head * hidden_per_head +
         + n_global * ldb);
-    void *C_head = ninst->out_mat;
+    void *C_head = get_ninst_out_mem (ninst);
     unsigned int n = 0;
     if (dse->gpu_idx < 0)
     {
@@ -1126,7 +1126,7 @@ void tiled_v_attention (ninst_t *ninst, dse_t *dse)
     const float *val_head = (float*)pv_ldata->out_mat + batch * ldv * num_seq + ninst->out_mat_pos[OUT_H];
     const void *B_head = (float*)p_ldata->out_mat + (batch * num_heads * num_seq + head * num_seq +
         + (ninst->out_mat_pos[OUT_W] % num_seq)) * ldb;
-    void *C_head = ninst->out_mat; 
+    void *C_head = get_ninst_out_mem (ninst); 
     if (dse->gpu_idx < 0)
     {
         const unsigned int rem_n = N % _TILE_SIZE_N;

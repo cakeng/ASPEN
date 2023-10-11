@@ -1,3 +1,4 @@
+TARGET=main
 ALIB=libaspen.a
 OBJECTS=build_info.o apu.o apu_nasm.o apu_file_io.o input_parser.o darknet_parser.o util.o 
 OBJECTS+=rpool.o dse.o naive_kernels.o tiled_kernels.o avx2_kernels.o neon_kernels.o
@@ -37,8 +38,13 @@ endif
 INFO_FLAGS= -DBUILD_INFO_TIME="\"$(BUILD_INFO_TIME)"\" -DBUILD_INFO_GCC="\"$(BUILD_INFO_GCC)\"" -DBUILD_INFO_UNAME="\"$(BUILD_INFO_UNAME)\"" -DBUILD_INFO_BRANCH="\"$(BUILD_INFO_BRANCH)\""
 INFO_FLAGS+= -DBUILD_INFO_FLAGS="\"$(COMMON) $(LDFLAGS) $(CFLAGS) $(OPTS)"\"
 OBJS= $(addprefix $(OBJDIR), $(OBJECTS))
+EXEOBJSA= $(addsuffix .o, $(TARGET))
+EXEOBJS= $(addprefix $(OBJDIR), $(EXEOBJSA))
 
-all: obj $(ALIB)
+all: obj $(TARGET)
+
+$(TARGET): $(EXEOBJS) $(ALIB) 
+	$(CC) $(COMMON) $(CFLAGS) $(OPTS) $^ -o $@ $(LDFLAGS) $(ALIB)
 
 $(ALIB): $(OBJS)
 	$(AR) $(ARFLAGS) $@ $^
@@ -53,5 +59,5 @@ obj:
 	mkdir -p obj
 
 clean:
-	rm -rf $(ALIB) $(OBJS) $(OBJDIR)
+	rm -rf $(ALIB) $(OBJS) $(OBJDIR) $(EXEOBJS) $(TARGET)
 

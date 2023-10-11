@@ -37,8 +37,161 @@ char *activation_type_str [NUM_ACTIVATIONS] =
 
 char *rpool_cond_str [NUM_RPOOL_CONDS] = 
 {
-    [RPOOL_DNN] = "RPOOL_DNN", [RPOOL_LAYER_TYPE] = "RPOOL_LAYER_TYPE", [RPOOL_LAYER_IDX] = "RPOOL_LAYER_IDX", [RPOOL_NASM] = "RPOOL_NASM", [RPOOL_ASE] = "RPOOL_ASE"
+    [RPOOL_DNN] = "RPOOL_DNN", [RPOOL_LAYER_TYPE] = "RPOOL_LAYER_TYPE", [RPOOL_LAYER_IDX] = "RPOOL_LAYER_IDX", [RPOOL_NASM] = "RPOOL_NASM", [RPOOL_DSE] = "RPOOL_DSE"
 };
+
+unsigned int dynamic_mem_init = 0;
+void **dynamic_arr[DYNAMIC_ALLOC_RANGE] = {NULL};
+size_t dynamic_arr_mem_size[DYNAMIC_ALLOC_RANGE] = {0};
+unsigned int dynamic_arr_max_num[DYNAMIC_ALLOC_RANGE] = {0};
+pthread_mutex_t dynamic_mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
+
+void init_dynamic_mem ()
+{
+    pthread_mutex_lock (&dynamic_mutex);
+    if (dynamic_mem_init == 1)
+    {
+        pthread_mutex_unlock (&dynamic_mutex);
+        return;
+    }
+    for (int i = 0; i < DYNAMIC_ALLOC_RANGE; i++)
+    {
+        dynamic_arr[i] = calloc (DYNAMIC_ALLOC_ARR_INIT_SIZE, sizeof(void*));
+        dynamic_arr_max_num[i] = DYNAMIC_ALLOC_ARR_INIT_SIZE;
+        dynamic_arr_mem_size[i] = (DYNAMIC_ALLOC_MIN_SIZE) * (pow (DYNAMIC_ALLOC_RANGE_SCALE, i));
+    }
+    dynamic_mem_init = 1;
+    // print_dynamic_mem_arr();
+    pthread_mutex_unlock (&dynamic_mutex);
+}
+
+void increase_dynamic_mem_arr (int idx)
+{
+    void **temp = calloc (dynamic_arr_max_num[idx] + DYNAMIC_ALLOC_ARR_INIT_SIZE, sizeof(void*));
+    memcpy (temp, dynamic_arr[idx], dynamic_arr_max_num[idx]*sizeof(void*));
+    free (dynamic_arr[idx]);
+    dynamic_arr[idx] = temp;
+    dynamic_arr_max_num[idx] += DYNAMIC_ALLOC_ARR_INIT_SIZE;
+}
+
+void print_dynamic_mem_arr()
+{
+    if (dynamic_mem_init == 0)
+        init_dynamic_mem ();
+    for (size_t i = 0; i < DYNAMIC_ALLOC_RANGE; i++)
+    {
+        printf ("\t[%ld KiB]\t\t", dynamic_arr_mem_size[i]/1024);
+        int count = 0;
+        for (int j = 0; j < dynamic_arr_max_num[i]; j++)
+        {
+            if (dynamic_arr[i][j] != NULL)
+                count++;
+        }
+        printf ("%d/%d\n", count, dynamic_arr_max_num[i]);
+    }
+}
+
+void *aspen_dynamic_calloc (size_t num, size_t size)
+{
+    void *ptr = aspen_dynamic_malloc (num, size);
+    if (ptr == NULL)
+        bzero (ptr, num * size);
+    return ptr;
+}
+
+void *aspen_dynamic_malloc (size_t num, size_t size)
+{
+    if (dynamic_mem_init == 0)
+        init_dynamic_mem ();
+    if (num*size <= 0)
+        return NULL;
+    #ifdef DEBUG
+    else if (num*size > dynamic_arr_mem_size[DYNAMIC_ALLOC_RANGE-1])
+    {
+        ERROR_PRTF ("Error: Requested memory size %ld KiB is too large.\n", num*size/1024);
+        assert (0);
+    }
+    #endif
+    void* ptr = NULL;
+    size_t i = 0;
+    for (; i < DYNAMIC_ALLOC_RANGE; i++)
+    {
+        if (dynamic_arr_mem_size[i] >= num*size)
+            break;
+    }
+    pthread_mutex_lock (&dynamic_mutex);
+    for (int j = 0; j < dynamic_arr_max_num[i]; j++)
+    {
+        if (dynamic_arr[i][j] != NULL)
+        {
+            ptr = dynamic_arr[i][j];
+            dynamic_arr[i][j] = NULL;
+            break;
+        }
+    }
+    pthread_mutex_unlock (&dynamic_mutex);
+    if (ptr == NULL)
+    {
+        ptr = aspen_malloc (1, dynamic_arr_mem_size[i]);
+    }
+    return ptr;
+}
+
+void aspen_dynamic_free (void *ptr, size_t num, size_t size)
+{
+    if (dynamic_mem_init == 0)
+        init_dynamic_mem ();
+    if (num*size <= 0)
+        return;
+    #ifdef DEBUG
+    else if (num*size > dynamic_arr_mem_size[DYNAMIC_ALLOC_RANGE-1])
+    {
+        ERROR_PRTF ("Error: Requested memory size %ld KiB is too large.\n", num*size/1024);
+        assert (0);
+    }
+    #endif
+    size_t i = 0, j = 0;
+    for (; i < DYNAMIC_ALLOC_RANGE; i++)
+    {
+        if (dynamic_arr_mem_size[i] >= num*size)
+            break;
+    }
+    pthread_mutex_lock (&dynamic_mutex);
+    for (; j < dynamic_arr_max_num[i]; j++)
+    {
+        if (dynamic_arr[i][j] == NULL)
+        {
+            dynamic_arr[i][j] = ptr;
+            break;
+        }
+    }
+    if (j == dynamic_arr_max_num[i])
+    {
+        increase_dynamic_mem_arr (i);
+        dynamic_arr[i][j] = ptr;
+    }
+    // print_dynamic_mem_arr();
+    pthread_mutex_unlock (&dynamic_mutex);
+}
+
+void aspen_flush_dynamic_memory ()
+{
+    if (dynamic_mem_init == 0)
+        return;
+    pthread_mutex_lock (&dynamic_mutex);
+    for (int i = 0; i < DYNAMIC_ALLOC_RANGE; i++)
+    {
+        for (int j = 0; j < dynamic_arr_max_num[i]; j++)
+        {
+            if (dynamic_arr[i][j] != NULL)
+            {
+                aspen_free (dynamic_arr[i][j]);
+                dynamic_arr[i][j] = NULL;
+            }
+        }
+    }
+    pthread_mutex_unlock (&dynamic_mutex);
+}
 
 void *aspen_calloc (size_t num, size_t size)
 {
@@ -53,7 +206,7 @@ void *aspen_calloc (size_t num, size_t size)
         cudaError_t cuda_err = cudaMallocHost (&ptr, get_smallest_dividable (num * size, MEM_ALIGN));
         if (ptr == NULL || check_CUDA(cuda_err) != cudaSuccess)
         {
-            FPRT (stderr, "Error: Failed to allocate Host memory.\n");
+            ERROR_PRTF ("Error: Failed to allocate Host memory.\n");
             assert (0);
         }
         #endif
@@ -61,6 +214,7 @@ void *aspen_calloc (size_t num, size_t size)
     bzero (ptr, get_smallest_dividable (num * size, MEM_ALIGN));
     return ptr;
 }
+
 void *aspen_malloc (size_t num, size_t size)
 {
     if (num*size <= 0)
@@ -74,13 +228,14 @@ void *aspen_malloc (size_t num, size_t size)
         cudaError_t cuda_err = cudaMallocHost (&ptr, get_smallest_dividable (num * size, MEM_ALIGN));
         if (ptr == NULL || check_CUDA(cuda_err) != cudaSuccess)
         {
-            FPRT (stderr, "Error: Failed to allocate Host memory.\n");
+            ERROR_PRTF ("Error: Failed to allocate Host memory.\n");
             assert (0);
         }
         #endif
     }
     return ptr;
 }
+
 void aspen_free (void *ptr)
 {
     if (ptr == NULL)
@@ -92,12 +247,13 @@ void aspen_free (void *ptr)
         #ifdef GPU
         if (check_CUDA(cudaFreeHost(ptr)) != cudaSuccess)
         {
-            FPRT (stderr, "Error: Failed to free Host memory.\n");
+            ERROR_PRTF ("Error: Failed to free Host memory.\n");
             assert (0);
         }
         #endif
     }
 }
+
 void *aspen_gpu_calloc (size_t num, size_t size, int gpu_idx)
 {
     if (num*size <= 0)
@@ -106,22 +262,23 @@ void *aspen_gpu_calloc (size_t num, size_t size, int gpu_idx)
     #ifdef GPU
     if (check_CUDA(cudaSetDevice(gpu_idx)) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to set GPU device.\n");
+        ERROR_PRTF ("Error: Failed to set GPU device.\n");
         assert (0);
     }
     if (check_CUDA(cudaMalloc(&ptr, get_smallest_dividable (num * size, MEM_ALIGN) )) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to allocate GPU memory.\n");
+        ERROR_PRTF ("Error: Failed to allocate GPU memory.\n");
         assert (0);
     }
     if (check_CUDA(cudaMemset(ptr, 0, get_smallest_dividable (num * size, MEM_ALIGN) )) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to set GPU memory to zero.\n");
+        ERROR_PRTF ("Error: Failed to set GPU memory to zero.\n");
         assert (0);
     }
     #endif
     return ptr;
 }
+
 void aspen_gpu_memset (void *ptr, int val, size_t size, int gpu_idx)
 {
     if (size <= 0)
@@ -129,16 +286,17 @@ void aspen_gpu_memset (void *ptr, int val, size_t size, int gpu_idx)
     #ifdef GPU
     if (check_CUDA(cudaSetDevice(gpu_idx)) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to set GPU device.\n");
+        ERROR_PRTF ("Error: Failed to set GPU device.\n");
         assert (0);
     }
     if (check_CUDA(cudaMemset(ptr, val, get_smallest_dividable (size, MEM_ALIGN) )) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to set GPU memory.\n");
+        ERROR_PRTF ("Error: Failed to set GPU memory.\n");
         assert (0);
     }
     #endif
 }
+
 void *aspen_gpu_malloc_minus_one (size_t num, size_t size, int gpu_idx)
 {
     if (num*size <= 0)
@@ -147,22 +305,23 @@ void *aspen_gpu_malloc_minus_one (size_t num, size_t size, int gpu_idx)
     #ifdef GPU
     if (check_CUDA(cudaSetDevice(gpu_idx)) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to set GPU device.\n");
+        ERROR_PRTF ("Error: Failed to set GPU device.\n");
         assert (0);
     }
     if (check_CUDA(cudaMalloc(&ptr, get_smallest_dividable (num * size, MEM_ALIGN) )) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to allocate GPU memory.\n");
+        ERROR_PRTF ("Error: Failed to allocate GPU memory.\n");
         assert (0);
     }
     if (check_CUDA(cudaMemset(ptr, 0xff, get_smallest_dividable (num * size, MEM_ALIGN) )) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to set GPU memory to zero.\n");
+        ERROR_PRTF ("Error: Failed to set GPU memory to zero.\n");
         assert (0);
     }
     #endif
     return ptr;
 }
+
 void *aspen_gpu_malloc (size_t num, size_t size, int gpu_idx)
 {
     if (num*size <= 0)
@@ -171,17 +330,18 @@ void *aspen_gpu_malloc (size_t num, size_t size, int gpu_idx)
     #ifdef GPU
     if (check_CUDA(cudaSetDevice(gpu_idx)) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to set GPU device.\n");
+        ERROR_PRTF ("Error: Failed to set GPU device.\n");
         assert (0);
     }
     if (check_CUDA(cudaMalloc(&ptr, get_smallest_dividable (num * size, MEM_ALIGN) )) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to allocate GPU memory.\n");
+        ERROR_PRTF ("Error: Failed to allocate GPU memory.\n");
         assert (0);
     }
     #endif
     return ptr;
 }
+
 void aspen_gpu_free (void *ptr, int gpu_idx)
 {
     if (ptr == NULL)
@@ -189,12 +349,12 @@ void aspen_gpu_free (void *ptr, int gpu_idx)
     #ifdef GPU
     if (check_CUDA(cudaSetDevice(gpu_idx)) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to set GPU device.\n");
+        ERROR_PRTF ("Error: Failed to set GPU device.\n");
         assert (0);
     }
     if (check_CUDA(cudaFree(ptr)) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to free GPU memory.\n");
+        ERROR_PRTF ("Error: Failed to free GPU memory.\n");
         assert (0);
     }
     #endif
@@ -205,69 +365,72 @@ void aspen_host_to_gpu_memcpy (void *dst, void *src, size_t num, int gpu_idx)
     #ifdef GPU
     if (check_CUDA(cudaSetDevice(gpu_idx)) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to set GPU device.\n");
+        ERROR_PRTF ("Error: Failed to set GPU device.\n");
         assert (0);
     }
     if (check_CUDA(cudaMemcpy(dst, src, num, cudaMemcpyHostToDevice)) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to copy Host memory to GPU.\n");
+        ERROR_PRTF ("Error: Failed to copy Host memory to GPU.\n");
         assert (0);
     }
     #endif
 }
+
 void aspen_gpu_to_host_memcpy (void *dst, void *src, size_t num, int gpu_idx)
 {
     #ifdef GPU
     if (check_CUDA(cudaSetDevice(gpu_idx)) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to set GPU device.\n");
+        ERROR_PRTF ("Error: Failed to set GPU device.\n");
         assert (0);
     }
     if (check_CUDA(cudaMemcpy(dst, src, num, cudaMemcpyDeviceToHost)) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to copy GPU memory to Host.\n");
+        ERROR_PRTF ("Error: Failed to copy GPU memory to Host.\n");
         assert (0);
     }
     #endif
 }
+
 void aspen_host_to_gpu_async_memcpy (void *dst, void *src, size_t num, int gpu_idx)
 {
     #ifdef GPU
     if (check_CUDA(cudaSetDevice(gpu_idx)) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to set GPU device.\n");
+        ERROR_PRTF ("Error: Failed to set GPU device.\n");
         assert (0);
     }
     if (check_CUDA(cudaMemcpyAsync(dst, src, num, cudaMemcpyHostToDevice
         , aspen_CUDA_streams[gpu_idx][GPU_MEM_STREAM_HOST_TO_GPU])) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to copy Host to GPU memory.\n");
+        ERROR_PRTF ("Error: Failed to copy Host to GPU memory.\n");
         assert (0);
     }
     if (check_CUDA(cudaStreamSynchronize(aspen_CUDA_streams[gpu_idx][GPU_MEM_STREAM_HOST_TO_GPU])) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to synchronize GPU stream.\n");
+        ERROR_PRTF ("Error: Failed to synchronize GPU stream.\n");
         assert (0);
     }
     #endif
 }
+
 void aspen_gpu_to_host_async_memcpy (void *dst, void *src, size_t num, int gpu_idx)
 {
     #ifdef GPU
     if (check_CUDA(cudaSetDevice(gpu_idx)) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to set GPU device.\n");
+        ERROR_PRTF ("Error: Failed to set GPU device.\n");
         assert (0);
     }
     if (check_CUDA(cudaMemcpyAsync(dst, src, num, cudaMemcpyDeviceToHost
         , aspen_CUDA_streams[gpu_idx][GPU_MEM_STREAM_GPU_TO_HOST])) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to copy GPU to Host memory.\n");
+        ERROR_PRTF ("Error: Failed to copy GPU to Host memory.\n");
         assert (0);
     }
     if (check_CUDA(cudaStreamSynchronize(aspen_CUDA_streams[gpu_idx][GPU_MEM_STREAM_GPU_TO_HOST])) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to synchronize GPU stream.\n");
+        ERROR_PRTF ("Error: Failed to synchronize GPU stream.\n");
         assert (0);
     }
     #endif
@@ -278,12 +441,12 @@ void aspen_sync_gpu (int gpu_idx)
     #ifdef GPU
     if (check_CUDA(cudaSetDevice(gpu_idx)) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to set GPU device.\n");
+        ERROR_PRTF ("Error: Failed to set GPU device.\n");
         assert (0);
     }
     if (check_CUDA(cudaDeviceSynchronize()) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to synchronize GPU.\n");
+        ERROR_PRTF ("Error: Failed to synchronize GPU.\n");
         assert (0);
     }
     #endif
@@ -294,12 +457,12 @@ void aspen_sync_gpu_stream (int gpu_idx, int stream_num)
     #ifdef GPU
     if (check_CUDA(cudaSetDevice(gpu_idx)) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to set GPU device.\n");
+        ERROR_PRTF ("Error: Failed to set GPU device.\n");
         assert (0);
     }
     if (check_CUDA(cudaStreamSynchronize(aspen_CUDA_streams[gpu_idx][stream_num])) != cudaSuccess)
     {
-        FPRT (stderr, "Error: Failed to synchronize GPU stream.\n");
+        ERROR_PRTF ("Error: Failed to synchronize GPU stream.\n");
         assert (0);
     }
     #endif
@@ -326,7 +489,7 @@ void* load_arr (char *file_path, unsigned int size)
         size_t num = fread (input, sizeof(char), size, fptr);
         if (num < size)
         {
-            FPRT (stderr, "Error: Failed to read file %s - Size mismatch. File size: %ld, Req. size: %d. Exiting.\n", 
+            ERROR_PRTF ("Error: Failed to read file %s - Size mismatch. File size: %ld, Req. size: %d. Exiting.\n", 
                 file_path, num, size);
             free (input);
             fclose(fptr);
@@ -338,7 +501,7 @@ void* load_arr (char *file_path, unsigned int size)
     }
     else
     {
-        FPRT (stderr, "Error: Failed to open file %s. Exiting.\n", file_path);
+        ERROR_PRTF ("Error: Failed to open file %s. Exiting.\n", file_path);
         free (input);
         return NULL;
     }

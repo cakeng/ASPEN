@@ -15,7 +15,7 @@
 
 struct dse_group_t
 {
-    unsigned int num_ases;
+    unsigned int num_dses;
     dse_t *dse_arr;
     int gpu_idx;
 };
@@ -48,8 +48,5 @@ void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst);
 void update_children_but_prioritize_dse_target (rpool_t *rpool, ninst_t *ninst, dse_t *dse);
 void update_children (rpool_t *rpool, ninst_t *ninst, unsigned int dse_idx);
 void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data);
-
-void set_ldata_out_mat_mem_pos (nasm_ldata_t *ldata);
-void set_ninst_out_mat_mem_pos (ninst_t *ninst);
 
 #endif

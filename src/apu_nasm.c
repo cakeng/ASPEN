@@ -198,7 +198,7 @@ void ninst_find_parent (ninst_t *ninst)
             {
                 if (parent_ldata->out_mat_stride != parent_ldata->out_mat_dims[OUT_H])
                 {
-                    FPRT (stderr, "ERROR: FC layer parent stride mismatatch - %d, %d\n", 
+                    ERROR_PRTF ("ERROR: FC layer parent stride mismatatch - %d, %d\n", 
                         parent_ldata->out_mat_stride, parent_ldata->out_mat_dims[OUT_H]);
                     assert (0);
                 }
@@ -502,7 +502,7 @@ void ninst_find_parent (ninst_t *ninst)
             }
             else
             {
-                FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
+                ERROR_PRTF ("ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
                 assert (0);
             }
             // printf ("\n");
@@ -557,7 +557,7 @@ nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigne
 {
     if (min_ninst_per_ldata < 1)
     {
-        FPRT(stderr, "ERROR: min_ninst_per_ldata should be at least 1, at line %d in file %s\n" , 0, " ");
+        ERROR_PRTF ("ERROR: min_ninst_per_ldata should be at least 1, at line %d in file %s\n" , 0, " ");
         assert (0);
     }
     nasm_t *new_nasm = (nasm_t *) calloc(1, sizeof(nasm_t));
@@ -568,6 +568,7 @@ nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigne
     new_nasm->nasm_id = nasm_num;
     new_nasm->min_ninst_per_ldata = min_ninst_per_ldata;
     new_nasm->gpu_idx = -1;
+    atomic_store (&new_nasm->completed, 0);
     nasm_num++;
     for (int i = 0; i < dnn->num_layers; i++)
     {
@@ -637,7 +638,7 @@ void set_child_list (ninst_t *ninst)
             }
         }
     }
-    FPRT (stderr, "Error: set_child_list failed. Only found %d children for ninst %d, expected %d\n"
+    ERROR_PRTF ("Error: set_child_list failed. Only found %d children for ninst %d, expected %d\n"
         , child_idx, ninst->ninst_idx, ninst->num_child_ninsts);
 }
 
@@ -655,11 +656,11 @@ double test_nasm_time_sec (nasm_t *nasm, unsigned int num_iter)
     for (int i = 0; i < num_iter; i++)
     {
         dse_group_run_until_nasm_completion (dse_group, nasm);
-        rpool_reset (rpool);
+        rpool_reset_queue (rpool);
         rpool_reset_nasm (rpool, nasm);
     }
     total_time = (double)get_time_secs() - start;
-    // PRT ("APU: Total time = %f sec, Start time = %f sec, End Time = %f sec, Average time = %f sec\n", 
+    // PRTF ("APU: Total time = %f sec, Start time = %f sec, End Time = %f sec, Average time = %f sec\n", 
     //     total_time, start, (double)get_time_secs(), total_time / num_iter);
     dse_group_destroy (dse_group);
     rpool_destroy (rpool);
@@ -675,7 +676,7 @@ nasm_t *apu_generate_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned in
     size_t min_num_ninst = num_ninst;
     for (int i = 0; i < num_iter; i++)
     {
-        PRT ("APU: Iteration %d, time = %f sec at ninst num %ld\n", i, time, num_ninst);
+        PRTF ("APU: Iteration %d, time = %f sec at ninst num %ld\n", i, time, num_ninst);
         size_t num_old = num_ninst;
         if (time <= min_time*1.05)
         {
@@ -696,12 +697,12 @@ nasm_t *apu_generate_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned in
             min_time = time;
             min_num_ninst = num_ninst;
         }
-        PRT ("\tMin time = %f sec, min num ninst = %ld\n", min_time, min_num_ninst);
+        PRTF ("\tMin time = %f sec, min num ninst = %ld\n", min_time, min_num_ninst);
         if (num_ninst <= num_old*1.10 && num_ninst >= num_old*0.90)
             break;
     }
     apu_destroy_nasm (new_nasm);
-    PRT ("APU: NASM with num %ld, time = %f sec selected.\n", min_num_ninst, min_time);
+    PRTF ("APU: NASM with num %ld, time = %f sec selected.\n", min_num_ninst, min_time);
     new_nasm = apu_create_nasm(dnn, min_num_ninst, batch_size);
     return new_nasm;
 }
@@ -715,7 +716,7 @@ nasm_t *apu_generate_transformer_nasm(aspen_dnn_t *dnn, unsigned int batch_size,
     size_t min_num_ninst = num_ninst;
     for (int i = 0; i < num_iter; i++)
     {
-        PRT ("APU: Iteration %d, time = %f sec at ninst num %ld\n", i, time, num_ninst);
+        PRTF ("APU: Iteration %d, time = %f sec at ninst num %ld\n", i, time, num_ninst);
         size_t num_old = num_ninst;
         if (time <= min_time*1.05)
         {
@@ -736,12 +737,12 @@ nasm_t *apu_generate_transformer_nasm(aspen_dnn_t *dnn, unsigned int batch_size,
             min_time = time;
             min_num_ninst = num_ninst;
         }
-        PRT ("\tMin time = %f sec, min num ninst = %ld\n", min_time, min_num_ninst);
+        PRTF ("\tMin time = %f sec, min num ninst = %ld\n", min_time, min_num_ninst);
         if (num_ninst <= num_old*1.10 && num_ninst >= num_old*0.90)
             break;
     }
     apu_destroy_nasm (new_nasm);
-    PRT ("APU: NASM with num %ld, time = %f sec selected.\n", min_num_ninst, min_time);
+    PRTF ("APU: NASM with num %ld, time = %f sec selected.\n", min_num_ninst, min_time);
     new_nasm = apu_create_transformer_nasm(dnn, num_ninst, batch_size, seq_num);
     return new_nasm;
 }
@@ -757,10 +758,10 @@ nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int min_ninst_per_ldata, unsi
         {
             ninst_find_parent (&new_nasm->ldata_arr[i].ninst_arr_start[j]);
         }
-        PRT ("\tAPU: Graphing layer %d/%d (%2.2f%%).\r", i+1, new_nasm->num_ldata, ((float)(i+1)/(float)new_nasm->num_ldata*100));
+        PRTF ("\tAPU: Graphing layer %d/%d (%2.2f%%).\r", i+1, new_nasm->num_ldata, ((float)(i+1)/(float)new_nasm->num_ldata*100));
         fflush (stdout);
     }
-    PRT ("\n");
+    PRTF ("\n");
     for (int i = 0; i < new_nasm->num_ldata; i++)
     {
         #pragma omp parallel for
@@ -785,7 +786,7 @@ nasm_t *apu_create_transformer_nasm
     unsigned int batch_size, unsigned int seq_num)
 {
     nasm_t *new_nasm = apu_create_nasm_without_finding_ninst_parents(dnn, APU_GENERATION_NUM_FLOPS, batch_size, min_ninst_per_ldata, seq_num);
-    PRT ("APU: Graphing ninsts...\n");
+    PRTF ("APU: Graphing ninsts...\n");
     for (int i = 0; i < new_nasm->num_ldata; i++)
     {
         #pragma omp parallel for
@@ -793,10 +794,10 @@ nasm_t *apu_create_transformer_nasm
         {
             ninst_find_parent (&new_nasm->ldata_arr[i].ninst_arr_start[j]);
         }
-        PRT ("APU: Layer %d, parents for %d ninsts found.\n", i, new_nasm->ldata_arr[i].num_ninst);
+        PRTF ("APU: Layer %d, parents for %d ninsts found.\n", i, new_nasm->ldata_arr[i].num_ninst);
 
     }
-    PRT ("\n");
+    PRTF ("\n");
     for (int i = 0; i < new_nasm->num_ldata; i++)
     {
         #pragma omp parallel for
@@ -804,9 +805,9 @@ nasm_t *apu_create_transformer_nasm
         {
             set_child_list (&new_nasm->ldata_arr[i].ninst_arr_start[j]);
         }
-        PRT ("Layer %d, children for %d ninsts found.\n", i, new_nasm->ldata_arr[i].num_ninst);
+        PRTF ("Layer %d, children for %d ninsts found.\n", i, new_nasm->ldata_arr[i].num_ninst);
     }
-    PRT ("\n");
+    PRTF ("\n");
     // Calculate total flops
     new_nasm->total_flops = 0;
     for (int i = 0; i < new_nasm->num_ldata; i++)
@@ -821,15 +822,18 @@ nasm_t *apu_create_transformer_nasm
 void apu_reset_nasm (nasm_t *nasm)
 {
     atomic_store (&nasm->num_ldata_completed, 0);
+    atomic_store (&nasm->completed, 0);
     for (int i = 0; i < nasm->num_ldata; i++)
     {
         nasm_ldata_t *ldata = &nasm->ldata_arr[i];
         atomic_store (&ldata->num_ninst_completed, 0);
         atomic_store (&ldata->num_child_ldata_completed, 0);
+        if (i != 0)
+            free_ldata_out_mat (ldata);
         for (int j = 0; j < ldata->num_ninst; j++)
         {
             ninst_t *ninst = &ldata->ninst_arr_start[j];
-            ninst->state = NINST_NOT_READY;
+            atomic_store (&ninst->state, NINST_NOT_READY);
             atomic_store (&ninst->num_parent_ninsts_completed, 0);
         }
     }
@@ -852,12 +856,138 @@ void set_nasm_to_finished (nasm_t *nasm)
     }
 }
 
+void copy_ldata_out_mat_to_buffer (nasm_ldata_t *ldata, void *buffer)
+{
+    #ifdef DEBUG
+    if (ldata == NULL || buffer == NULL)
+    {
+        ERROR_PRTF ("ERROR: ldata or buffer is NULL.\n");
+        assert(0);
+    }
+    #endif
+    char* out_mat = ldata->out_mat;
+    const unsigned int W = ldata->out_mat_dims[OUT_W];
+    const unsigned int H = ldata->out_mat_dims[OUT_H];
+    const unsigned int stride = ldata->out_mat_stride;
+    for(int w = 0; w < W; w++) 
+    {
+        memcpy(buffer + w * H * sizeof(float), out_mat + w * stride * sizeof(float), H * sizeof(float));
+    }
+}
+
+void copy_buffer_to_ldata_out_mat (nasm_ldata_t *ldata, void *buffer)
+{
+    #ifdef DEBUG
+    if (ldata == NULL || buffer == NULL)
+    {
+        ERROR_PRTF ("ERROR: ldata or buffer is NULL.\n");
+        assert(0);
+    }
+    #endif
+    char* out_mat = ldata->out_mat;
+    const unsigned int W = ldata->out_mat_dims[OUT_W];
+    const unsigned int H = ldata->out_mat_dims[OUT_H];
+    const unsigned int stride = ldata->out_mat_stride;
+    for(int w = 0; w < W; w++) 
+    {
+        memcpy(out_mat + w * stride * sizeof(float), buffer + w * H * sizeof(float), H * sizeof(float));
+    }
+}
+
+void copy_ninst_data_to_buffer (ninst_t *ninst, void *buffer)
+{
+    char* out_mat = get_ninst_out_mem_without_alloc  (ninst);
+    #ifdef DEBUG
+    if (ninst == NULL || buffer == NULL)
+    {
+        ERROR_PRTF ("ERROR: ninst or buffer is NULL.\n");
+        assert(0);
+    }
+    if (out_mat == NULL)
+    {
+        ERROR_PRTF ("ERROR: ninst out_mat is NULL.\n");
+        assert(0);
+    }
+    #endif
+    const unsigned int W = ninst->tile_dims[OUT_W];
+    const unsigned int H = ninst->tile_dims[OUT_H];
+    const unsigned int stride = ninst->ldata->out_mat_stride;
+    for(int w = 0; w < W; w++) 
+    {
+        memcpy(buffer + w * H * sizeof(float), out_mat + w * stride * sizeof(float), H * sizeof(float));
+    }
+}
+
+void copy_buffer_to_ninst_data (ninst_t *ninst, void *buffer)
+{
+    #ifdef DEBUG
+    if (ninst == NULL || buffer == NULL)
+    {
+        ERROR_PRTF ("ERROR: ninst or buffer is NULL.\n");
+        assert(0);
+    }
+    #endif
+    char* out_mat = get_ninst_out_mem (ninst);
+    const unsigned int W = ninst->tile_dims[OUT_W];
+    const unsigned int H = ninst->tile_dims[OUT_H];
+    const unsigned int stride = ninst->ldata->out_mat_stride;
+    for(int w = 0; w < W; w++) 
+    {
+        memcpy(out_mat + w * stride * sizeof(float), buffer + w * H * sizeof(float), H * sizeof(float));
+    }
+}
+
+void alloc_ldata_out_mat (nasm_ldata_t *ldata)
+{
+    pthread_mutex_lock (&ldata->out_mat_mutex);
+    if (ldata->out_mat != NULL)
+    {
+        pthread_mutex_unlock (&ldata->out_mat_mutex);
+        return;
+    }
+    // printf ("allocating %ld KiB of memory for ldata %d\n", ldata->out_mat_mem_size/1024, ldata->layer->layer_idx);
+    ldata->out_mat = aspen_dynamic_malloc (1, ldata->out_mat_mem_size);
+    pthread_mutex_unlock (&ldata->out_mat_mutex);
+}
+
+void free_ldata_out_mat (nasm_ldata_t *ldata)
+{
+    if (ldata->out_mat != NULL)
+    {
+        // printf ("freeing %ld KiB of memory for ldata %d\n", ldata->out_mat_mem_size/1024, ldata->layer->layer_idx);
+        aspen_dynamic_free (ldata->out_mat, 1, ldata->out_mat_mem_size);
+        ldata->out_mat = NULL;
+    }
+}
+
+void *get_ninst_out_mem (ninst_t *ninst)
+{
+    if (ninst->ldata->out_mat == NULL)
+    {
+        // BLUE_PRTF ("APU: Allocating output memory for ldata %d\n", ninst->ldata->layer->layer_idx);
+        alloc_ldata_out_mat (ninst->ldata);
+    }
+    return (char*)ninst->ldata->out_mat
+        + (ninst->out_mat_pos[OUT_W]*ninst->ldata->out_mat_stride + ninst->out_mat_pos[OUT_H])
+            *ninst->ldata->nasm->dnn->element_size;
+}
+
+void *get_ninst_out_mem_without_alloc (ninst_t *ninst)
+{
+    if (ninst->ldata->out_mat == NULL)
+        return NULL;
+    return (char*)ninst->ldata->out_mat
+        + (ninst->out_mat_pos[OUT_W]*ninst->ldata->out_mat_stride + ninst->out_mat_pos[OUT_H])
+            *ninst->ldata->nasm->dnn->element_size;
+}
+
 void destroy_nasm_ldata (nasm_ldata_t *ldata)
 {
     if (ldata == NULL)
         return;
     if (ldata->child_ldata_idx_arr != NULL)
         free(ldata->child_ldata_idx_arr);
+    free_ldata_out_mat (ldata);
     for (int i = 0; i < ldata->num_ninst; i++)
     {
         destroy_ninst(&ldata->ninst_arr_start[i]);
@@ -969,7 +1099,7 @@ void get_out_mat_info (nasm_ldata_t *ldata)
     }
     else
     {
-        FPRT(stderr, "ERROR) Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
+        ERROR_PRTF ("ERROR) Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
         assert (0);
     }
 }
@@ -1015,6 +1145,7 @@ void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata_ptr, aspen_layer_t *laye
 {
     ldata_ptr->nasm = nasm;
     ldata_ptr->layer = layer;
+    ldata_ptr->out_mat_mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
     for (LAYER_PARENTS i = 0; i < NUM_PARENT_ELEMENTS; i++)
     {
         ldata_ptr->parent_ldata_idx_arr[i] = -1;
@@ -1216,7 +1347,7 @@ void get_out_mat_pos_from_tensor_pos (nasm_ldata_t *ldata, unsigned int *tensor_
     }
     else
     {
-        FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
+        ERROR_PRTF ("ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
         assert (0);
     }
 }
@@ -1269,7 +1400,7 @@ void get_tensor_pos_from_out_mat_pos (nasm_ldata_t *ldata, unsigned int *out_mat
     }
     else
     {
-        FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
+        ERROR_PRTF ("ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
         assert (0);
     }
 }
@@ -1284,7 +1415,7 @@ void *get_packed_ldata_output_colwise (nasm_ldata_t *ldata)
 {
     if (ldata == NULL)
     {
-        FPRT (stderr, "Error in get_packed_ldata_output_colwise: ldata is NULL.\n");
+        ERROR_PRTF ("Error in get_packed_ldata_output_colwise: ldata is NULL.\n");
         return NULL;
     }
     void *packed_data = NULL;
@@ -1293,7 +1424,7 @@ void *get_packed_ldata_output_colwise (nasm_ldata_t *ldata)
     packed_data = calloc (1, data_size);
     if (packed_data == NULL)
     {
-        FPRT (stderr, "Error in get_packed_ldata_output_colwise: calloc failed.\n");
+        ERROR_PRTF ("Error in get_packed_ldata_output_colwise: calloc failed.\n");
         return NULL;
     }
     void *out_mat = ldata->out_mat;
@@ -1319,7 +1450,7 @@ void *get_packed_ldata_output_rowwise (nasm_ldata_t *ldata)
 {
     if (ldata == NULL)
     {
-        FPRT (stderr, "Error in get_packed_ldata_output_rolwise: ldata is NULL.\n");
+        ERROR_PRTF ("Error in get_packed_ldata_output_rolwise: ldata is NULL.\n");
         return NULL;
     }
     void *packed_data = NULL;
@@ -1328,7 +1459,7 @@ void *get_packed_ldata_output_rowwise (nasm_ldata_t *ldata)
     packed_data = calloc (1, data_size);
     if (packed_data == NULL)
     {
-        FPRT (stderr, "Error in get_packed_ldata_output_rolwise: calloc failed.\n");
+        ERROR_PRTF ("Error in get_packed_ldata_output_rolwise: calloc failed.\n");
         return NULL;
     }
     for (unsigned int w = 0; w < ldata->out_mat_dims[OUT_W]; w++)
@@ -1445,9 +1576,9 @@ void print_ninst_info (ninst_t *ninst, int print_data)
         return;
     }
     printf ("Ninst Idx: %d, State: %s", ninst->ninst_idx, ninst_state_str[ninst->state]);
-    if (ninst->out_mat != NULL)
+    if (get_ninst_out_mem_without_alloc (ninst) != NULL)
     {
-        printf (", Output Matrix: %p\n", ninst->out_mat);
+        printf (", Output Matrix: %p\n", get_ninst_out_mem_without_alloc (ninst));
     }
     else
     {
@@ -1520,7 +1651,8 @@ void print_ninst_info (ninst_t *ninst, int print_data)
     if (print_data)
     {
         printf("\n\t\tData:");
-        if (ninst->out_mat == NULL)
+        void* out_mat = get_ninst_out_mem_without_alloc (ninst);
+        if (out_mat == NULL)
         {
             printf("\n\t\t\tError: Output matrix is NULL.\n");
         }
@@ -1531,7 +1663,7 @@ void print_ninst_info (ninst_t *ninst, int print_data)
             {
                 unsigned int output_mat_h = ninst->out_mat_pos[OUT_H] + h;
                 unsigned int output_mat_w = ninst->out_mat_pos[OUT_W] + w;
-                printf("%3.2f ", *((float*)ninst->out_mat 
+                printf("%3.2f ", *((float*)out_mat 
                     + output_mat_w*ninst->ldata->out_mat_stride + output_mat_h));
             }
         }

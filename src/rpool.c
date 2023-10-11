@@ -50,11 +50,11 @@ rpool_t *rpool_init ()
     int gpu_idx = -1;
     if (gpu_idx >= 0 && gpu_idx >= aspen_num_gpus)
     {
-        FPRT (stderr, "ERROR: rpool_init: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);
+        ERROR_PRTF ("ERROR: rpool_init: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);
         gpu_idx = -1;
     }
     rpool_t *rpool = calloc (1, sizeof(rpool_t));
-    rpool->ref_ases = 0;
+    rpool->ref_dses = 0;
     rpool->num_groups = 0;
     rpool->queue_group_weight_sum = 0;
     bzero (rpool->queue_group_weight_arr, sizeof(float)*MAX_QUEUE_GROUPS);
@@ -63,7 +63,7 @@ rpool_t *rpool_init ()
         rpool->gpu_idx = -1;
     else
         rpool->gpu_idx = gpu_idx;
-    // unsigned int num_queues = rpool->ref_ases * NUM_LAYERQUEUE_PER_ASE * 100 *  NUM_QUEUE_PER_LAYER;
+    // unsigned int num_queues = rpool->ref_dses * NUM_LAYERQUEUE_PER_DSE * 100 *  NUM_QUEUE_PER_LAYER;
     // if (num_queues < 1)
     //     num_queues = 1;
     // rpool_add_queue_group (rpool, "default group", num_queues, NULL, NULL);
@@ -74,9 +74,9 @@ void rpool_destroy (rpool_t *rpool)
 {
     if (rpool == NULL)
         return;
-    if (atomic_load(&rpool->ref_ases) > 0)
+    if (atomic_load(&rpool->ref_dses) > 0)
     {
-        FPRT (stderr, "ERROR: rpool_destroy: rpool is still referenced by %d ases.\n", atomic_load(&rpool->ref_ases));
+        ERROR_PRTF ("ERROR: rpool_destroy: rpool is still referenced by %d dses.\n", atomic_load(&rpool->ref_dses));
         return;
     }
     for (int i = 0; i < atomic_load (&rpool->num_groups); i++)
@@ -89,12 +89,12 @@ rpool_queue_group_t *get_queue_group_from_nasm (rpool_t *rpool, nasm_t *nasm)
 {
     if (rpool == NULL)
     {
-        FPRT (stderr, "ERROR: get_queue_group_from_nasm: rpool is NULL.\n");
+        ERROR_PRTF ("ERROR: get_queue_group_from_nasm: rpool is NULL.\n");
         return NULL;
     }
     if (nasm == NULL)
     {
-        FPRT (stderr, "ERROR: get_queue_group_from_nasm: nasm is NULL.\n");
+        ERROR_PRTF ("ERROR: get_queue_group_from_nasm: nasm is NULL.\n");
         return NULL;
     }
     // for (int i = 0; i < rpool->num_groups; i++)
@@ -109,12 +109,12 @@ int get_queue_group_idx_from_nasm (rpool_t *rpool, nasm_t *nasm)
 {
     if (rpool == NULL)
     {
-        FPRT (stderr, "ERROR: get_queue_group_idx_from_nasm: rpool is NULL.\n");
+        ERROR_PRTF ("ERROR: get_queue_group_idx_from_nasm: rpool is NULL.\n");
         return -1;
     }
     if (nasm == NULL)
     {
-        FPRT (stderr, "ERROR: get_queue_group_idx_from_nasm: nasm is NULL.\n");
+        ERROR_PRTF ("ERROR: get_queue_group_idx_from_nasm: nasm is NULL.\n");
         return -1;
     }
     // for (int i = 0; i < rpool->num_groups; i++)
@@ -129,17 +129,17 @@ void set_queue_group_weight (rpool_t *rpool, rpool_queue_group_t *rpool_queue_gr
 {
     if (rpool == NULL)
     {
-        FPRT (stderr, "ERROR: set_queue_group_weight: rpool is NULL.\n");
+        ERROR_PRTF ("ERROR: set_queue_group_weight: rpool is NULL.\n");
         return;
     }
     if (rpool_queue_group == NULL)
     {
-        FPRT (stderr, "ERROR: set_queue_group_weight: rpool_queue_group is NULL.\n");
+        ERROR_PRTF ("ERROR: set_queue_group_weight: rpool_queue_group is NULL.\n");
         return;
     }
     if (weight < 0)
     {
-        FPRT (stderr, "ERROR: set_queue_group_weight: weight must not be negative. Cannot set weight for queue group \"%s\".\n", 
+        ERROR_PRTF ("ERROR: set_queue_group_weight: weight must not be negative. Cannot set weight for queue group \"%s\".\n", 
             rpool_queue_group->queue_group_info);
         return;
     }
@@ -152,7 +152,7 @@ void queue_group_add_queues (rpool_queue_group_t *rpool_queue_group, unsigned in
 {
     if (rpool_queue_group == NULL)
     {
-        FPRT (stderr, "ERROR: queue_group_add_queues: rpool_queue_group is NULL.\n");
+        ERROR_PRTF ("ERROR: queue_group_add_queues: rpool_queue_group is NULL.\n");
         return;
     }
     if (num_queues == 0)
@@ -167,20 +167,20 @@ void queue_group_add_queues (rpool_queue_group_t *rpool_queue_group, unsigned in
     atomic_fetch_add (&rpool_queue_group->num_queues, num_queues);
 }
 
-void add_ref_ases (rpool_t *rpool, unsigned int num_ases)
+void add_ref_dses (rpool_t *rpool, unsigned int num_dses)
 {
     if (rpool == NULL)
     {
-        FPRT (stderr, "ERROR: add_ref_ases: rpool is NULL.\n");
+        ERROR_PRTF ("ERROR: add_ref_dses: rpool is NULL.\n");
         return;
     }
-    atomic_fetch_add (&rpool->ref_ases, num_ases);
+    atomic_fetch_add (&rpool->ref_dses, num_dses);
     for (int i = 0; i < rpool->num_groups; i++)
     {
         if (rpool->queue_group_arr[i].whitelist_conds[RPOOL_NASM] != NULL)
         {
             nasm_t *nasm = rpool->queue_group_arr[i].whitelist_conds[RPOOL_NASM];
-            unsigned int num_queues = rpool->ref_ases * NUM_LAYERQUEUE_PER_ASE * 100  * NUM_QUEUE_PER_LAYER;
+            unsigned int num_queues = rpool->ref_dses * NUM_LAYERQUEUE_PER_DSE * 100  * NUM_QUEUE_PER_LAYER;
             if (num_queues < 1)
                 num_queues = 1;
             if (num_queues > atomic_load (&rpool->queue_group_arr[i].num_queues))
@@ -194,22 +194,22 @@ void rpool_add_nasm_raw_input (rpool_t *rpool, nasm_t* nasm, void* input_data)
     float weight = 1.0;
     if (rpool == NULL)
     {
-        FPRT (stderr, "ERROR: rpool_add_nasm_raw_input: rpool is NULL.\n");
+        ERROR_PRTF ("ERROR: rpool_add_nasm_raw_input: rpool is NULL.\n");
         return;
     }
     if (nasm == NULL)
     {
-        FPRT (stderr, "ERROR: rpool_add_nasm_raw_input: nasm is NULL.\n");
+        ERROR_PRTF ("ERROR: rpool_add_nasm_raw_input: nasm is NULL.\n");
         return;
     }
     if (weight <= 0)
     {
-        FPRT (stderr, "ERROR: rpool_add_nasm_raw_input: weight must be positive. Cannot add nasm \"%s_nasm_%d\".\n", nasm->dnn->name, nasm->nasm_id);
+        ERROR_PRTF ("ERROR: rpool_add_nasm_raw_input: weight must be positive. Cannot add nasm \"%s_nasm_%d\".\n", nasm->dnn->name, nasm->nasm_id);
         return;
     }
     if (rpool->num_groups == 0)
     {
-        unsigned int num_queues = rpool->ref_ases * NUM_LAYERQUEUE_PER_ASE * 150 *  NUM_QUEUE_PER_LAYER;
+        unsigned int num_queues = rpool->ref_dses * NUM_LAYERQUEUE_PER_DSE * 150 *  NUM_QUEUE_PER_LAYER;
         if (num_queues < 1)
             num_queues = 1;
         nasm->gpu_idx = rpool->gpu_idx;
@@ -240,7 +240,7 @@ void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, char *input_filename)
     }
     else
     {
-        FPRT (stderr, "ERROR: rpool_add_nasm: first layer of dnn \"%s\" does not have output dimensions. Cannot add nasm \"%s_nasm_%d\".\n", 
+        ERROR_PRTF ("ERROR: rpool_add_nasm: first layer of dnn \"%s\" does not have output dimensions. Cannot add nasm \"%s_nasm_%d\".\n", 
             dnn->name, dnn->name, nasm->nasm_id);
         return;
     }
@@ -252,7 +252,7 @@ void rpool_pop_all_nasm (rpool_t *rpool, nasm_t *nasm)
 {
     int queue_group_idx = get_queue_group_idx_from_nasm (rpool, nasm);
     if (queue_group_idx == -1)
-        FPRT (stderr, "ERROR: rpool_pop_all_nasm: nasm \"%s_nasm_%d\" is not in rpool.\n", nasm->dnn->name, nasm->nasm_id);
+        ERROR_PRTF ("ERROR: rpool_pop_all_nasm: nasm \"%s_nasm_%d\" is not in rpool.\n", nasm->dnn->name, nasm->nasm_id);
     rpool_queue_group_t *queue_group = &rpool->queue_group_arr[queue_group_idx];
     unsigned int num_queues = queue_group->num_queues;
     for (int i = 0; i < num_queues; i++)
@@ -285,7 +285,7 @@ void rpool_finish_nasm (rpool_t *rpool, nasm_t *nasm)
     rpool_pop_all (rpool);
 }
 
-void rpool_reset (rpool_t *rpool)
+void rpool_reset_queue (rpool_t *rpool)
 {
     rpool_pop_all (rpool);
 }
@@ -296,7 +296,7 @@ void rpool_reset_nasm (rpool_t *rpool, nasm_t *nasm)
     apu_reset_nasm (nasm);
     int queue_group_idx = get_queue_group_idx_from_nasm (rpool, nasm);
     if (queue_group_idx == -1)
-        FPRT (stderr, "ERROR: rpool_reset_nasm: nasm \"%s_nasm_%d\" is not in rpool.\n", nasm->dnn->name, nasm->nasm_id);
+        ERROR_PRTF ("ERROR: rpool_reset_nasm: nasm \"%s_nasm_%d\" is not in rpool.\n", nasm->dnn->name, nasm->nasm_id);
     rpool->queue_group_weight_sum += weight - rpool->queue_group_weight_arr[queue_group_idx];
     rpool->queue_group_weight_arr[queue_group_idx] = weight;
     push_first_layer_to_rpool (rpool, nasm, NULL);
@@ -308,12 +308,12 @@ void rpool_add_queue_group
     float weight = 1.0;
     if (rpool == NULL)
     {
-        FPRT (stderr, "ERROR: rpool_add_queue_group: rpool is NULL.\n");
+        ERROR_PRTF ("ERROR: rpool_add_queue_group: rpool is NULL.\n");
         return;
     }
     if (weight <= 0)
     {
-        FPRT (stderr, "ERROR: rpool_add_queue_group: weight must be positive. Cannot add queue group \"%s\".\n", queue_group_info);
+        ERROR_PRTF ("ERROR: rpool_add_queue_group: weight must be positive. Cannot add queue group \"%s\".\n", queue_group_info);
         return;
     }
     if (num_queues > MAX_NUM_QUEUES)
@@ -321,7 +321,7 @@ void rpool_add_queue_group
     unsigned int num_groups = rpool->num_groups;
     if (num_groups + 1 >= MAX_QUEUE_GROUPS)
     {
-        FPRT (stderr, "ERROR: rpool_add_queue_group: max number of queue groups (%d) reached. Cannot add queue group \"%s\".\n", 
+        ERROR_PRTF ("ERROR: rpool_add_queue_group: max number of queue groups (%d) reached. Cannot add queue group \"%s\".\n", 
             MAX_QUEUE_GROUPS, queue_group_info);
         return;
     }
@@ -337,7 +337,7 @@ void rpool_queue_group_set_blacklist (rpool_queue_group_t *rpool_queue_group, vo
 {
     if (rpool_queue_group == NULL)
     {
-        FPRT (stderr, "ERROR: rpool_queue_group_set_blacklist: rpool_queue_group is NULL.\n");
+        ERROR_PRTF ("ERROR: rpool_queue_group_set_blacklist: rpool_queue_group is NULL.\n");
         return;
     }
     if (blacklist == NULL)
@@ -353,7 +353,7 @@ void rpool_queue_group_set_whitelist (rpool_queue_group_t *rpool_queue_group, vo
 {
     if (rpool_queue_group == NULL)
     {
-        FPRT (stderr, "ERROR: rpool_queue_group_set_whitelist: rpool_queue_group is NULL.\n");
+        ERROR_PRTF ("ERROR: rpool_queue_group_set_whitelist: rpool_queue_group is NULL.\n");
         return;
     }
     if (whitelist == NULL)
@@ -371,12 +371,12 @@ unsigned int check_blacklist_cond (void **blacklist, void **input_cond)
     #ifdef DEBUG
     if (blacklist == NULL)
     {
-        FPRT (stderr, "ERROR: check_blacklist_cond: blacklist is NULL.\n");
+        ERROR_PRTF ("ERROR: check_blacklist_cond: blacklist is NULL.\n");
         return 0;
     }
     if (input_cond == NULL)
     {
-        FPRT (stderr, "ERROR: check_blacklist_cond: input_cond is NULL.\n");
+        ERROR_PRTF ("ERROR: check_blacklist_cond: input_cond is NULL.\n");
         return 0;
     }
     #endif
@@ -394,12 +394,12 @@ unsigned int check_whitelist_cond (void **whitelist, void **input_cond)
     #ifdef DEBUG
     if (whitelist == NULL)
     {
-        FPRT (stderr, "ERROR: check_whitelist_cond: whitelist is NULL.\n");
+        ERROR_PRTF ("ERROR: check_whitelist_cond: whitelist is NULL.\n");
         return 0;
     }
     if (input_cond == NULL)
     {
-        FPRT (stderr, "ERROR: check_whitelist_cond: input_cond is NULL.\n");
+        ERROR_PRTF ("ERROR: check_whitelist_cond: input_cond is NULL.\n");
         return 0;
     }
     #endif
@@ -418,12 +418,12 @@ unsigned int pop_ninsts_from_queue (rpool_queue_t *rpool_queue, ninst_t **ninst_
     #ifdef DEBUG
     if (rpool_queue == NULL)
     {
-        FPRT (stderr, "ERROR: pop_nists_from_queue: rpool_queue is NULL.\n");
+        ERROR_PRTF ("ERROR: pop_nists_from_queue: rpool_queue is NULL.\n");
         return 0;
     }
     if (ninst_ptr_list == NULL)
     {
-        FPRT (stderr, "ERROR: pop_nists_from_queue: ninst_ptr_list is NULL.\n");
+        ERROR_PRTF ("ERROR: pop_nists_from_queue: ninst_ptr_list is NULL.\n");
         return 0;
     }
     #endif
@@ -449,12 +449,12 @@ unsigned int pop_ninsts_from_queue_back (rpool_queue_t *rpool_queue, ninst_t **n
     #ifdef DEBUG
     if (rpool_queue == NULL)
     {
-        FPRT (stderr, "ERROR: pop_nists_from_queue_back: rpool_queue is NULL.\n");
+        ERROR_PRTF ("ERROR: pop_nists_from_queue_back: rpool_queue is NULL.\n");
         return 0;
     }
     if (ninst_ptr_list == NULL)
     {
-        FPRT (stderr, "ERROR: pop_nists_from_queue_back: ninst_ptr_list is NULL.\n");
+        ERROR_PRTF ("ERROR: pop_nists_from_queue_back: ninst_ptr_list is NULL.\n");
         return 0;
     }
     #endif
@@ -527,12 +527,12 @@ void push_ninsts_to_queue (rpool_queue_t *rpool_queue, ninst_t **ninst_ptr_list,
     #ifdef DEBUG
     if (rpool_queue == NULL)
     {
-        FPRT (stderr, "ERROR: push_ninsts_to_queue: rpool_queue is NULL.\n");
+        ERROR_PRTF ("ERROR: push_ninsts_to_queue: rpool_queue is NULL.\n");
         return;
     }
     if (ninst_ptr_list == NULL)
     {
-        FPRT (stderr, "ERROR: push_ninsts_to_queue: ninst_ptr_list is NULL.\n");
+        ERROR_PRTF ("ERROR: push_ninsts_to_queue: ninst_ptr_list is NULL.\n");
         return;
     }
     #endif
@@ -556,12 +556,12 @@ void push_ninsts_to_queue_front (rpool_queue_t *rpool_queue, ninst_t **ninst_ptr
     #ifdef DEBUG
     if (rpool_queue == NULL)
     {
-        FPRT (stderr, "ERROR: push_ninsts_to_queue_back: rpool_queue is NULL.\n");
+        ERROR_PRTF ("ERROR: push_ninsts_to_queue_back: rpool_queue is NULL.\n");
         return;
     }
     if (ninst_ptr_list == NULL)
     {
-        FPRT (stderr, "ERROR: push_ninsts_to_queue_back: ninst_ptr_list is NULL.\n");
+        ERROR_PRTF ("ERROR: push_ninsts_to_queue_back: ninst_ptr_list is NULL.\n");
         return;
     }
     #endif
@@ -584,7 +584,7 @@ rpool_queue_t *get_queue_for_fetching (rpool_t *rpool, void **input_cond, unsign
     #ifdef DEBUG
     if (rpool == NULL)
     {
-        FPRT (stderr, "ERROR: get_queue_for_fetching: rpool is NULL.\n");
+        ERROR_PRTF ("ERROR: get_queue_for_fetching: rpool is NULL.\n");
         return NULL;
     }
     #endif
@@ -627,8 +627,8 @@ rpool_queue_t *get_queue_for_fetching (rpool_t *rpool, void **input_cond, unsign
     // }
     // atomic_fetch_add (&rpool_queue_group->num_fetched, 1);
     unsigned int num_queues = atomic_load (&rpool_queue_group->num_queues);
-    unsigned int num_ase = rpool->ref_ases > 0 ? rpool->ref_ases : 1;
-    unsigned int queue_idx = num_queues * dse_idx / num_ase;
+    unsigned int num_dse = rpool->ref_dses > 0 ? rpool->ref_dses : 1;
+    unsigned int queue_idx = num_queues * dse_idx / num_dse;
     for (int i = 0; i < num_queues; i++)
     {
         rpool_queue_t *rpool_queue = &rpool_queue_group->queue_arr[queue_idx];
@@ -652,7 +652,7 @@ rpool_queue_t *get_queue_for_storing (rpool_t *rpool, unsigned int queue_val, vo
     #ifdef DEBUG
     if (rpool == NULL)
     {
-        FPRT (stderr, "ERROR: get_queue_for_storing: rpool is NULL.\n");
+        ERROR_PRTF ("ERROR: get_queue_for_storing: rpool is NULL.\n");
         return NULL;
     }
     #endif
@@ -686,7 +686,7 @@ rpool_queue_t *get_queue_for_storing (rpool_t *rpool, unsigned int queue_val, vo
     #ifdef DEBUG
     if (num_queues == 0)
     {
-        FPRT (stderr, "ERROR: get_queue_for_storing: num_queues is 0.\n");
+        ERROR_PRTF ("ERROR: get_queue_for_storing: num_queues is 0.\n");
         return NULL;
     }
     #endif
@@ -711,12 +711,12 @@ unsigned int rpool_fetch_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsig
     #ifdef DEBUG
     if (rpool == NULL)
     {
-        FPRT (stderr, "ERROR: rpool_fetch_ninsts: rpool is NULL.\n");
+        ERROR_PRTF ("ERROR: rpool_fetch_ninsts: rpool is NULL.\n");
         return 0;
     }
     if (ninst_ptr_list == NULL)
     {
-        FPRT (stderr, "ERROR: rpool_fetch_ninsts: ninst_ptr_list is NULL.\n");
+        ERROR_PRTF ("ERROR: rpool_fetch_ninsts: ninst_ptr_list is NULL.\n");
         return 0;
     }
     #endif
@@ -737,12 +737,12 @@ void rpool_push_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int n
     #ifdef DEBUG
     if (rpool == NULL)
     {
-        FPRT (stderr, "ERROR: rpool_push_ninsts: rpool is NULL.\n");
+        ERROR_PRTF ("ERROR: rpool_push_ninsts: rpool is NULL.\n");
         return;
     }
     if (ninst_ptr_list == NULL)
     {
-        FPRT (stderr, "ERROR: rpool_push_ninsts: ninst_ptr_list is NULL.\n");
+        ERROR_PRTF ("ERROR: rpool_push_ninsts: ninst_ptr_list is NULL.\n");
         return;
     }
     #endif
@@ -754,13 +754,13 @@ void rpool_push_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int n
     {
         ninst_t *ninst = ninst_ptr_list[i];
         aspen_layer_t *layer = ninst->ldata->layer;
-        unsigned int queue_val = (dse_idx * layer->dnn->num_layers * NUM_LAYERQUEUE_PER_ASE + (layer->layer_idx - 1)) * NUM_QUEUE_PER_LAYER
+        unsigned int queue_val = (dse_idx * layer->dnn->num_layers * NUM_LAYERQUEUE_PER_DSE + (layer->layer_idx - 1)) * NUM_QUEUE_PER_LAYER
             + (ninst->ninst_idx % 8);
         if (queue_val < 0)
             queue_val = 0;
         void* input_conds[NUM_RPOOL_CONDS] = {[RPOOL_DNN] = (void*)layer->dnn,
             [RPOOL_LAYER_TYPE] = (void*)layer->type, [RPOOL_LAYER_IDX] = (void*)(NULL + layer->layer_idx),
-                [RPOOL_NASM] = (void*)ninst->ldata->nasm, [RPOOL_ASE] = NULL};
+                [RPOOL_NASM] = (void*)ninst->ldata->nasm, [RPOOL_DSE] = NULL};
         rpool_queue = get_queue_for_storing (rpool, queue_val, input_conds);
         push_ninsts_to_queue (rpool_queue, &ninst_ptr_list[i], num_ninsts%NINST_PUSH_BATCH_SIZE);
         // atomic_store (&rpool_queue->occupied, 0);
@@ -771,13 +771,13 @@ void rpool_push_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int n
     {
         ninst_t *ninst = ninst_ptr_list[i];
         aspen_layer_t *layer = ninst->ldata->layer;
-        unsigned int queue_val = (dse_idx * layer->dnn->num_layers * NUM_LAYERQUEUE_PER_ASE + (layer->layer_idx - 1)) * NUM_QUEUE_PER_LAYER
+        unsigned int queue_val = (dse_idx * layer->dnn->num_layers * NUM_LAYERQUEUE_PER_DSE + (layer->layer_idx - 1)) * NUM_QUEUE_PER_LAYER
             + (ninst->ninst_idx % 8);
         if (queue_val < 0)
             queue_val = 0;
         void* input_conds[NUM_RPOOL_CONDS] = {[RPOOL_DNN] = (void*)layer->dnn,
             [RPOOL_LAYER_TYPE] = (void*)layer->type, [RPOOL_LAYER_IDX] = (void*)(NULL + layer->layer_idx),
-                [RPOOL_NASM] = (void*)ninst->ldata->nasm, [RPOOL_ASE] = NULL};
+                [RPOOL_NASM] = (void*)ninst->ldata->nasm, [RPOOL_DSE] = NULL};
         rpool_queue = get_queue_for_storing (rpool, queue_val, input_conds);
         push_ninsts_to_queue (rpool_queue, &ninst_ptr_list[i], NINST_PUSH_BATCH_SIZE);
         // atomic_store (&rpool_queue->occupied, 0);
@@ -811,9 +811,9 @@ void print_rpool_info (rpool_t *rpool)
         return;
     }
     unsigned int num_groups = atomic_load (&rpool->num_groups);
-    unsigned int ref_ases = atomic_load (&rpool->ref_ases);
+    unsigned int ref_dses = atomic_load (&rpool->ref_dses);
     printf("//////// Printing Ready Pool Info ////////\n");
-    printf("Number of referencing ASEs: %d\n", ref_ases);
+    printf("Number of referencing dses: %d\n", ref_dses);
     printf("Number of Queue Groups: %d\n", num_groups);
     printf("GPU index: %d\n", rpool->gpu_idx);
     printf("Sum of Queue Weight: %4.4f\nWeights: ", rpool->queue_group_weight_sum);

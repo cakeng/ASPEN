@@ -49,7 +49,7 @@ int main (int argc, char* argv[])
     for (int i = 0; i < number_of_iterations; i++)
     {
         // Reset the Ready Pool.
-        rpool_reset (rpool);
+        rpool_reset_queue (rpool);
         // Reset ninst (ASPEN graph node) states.
         rpool_reset_nasm (rpool, aspen_nasm);
         // Run the DSEs until the NASM is completed.
