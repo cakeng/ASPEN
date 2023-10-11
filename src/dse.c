@@ -7,10 +7,10 @@ void *dse_thread_runtime (void* thread_info)
     dse_t *dse = (dse_t*) thread_info;
     pthread_mutex_lock(&dse->thread_mutex);
     pthread_cond_wait(&dse->thread_cond, &dse->thread_mutex); 
-    while (dse->kill == 0)
+    while (dse->kill == 0 || dse->target != NULL)
     {
         dse_schedule (dse);
-        if (dse->run == 0)
+        if (dse->run == 0 && dse->target == NULL)
             pthread_cond_wait(&dse->thread_cond, &dse->thread_mutex); 
     }
     return NULL;
@@ -33,7 +33,7 @@ void dse_schedule (dse_t *dse)
         target_device = rand() % (max_value - min_value + 1) + min_value;
         dse->target_device = target_device;
     }
-    if (dse->target == NULL)
+    if (dse->target == NULL && (dse->run != 0 && dse->kill == 0))
     {
         if (dse->is_multiuser_case)
         {
@@ -69,6 +69,9 @@ void dse_schedule (dse_t *dse)
         // print_rpool_queue_info (dse->ninst_cache);
         // #endif
     }
+    if (dse->target == NULL)
+        return;
+    // YELLOW_PRTF ("ninst %d(L%d) fetched by DSE %d.\n", dse->target->ninst_idx, dse->target->ldata->layer->layer_idx, dse->thread_id);
     // else if (dse->ninst_cache->num_stored > DSE_NINST_CACHE_BALLANCE + DSE_NINST_CACHE_DIFF)
     // if (dse->ninst_cache->num_stored > 0)
     // {
@@ -114,6 +117,7 @@ void dse_schedule (dse_t *dse)
         dse->target = NULL;
         if (atomic_exchange (&ninst->state, NINST_COMPLETED) == NINST_COMPLETED)
             return;
+        // GREEN_PRTF ("ninst %d(L%d) completed by DSE %d.\n", ninst->ninst_idx, ninst->ldata->layer->layer_idx, dse->thread_id);
 
         // printf("[Device: %d] Fetched ninst %d, dev_to_compute[DEV_SERVER]: %d, dev_to_compute[DEV_EDGE]: %d\n", 
         //                                                                                     target_device,
@@ -167,7 +171,6 @@ void dse_schedule (dse_t *dse)
                     break;
             }
 
-            // GREEN_PRTF ("ninst %d, L%d completed by DSE %d.\n", ninst->ninst_idx, ninst->ldata->layer->layer_idx, dse->thread_id);
             //For logging
             ninst->computed_time = get_time_secs_offset ();
             if (dse->profile_compute) ninst->compute_end = ninst->computed_time;
@@ -204,7 +207,7 @@ void dse_schedule (dse_t *dse)
                     if (num_child_ldata_completed + 1 == parent_ldata->num_child_ldata && (parent_ldata != parent_ldata->nasm->ldata_arr))
                     {
                         free_ldata_out_mat (parent_ldata);
-                        YELLOW_PRTF ("ldata %d ouput freed by DSE %d.\n", parent_ldata->layer->layer_idx, dse->thread_id);
+                        // YELLOW_PRTF ("ldata %d output freed by DSE %d.\n", parent_ldata->layer->layer_idx, dse->thread_id);
                     }
                 }
 
@@ -692,6 +695,7 @@ void update_children (rpool_t *rpool, ninst_t *ninst)
             NINST_STATE old_state = atomic_exchange (&child_ninst->state, NINST_COMPLETED);
             if (old_state == NINST_NOT_READY) 
             {
+                // BLUE_PRTF ("1 Ninst %d(L%d) ready, pushing to rpool\n", child_ninst->ninst_idx, child_ninst->ldata->layer->layer_idx);
                 atomic_store (&child_ninst->state, NINST_READY);
                 rpool_push_ninsts (rpool, &child_ninst, 1, 0);
             }
@@ -742,6 +746,7 @@ void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst)
             NINST_STATE old_state = atomic_exchange (&child_ninst->state, NINST_COMPLETED);
             if (old_state == NINST_NOT_READY) 
             {
+                // BLUE_PRTF ("2 Ninst %d(L%d) ready, pushing to rpool\n", child_ninst->ninst_idx, child_ninst->ldata->layer->layer_idx);
                 atomic_store (&child_ninst->state, NINST_READY);
                 push_ninsts_to_queue (cache, &child_ninst, 1);
             }
@@ -789,14 +794,18 @@ void update_children_but_prioritize_dse_target (rpool_t *rpool, ninst_t *ninst, 
             NINST_STATE old_state = atomic_exchange (&child_ninst->state, NINST_COMPLETED);
             if (old_state == NINST_NOT_READY) 
             {
+                
                 atomic_store (&child_ninst->state, NINST_READY);
                 if (dse->target != NULL)
                 {
                     cache[num_cache++] = child_ninst;
+                    // BLUE_PRTF ("31 Ninst %d(L%d) ready, pushing to rpool\n", child_ninst->ninst_idx, child_ninst->ldata->layer->layer_idx);
                 }
                 else
+                {
+                    // BLUE_PRTF ("32 Ninst %d(L%d) ready, pushing to rpool\n", child_ninst->ninst_idx, child_ninst->ldata->layer->layer_idx);
                     dse->target = child_ninst;
-                
+                }
             }
             else
             {
@@ -846,6 +855,7 @@ void update_children_to_cache_but_prioritize_dse_target (rpool_queue_t *cache, n
             NINST_STATE old_state = atomic_exchange (&child_ninst->state, NINST_COMPLETED);
             if (old_state == NINST_NOT_READY) 
             {
+                // BLUE_PRTF ("4 Ninst %d(L%d) ready, pushing to rpool\n", child_ninst->ninst_idx, child_ninst->ldata->layer->layer_idx);
                 atomic_store (&child_ninst->state, NINST_READY);
                 if (*dse_target != NULL)
                     push_ninsts_to_queue (cache, &child_ninst, 1);

@@ -420,7 +420,7 @@ void receive(networking_engine *net_engine)
                     if (num_child_ldata_completed == parent_ldata->num_child_ldata && (parent_ldata != parent_ldata->nasm->ldata_arr))
                     {
                         free_ldata_out_mat (parent_ldata);
-                        YELLOW_PRTF ("ldata %d output freed by net engine\n", parent_ldata->layer->layer_idx);
+                        // YELLOW_PRTF ("ldata %d output freed by net engine\n", parent_ldata->layer->layer_idx);
                     }
                 }
 

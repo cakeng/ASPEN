@@ -844,7 +844,7 @@ void apu_reset_nasm (nasm_t *nasm)
         if (i != 0)
         {
             free_ldata_out_mat (ldata);
-            YELLOW_PRTF ("ldata %d output freed by apu_reset_nasm\n", ldata->layer->layer_idx);
+            // YELLOW_PRTF ("ldata %d output freed by apu_reset_nasm\n", ldata->layer->layer_idx);
         }
         for (int j = 0; j < ldata->num_ninst; j++)
         {
@@ -991,7 +991,7 @@ void *get_ninst_out_mem (ninst_t *ninst)
 {
     if (ninst->ldata->out_mat == NULL)
     {
-        BLUE_PRTF ("APU: Allocating output memory for ldata %d\n", ninst->ldata->layer->layer_idx);
+        // BLUE_PRTF ("APU: Allocating output memory for ldata %d\n", ninst->ldata->layer->layer_idx);
         alloc_ldata_out_mat (ninst->ldata);
     }
     return (char*)ninst->ldata->out_mat
@@ -1015,7 +1015,7 @@ void destroy_nasm_ldata (nasm_ldata_t *ldata)
     if (ldata->child_ldata_idx_arr != NULL)
         free(ldata->child_ldata_idx_arr);
     free_ldata_out_mat (ldata);
-    YELLOW_PRTF ("ldata %d output freed by destroy_nasm_ldata\n", ldata->layer->layer_idx);
+    // YELLOW_PRTF ("ldata %d output freed by destroy_nasm_ldata\n", ldata->layer->layer_idx);
     for (int i = 0; i < ldata->num_ninst; i++)
     {
         destroy_ninst(&ldata->ninst_arr_start[i]);
