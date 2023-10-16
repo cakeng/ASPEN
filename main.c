@@ -74,55 +74,61 @@ int main (int argc, char **argv)
 {
     print_aspen_build_info();
     
-    char dnn[256] = {0};
-    int batch_size = 4;
-    int number_of_iterations = 1;
-    int num_cores = 1;
-    int num_tiles = 50;
+    int batch_size = 1;
+    int number_of_iterations = 15;
+    int num_cores = 64;
+    int num_tiles = 100;
+    char *target_op = NULL;
+    int num_layers = 24;
+    int width = 64;
+    int channels_M = 64;
 
-    if (argc > 5)
+    if (argc != 9)
     {
-        strcpy (dnn, argv[1]);
-        batch_size = atoi (argv[2]);
-        num_tiles = atoi (argv[3]);
-        number_of_iterations = atoi (argv[4]);
-        num_cores = atoi (argv[5]);
-    }
-    else
-    {
-        printf ("Usage: %s <dnn> <batch_size> <num_tiles> <number_of_iterations> <num_cores>\n", argv[0]);
+        printf ("Usage: %s <batch_size> <num_tiles> <number_of_iterations> <num_cores> <operator> <num_layers> <width> <channels_M>\n", argv[0]);
         exit (0);
     }
+    else 
+    {
+        batch_size = atoi (argv[1]);
+        num_tiles = atoi (argv[2]);
+        number_of_iterations = atoi (argv[3]);
+        num_cores = atoi (argv[4]);
+        target_op = argv[5];
+        num_layers = atoi (argv[6]);
+        width = atoi (argv[7]);
+        channels_M = atoi (argv[8]);
+    }
+
 
     char target_cfg[1024] = {0};
-    if (strcmp(dnn, "bert_base") != 0)
-        sprintf (target_cfg, "data/cfg/%s_aspen.cfg", dnn);
-    else
-        sprintf (target_cfg, "data/cfg/%s_encoder.cfg", dnn);
-    char target_data[1024] = {0};
-    sprintf (target_data, "data/%s_data.bin", dnn);
+    sprintf (target_cfg, "abalation/%s_W%d_CM%d_L%d.cfg", target_op, width, channels_M, num_layers);
     char target_aspen[1024] = {0};
-    sprintf (target_aspen, "data/%s_base.aspen", dnn);
+    sprintf (target_aspen, "abalation/%s_W%d_CM%d_L%d.aspen", target_op, width, channels_M, num_layers);
     char nasm_file_name [1024] = {0};
-    sprintf (nasm_file_name, "data/%s_B%d_T%d.nasm", dnn, batch_size, num_tiles);
+    sprintf (nasm_file_name, "abalation/%s_W%d_CM%d_L%d.nasm", target_op, width, channels_M, num_layers);
 
-    // aspen_dnn_t *target_dnn = apu_create_dnn(target_cfg, target_data);
-    // apu_save_dnn_to_file (target_dnn, target_aspen);
-    // nasm_t *target_nasm = apu_create_nasm (target_dnn, num_tiles, batch_size);
-    // apu_save_nasm_to_file (target_nasm, nasm_file_name);
+    aspen_dnn_t *target_dnn = apu_create_dnn(target_cfg, NULL);
+    apu_save_dnn_to_file (target_dnn, target_aspen);
+    nasm_t *target_nasm = NULL;
+    if (strcmp (target_op, "conv") == 0)
+        target_nasm = apu_create_nasm (target_dnn, num_tiles, batch_size);
+    else
+        target_nasm = apu_create_transformer_nasm (target_dnn, num_tiles, batch_size, width);
+    apu_save_nasm_to_file (target_nasm, nasm_file_name);
 
-    aspen_dnn_t *target_dnn = apu_load_dnn_from_file (target_aspen);
-    if (target_dnn == NULL)
-    {
-        printf ("Unable to load dnn file\n");
-        exit (0);
-    }
-    nasm_t *target_nasm = apu_load_nasm_from_file (nasm_file_name, target_dnn);
-    if (target_nasm == NULL)
-    {
-        printf ("Unable to load nasm file\n");
-        exit (0);
-    }
+    // aspen_dnn_t *target_dnn = apu_load_dnn_from_file (target_aspen);
+    // if (target_dnn == NULL)
+    // {
+    //     printf ("Unable to load dnn file\n");
+    //     exit (0);
+    // }
+    // nasm_t *target_nasm = apu_load_nasm_from_file (nasm_file_name, target_dnn);
+    // if (target_nasm == NULL)
+    // {
+    //     printf ("Unable to load nasm file\n");
+    //     exit (0);
+    // }
   
     rpool_t *rpool = rpool_init ();
     dse_group_t *dse_group = dse_group_init (num_cores);
@@ -144,21 +150,22 @@ int main (int argc, char **argv)
     printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);
     aspen_flush_dynamic_memory ();
 
-    if (strcmp(dnn, "bert_base") != 0)
-    {
-        LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
-        float *layer_output = dse_get_nasm_result (target_nasm, output_order);
-        float *softmax_output = calloc (1000*batch_size, sizeof(float));
-        softmax (layer_output, softmax_output, batch_size, 1000);
-        for (int i = 0; i < batch_size; i++)
-        {
-            get_prob_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
-        }
-        free (layer_output);
-        free (softmax_output);
-    }
-    dse_group_destroy (dse_group);
-    rpool_destroy (rpool);
+    // if (strcmp(dnn, "bert_base") != 0)
+    // {
+    //     LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
+    //     float *layer_output = dse_get_nasm_result (target_nasm, output_order);
+    //     float *softmax_output = calloc (1000*batch_size, sizeof(float));
+    //     softmax (layer_output, softmax_output, batch_size, 1000);
+    //     for (int i = 0; i < batch_size; i++)
+    //     {
+    //         get_prob_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
+    //     }
+    //     free (layer_output);
+    //     free (softmax_output);
+    // }
+    // dse_group_destroy (dse_group);
+    // rpool_destroy (rpool);
+
     apu_destroy_nasm (target_nasm);
     apu_destroy_dnn (target_dnn);
     return 0;

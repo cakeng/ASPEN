@@ -395,6 +395,7 @@ LAYER_ACT get_activation(char *s)
     if (!s) return NO_ACTIVATION;
     if (strcmp(s, "logistic")==0) return SIGMOID;
     if (strcmp(s, "linear")==0) return NO_ACTIVATION;
+    if (strcmp(s, "none")==0) return NO_ACTIVATION;
     if (strcmp(s, "leaky")==0) return LEAKY_RELU;
     if (strcmp(s, "relu")==0) return RELU;
     if (strcmp(s, "elu")==0) return ELU;
