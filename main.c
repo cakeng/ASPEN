@@ -134,7 +134,7 @@ int main (int argc, char **argv)
     dse_group_t *dse_group = dse_group_init (num_cores);
     dse_group_set_rpool (dse_group, rpool);
 
-    rpool_add_nasm (rpool, target_nasm, "data/batched_input_128.bin");
+    rpool_add_nasm (rpool, target_nasm, NULL);
 
     printf ("Running %d iterations\n", number_of_iterations);
     double start_time = get_sec();

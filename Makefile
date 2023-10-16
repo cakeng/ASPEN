@@ -4,7 +4,7 @@ OBJECTS=build_info.o apu.o apu_nasm.o apu_file_io.o input_parser.o darknet_parse
 OBJECTS+=rpool.o dse.o naive_kernels.o tiled_kernels.o avx2_kernels.o neon_kernels.o
 AVX2=1
 NEON=0
-DEBUG=1
+DEBUG=0
 SUPPRESS_OUTPUT=0
 
 CC=gcc
