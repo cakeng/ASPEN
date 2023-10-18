@@ -102,33 +102,35 @@ int main (int argc, char **argv)
 
 
     char target_cfg[1024] = {0};
-    sprintf (target_cfg, "abalation/%s_W%d_CM%d_L%d.cfg", target_op, width, channels_M, num_layers);
+    sprintf (target_cfg, "abalation/%s_W%d_CM%d_L%d_T%d.cfg", target_op, width, channels_M, num_layers, num_tiles);
     char target_aspen[1024] = {0};
-    sprintf (target_aspen, "abalation/%s_W%d_CM%d_L%d.aspen", target_op, width, channels_M, num_layers);
+    sprintf (target_aspen, "abalation/%s_W%d_CM%d_L%d_T%d.aspen", target_op, width, channels_M, num_layers, num_tiles);
     char nasm_file_name [1024] = {0};
-    sprintf (nasm_file_name, "abalation/%s_W%d_CM%d_L%d.nasm", target_op, width, channels_M, num_layers);
+    sprintf (nasm_file_name, "abalation/%s_W%d_CM%d_L%d_T%d.nasm", target_op, width, channels_M, num_layers, num_tiles);
 
-    aspen_dnn_t *target_dnn = apu_create_dnn(target_cfg, NULL);
-    apu_save_dnn_to_file (target_dnn, target_aspen);
-    nasm_t *target_nasm = NULL;
-    if (strcmp (target_op, "conv") == 0)
-        target_nasm = apu_create_nasm (target_dnn, num_tiles, batch_size);
-    else
-        target_nasm = apu_create_transformer_nasm (target_dnn, num_tiles, batch_size, width);
-    apu_save_nasm_to_file (target_nasm, nasm_file_name);
+    // aspen_dnn_t *target_dnn = apu_create_dnn(target_cfg, NULL);
+    // apu_save_dnn_to_file (target_dnn, target_aspen);
+    // nasm_t *target_nasm = NULL;
+    // if (strcmp (target_op, "conv") == 0)
+    //     target_nasm = apu_create_nasm (target_dnn, num_tiles, batch_size);
+    // else
+    //     target_nasm = apu_create_transformer_nasm (target_dnn, num_tiles, batch_size, width);
+    // apu_save_nasm_to_file (target_nasm, nasm_file_name);
 
-    // aspen_dnn_t *target_dnn = apu_load_dnn_from_file (target_aspen);
-    // if (target_dnn == NULL)
-    // {
-    //     printf ("Unable to load dnn file\n");
-    //     exit (0);
-    // }
-    // nasm_t *target_nasm = apu_load_nasm_from_file (nasm_file_name, target_dnn);
-    // if (target_nasm == NULL)
-    // {
-    //     printf ("Unable to load nasm file\n");
-    //     exit (0);
-    // }
+    aspen_dnn_t *target_dnn = apu_load_dnn_from_file (target_aspen);
+    if (target_dnn == NULL)
+    {
+        printf ("Unable to load dnn file\n");
+        exit (0);
+    }
+    nasm_t *target_nasm = apu_load_nasm_from_file (nasm_file_name, target_dnn);
+    if (target_nasm == NULL)
+    {
+        printf ("Unable to load nasm file\n");
+        exit (0);
+    }
+
+    print_nasm_info (target_nasm, 1, 0);
   
     rpool_t *rpool = rpool_init ();
     dse_group_t *dse_group = dse_group_init (num_cores);

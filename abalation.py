@@ -4,16 +4,22 @@ import subprocess
 import re
 
 op_list = ["conv", "gemm"]
-num_tiles = [1, 32, 64, 96, 128, 160, 192, 224, 256]
-width_list = [32, 45, 64, 90, 128, 181, 256, 362, 512]
+num_tiles = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512]
+width_list = [32, 45, 64, 90, 128, 181, 256, 362, 512, 724, 1024]
 num_layer_list = [1, 2, 4, 8, 16, 32, 64, 128, 256]
-cm_list = [32, 45, 64, 90, 128, 181, 256, 362, 512]
+cm_list = [32, 45, 64, 90, 128, 181, 256, 362, 512, 724, 1024]
+
+num_tile_fixed = 128
+width_fixed = 128
+num_layer_fixed = 32
+cm_fixed = 256
+
 output_log = "abalation.log"
 output_csv = "abalation.csv"
 dir_name = "abalation"
 
 def run_abalation (op, batch, num_tile, width, num_layer, cm):
-    cfg_name = op + "_W" + str(width) + "_CM" + str(cm) + "_L" + str(num_layer) + ".cfg"
+    cfg_name = op + "_W" + str(width) + "_CM" + str(cm) + "_L" + str(num_layer) + "_T" + str(num_tile) + ".cfg"
     if op == "conv":
         with open (dir_name + "/" + cfg_name, "w") as f:
             f.write ("[net]\n")
@@ -37,8 +43,10 @@ def run_abalation (op, batch, num_tile, width, num_layer, cm):
                 f.write ("[matmul]" + "\n")
                 f.write ("M=" + str(cm) + "\n")
                 f.write ("activation=linear" + "\n\n")
-
-    cmd = "./main " + str(batch) + " " + str(num_tile) + " 100 64 " + op + " " + str(num_layer) + " " + str(width) + " " + str(cm) 
+    if num_tile != num_tile_fixed:
+        cmd = "./main " + str(batch) + " " + str(num_tile) + " 100 64 " + op + " " + str(num_layer) + " " + str(width) + " " + str(cm) 
+    else:
+        cmd = "./main_tiles " + str(batch) + " " + str(num_tile) + " 100 64 " + op + " " + str(num_layer) + " " + str(width) + " " + str(cm)
     print (cmd + "\n")
     result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     result_str = result.stdout.decode('utf-8')
@@ -72,36 +80,36 @@ if __name__ == "__main__":
     abal_idx = 0
     for op in op_list:
         for num_tile in num_tiles:
-            width = 128
-            num_layer = 32
-            cm = 128
+            width = width_fixed
+            num_layer = num_layer_fixed
+            cm = cm_fixed
             print ("Abalation test " + str(abal_idx) + "/" + str(num_abalation) + " started at " + str(datetime.datetime.now()) + "\n")
             with open(output_log, "a") as f:
                 f.write ("Abalation test " + str(abal_idx) + "/" + str(num_abalation) + " started at " + str(datetime.datetime.now()) + "\n")
             abal_idx += 1
             run_abalation (op, 1, num_tile, width, num_layer, cm)
         for width in width_list:
-            num_tile = 128
-            num_layer = 32
-            cm = 128
+            num_tile = num_tile_fixed
+            num_layer = num_layer_fixed
+            cm = cm_fixed
             print ("Abalation test " + str(abal_idx) + "/" + str(num_abalation) + " started at " + str(datetime.datetime.now()) + "\n")
             with open(output_log, "a") as f:
                 f.write ("Abalation test " + str(abal_idx) + "/" + str(num_abalation) + " started at " + str(datetime.datetime.now()) + "\n")
             abal_idx += 1
             run_abalation (op, 1, num_tile, width, num_layer, cm)
         for num_layer in num_layer_list:
-            num_tile = 128
-            width = 128
-            cm = 128
+            num_tile = num_tile_fixed
+            width = width_fixed
+            cm = cm_fixed
             print ("Abalation test " + str(abal_idx) + "/" + str(num_abalation) + " started at " + str(datetime.datetime.now()) + "\n")
             with open(output_log, "a") as f:
                 f.write ("Abalation test " + str(abal_idx) + "/" + str(num_abalation) + " started at " + str(datetime.datetime.now()) + "\n")
             abal_idx += 1
             run_abalation (op, 1, num_tile, width, num_layer, cm)
         for cm in cm_list:
-            num_tile = 128
-            width = 128
-            num_layer = 32
+            num_tile = num_tile_fixed
+            width = width_fixed
+            num_layer = num_layer_fixed
             print ("Abalation test " + str(abal_idx) + "/" + str(num_abalation) + " started at " + str(datetime.datetime.now()) + "\n")
             with open(output_log, "a") as f:
                 f.write ("Abalation test " + str(abal_idx) + "/" + str(num_abalation) + " started at " + str(datetime.datetime.now()) + "\n")
