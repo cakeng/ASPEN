@@ -115,9 +115,15 @@ int main (int argc, char **argv)
     LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
     void *layer_output = NULL;
     size_t output_size = dse_get_nasm_result (target_nasm, output_order, &layer_output);
-    
-
-
+    char output_file_name [1024] = {0};
+    if (num_seq == -1)
+        sprintf (output_file_name, "ASPEN_%s_B%d.out", dnn, batch_size);
+    else
+        sprintf (output_file_name, "ASPEN_%s_S%d_B%d.out", dnn, num_seq, batch_size);
+    FILE *output_file = fopen(output_file_name, "wb");
+    printf ("Saving output of size %ld to %s\n", output_size, output_file_name);
+    fwrite (layer_output, output_size, 1, output_file);
+    fclose (output_file);
     free (layer_output);
 
 
