@@ -295,7 +295,9 @@ void receive(networking_engine *net_engine)
             // PRTF("Networking: RX Command %d received - ", payload_size);
             if (payload_size == RX_STOP_SIGNAL)
             {
+                #ifdef SUPPRESS_OUTPUT
                 PRTF("RX stop signal received.\n");
+                #endif
                 atomic_store (&net_engine->rx_run, 0);
                 atomic_store (&net_engine->nasm->completed, 1);
                 pthread_mutex_lock (&net_engine->nasm->nasm_mutex);

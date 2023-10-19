@@ -440,7 +440,9 @@ int main(int argc, char **argv)
         for(int inf_num = 0; inf_num < inference_repeat_num; inf_num++)
         {
             // synchronize
+            #ifdef SUPPRESS_OUTPUT
             printf("[Inference %d] inference: %d/%d\n", inf_num+1, inf_num+1, inference_repeat_num);
+            #endif
             int sync_edge_device[SCHEDULE_MAX_DEVICES] = {0, };
             int num_sync_edges = 0;
 
@@ -455,9 +457,10 @@ int main(int argc, char **argv)
                             float time_offset = profile_network_sync(device_mode, server_sock, client_sock_arr[edge_id]);
                             set_time_offset(time_offset, device_mode);
                             read_n(client_sock_arr[edge_id], &connection_key, sizeof(int));
-                            
+                            #ifdef SUPPRESS_OUTPUT
                             printf("\t[Edge Device %d]connection key: %d\n", edge_id, connection_key);
                             printf("\t[Edge Device %d]time_offset: %f\n", edge_id, time_offset);
+                            #endif
 
                             sync_edge_device[edge_id] = 1;
                             num_sync_edges++;
@@ -476,8 +479,10 @@ int main(int argc, char **argv)
                     float time_offset = profile_network_sync(device_mode, server_sock, 0);
                     set_time_offset(time_offset, device_mode);
                     write_n(server_sock, &connection_key, sizeof(int));
+                    #ifdef SUPPRESS_OUTPUT
                     printf("\t[Edge Device %d]connection key: %d\n", device_idx, connection_key);
                     printf("\t[Edge Device %d]time_offset: %f\n", device_idx, time_offset);
+                    #endif
                     read_n(server_sock, &num_sync_edges, sizeof(int));
                 }
             }
@@ -485,7 +490,9 @@ int main(int argc, char **argv)
             // Communicate profiles
             if(inf_num > 0)
             {
+                #ifdef SUPPRESS_OUTPUT
                 printf("\t[Communicate profiles]\n");
+                #endif
                 for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
                 {
                     if(!strcmp(schedule_policy, "spinn") || !strcmp(schedule_policy, "spinn+pipeline"))
@@ -539,12 +546,16 @@ int main(int argc, char **argv)
                         if(device_mode == DEV_SERVER)
                         {
                             read_n(client_sock_arr[edge_id], &sched_sequential_idx, sizeof(int));
-                            printf("\t[Edge Device %d] Split Layer:%d Total: %d\n", edge_id, sched_sequential_idx, target_nasm[edge_id]->num_ldata);
+                            #ifdef SUPPRESS_OUTPUT
+                            PRTF("\t[Edge Device %d] Split Layer:%d Total: %d\n", edge_id, sched_sequential_idx, target_nasm[edge_id]->num_ldata);
+                            #endif
                         }
                         else if(device_mode == DEV_EDGE)
                         {
                             sched_sequential_idx = spinn_schedule_layer(spinn_scheduler, target_nasm[edge_id], edge_id);
-                            printf("\t[Edge Device %d] Split Layer: %d Total: %d\n", edge_id, sched_sequential_idx, target_nasm[edge_id]->num_ldata);
+                            #ifdef SUPPRESS_OUTPUT
+                            PRTF("\t[Edge Device %d] Split Layer: %d Total: %d\n", edge_id, sched_sequential_idx, target_nasm[edge_id]->num_ldata);
+                            #endif
                             write_n(server_sock, &sched_sequential_idx, sizeof(int));   
                         }
                         init_sequential_offload(target_nasm[edge_id], sched_sequential_idx, edge_id, num_edge_devices); // server idx == num_edge_devices
@@ -592,7 +603,9 @@ int main(int argc, char **argv)
 
             if (!(device_mode == DEV_SERVER && is_conventional)) 
             {
-                printf ("[Inference %d] Running DSEs...\n", inf_num+1);
+                #ifdef SUPPRESS_OUTPUT
+                PRTF("[Inference %d] Running DSEs...\n", inf_num+1);
+                #endif
                 dse_group_run (dse_group);
             }
 
@@ -619,7 +632,9 @@ int main(int argc, char **argv)
             {
                 if(device_mode == DEV_SERVER || device_idx == edge_id)
                 {
-                    printf("---------------------[Edge %d] Inference result---------------------\n", edge_id);
+                    #ifdef SUPPRESS_OUTPUT
+                    PRTF("---------------------[Edge %d] Inference result---------------------\n", edge_id);
+                    #endif
                     LAYER_PARAMS output_order_cnn[] = {BATCH, OUT_H, OUT_W, OUT_C};  // for CNN
                     LAYER_PARAMS output_order_transformer[] = {BATCH, MAT_N, MAT_M};    // for Transformer
                     LAYER_PARAMS *output_order_param = !strcmp(output_order, "cnn") ? output_order_cnn : output_order_transformer;
@@ -628,7 +643,9 @@ int main(int argc, char **argv)
                     naive_softmax (layer_output, softmax_output, target_nasm[edge_id]->batch_size, 1000);
                     for (int i = 0; i < target_nasm[edge_id]->batch_size; i++)
                     {
+                        #ifdef SUPPRESS_OUTPUT
                         get_probability_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
+                        #endif
                     }
                     free (layer_output);
                     free (softmax_output);
@@ -653,7 +670,9 @@ int main(int argc, char **argv)
                         if(target_nasm[edge_id]->ninst_arr[j].received_time != 0)
                             total_received++;
                     }
-                    printf("\t[Edge %d] Total received : (%d/%d)\n", edge_id, total_received, target_nasm[edge_id]->num_ninst);
+                    #ifdef SUPPRESS_OUTPUT
+                    PRTF("\t[Edge %d] Total received : (%d/%d)\n", edge_id, total_received, target_nasm[edge_id]->num_ninst);
+                    #endif
                 }
             }
         }

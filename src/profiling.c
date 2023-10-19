@@ -125,7 +125,9 @@ float profile_network_sync(DEVICE_MODE device_mode, int server_sock, int client_
 
     if (device_mode == DEV_SERVER) 
     {
+        #ifdef SUPPRESS_OUTPUT
         printf("\tprofiling as SERVER...\n");
+        #endif
         read_n(client_sock, &t0, sizeof(float));
         t1 = get_time_secs();
         write_n(client_sock, &t1, sizeof(float));
@@ -135,7 +137,9 @@ float profile_network_sync(DEVICE_MODE device_mode, int server_sock, int client_
     }
     else 
     {
+        #ifdef SUPPRESS_OUTPUT
         printf("\tprofiling as EDGE...\n");
+        #endif
         t0 = get_time_secs();
         write_n(server_sock, &t0, sizeof(float));
         read_n(server_sock, &t1, sizeof(float));
