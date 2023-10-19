@@ -432,7 +432,10 @@ int main(int argc, char **argv)
         float prev_edge_latency = 0.0;
         float prev_server_latency = 0.0;
         float prev_bandwidth = 0.0;
-        float max_recv_time, min_sent_time, max_computed_time, min_computed_time;
+        float max_recv_time = 0.0;
+        float min_sent_time = 0.0;
+        float max_computed_time = 0.0;
+        float min_computed_time = 0.0;
 
         for(int inf_num = 0; inf_num < inference_repeat_num; inf_num++)
         {
@@ -512,7 +515,7 @@ int main(int argc, char **argv)
                             read_n(server_sock, &prev_server_latency, sizeof(float));
                             read_n(server_sock, &max_recv_time, sizeof(float));
 
-                            prev_bandwidth = spinn_scheduler->data_size_split_candidates[edge_id][idx] / (max_recv_time - min_sent_time) / 125;
+                            prev_bandwidth = spinn_scheduler->data_size_split_candidates[edge_id][idx] / (max_recv_time - min_sent_time) / 125000;
                             spinn_update_profile(spinn_scheduler, spinn_scheduler->rtt[edge_id], prev_bandwidth, prev_edge_latency, prev_server_latency, edge_id);
                         }
                     }

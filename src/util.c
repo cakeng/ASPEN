@@ -1014,7 +1014,7 @@ float get_min_sent_time(nasm_t* nasm)
         if(nasm->ninst_arr[i].sent_time != 0)
         {
             if(nasm->ninst_arr[i].sent_time < min_sent_time)
-                min_sent_time = nasm->ninst_arr[i].received_time;
+                min_sent_time = nasm->ninst_arr[i].sent_time;
         }
     }
     return min_sent_time;

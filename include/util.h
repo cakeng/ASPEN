@@ -62,6 +62,10 @@ double get_time_secs_offset();
 void get_elapsed_time (char *name);
 void get_elapsed_time_only();
 void set_elapsed_time_start();
+float get_max_recv_time(nasm_t* nasm);
+float get_min_sent_time(nasm_t* nasm);
+float get_max_computed_time(nasm_t* nasm);
+float get_min_computed_time(nasm_t* nasm);
 
 void print_float_array (float *input, int num, int newline_num);
 void print_float_tensor (float *input, int n, int c, int h, int w);
