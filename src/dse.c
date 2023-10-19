@@ -25,85 +25,85 @@ void dse_schedule (dse_t *dse)
     if (dse->target == NULL)
         return;
 
-        // Execute.
-        ninst_t *ninst = dse->target;
-        dse->target = NULL;
-        #ifdef DEBUG 
-        if (ninst->state != NINST_READY)
+    // Execute.
+    ninst_t *ninst = dse->target;
+    dse->target = NULL;
+    #ifdef DEBUG 
+    if (ninst->state != NINST_READY)
+    {
+        ERROR_PRTF ("Error: ninst->state != NINST_READY in dse_thread_runtime()\n");
+        assert (0);
+    }
+    #endif
+    switch (ninst->ldata->layer->type)
+    {
+        case CONV_LAYER:
+            tiled_conv2d (ninst, dse);
+            break;
+        case MAXPOOL_LAYER:
+            tiled_maxpool2d (ninst, dse);
+            break;
+        case AVGPOOL_LAYER:
+            tiled_avgpool2d (ninst, dse);
+            break;
+        case FC_LAYER:
+            tiled_fully_connected (ninst, dse);
+            break;
+        case RESIDUAL_LAYER:
+            tiled_residual (ninst, dse);
+            break;
+        case SOFTMAX_LAYER:
+            tiled_softmax (ninst, dse);
+            break;
+        case YOLO_LAYER:
+            tiled_yolo (ninst, dse);
+            break;
+        case APPEND_LAYER:
+            tiled_append (ninst, dse);
+            break;
+        case MATMUL_LAYER:
+            tiled_matmul (ninst, dse);
+            break;
+        case LAYERNORM_LAYER:
+            tiled_layernorm (ninst, dse);
+            break;
+        case K_ATTENTION_LAYER:
+            tiled_k_attention (ninst, dse);
+            break;
+        case V_ATTENTION_LAYER:
+            tiled_v_attention (ninst, dse);
+            break;
+        default:
+            break;
+    }
+    ninst->state = NINST_COMPLETED;
+    unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
+    if (num_ninst_completed == ninst->ldata->num_ninst - 1)
+    {
+        for (int pidx = 0; pidx < NUM_PARENT_ELEMENTS; pidx++)
         {
-            ERROR_PRTF ("Error: ninst->state != NINST_READY in dse_thread_runtime()\n");
-            assert (0);
+            if (ninst->ldata->parent_ldata_idx_arr[pidx] == -1)
+                continue;
+            nasm_ldata_t *parent_ldata = &ninst->ldata->nasm->ldata_arr[ninst->ldata->parent_ldata_idx_arr[pidx]];
+            unsigned int num_child_ldata_completed = atomic_fetch_add (&parent_ldata->num_child_ldata_completed, 1);
+            if (num_child_ldata_completed + 1 == parent_ldata->num_child_ldata && (parent_ldata != parent_ldata->nasm->ldata_arr))
+                free_ldata_out_mat (parent_ldata);
         }
-        #endif
-        switch (ninst->ldata->layer->type)
+        
+        nasm_t *nasm = ninst->ldata->nasm;
+        unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
+        if (num_ldata_completed == nasm->num_ldata - 1)
         {
-            case CONV_LAYER:
-                tiled_conv2d (ninst, dse);
-                break;
-            case MAXPOOL_LAYER:
-                tiled_maxpool2d (ninst, dse);
-                break;
-            case AVGPOOL_LAYER:
-                tiled_avgpool2d (ninst, dse);
-                break;
-            case FC_LAYER:
-                tiled_fully_connected (ninst, dse);
-                break;
-            case RESIDUAL_LAYER:
-                tiled_residual (ninst, dse);
-                break;
-            case SOFTMAX_LAYER:
-                tiled_softmax (ninst, dse);
-                break;
-            case YOLO_LAYER:
-                tiled_yolo (ninst, dse);
-                break;
-            case APPEND_LAYER:
-                tiled_append (ninst, dse);
-                break;
-            case MATMUL_LAYER:
-                tiled_matmul (ninst, dse);
-                break;
-            case LAYERNORM_LAYER:
-                tiled_layernorm (ninst, dse);
-                break;
-            case K_ATTENTION_LAYER:
-                tiled_k_attention (ninst, dse);
-                break;
-            case V_ATTENTION_LAYER:
-                tiled_v_attention (ninst, dse);
-                break;
-            default:
-                break;
+            // All layers of the nasm is completed.
+            atomic_store (&nasm->completed, 1);
+            rpool_queue_group_t *rpool_queue_group 
+                = get_queue_group_from_nasm (dse->rpool, ninst->ldata->nasm);
+            pthread_mutex_lock (&nasm->nasm_mutex);
+            pthread_cond_signal (&nasm->nasm_cond);
+            pthread_mutex_unlock (&nasm->nasm_mutex);
         }
-        ninst->state = NINST_COMPLETED;
-        unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
-        if (num_ninst_completed == ninst->ldata->num_ninst - 1)
-        {
-            for (int pidx = 0; pidx < NUM_PARENT_ELEMENTS; pidx++)
-            {
-                if (ninst->ldata->parent_ldata_idx_arr[pidx] == -1)
-                    continue;
-                nasm_ldata_t *parent_ldata = &ninst->ldata->nasm->ldata_arr[ninst->ldata->parent_ldata_idx_arr[pidx]];
-                unsigned int num_child_ldata_completed = atomic_fetch_add (&parent_ldata->num_child_ldata_completed, 1);
-                if (num_child_ldata_completed + 1 == parent_ldata->num_child_ldata && (parent_ldata != parent_ldata->nasm->ldata_arr))
-                    free_ldata_out_mat (parent_ldata);
-            }
-            
-            nasm_t *nasm = ninst->ldata->nasm;
-            unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
-            if (num_ldata_completed == nasm->num_ldata - 1)
-            {
-                // All layers of the nasm is completed.
-                atomic_store (&nasm->completed, 1);
-                rpool_queue_group_t *rpool_queue_group 
-                    = get_queue_group_from_nasm (dse->rpool, ninst->ldata->nasm);
-                pthread_mutex_lock (&nasm->nasm_mutex);
-                pthread_cond_signal (&nasm->nasm_cond);
-                pthread_mutex_unlock (&nasm->nasm_mutex);
-            }
-        }
-        update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
+    }
+    update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
 }
 
 dse_group_t *dse_group_init (unsigned int num_dse)

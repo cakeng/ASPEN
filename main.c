@@ -74,6 +74,7 @@ int main (int argc, char **argv)
 {
     print_aspen_build_info();
     
+    char* data_dir = NULL;
     int batch_size = 1;
     int number_of_iterations = 15;
     int num_cores = 64;
@@ -83,54 +84,55 @@ int main (int argc, char **argv)
     int width = 64;
     int channels_M = 64;
 
-    if (argc != 9)
+    if (argc != 10)
     {
-        printf ("Usage: %s <batch_size> <num_tiles> <number_of_iterations> <num_cores> <operator> <num_layers> <width> <channels_M>\n", argv[0]);
+        printf ("Usage: %s <data_dir> <batch_size> <num_tiles> <number_of_iterations> <num_cores> <operator> <num_layers> <width> <channels_M>\n", argv[0]);
         exit (0);
     }
     else 
     {
-        batch_size = atoi (argv[1]);
-        num_tiles = atoi (argv[2]);
-        number_of_iterations = atoi (argv[3]);
-        num_cores = atoi (argv[4]);
-        target_op = argv[5];
-        num_layers = atoi (argv[6]);
-        width = atoi (argv[7]);
-        channels_M = atoi (argv[8]);
+        data_dir = argv[1];
+        batch_size = atoi (argv[2]);
+        num_tiles = atoi (argv[3]);
+        number_of_iterations = atoi (argv[4]);
+        num_cores = atoi (argv[5]);
+        target_op = argv[6];
+        num_layers = atoi (argv[7]);
+        width = atoi (argv[8]);
+        channels_M = atoi (argv[9]);
     }
 
 
     char target_cfg[1024] = {0};
-    sprintf (target_cfg, "abalation/%s_W%d_CM%d_L%d_T%d.cfg", target_op, width, channels_M, num_layers, num_tiles);
+    sprintf (target_cfg, "%s/%s_W%d_CM%d_L%d_T%d.cfg", data_dir, target_op, width, channels_M, num_layers, num_tiles);
     char target_aspen[1024] = {0};
-    sprintf (target_aspen, "abalation/%s_W%d_CM%d_L%d_T%d.aspen", target_op, width, channels_M, num_layers, num_tiles);
+    sprintf (target_aspen, "%s/%s_W%d_CM%d_L%d_T%d.aspen", data_dir, target_op, width, channels_M, num_layers, num_tiles);
     char nasm_file_name [1024] = {0};
-    sprintf (nasm_file_name, "abalation/%s_W%d_CM%d_L%d_T%d.nasm", target_op, width, channels_M, num_layers, num_tiles);
+    sprintf (nasm_file_name, "%s/%s_W%d_CM%d_L%d_T%d.nasm", data_dir, target_op, width, channels_M, num_layers, num_tiles);
 
-    // aspen_dnn_t *target_dnn = apu_create_dnn(target_cfg, NULL);
-    // apu_save_dnn_to_file (target_dnn, target_aspen);
-    // nasm_t *target_nasm = NULL;
-    // if (strcmp (target_op, "conv") == 0)
-    //     target_nasm = apu_create_nasm (target_dnn, num_tiles, batch_size);
-    // else
-    //     target_nasm = apu_create_transformer_nasm (target_dnn, num_tiles, batch_size, width);
-    // apu_save_nasm_to_file (target_nasm, nasm_file_name);
+    aspen_dnn_t *target_dnn = apu_create_dnn(target_cfg, NULL);
+    apu_save_dnn_to_file (target_dnn, target_aspen);
+    nasm_t *target_nasm = NULL;
+    if (strcmp (target_op, "conv") == 0)
+        target_nasm = apu_create_nasm (target_dnn, num_tiles, batch_size);
+    else
+        target_nasm = apu_create_transformer_nasm (target_dnn, num_tiles, batch_size, width);
+    apu_save_nasm_to_file (target_nasm, nasm_file_name);
 
-    aspen_dnn_t *target_dnn = apu_load_dnn_from_file (target_aspen);
-    if (target_dnn == NULL)
-    {
-        printf ("Unable to load dnn file\n");
-        exit (0);
-    }
-    nasm_t *target_nasm = apu_load_nasm_from_file (nasm_file_name, target_dnn);
-    if (target_nasm == NULL)
-    {
-        printf ("Unable to load nasm file\n");
-        exit (0);
-    }
+    // aspen_dnn_t *target_dnn = apu_load_dnn_from_file (target_aspen);
+    // if (target_dnn == NULL)
+    // {
+    //     printf ("Unable to load dnn file\n");
+    //     exit (0);
+    // }
+    // nasm_t *target_nasm = apu_load_nasm_from_file (nasm_file_name, target_dnn);
+    // if (target_nasm == NULL)
+    // {
+    //     printf ("Unable to load nasm file\n");
+    //     exit (0);
+    // }
 
-    print_nasm_info (target_nasm, 1, 0);
+    // print_nasm_info (target_nasm, 1, 0);
   
     rpool_t *rpool = rpool_init ();
     dse_group_t *dse_group = dse_group_init (num_cores);

@@ -4,7 +4,7 @@ import subprocess
 import re
 
 op_list = ["conv", "gemm"]
-num_tiles = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512]
+num_tiles = [2, 4, 8, 16, 32, 64, 128, 256, 512]
 width_list = [32, 45, 64, 90, 128, 181, 256, 362, 512, 724, 1024]
 num_layer_list = [1, 2, 4, 8, 16, 32, 64, 128, 256]
 cm_list = [32, 45, 64, 90, 128, 181, 256, 362, 512, 724, 1024]
@@ -14,9 +14,9 @@ width_fixed = 128
 num_layer_fixed = 32
 cm_fixed = 256
 
-output_log = "abalation.log"
-output_csv = "abalation.csv"
-dir_name = "abalation"
+dir_name = "ablation_data"
+output_log = dir_name + "/ablation.log"
+output_csv = dir_name + "/ablation.csv"
 
 def run_abalation (op, batch, num_tile, width, num_layer, cm):
     cfg_name = op + "_W" + str(width) + "_CM" + str(cm) + "_L" + str(num_layer) + "_T" + str(num_tile) + ".cfg"
@@ -43,10 +43,10 @@ def run_abalation (op, batch, num_tile, width, num_layer, cm):
                 f.write ("[matmul]" + "\n")
                 f.write ("M=" + str(cm) + "\n")
                 f.write ("activation=linear" + "\n\n")
-    if num_tile != num_tile_fixed:
-        cmd = "./main " + str(batch) + " " + str(num_tile) + " 100 64 " + op + " " + str(num_layer) + " " + str(width) + " " + str(cm) 
+    if num_tile == num_tile_fixed:
+        cmd = "./ablation " + dir_name + " " + str(batch) + " " + str(num_tile) + " 100 64 " + op + " " + str(num_layer) + " " + str(width) + " " + str(cm) 
     else:
-        cmd = "./main_tiles " + str(batch) + " " + str(num_tile) + " 100 64 " + op + " " + str(num_layer) + " " + str(width) + " " + str(cm)
+        cmd = "./ablation_tiles " + dir_name + " " + str(batch) + " " + str(num_tile) + " 100 64 " + op + " " + str(num_layer) + " " + str(width) + " " + str(cm)
     print (cmd + "\n")
     result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     result_str = result.stdout.decode('utf-8')
