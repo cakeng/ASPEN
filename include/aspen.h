@@ -39,11 +39,19 @@
 #define CUDAGRAPH_MAX_ARG_NUM (16)
 
 #if SUPPRESS_OUTPUT == 0
-#define PRT(...) printf(__VA_ARGS__) 
-#define FPRT(...) fprintf(__VA_ARGS__) 
+#define PRTF(...) printf(__VA_ARGS__) 
+#define ERROR_PRTF(...) {fprintf(stderr, "\033[0;31m"); fprintf(stderr, "(%s:%d)", __FILE__, __LINE__); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\033[0m");}
+#define RED_PRTF(...) {printf("\033[0;31m"); printf(__VA_ARGS__); printf("\033[0m");}
+#define GREEN_PRTF(...) {printf("\033[0;32m"); printf(__VA_ARGS__); printf("\033[0m");}
+#define YELLOW_PRTF(...) {printf("\033[0;33m"); printf(__VA_ARGS__); printf("\033[0m");}
+#define BLUE_PRTF(...) {printf("\033[0;34m"); printf(__VA_ARGS__); printf("\033[0m");}
 #else
-#define PRT(...)
-#define FPRT(...) fprintf(stderr, "////An error has occurred////\n") 
+#define PRTF(...)
+#define ERROR_PRTF(...) {fprintf(stderr, "\033[0;31m"); fprintf(stderr, "ASPEN: An error has occured."); fprintf(stderr, "\033[0m");}
+#define RED_PRTF(...)
+#define GREEN_PRTF(...)
+#define YELLOW_PRTF(...)
+#define BLUE_PRTF(...)
 #endif
 
 #ifdef GPU
@@ -53,7 +61,7 @@ static inline cudaError_t check_CUDA(cudaError_t result)
 #if defined(DEBUG) || defined(_DEBUG)
   if (result != cudaSuccess) 
   {
-    FPRT(stderr, "CUDA Runtime Error: %s\n", cudaGetErrorString(result));
+    ERROR_PRTF ( "CUDA Runtime Error: %s\n", cudaGetErrorString(result));
   }
 #endif
   return result;
@@ -81,9 +89,9 @@ typedef enum {NULL_TENSOR, OUTPUT_TENSOR, INPUT_TENSOR, WEIGHT_TENSOR, BIAS_TENS
     BN_VAR_TENSOR, BN_MEAN_TENSOR, BN_WEIGHT_TENSOR, NUM_TENSORS} LAYER_TENSORS;
 typedef enum {PARENT_NONE, PARENT_0, PARENT_1, PARENT_WEIGHT, NUM_PARENT_ELEMENTS} LAYER_PARENTS;
 typedef enum {NO_ACTIVATION, SIGMOID, LINEAR, TANH, RELU, LEAKY_RELU, ELU, SELU, GELU, GELU_ACCURATE, NUM_ACTIVATIONS} LAYER_ACT;
-typedef enum {RPOOL_DNN, RPOOL_LAYER_TYPE, RPOOL_LAYER_IDX, RPOOL_NASM, RPOOL_ASE, NUM_RPOOL_CONDS} RPOOL_CONDS;
+typedef enum {RPOOL_DNN, RPOOL_LAYER_TYPE, RPOOL_LAYER_IDX, RPOOL_NASM, RPOOL_DSE, NUM_RPOOL_CONDS} RPOOL_CONDS;
 
-typedef enum {DEV_SERVER, DEV_EDGE, DEV_LOCAL} DEVICE_MODE;
+typedef enum DEVICE_MODE {DEV_SERVER, DEV_EDGE, DEV_LOCAL} DEVICE_MODE;
 
 extern char *ninst_state_str [NUM_NINST_STATES];
 extern char *layer_type_str [NUM_LAYER_ELEMENTS];
@@ -141,7 +149,7 @@ void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, char *input_filename);
 void rpool_reset_queue (rpool_t *rpool);
 void rpool_reset_nasm (rpool_t *rpool, nasm_t *nasm);
 
-dse_group_t *dse_group_init (unsigned int num_ase, int gpu_idx);
+dse_group_t *dse_group_init (unsigned int num_des, int gpu_idx);
 void dse_group_set_rpool (dse_group_t *dse_group, rpool_t *rpool);
 void dse_group_destroy (dse_group_t *dse_group);
 void dse_group_run (dse_group_t *dse_group);

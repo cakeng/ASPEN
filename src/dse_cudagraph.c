@@ -5,12 +5,12 @@ void generate_cudagraph (nasm_t *nasm)
     #ifdef GPU
     if (nasm->cudagraph_instantiated != 0)
     {   
-        FPRT (stderr, "Cudagraph already instantiated.\n");
+        ERROR_PRTF ("Cudagraph already instantiated.\n");
         return;
     }
     if (check_CUDA(cudaGraphCreate(&nasm->cuda_graph, 0)) != cudaSuccess)
     {
-        FPRT (stderr, "Failed to create cudaGraph.\n");
+        ERROR_PRTF ("Failed to create cudaGraph.\n");
         return;
     }
 
@@ -60,7 +60,7 @@ void generate_cudagraph (nasm_t *nasm)
     }
     if (check_CUDA(cudaGraphInstantiate(&nasm->cuda_graph_exec, nasm->cuda_graph, 0)) != cudaSuccess)
     {
-        FPRT (stderr, "Failed to instantiate cudaGraph.\n");
+        ERROR_PRTF ("Failed to instantiate cudaGraph.\n");
         return;
     }
     nasm->cudagraph_instantiated = 1;
@@ -71,12 +71,12 @@ void run_cudagraph (nasm_t *nasm)
     #ifdef GPU
     if (nasm->cudagraph_instantiated == 0)
     {
-        FPRT (stderr, "Cudagraph not instantiated.\n");
+        ERROR_PRTF ("Cudagraph not instantiated.\n");
         return;
     }
     if (check_CUDA(cudaGraphLaunch(nasm->cuda_graph_exec, aspen_CUDA_streams[nasm->gpu_idx][GPU_GRAPH_RUN_STREAM])) != cudaSuccess)
     {
-        FPRT (stderr, "Failed to launch cudaGraph.\n");
+        ERROR_PRTF ("Failed to launch cudaGraph.\n");
         return;
     }
     set_nasm_to_finished (nasm);
@@ -161,7 +161,7 @@ void add_cudagraph_node_matmul (cudaGraph_t cuda_graph, ninst_t *ninst, int gpu_
     }
     if (check_CUDA(cudaGraphAddKernelNode(&ninst->cudagraph_node, cuda_graph, 
         parent_node_arr, num_parent_node, &params)) != 0)
-        FPRT (stderr, "Error in adding kernel node for matmul. Layer %d (%s), Ninst idx: %d.\n", 
+        ERROR_PRTF ("Error in adding kernel node for matmul. Layer %d (%s), Ninst idx: %d.\n", 
             layer->layer_idx, layer_type_str[layer->type], ninst->ninst_idx);
     if (parent_node_arr != NULL)
         free (parent_node_arr);
@@ -248,7 +248,7 @@ void add_cudagraph_node_residual (cudaGraph_t cuda_graph, ninst_t *ninst, int gp
     }
     if (check_CUDA(cudaGraphAddKernelNode(&ninst->cudagraph_node, cuda_graph, 
         parent_node_arr, num_parent_node, &params)) != 0)
-        FPRT (stderr, "Error in adding kernel node for matmul. Layer %d (%s), Ninst idx: %d.\n", 
+        ERROR_PRTF ("Error in adding kernel node for matmul. Layer %d (%s), Ninst idx: %d.\n", 
             layer->layer_idx, layer_type_str[layer->type], ninst->ninst_idx);
     if (parent_node_arr != NULL)
         free (parent_node_arr);
@@ -313,7 +313,7 @@ void add_cudagraph_node_layernorm (cudaGraph_t cuda_graph, ninst_t *ninst, int g
     }
     if (check_CUDA(cudaGraphAddKernelNode(&ninst->cudagraph_node, cuda_graph, 
         parent_node_arr, num_parent_node, &params)) != 0)
-        FPRT (stderr, "Error in adding kernel node for matmul. Layer %d (%s), Ninst idx: %d.\n", 
+        ERROR_PRTF ("Error in adding kernel node for matmul. Layer %d (%s), Ninst idx: %d.\n", 
             layer->layer_idx, layer_type_str[layer->type], ninst->ninst_idx);
     if (parent_node_arr != NULL)
         free (parent_node_arr);
@@ -384,7 +384,7 @@ void add_cudagraph_node_k_attention (cudaGraph_t cuda_graph, ninst_t *ninst, int
     }
     if (check_CUDA(cudaGraphAddKernelNode(&matmul_node, cuda_graph, 
         parent_node_arr, num_parent_node, &params)) != 0)
-        FPRT (stderr, "Error in adding kernel node for matmul. Layer %d (%s), Ninst idx: %d.\n", 
+        ERROR_PRTF ("Error in adding kernel node for matmul. Layer %d (%s), Ninst idx: %d.\n", 
             layer->layer_idx, layer_type_str[layer->type], ninst->ninst_idx);
     
 
@@ -403,7 +403,7 @@ void add_cudagraph_node_k_attention (cudaGraph_t cuda_graph, ninst_t *ninst, int
     parent_node_arr[0] = matmul_node;
     if (check_CUDA(cudaGraphAddKernelNode(&ninst->cudagraph_node, cuda_graph, 
         parent_node_arr, num_parent_node, &params)) != 0)
-        FPRT (stderr, "Error in adding kernel node for matmul. Layer %d (%s), Ninst idx: %d.\n", 
+        ERROR_PRTF ("Error in adding kernel node for matmul. Layer %d (%s), Ninst idx: %d.\n", 
             layer->layer_idx, layer_type_str[layer->type], ninst->ninst_idx);
 
     if (parent_node_arr != NULL)
@@ -468,7 +468,7 @@ void add_cudagraph_node_v_attention (cudaGraph_t cuda_graph, ninst_t *ninst, int
     }
     if (check_CUDA(cudaGraphAddKernelNode(&ninst->cudagraph_node, cuda_graph, 
         parent_node_arr, num_parent_node, &params)) != 0)
-        FPRT (stderr, "Error in adding kernel node for matmul. Layer %d (%s), Ninst idx: %d.\n", 
+        ERROR_PRTF ("Error in adding kernel node for matmul. Layer %d (%s), Ninst idx: %d.\n", 
             layer->layer_idx, layer_type_str[layer->type], ninst->ninst_idx);
     if (parent_node_arr != NULL)
         free (parent_node_arr);

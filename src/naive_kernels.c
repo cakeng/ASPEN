@@ -53,7 +53,7 @@ void naive_activate (float *input, unsigned int num_elements, LAYER_ACT activati
             input[i] = 0.5 * input[i] * (1 + tanhf (0.7978845608028654f * (input[i] + 0.044715 * input[i] * input[i] * input[i])));
     }
     else
-        FPRT (stderr, "Error in naive_activate: unknown activation type.\n");
+        ERROR_PRTF ("Error in naive_activate: unknown activation type.\n");
 }
 
 // Input and output is in NHWC format. Kernel is in (O/8)HWI8 format.
@@ -65,11 +65,11 @@ void naive_conv2d
 {
     #ifdef DEBUG
     if (input == NULL)
-        FPRT (stderr, "Error in naive_convolution: input is NULL.\n");
+        ERROR_PRTF ("Error in naive_convolution: input is NULL.\n");
     if (kernel == NULL)
-        FPRT (stderr, "Error in naive_convolution: kernel is NULL.\n");
+        ERROR_PRTF ("Error in naive_convolution: kernel is NULL.\n");
     if (output == NULL)
-        FPRT (stderr, "Error in naive_convolution: output is NULL.\n");
+        ERROR_PRTF ("Error in naive_convolution: output is NULL.\n");
     #endif
     unsigned int output_width = (width - kernel_width + 2 * padding) / stride + 1;
     unsigned int output_height = (height - kernel_height + 2 * padding) / stride + 1;
@@ -123,11 +123,11 @@ void naive_conv2d_im2col_mm
 {
     #ifdef DEBUG
     if (input == NULL)
-        FPRT (stderr, "Error in naive_convolution_im2col_mm: input is NULL.\n");
+        ERROR_PRTF ("Error in naive_convolution_im2col_mm: input is NULL.\n");
     if (kernel == NULL)
-        FPRT (stderr, "Error in naive_convolution_im2col_mm: kernel is NULL.\n");
+        ERROR_PRTF ("Error in naive_convolution_im2col_mm: kernel is NULL.\n");
     if (output == NULL)
-        FPRT (stderr, "Error in naive_convolution_im2col_mm: output is NULL.\n");
+        ERROR_PRTF ("Error in naive_convolution_im2col_mm: output is NULL.\n");
     #endif
     unsigned int output_width = (width - kernel_width + 2 * padding) / stride + 1;
     unsigned int output_height = (height - kernel_height + 2 * padding) / stride + 1;
@@ -185,9 +185,9 @@ void naive_maxpool2d
 {
     #ifdef DEBUG
     if (input == NULL)
-        FPRT (stderr, "Error in naive_maxpool2d: input is NULL.\n");
+        ERROR_PRTF ("Error in naive_maxpool2d: input is NULL.\n");
     if (output == NULL)
-        FPRT (stderr, "Error in naive_maxpool2d: output is NULL.\n");
+        ERROR_PRTF ("Error in naive_maxpool2d: output is NULL.\n");
     #endif
     unsigned int output_width = (width - kernel_width + 2 * padding) / stride + 1;
     unsigned int output_height = (height - kernel_height + 2 * padding) / stride + 1;
@@ -235,9 +235,9 @@ void naive_avgpool2d
 {
     #ifdef DEBUG
     if (input == NULL)
-        FPRT (stderr, "Error in naive_avgpool2d: input is NULL.\n");
+        ERROR_PRTF ("Error in naive_avgpool2d: input is NULL.\n");
     if (output == NULL)
-        FPRT (stderr, "Error in naive_avgpool2d: output is NULL.\n");
+        ERROR_PRTF ("Error in naive_avgpool2d: output is NULL.\n");
     #endif
     unsigned int output_width = (width - kernel_width + 2 * padding) / stride + 1;
     unsigned int output_height = (height - kernel_height + 2 * padding) / stride + 1;
@@ -282,11 +282,11 @@ void naive_fully_connected
 {
     #ifdef DEBUG
     if (input == NULL)
-        FPRT (stderr, "Error in naive_fully_connected: input is NULL.\n");
+        ERROR_PRTF ("Error in naive_fully_connected: input is NULL.\n");
     if (kernel == NULL)
-        FPRT (stderr, "Error in naive_fully_connected: kernel is NULL.\n");
+        ERROR_PRTF ("Error in naive_fully_connected: kernel is NULL.\n");
     if (output == NULL)
-        FPRT (stderr, "Error in naive_fully_connected: output is NULL.\n");
+        ERROR_PRTF ("Error in naive_fully_connected: output is NULL.\n");
     #endif
     #pragma omp parallel for collapse(2)
     for (unsigned int b = 0; b < batch_size; b++)
@@ -312,11 +312,11 @@ void naive_residual
 {
     #ifdef DEBUG
     if (input_1 == NULL)
-        FPRT (stderr, "Error in naive_residual: input_1 is NULL.\n");
+        ERROR_PRTF ("Error in naive_residual: input_1 is NULL.\n");
     if (input_2 == NULL)
-        FPRT (stderr, "Error in naive_residual: input_2 is NULL.\n");
+        ERROR_PRTF ("Error in naive_residual: input_2 is NULL.\n");
     if (output == NULL)
-        FPRT (stderr, "Error in naive_residual: output is NULL.\n");
+        ERROR_PRTF ("Error in naive_residual: output is NULL.\n");
     #endif
     for (unsigned int i = 0; i < num_elements; i++)
         output[i] = input_1[i] + input_2[i];
@@ -326,9 +326,9 @@ void naive_softmax (float *input, float *output, unsigned int num_batch, unsigne
 {
     #ifdef DEBUG
     if (input == NULL)
-        FPRT (stderr, "Error in naive_softmax: input is NULL.\n");
+        ERROR_PRTF ("Error in naive_softmax: input is NULL.\n");
     if (output == NULL)
-        FPRT (stderr, "Error in naive_softmax: output is NULL.\n");
+        ERROR_PRTF ("Error in naive_softmax: output is NULL.\n");
     #endif
     for (int i = 0; i < num_batch; i++)
     {
@@ -354,11 +354,11 @@ void naive_layernorm (const float *input, const float *kernel, const float *bias
 {
     #ifdef DEBUG
     if (input == NULL)
-        FPRT (stderr, "Error in naive_convolution: input is NULL.\n");
+        ERROR_PRTF ("Error in naive_convolution: input is NULL.\n");
     if (kernel == NULL)
-        FPRT (stderr, "Error in naive_convolution: kernel is NULL.\n");
+        ERROR_PRTF ("Error in naive_convolution: kernel is NULL.\n");
     if (output == NULL)
-        FPRT (stderr, "Error in naive_convolution: output is NULL.\n");
+        ERROR_PRTF ("Error in naive_convolution: output is NULL.\n");
     #endif
     #pragma omp parallel for
     for (unsigned int i = 0; i < N; i++)
@@ -388,13 +388,13 @@ void naive_yolo (const float *input, const float *anchors,
 {
     #ifdef DEBUG
     if (input == NULL)
-        FPRT (stderr, "Error in naive_convolution: input is NULL.\n");
+        ERROR_PRTF ("Error in naive_convolution: input is NULL.\n");
     if (anchors == NULL)
-        FPRT (stderr, "Error in naive_convolution: anchor is NULL.\n");
+        ERROR_PRTF ("Error in naive_convolution: anchor is NULL.\n");
     if (output == NULL)
-        FPRT (stderr, "Error in naive_convolution: output is NULL.\n");
+        ERROR_PRTF ("Error in naive_convolution: output is NULL.\n");
     if (c % yolo_c != 0)
-        FPRT (stderr, "Error in naive_convolution: c is not divisible by yolo_c.\n");
+        ERROR_PRTF ("Error in naive_convolution: c is not divisible by yolo_c.\n");
     #endif
     #pragma omp parallel for
     for (unsigned int i = 0; i < h*w*(c/yolo_c); i++)
@@ -418,11 +418,11 @@ void naive_append (const float *input_1, const float *input_2, float *output,
 {
     #ifdef DEBUG
     if (input_1 == NULL)
-        FPRT (stderr, "Error in naive_convolution: input_1 is NULL.\n");
+        ERROR_PRTF ("Error in naive_convolution: input_1 is NULL.\n");
     if (input_2 == NULL)
-        FPRT (stderr, "Error in naive_convolution: input_2 is NULL.\n");
+        ERROR_PRTF ("Error in naive_convolution: input_2 is NULL.\n");
     if (output == NULL)
-        FPRT (stderr, "Error in naive_convolution: output is NULL.\n");
+        ERROR_PRTF ("Error in naive_convolution: output is NULL.\n");
     #endif
     #pragma omp parallel for
     for (unsigned int i = 0; i < h2*w2; i++)
@@ -445,11 +445,11 @@ void naive_k_attention (const float *input_1, const float *input_2, float *outpu
 {
     #ifdef DEBUG
     if (input_1 == NULL)
-        FPRT (stderr, "Error in naive_k_attention: input_1 is NULL.\n");
+        ERROR_PRTF ("Error in naive_k_attention: input_1 is NULL.\n");
     if (input_2 == NULL)
-        FPRT (stderr, "Error in naive_k_attention: input_2 is NULL.\n");
+        ERROR_PRTF ("Error in naive_k_attention: input_2 is NULL.\n");
     if (output == NULL)
-        FPRT (stderr, "Error in naive_k_attention: output is NULL.\n");
+        ERROR_PRTF ("Error in naive_k_attention: output is NULL.\n");
     #endif
     const unsigned int seq_padded = get_smallest_dividable (num_seq, _VEC_SIZE_M);
     const unsigned int hidden_per_head = num_hidden / num_heads;
@@ -517,11 +517,11 @@ void naive_v_attention (const float *input_1, const float *input_2, float *outpu
 {
     #ifdef DEBUG
     if (input_1 == NULL)
-        FPRT (stderr, "Error in naive_v_attention: input_1 is NULL.\n");
+        ERROR_PRTF ("Error in naive_v_attention: input_1 is NULL.\n");
     if (input_2 == NULL)
-        FPRT (stderr, "Error in naive_v_attention: input_2 is NULL.\n");
+        ERROR_PRTF ("Error in naive_v_attention: input_2 is NULL.\n");
     if (output == NULL)
-        FPRT (stderr, "Error in naive_v_attention: output is NULL.\n");
+        ERROR_PRTF ("Error in naive_v_attention: output is NULL.\n");
     #endif
     const unsigned int hidden_per_head = num_hidden / num_heads;
     const unsigned int seq_padded = get_smallest_dividable (num_seq, _VEC_SIZE_M);

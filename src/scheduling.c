@@ -705,7 +705,7 @@ void init_conventional_offload(nasm_t *nasm, int edge_id, int server_id)
 //             }
 
 //             if (min_EFT_proc < 0) {
-//                 FPRT(stderr, "ERROR: init_heft - min_EFT_proc < 0\n");
+//                 ERROR_PRTF ( "ERROR: init_heft - min_EFT_proc < 0\n");
 //                 assert(0);
 //             }
 
@@ -748,7 +748,7 @@ void init_conventional_offload(nasm_t *nasm, int edge_id, int server_id)
 //             }
 //             if (min_EFT_proc < 0)
 //             {
-//                 FPRT(stderr, "ERROR: init_heft - min_EFT_proc < 0\n");
+//                 ERROR_PRTF ( "ERROR: init_heft - min_EFT_proc < 0\n");
 //                 assert(0);
 //             }
 //             // push task into processor min_EFT_proc at time EST[min_EFT_proc]

@@ -58,7 +58,7 @@ void apu_destroy_dnn (aspen_dnn_t *dnn)
         return;
     if (dnn->ref_nasms != 0)
     {
-        FPRT (stderr, "Cannot destroy dnn %s with %d nasms still referencing it.\n"
+        ERROR_PRTF ("Cannot destroy dnn %s with %d nasms still referencing it.\n"
             , dnn->name, dnn->ref_nasms);
         return;
     }
@@ -86,10 +86,10 @@ aspen_dnn_t *init_aspen_dnn (unsigned int num_layers, char* name)
     {
         if (check_CUDA(cudaGetDeviceCount(&aspen_num_gpus)) != 0)
         {
-            FPRT (stderr, "Error getting number of CUDA devices.\n");
+            ERROR_PRTF ("Error getting number of CUDA devices.\n");
         }
         #ifdef DEBUG
-        PRT ("Found %d CUDA device(s).\n", aspen_num_gpus);
+        PRTF ("Found %d CUDA device(s).\n", aspen_num_gpus);
         #endif
         for (int i = 0; i < aspen_num_gpus; i++)
         {
@@ -97,7 +97,7 @@ aspen_dnn_t *init_aspen_dnn (unsigned int num_layers, char* name)
             {
                 if (check_CUDA(cudaStreamCreateWithFlags(&aspen_CUDA_streams[i][j], cudaStreamNonBlocking)) != 0)
                 {
-                    FPRT (stderr, "Error creating CUDA stream.\n");
+                    ERROR_PRTF ("Error creating CUDA stream.\n");
                 }
             }
         }
@@ -160,7 +160,7 @@ void calloc_aspen_tensor (aspen_tensor_t *tensor)
         aspen_free(tensor->data);
     if (tensor->num_elements == 0 || tensor->element_size == 0)
     {
-        FPRT (stderr, "Cannot calloc tensor with 0 elements or 0 element size.\n");
+        ERROR_PRTF ("Cannot calloc tensor with 0 elements or 0 element size.\n");
         assert (0);
     }
     size_t size = 1;
@@ -180,7 +180,7 @@ void calloc_aspen_gpu_tensors (aspen_tensor_t *tensor)
         return;
     if (tensor->num_elements == 0 || tensor->element_size == 0)
     {
-        FPRT (stderr, "Cannot calloc tensor with 0 elements or 0 element size.\n");
+        ERROR_PRTF ("Cannot calloc tensor with 0 elements or 0 element size.\n");
         assert (0);
     }
     size_t size = 1;
@@ -221,12 +221,12 @@ void copy_aspen_tensor_to_tensor  (aspen_tensor_t *dst, aspen_tensor_t *src)
         return;
     if (dst->element_size != src->element_size)
     {
-        FPRT (stderr, "Error: cannot copy tensor with different element sizes.\n");
+        ERROR_PRTF ("Error: cannot copy tensor with different element sizes.\n");
         return;
     }
     if (dst->num_elements != src->num_elements)
     {
-        FPRT (stderr, "Error: cannot copy tensor with different number of elements.\n");
+        ERROR_PRTF ("Error: cannot copy tensor with different number of elements.\n");
         return;
     }
     memcpy (dst->data, src->data, dst->num_elements * dst->element_size);
@@ -256,7 +256,7 @@ void reorder_aspen_tensor (aspen_tensor_t **tensor_ptr, unsigned int *params_arr
     aspen_tensor_t *new_tensor = init_aspen_tensor (params_arr, order, num_dims, tensor->element_size);
     if (new_tensor->num_elements < tensor->num_elements)
     {
-        FPRT (stderr, "Error: cannot reorder tensor into smaller number of elements.\n");
+        ERROR_PRTF ("Error: cannot reorder tensor into smaller number of elements.\n");
         assert (0);
     }
     calloc_aspen_tensor (new_tensor);
@@ -308,7 +308,7 @@ void *get_ldata_output (nasm_ldata_t *ldata, LAYER_PARAMS *order)
 {
     if (ldata == NULL)
     {
-        FPRT (stderr, "Error in get_ldata_output: ldata is NULL.\n");
+        ERROR_PRTF ("Error in get_ldata_output: ldata is NULL.\n");
         return NULL;
     }
     size_t elem_size = ldata->layer->dnn->element_size;
@@ -358,7 +358,7 @@ void *get_ldata_output (nasm_ldata_t *ldata, LAYER_PARAMS *order)
     }
     else 
     {
-        FPRT (stderr, "Error in get_ldata_output: unsupported layer type.\n");
+        ERROR_PRTF ("Error in get_ldata_output: unsupported layer type.\n");
         aspen_free (packed_data);
         assert (0);
     }
@@ -495,7 +495,7 @@ void create_layer_tensors (aspen_layer_t *layer)
     }
     else
     {
-        FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
+        ERROR_PRTF ( "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
         assert (0);
     }
 
@@ -555,7 +555,7 @@ void create_layer_output_tensor (aspen_layer_t *layer, int gpu_idx)
     }
     else
     {
-        FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
+        ERROR_PRTF ( "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
         assert (0);
     }
     
@@ -626,7 +626,7 @@ void sync_dnn_data_to_gpu_layer (aspen_layer_t *layer)
 {
     if (layer == NULL)
     {
-        FPRT (stderr, "ERROR in sync_dnn_data_to_gpu_layer: layer is NULL, at line %d in file %s.\n", 0, " ");
+        ERROR_PRTF ("ERROR in sync_dnn_data_to_gpu_layer: layer is NULL, at line %d in file %s.\n", 0, " ");
         assert (0);
     }
     for (int i = 0; i < NUM_TENSORS; i++)
@@ -651,7 +651,7 @@ void sync_dnn_data_to_gpu_dnn (aspen_dnn_t *dnn)
 {
     if (dnn == NULL)
     {
-        FPRT (stderr, "ERROR in sync_dnn_data_to_gpu_dnn: dnn is NULL, at line %d in file %s.\n", 0, " ");
+        ERROR_PRTF ("ERROR in sync_dnn_data_to_gpu_dnn: dnn is NULL, at line %d in file %s.\n", 0, " ");
         assert (0);
     }
     for (int i = 0; i < dnn->num_layers; i++)
@@ -667,7 +667,7 @@ void sync_output_data_to_host_layer (aspen_layer_t *layer, int gpu_idx)
 {
     if (layer == NULL)
     {
-        FPRT (stderr, "ERROR in sync_output_data_to_host_layer: layer is NULL, at line %d in file %s.\n", 0, " ");
+        ERROR_PRTF ("ERROR in sync_output_data_to_host_layer: layer is NULL, at line %d in file %s.\n", 0, " ");
         assert (0);
     }
     for (int i = 0; i < NUM_TENSORS; i++)
@@ -689,7 +689,7 @@ void sync_output_data_to_host_dnn (aspen_dnn_t *dnn, int gpu_idx)
 {
     if (dnn == NULL)
     {
-        FPRT (stderr, "ERROR in sync_output_data_to_host_dnn: dnn is NULL, at line %d in file %s.\n", 0, " ");
+        ERROR_PRTF ("ERROR in sync_output_data_to_host_dnn: dnn is NULL, at line %d in file %s.\n", 0, " ");
         assert (0);
     }
     for (int i = 0; i < dnn->num_layers; i++)
@@ -705,7 +705,7 @@ void sync_output_data_to_gpu_layer (aspen_layer_t *layer, int gpu_idx)
 {
     if (layer == NULL)
     {
-        FPRT (stderr, "ERROR in sync_output_data_to_gpu_layer: layer is NULL, at line %d in file %s.\n", 0, " ");
+        ERROR_PRTF ("ERROR in sync_output_data_to_gpu_layer: layer is NULL, at line %d in file %s.\n", 0, " ");
         assert (0);
     }
     for (int i = 0; i < NUM_TENSORS; i++)
@@ -727,7 +727,7 @@ void sync_output_data_to_gpu_dnn (aspen_dnn_t *dnn, int gpu_idx)
 {
     if (dnn == NULL)
     {
-        FPRT (stderr, "ERROR in sync_output_data_to_gpu_dnn: dnn is NULL, at line %d in file %s.\n", 0, " ");
+        ERROR_PRTF ("ERROR in sync_output_data_to_gpu_dnn: dnn is NULL, at line %d in file %s.\n", 0, " ");
         assert (0);
     }
     for (int i = 0; i < dnn->num_layers; i++)
@@ -912,12 +912,12 @@ void aspen_init_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input
 {
     if (dnn == NULL)
     {
-        FPRT (stderr, "Error: DNN is NULL.\n");
+        ERROR_PRTF ("Error: DNN is NULL.\n");
         assert (0);
     }
     if (gpu_idx >= aspen_num_gpus)
     {
-        FPRT (stderr, "ERROR: aspen_init_naive: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);
+        ERROR_PRTF ("ERROR: aspen_init_naive: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);
         gpu_idx = -1;
     }
     // Create output tensors
@@ -950,12 +950,12 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
 {
     if (dnn == NULL)
     {
-        FPRT (stderr, "Error: DNN is NULL.\n");
+        ERROR_PRTF ("Error: DNN is NULL.\n");
         assert (0);
     }
     if (gpu_idx >= aspen_num_gpus)
     {
-        FPRT (stderr, "ERROR: aspen_run_naive: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);
+        ERROR_PRTF ("ERROR: aspen_run_naive: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);
         gpu_idx = -1;
     }
     if (gpu_idx < 0)
@@ -1045,11 +1045,11 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
             }
             else 
             {
-                FPRT (stderr, "Error: Layer type not supported.\n");
+                ERROR_PRTF ("Error: Layer type not supported.\n");
                 assert (0);
             }
             naive_activate (output, layer->tensors[OUTPUT_TENSOR]->num_elements, layer->activation);
-            // PRT ("apu_run_naive: Layer %d done.\n", i);
+            // PRTF ("apu_run_naive: Layer %d done.\n", i);
         }
     }
     else
@@ -1154,10 +1154,10 @@ void aspen_run_naive (aspen_dnn_t* dnn, unsigned int *input_params, void *input_
             }
             else 
             {
-                FPRT (stderr, "Error: Layer type not supported.\n");
+                ERROR_PRTF ("Error: Layer type not supported.\n");
                 assert (0);
             }
-            // PRT ("apu_run_naive: Layer %d done.\n", i);
+            // PRTF ("apu_run_naive: Layer %d done.\n", i);
             #endif
             aspen_sync_gpu_stream (gpu_idx, GPU_NAIVE_RUN_STREAM);
         }

@@ -134,9 +134,6 @@ int main (int argc, char **argv)
 
     rpool_add_nasm (rpool, target_nasm, "data/batched_input_128.bin");
 
-    char *temp[1024];
-    scanf ("%s", temp);
-
     printf ("Running %d iterations\n", number_of_iterations);
     double start_time = get_sec();
     for (int i = 0; i < number_of_iterations; i++)

@@ -53,7 +53,7 @@ void init_server(networking_engine* net_engine, int port, int is_UDP)
     }
     if (net_engine->listen_sock == -1) 
     {
-        FPRT (stderr, "Error: socket() returned -1\n");
+        ERROR_PRTF ("Error: socket() returned -1\n");
         assert(0);
     }
 
@@ -71,44 +71,44 @@ void init_server(networking_engine* net_engine, int port, int is_UDP)
     int option = 1;
     if (setsockopt(net_engine->listen_sock, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) == -1)
     {
-        FPRT (stderr, "ERROR! socket setsockopt error\n");
+        ERROR_PRTF ("ERROR! socket setsockopt error\n");
         assert(0);
     }
 
     if(bind(net_engine->listen_sock, (struct sockaddr*)&net_engine->listen_addr, sizeof(net_engine->listen_addr)) == -1)
     {
-        FPRT (stderr, "ERROR! socket bind error\n");
+        ERROR_PRTF ("ERROR! socket bind error\n");
         assert(0);
     }
     if(is_UDP == 0)
     {
         if(listen(net_engine->listen_sock, 5) == -1)
         {
-            FPRT (stderr, "ERROR! socket listen error\n");
+            ERROR_PRTF ("ERROR! socket listen error\n");
             assert(0);
         }
         else 
-            PRT ("Networking: TCP Server listening on port %d\n", port);
+            PRTF ("Networking: TCP Server listening on port %d\n", port);
         socklen_t edge_addr_len = sizeof(net_engine->edge_addr);
         net_engine->comm_sock = 
             accept(net_engine->listen_sock, (struct sockaddr*)&net_engine->edge_addr, &edge_addr_len);
         if (net_engine->comm_sock == -1)
         {
-            FPRT (stderr, "ERROR! Server socket accept error\n");
+            ERROR_PRTF ("ERROR! Server socket accept error\n");
             assert(0);
         }
         net_engine->edge_addr.sin_family = AF_INET;
         net_engine->edge_addr.sin_addr.s_addr = inet_addr (inet_ntoa (net_engine->edge_addr.sin_addr));
         net_engine->edge_addr.sin_port = htons (port);
-        PRT ("Networking: TCP Server accepted connection from %s\n", inet_ntoa (net_engine->edge_addr.sin_addr));
+        PRTF ("Networking: TCP Server accepted connection from %s\n", inet_ntoa (net_engine->edge_addr.sin_addr));
         char* message = "SERVER ACK";
         write_n(net_engine->comm_sock, message, 10);
         char buf [8] = {0};
         read_n(net_engine->comm_sock, &buf, 8);
-        PRT ("Networking: TCP Server received %s\n", buf);
+        PRTF ("Networking: TCP Server received %s\n", buf);
     }
     else 
-        PRT ("Networking: UDP Server listening on port %d\n", port);
+        PRTF ("Networking: UDP Server listening on port %d\n", port);
 }
 
 void init_edge(networking_engine* net_engine, char* ip, int port, int is_UDP) 
@@ -121,23 +121,23 @@ void init_edge(networking_engine* net_engine, char* ip, int port, int is_UDP)
     net_engine->comm_sock = socket (PF_INET, SOCK_STREAM, 0);
     if (net_engine->comm_sock == -1) 
     { 
-        FPRT (stderr, "Error: Edge socket() returned -1\n");
+        ERROR_PRTF ("Error: Edge socket() returned -1\n");
         assert(0);
     }
     net_engine->server_addr.sin_family = AF_INET;
     net_engine->server_addr.sin_addr.s_addr = inet_addr (ip);
     net_engine->server_addr.sin_port = htons (port);
     net_engine->isUDP = 0;
-    PRT ("Trying to access server...\n");
+    PRTF ("Trying to access server...\n");
     int conn = -1;
     while(conn < 0)
     {
         conn = connect(net_engine->comm_sock, (struct sockaddr*)&net_engine->server_addr, sizeof(net_engine->server_addr));
     }
-    PRT ("Networking: TCP Edge connected to server %s port %d\n", inet_ntoa (net_engine->server_addr.sin_addr), port);
+    PRTF ("Networking: TCP Edge connected to server %s port %d\n", inet_ntoa (net_engine->server_addr.sin_addr), port);
     char buf [10];
     read_n(net_engine->comm_sock, &buf, 10);
-    PRT ("Networking: TCP Edge received %s\n", buf);
+    PRTF ("Networking: TCP Edge received %s\n", buf);
     char* message = "EDGE ACK";
     write_n(net_engine->comm_sock, message, 8);
 }
@@ -145,7 +145,7 @@ void init_edge(networking_engine* net_engine, char* ip, int port, int is_UDP)
 
 networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE device_mode, char* ip, int port, int is_UDP, int pipelined) 
 {
-    PRT("Initializing Networking Engine...\n");
+    PRTF("Initializing Networking Engine...\n");
     networking_engine *net_engine = calloc (1, sizeof(networking_engine));
     networking_queue_t *networking_queue = calloc (1, sizeof(networking_queue_t));
     init_networking_queue(networking_queue);
@@ -172,7 +172,7 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE de
         init_server(net_engine, port, is_UDP);
         break;
     default:
-        FPRT (stderr, "Error - Unsupported socket type. Type: %d\n", net_engine->device_mode);
+        ERROR_PRTF ("Error - Unsupported socket type. Type: %d\n", net_engine->device_mode);
         assert(0);
         break;
     }
@@ -184,7 +184,7 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE de
     void *whitelist[NUM_RPOOL_CONDS] = {NULL};
     whitelist [RPOOL_NASM] = nasm;
     sprintf (info_str, "%s_%s_%d", nasm->dnn->name, "nasm", nasm->nasm_id);
-    float queue_per_layer = rpool->ref_dses * NUM_LAYERQUEUE_PER_ASE * NUM_QUEUE_PER_LAYER;
+    float queue_per_layer = rpool->ref_dses * NUM_LAYERQUEUE_PER_DSE * NUM_QUEUE_PER_LAYER;
     unsigned int num_queues = nasm->dnn->num_layers*queue_per_layer;
     if (num_queues < 1)
         num_queues = 1;
@@ -234,7 +234,7 @@ void transmission(networking_engine *net_engine)
         target_ninst->network_buf = NULL;
         target_ninst->sent_time = time_sent;
         buffer_ptr += data_size;
-        // PRT("Networking: Ninst%d, Sending %d bytes, W%d, H%d, data size %d\n", i, data_size + 3*sizeof(int), 
+        // PRTF("Networking: Ninst%d, Sending %d bytes, W%d, H%d, data size %d\n", i, data_size + 3*sizeof(int), 
         //     target_ninst_list[i]->tile_dims[OUT_W], target_ninst_list[i]->tile_dims[OUT_H], 
         //     target_ninst_list[i]->tile_dims[OUT_W]*target_ninst_list[i]->tile_dims[OUT_H]*sizeof(float));
     }
@@ -243,11 +243,11 @@ void transmission(networking_engine *net_engine)
     payload_size += sizeof(int32_t);
 
     #ifdef DEBUG
-    PRT("Networking: Sending %d bytes -", payload_size);
+    PRTF("Networking: Sending %d bytes -", payload_size);
     for (int i = 0; i < num_ninsts; i++)
     {
         ninst_t* target_ninst = target_ninst_list[i];
-        PRT(" (N%d L%d I%d %ldB)", 
+        PRTF(" (N%d L%d I%d %ldB)", 
             target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->inference_id, 
             target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float));
     }
@@ -259,13 +259,13 @@ void transmission(networking_engine *net_engine)
             , (char*)net_engine->tx_buffer + bytes_sent, payload_size - bytes_sent);
         if (ret < 0)
         {
-            FPRT(stderr, "Error: send() failed. ret: %d\n", ret);
+            ERROR_PRTF ( "Error: send() failed. ret: %d\n", ret);
             assert(0);
         }
         bytes_sent += ret;
     }
     #ifdef DEBUG
-    PRT(" - Time taken %fs, %d tx queue remains.\n", (get_time_secs() - time_sent), net_engine->tx_queue->num_stored);
+    PRTF(" - Time taken %fs, %d tx queue remains.\n", (get_time_secs() - time_sent), net_engine->tx_queue->num_stored);
     #endif
 }
 
@@ -280,22 +280,22 @@ void receive(networking_engine *net_engine)
     }
     else if (ret < 0)
     {
-        FPRT(stderr, "Error: recv() failed. ret: %d\n", ret);
+        ERROR_PRTF ( "Error: recv() failed. ret: %d\n", ret);
         assert(0);
     }
     else if (ret == 0)
     {
-        FPRT(stderr, "Error: RX Connection closed unexpectedly.\n");
+        ERROR_PRTF ( "Error: RX Connection closed unexpectedly.\n");
         assert(0);
     }
     else
     {
         if (payload_size <= 0)
         {
-            // PRT("Networking: RX Command %d received - ", payload_size);
+            // PRTF("Networking: RX Command %d received - ", payload_size);
             if (payload_size == RX_STOP_SIGNAL)
             {
-                PRT("RX stop signal received.\n");
+                PRTF("RX stop signal received.\n");
                 atomic_store (&net_engine->rx_run, 0);
                 atomic_store (&net_engine->nasm->completed, 1);
                 pthread_mutex_lock (&net_engine->nasm->nasm_mutex);
@@ -305,7 +305,7 @@ void receive(networking_engine *net_engine)
             }
             else
             {
-                PRT("Unknown command\n");
+                PRTF("Unknown command\n");
                 assert(0);
             }
         }
@@ -316,13 +316,13 @@ void receive(networking_engine *net_engine)
                 , (char*)net_engine->rx_buffer + bytes_received, payload_size - bytes_received);
             if (ret < 0)
             {
-                FPRT(stderr, "Error: recv() failed. ret: %d\n", ret);
+                ERROR_PRTF ("Error: recv() failed. ret: %d\n", ret);
                 assert(0);
             }
             bytes_received += ret;
         }
         #ifdef DEBUG
-        // PRT("Networking: Received %d bytes -", bytes_received);
+        // PRTF("Networking: Received %d bytes -", bytes_received);
         #endif
         char* buffer_ptr = (char*)net_engine->rx_buffer;
         while (buffer_ptr < (char*)net_engine->rx_buffer + bytes_received)
@@ -336,25 +336,30 @@ void receive(networking_engine *net_engine)
             #ifdef DEBUG
             if (net_engine->nasm->inference_id != inference_id)
             {
-                PRT("Warning: Received inference_id %d is not matched with ninst_idx %d\n", inference_id, ninst_idx);
+                PRTF("Warning: Received inference_id %d is not matched with ninst_idx %d\n", inference_id, ninst_idx);
                 continue;
             }
             if (ninst_idx >= net_engine->nasm->num_ninst)
             {
-                PRT("Warning: Received ninst_idx %d is not found in nasm\n", ninst_idx);
+                PRTF("Warning: Received ninst_idx %d is not found in nasm\n", ninst_idx);
                 continue;
             }
             #endif
             ninst_t* target_ninst = &net_engine->nasm->ninst_arr[ninst_idx];
             if (!is_inference_whitelist(net_engine, inference_id))
-                return;
+            {
+                buffer_ptr += data_size;
+                continue;
+            }
             if (atomic_exchange (&target_ninst->state, NINST_COMPLETED) == NINST_COMPLETED) 
-                return;
-                
+            {
+                buffer_ptr += data_size;
+                continue;
+            }
             #ifdef DEBUG
             if (data_size != target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float))
             {
-                FPRT(stderr, "Error: Received data size %d is not matched with ninst_idx %d\n", data_size, ninst_idx);
+                ERROR_PRTF ( "Error: Received data size %d is not matched with ninst_idx %d\n", data_size, ninst_idx);
                 assert(0);
             }
             #endif
@@ -363,7 +368,7 @@ void receive(networking_engine *net_engine)
             atomic_store(&target_ninst->state, NINST_COMPLETED);
             target_ninst->received_time = get_time_secs_offset ();
             #ifdef DEBUG
-            PRT("\t[Device %d] (N%d L%d I%d %ldB) state: %d",
+            PRTF("\t[Device %d] (N%d L%d I%d %ldB) state: %d\n",
                 net_engine->device_idx,
                 target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->inference_id, 
                 target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float), atomic_load(&target_ninst->state));
@@ -391,14 +396,16 @@ void receive(networking_engine *net_engine)
                         // int temp = parent_child_ninst->dev_to_compute[net_engine->server_idx];
                         // printf("\t\tParent Child: (N%d L%d) Dev_to_compute[%d]: %d -> %d\n",parent_child_ninst->ninst_idx, parent_child_ninst->ldata->layer->layer_idx, net_engine->server_idx, temp, parent_child_ninst->dev_to_compute[net_engine->server_idx]);
                     }
-                    
-                    update_children (net_engine->rpool, parent_ninst);
+                    // RED_PRTF ("1 Ninst %d(L%d) downloaded\n", target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx);
+                    // update_children (net_engine->rpool, parent_ninst); 
                 }
             }
 
             if(atomic_load(&target_ninst->state) == NINST_COMPLETED)
+            {
+                // RED_PRTF ("2 Ninst %d(L%d) downloaded\n", target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx);
                 update_children (net_engine->rpool, target_ninst);
-            
+            }
             
             if (num_ninst_completed == target_ninst->ldata->num_ninst - 1)
             {
@@ -411,7 +418,10 @@ void receive(networking_engine *net_engine)
                     nasm_ldata_t *parent_ldata = &target_ninst->ldata->nasm->ldata_arr[target_ninst->ldata->parent_ldata_idx_arr[pidx]];
                     unsigned int num_child_ldata_completed = atomic_fetch_add (&parent_ldata->num_child_ldata_completed, 1);
                     if (num_child_ldata_completed == parent_ldata->num_child_ldata && (parent_ldata != parent_ldata->nasm->ldata_arr))
+                    {
                         free_ldata_out_mat (parent_ldata);
+                        // YELLOW_PRTF ("ldata %d output freed by net engine\n", parent_ldata->layer->layer_idx);
+                    }
                 }
 
                 atomic_fetch_add (&net_engine->nasm->num_ldata_completed, 1);
@@ -433,7 +443,7 @@ void receive(networking_engine *net_engine)
             }
         }
         #ifdef DEBUG
-            PRT("\n");
+            PRTF("\n");
         #endif
     }
 }
@@ -470,7 +480,7 @@ void net_engine_run (networking_engine *net_engine)
 {
     if (net_engine == NULL)
     {
-        FPRT (stderr, "ERROR: net_engine_run: net_engine is NULL\n");
+        ERROR_PRTF ("ERROR: net_engine_run: net_engine is NULL\n");
         return;
     }
     unsigned int state = atomic_exchange (&net_engine->rx_run, 1);
@@ -502,32 +512,32 @@ void net_engine_stop (networking_engine* net_engine)
 {
     if (net_engine == NULL)
     {
-        FPRT (stderr, "ERROR: net_engine_stop: net_engine is NULL\n");
+        ERROR_PRTF ("ERROR: net_engine_stop: net_engine is NULL\n");
         return;
     }
     #ifdef DEBUG
-    PRT ("Networking: Stopping network engine tx thread...\n");
+    PRTF ("Networking: Stopping network engine tx thread...\n");
     #endif
     int is_running = atomic_exchange (&net_engine->tx_run, 0);
     if (is_running == 0)
         return;
     pthread_mutex_lock (&net_engine->tx_thread_mutex);
     #ifdef DEBUG
-    PRT("Networking: Sending network engine rx thread stop signal...\n");
+    PRTF("Networking: Sending network engine rx thread stop signal...\n");
     #endif
     int32_t command = RX_STOP_SIGNAL;
     int ret = write(net_engine->comm_sock, (char*)&command, sizeof(command));
     if (ret < 0)
     {
-        FPRT(stderr, "ERROR: net_engine_sto: send() failed.\n");
+        ERROR_PRTF ( "ERROR: net_engine_sto: send() failed.\n");
         assert(0);
     }
     #ifdef DEBUG
-    PRT("Networking: Waiting for network engine rx thread to stop...\n");
+    PRTF("Networking: Waiting for network engine rx thread to stop...\n");
     #endif
     pthread_mutex_lock (&net_engine->rx_thread_mutex);
     #ifdef DEBUG
-    PRT("Networking: Network engine stopped.\n");
+    PRTF("Networking: Network engine stopped.\n");
     #endif
 }
 
@@ -538,7 +548,7 @@ void net_engine_destroy (networking_engine* net_engine)
     
     if (atomic_load(&net_engine->tx_run) == 1 && atomic_load(&net_engine->rx_run))
     {
-        FPRT (stderr, "WARNING: net_engine_destroy: net_engine is still running\n");
+        ERROR_PRTF ("WARNING: net_engine_destroy: net_engine is still running\n");
         net_engine_stop(net_engine);
     }
     // Thread cleanup
@@ -680,12 +690,12 @@ unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ni
     #ifdef DEBUG
     if (networking_queue == NULL)
     {
-        FPRT (stderr, "ERROR: pop_nists_from_queue: networking_queue is NULL.\n");
+        ERROR_PRTF ("ERROR: pop_nists_from_queue: networking_queue is NULL.\n");
         return 0;
     }
     if (ninst_ptr_list == NULL)
     {
-        FPRT (stderr, "ERROR: pop_nists_from_queue: ninst_ptr_list is NULL.\n");
+        ERROR_PRTF ("ERROR: pop_nists_from_queue: ninst_ptr_list is NULL.\n");
         return 0;
     }
     #endif
@@ -724,12 +734,12 @@ void push_ninsts_to_net_queue (networking_queue_t *networking_queue, ninst_t **n
     #ifdef DEBUG
     if (networking_queue == NULL)
     {
-        FPRT (stderr, "ERROR: push_ninsts_to_net_queue_back: networking_queue is NULL.\n");
+        ERROR_PRTF ("ERROR: push_ninsts_to_net_queue_back: networking_queue is NULL.\n");
         return;
     }
     if (ninst_ptr_list == NULL)
     {
-        FPRT (stderr, "ERROR: push_ninsts_to_net_queue_back: ninst_ptr_list is NULL.\n");
+        ERROR_PRTF ("ERROR: push_ninsts_to_net_queue_back: ninst_ptr_list is NULL.\n");
         return;
     }
     #endif
@@ -756,12 +766,12 @@ void push_ninsts_to_net_queue_front (networking_queue_t *networking_queue, ninst
     #ifdef DEBUG
     if (networking_queue == NULL)
     {
-        FPRT (stderr, "ERROR: push_ninsts_to_net_queue_back: networking_queue is NULL.\n");
+        ERROR_PRTF ("ERROR: push_ninsts_to_net_queue_back: networking_queue is NULL.\n");
         return;
     }
     if (ninst_ptr_list == NULL)
     {
-        FPRT (stderr, "ERROR: push_ninsts_to_net_queue_back: ninst_ptr_list is NULL.\n");
+        ERROR_PRTF ("ERROR: push_ninsts_to_net_queue_back: ninst_ptr_list is NULL.\n");
         return;
     }
     #endif
@@ -802,7 +812,7 @@ void net_engine_add_input_rpool (networking_engine *net_engine, nasm_t* nasm, ch
     }
     else
     {
-        FPRT (stderr, "ERROR: net_engine_add_input_rpool: first layer of dnn \"%s\" does not have output dimensions. Cannot add nasm \"%s_nasm_%d\".\n", 
+        ERROR_PRTF ("ERROR: net_engine_add_input_rpool: first layer of dnn \"%s\" does not have output dimensions. Cannot add nasm \"%s_nasm_%d\".\n", 
             dnn->name, dnn->name, nasm->nasm_id);
         return;
     }
@@ -857,7 +867,7 @@ void net_engine_add_input_rpool_reverse (networking_engine *net_engine, nasm_t* 
     }
     else
     {
-        FPRT (stderr, "ERROR: net_engine_add_input_rpool_reverse: first layer of dnn \"%s\" does not have output dimensions. Cannot add nasm \"%s_nasm_%d\".\n", 
+        ERROR_PRTF ("ERROR: net_engine_add_input_rpool_reverse: first layer of dnn \"%s\" does not have output dimensions. Cannot add nasm \"%s_nasm_%d\".\n", 
             dnn->name, dnn->name, nasm->nasm_id);
         return;
     }

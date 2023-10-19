@@ -9,7 +9,7 @@ aspen_dnn_t *parse_input (char *filename)
             dnn =  parse_darknet_cfg(filename);
             break;
         default:
-            FPRT (stderr, "Input file type not supported: %s\n", filename);
+            ERROR_PRTF ("Input file type not supported: %s\n", filename);
             return NULL;
     }
     for (int i = 0; i < dnn->num_layers; i++)
@@ -123,7 +123,7 @@ void set_layer_inout_sizes (aspen_layer_t *layer)
     }
     else
     {
-        FPRT(stderr, "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
+        ERROR_PRTF ( "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
         assert (0);
     }
 }

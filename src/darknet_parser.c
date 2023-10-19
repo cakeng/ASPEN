@@ -40,13 +40,13 @@ void error(const char *s)
 
 void malloc_error()
 {
-    FPRT(stderr, "Malloc error\n");
+    ERROR_PRTF ( "Malloc error\n");
     exit(-1);
 }
 
 void file_error(char *s)
 {
-    FPRT(stderr, "Couldn't open file: %s\n", s);
+    ERROR_PRTF ( "Couldn't open file: %s\n", s);
     exit(0);
 }
 
@@ -241,7 +241,7 @@ void option_unused(list *l)
     while(n){
         kvp *p = (kvp *)n->val;
         if(!p->used){
-            FPRT(stderr, "Unused field: '%s = %s'\n", p->key, p->val);
+            ERROR_PRTF ( "Unused field: '%s = %s'\n", p->key, p->val);
         }
         n = n->next;
     }
@@ -271,7 +271,7 @@ int option_find_int(list *l, char *key, int def)
 {
     char *v = option_find(l, key);
     if(v) return atoi(v);
-    FPRT(stderr, "%s: Using default '%d'\n", key, def);
+    ERROR_PRTF ( "%s: Using default '%d'\n", key, def);
     return def;
 }
 
@@ -293,7 +293,7 @@ float option_find_float(list *l, char *key, float def)
 {
     char *v = option_find(l, key);
     if(v) return atof(v);
-    FPRT(stderr, "%s: Using default '%lf'\n", key, def);
+    ERROR_PRTF ( "%s: Using default '%lf'\n", key, def);
     return def;
 }
 
@@ -328,7 +328,7 @@ list *read_data_cfg(char *filename)
     FILE *file = fopen(filename, "r");
     if(file == NULL)
     {
-        FPRT (stderr, "Couldn't open file: %s\n", filename);
+        ERROR_PRTF ("Couldn't open file: %s\n", filename);
         return NULL;
     }
     char *line;
@@ -352,7 +352,7 @@ list *read_data_cfg(char *filename)
                 break;
             default:
                 if(!read_option(line, current->options)){
-                    FPRT (stderr, "Config file error line %d, could parse: %s\n", nu, line);
+                    ERROR_PRTF ("Config file error line %d, could parse: %s\n", nu, line);
                     free(line);
                 }
                 break;
@@ -370,7 +370,7 @@ metadata get_metadata(char *file)
     char *name_list = option_find_str(options, "names", 0);
     if(!name_list) name_list = option_find_str(options, "labels", 0);
     if(!name_list) {
-        FPRT(stderr, "No names or labels found\n");
+        ERROR_PRTF ( "No names or labels found\n");
     } else {
         m.names = get_labels(name_list);
     }
@@ -412,7 +412,7 @@ LAYER_ACT get_activation(char *s)
     if (strcmp(s, "tanh")==0) return TANH;
     if (strcmp(s, "gelu")==0) return GELU;
     if (strcmp(s, "gelu_acc")==0) return GELU_ACCURATE;
-    FPRT(stderr, "Couldn't find activation function %s, going with ReLU\n", s);
+    ERROR_PRTF ( "Couldn't find activation function %s, going with ReLU\n", s);
     return RELU;
 }
 
@@ -453,7 +453,7 @@ void remove_unsupported_sections (list *sections)
         node *next = n->next;
         if (string_to_layer_type (s->type) == NO_LAYER_TYPE) 
         {
-            FPRT (stderr, "Unsupported section type: %s\n", s->type);
+            ERROR_PRTF ("Unsupported section type: %s\n", s->type);
             free_section(s);
             list_remove (sections, n);
         }
@@ -465,7 +465,7 @@ void parse_section (section *s, aspen_layer_t *layer)
 {
     layer->type = string_to_layer_type (s->type);
     list *options = s->options;
-    if (layer->type == NO_LAYER_TYPE) FPRT (stderr, "Unknown layer type: %s", s->type);
+    if (layer->type == NO_LAYER_TYPE) ERROR_PRTF ("Unknown layer type: %s", s->type);
     layer->params [IN_W] = option_find_int_quiet (options, "width", 0);
     layer->params [IN_H] = option_find_int_quiet (options, "height", 0);
     layer->params [IN_C] = option_find_int_quiet (options, "channels", 0);
@@ -518,7 +518,7 @@ void parse_section (section *s, aspen_layer_t *layer)
         }
         else
         {
-            FPRT (stderr, "YOLO layer has no mask.\n");
+            ERROR_PRTF ("YOLO layer has no mask.\n");
         }
         a = option_find_str(options, "anchors", 0);
         if(a)
@@ -540,7 +540,7 @@ void parse_section (section *s, aspen_layer_t *layer)
         }
         else
         {
-            FPRT (stderr, "YOLO layer has no anchors.\n");
+            ERROR_PRTF ("YOLO layer has no anchors.\n");
         }
         LAYER_PARAMS dim_order[] = {OUT_C};
         unsigned int params[NUM_PARAM_ELEMENTS];
@@ -563,12 +563,12 @@ void parse_section (section *s, aspen_layer_t *layer)
 
 aspen_dnn_t *parse_darknet_cfg (char *filename)
 {
-    PRT ("Parsing Darknet CFG file: %s\n", filename);
+    PRTF ("Parsing Darknet CFG file: %s\n", filename);
     list *sections = read_data_cfg(filename);
     node *n = sections->front;
     if(!n) error ("Config file has no sections");
     remove_unsupported_sections (sections);
-    PRT ("Config file has %d sections \n", sections->size);
+    PRTF ("Config file has %d sections \n", sections->size);
     aspen_dnn_t *dnn = init_aspen_dnn (sections->size, filename);
 
     section *s = (section *)n->val;
