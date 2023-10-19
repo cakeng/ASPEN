@@ -18,7 +18,7 @@ int main (int argc, char* argv[])
     print_aspen_build_info();
 
     // Parse DNN model specification from .cfg file and model weights from .bin file
-    aspen_dnn_t *aspen_dnn = apu_create_dnn("../../files/resnet50_aspen.cfg", "../../files/resnet50_weight.bin");
+    aspen_dnn_t *aspen_dnn = apu_create_dnn("../../files/resnet50/resnet50_aspen.cfg", "../../files/resnet50/resnet50_weight.bin");
 
     // // Print the DNN model specifications. 
     // // Second argument is the verbosity level for model data (weights, bias, etc.)

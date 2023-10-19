@@ -1,7 +1,7 @@
+// This is a generic usage example for the ASPEN APIs.
+// Please refer to the included examples for a more detailed step-by-step guides.
+
 #include "aspen.h"
-#include "apu.h"
-#include "nasm.h"
-#include "dse.h"
 
 double get_sec()
 {
@@ -10,135 +10,90 @@ double get_sec()
     return now.tv_sec + now.tv_usec*1e-6;
 }
 
-void softmax (float *input, float *output, unsigned int num_batch, unsigned int num_elements)
-{
-    for (int i = 0; i < num_batch; i++)
-    {
-        float max = input[i * num_elements];
-        for (int j = 1; j < num_elements; j++)
-        {
-            if (input[i * num_elements + j] > max)
-                max = input[i * num_elements + j];
-        }
-        float sum = 0;
-        for (int j = 0; j < num_elements; j++)
-        {
-            output[i * num_elements + j] = expf (input[i * num_elements + j] - max);
-            sum += output[i * num_elements + j];
-        }
-        for (int j = 0; j < num_elements; j++)
-            output[i * num_elements + j] /= sum;
-    }
-}
-
-void get_prob_results (char *class_data_path, float* probabilities, unsigned int num)
-{
-    int buffer_length = 256;
-    char buffer[num][buffer_length];
-    FILE *fptr = fopen(class_data_path, "r");
-    if (fptr == NULL)
-        assert (0);
-    for (int i = 0; i < num; i++)
-    {
-        void *tmp = fgets(buffer[i], buffer_length, fptr);
-        if (tmp == NULL)
-            assert (0);
-        for (char *ptr = buffer[i]; *ptr != '\0'; ptr++)
-        {
-            if (*ptr == '\n')
-            {
-                *ptr = '\0';
-            }
-        }
-    }
-    fclose(fptr);
-    printf ("Results:\n");
-    for (int i = 0; i < 5; i++)
-    {
-        float max_val = -INFINITY;
-        int max_idx = 0;
-        for (int j = 0; j < num; j++)
-        {
-            if (max_val < *(probabilities + j))
-            {
-                max_val = *(probabilities + j);
-                max_idx = j;
-            }
-        }
-        printf ("%d: %s - %2.2f%%\n", i+1, buffer[max_idx], max_val*100);
-        *(probabilities + max_idx) = -INFINITY;
-    }
-}
-
 int main (int argc, char **argv)
 {
     print_aspen_build_info();
     
-    char* data_dir = NULL;
-    int batch_size = 1;
-    int number_of_iterations = 15;
-    int num_cores = 64;
-    int num_tiles = 100;
-    char *target_op = NULL;
-    int num_layers = 24;
-    int width = 64;
-    int channels_M = 64;
+    // 1. Parse command line arguments
 
-    if (argc != 10)
+    char dnn[256] = {0};
+    int batch_size = 4;
+    int number_of_iterations = 20;
+    int num_cores = 4;
+    int num_seq = -1;
+
+    if (argc == 5)
     {
-        printf ("Usage: %s <data_dir> <batch_size> <num_tiles> <number_of_iterations> <num_cores> <operator> <num_layers> <width> <channels_M>\n", argv[0]);
+        strcpy (dnn, argv[1]);
+        batch_size = atoi (argv[2]);
+        number_of_iterations = atoi (argv[3]);
+        num_cores = atoi (argv[4]);
+    }
+    else if (argc == 6)
+    {
+        strcpy (dnn, argv[1]);
+        batch_size = atoi (argv[2]);
+        number_of_iterations = atoi (argv[3]);
+        num_cores = atoi (argv[4]);
+        num_seq = atoi (argv[5]);
+    }
+    else
+    {
+        printf ("Usage: %s <dnn> <batch_size> <number_of_iterations> <num_cores> <num_seq>\n", argv[0]);
+        printf ("Only enter <num_seq> for transformer-based DNNs.\n");
+        printf ("Example: \"%s resnet50 4 20 4\", \"%s bert_base 4 20 4 128\"\n", argv[0], argv[0]);
         exit (0);
     }
-    else 
+
+    char target_aspen[1024] = {0};
+    sprintf (target_aspen, "files/%s/%s.aspen", dnn, dnn);
+    char nasm_file_name [1024] = {0};
+    if (num_seq == -1)
+        sprintf (nasm_file_name, "files/%s/%s_B%d.nasm", dnn, dnn, batch_size);
+    else
+        sprintf (nasm_file_name, "files/%s/%s_S%d_B%d.nasm", dnn, dnn, batch_size, num_seq);
+
+
+    // 2. Load the ASPEN DNN weight file (.aspen file)
+
+    aspen_dnn_t *target_dnn = apu_load_dnn_from_file (target_aspen);
+    if (target_dnn == NULL)
     {
-        data_dir = argv[1];
-        batch_size = atoi (argv[2]);
-        num_tiles = atoi (argv[3]);
-        number_of_iterations = atoi (argv[4]);
-        num_cores = atoi (argv[5]);
-        target_op = argv[6];
-        num_layers = atoi (argv[7]);
-        width = atoi (argv[8]);
-        channels_M = atoi (argv[9]);
+        printf ("Unable to load ASPEN DNN weight file %s\n", target_aspen);
+        exit (1);
     }
 
 
-    char target_cfg[1024] = {0};
-    sprintf (target_cfg, "%s/%s_W%d_CM%d_L%d_T%d.cfg", data_dir, target_op, width, channels_M, num_layers, num_tiles);
-    char target_aspen[1024] = {0};
-    sprintf (target_aspen, "%s/%s_W%d_CM%d_L%d_T%d.aspen", data_dir, target_op, width, channels_M, num_layers, num_tiles);
-    char nasm_file_name [1024] = {0};
-    sprintf (nasm_file_name, "%s/%s_W%d_CM%d_L%d_T%d.nasm", data_dir, target_op, width, channels_M, num_layers, num_tiles);
+    // 3. Create or load the ASPEN graph (.nasm file)
 
-    aspen_dnn_t *target_dnn = apu_create_dnn(target_cfg, NULL);
-    apu_save_dnn_to_file (target_dnn, target_aspen);
-    nasm_t *target_nasm = NULL;
-    if (strcmp (target_op, "conv") == 0)
-        target_nasm = apu_create_nasm (target_dnn, num_tiles, batch_size);
-    else
-        target_nasm = apu_create_transformer_nasm (target_dnn, num_tiles, batch_size, width);
-    apu_save_nasm_to_file (target_nasm, nasm_file_name);
+    // 3-1. Generate the ASPEN graph (nasm)
 
-    // aspen_dnn_t *target_dnn = apu_load_dnn_from_file (target_aspen);
-    // if (target_dnn == NULL)
-    // {
-    //     printf ("Unable to load dnn file\n");
-    //     exit (0);
-    // }
-    // nasm_t *target_nasm = apu_load_nasm_from_file (nasm_file_name, target_dnn);
-    // if (target_nasm == NULL)
-    // {
-    //     printf ("Unable to load nasm file\n");
-    //     exit (0);
-    // }
+    // nasm_t *target_nasm = NULL;
+    // if (num_seq == -1)
+    //     target_nasm = apu_generate_nasm (target_dnn, batch_size, 20);
+    // else
+    //     target_nasm = apu_generate_transformer_nasm (target_dnn, batch_size, num_seq, 20);
+    // apu_save_nasm_to_file (target_nasm, nasm_file_name);
 
-    // print_nasm_info (target_nasm, 1, 0);
+    // 3-2. Load the ASPEN graph (nasm)
+
+    nasm_t *target_nasm = apu_load_nasm_from_file (nasm_file_name, target_dnn);
+    if (target_nasm == NULL)
+    {
+        printf ("Unable to load ASPEN graph file %s\n", nasm_file_name);
+        exit (1);
+    }
+
   
+    // 3. Initialize the ASPEN DSEs and Ready Pool
+
     rpool_t *rpool = rpool_init ();
     dse_group_t *dse_group = dse_group_init (num_cores);
     dse_group_set_rpool (dse_group, rpool);
-
     rpool_add_nasm (rpool, target_nasm, NULL);
+
+
+    // 4. Run the ASPEN DSEs
 
     printf ("Running %d iterations\n", number_of_iterations);
     double start_time = get_sec();
@@ -154,22 +109,22 @@ int main (int argc, char **argv)
     printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);
     aspen_flush_dynamic_memory ();
 
-    // if (strcmp(dnn, "bert_base") != 0)
-    // {
-    //     LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
-    //     float *layer_output = dse_get_nasm_result (target_nasm, output_order);
-    //     float *softmax_output = calloc (1000*batch_size, sizeof(float));
-    //     softmax (layer_output, softmax_output, batch_size, 1000);
-    //     for (int i = 0; i < batch_size; i++)
-    //     {
-    //         get_prob_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
-    //     }
-    //     free (layer_output);
-    //     free (softmax_output);
-    // }
-    // dse_group_destroy (dse_group);
-    // rpool_destroy (rpool);
 
+    // 5. Save the DNN output to a file
+
+    LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
+    void *layer_output = NULL;
+    size_t output_size = dse_get_nasm_result (target_nasm, output_order, &layer_output);
+    
+
+
+    free (layer_output);
+
+
+    // 6. Cleanup
+
+    dse_group_destroy (dse_group);
+    rpool_destroy (rpool);
     apu_destroy_nasm (target_nasm);
     apu_destroy_dnn (target_dnn);
     return 0;

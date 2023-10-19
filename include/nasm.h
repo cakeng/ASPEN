@@ -95,6 +95,6 @@ void get_tensor_pos_from_nist (nasm_ldata_t *ldata, ninst_t *ninst, unsigned int
 
 void *get_packed_ldata_output_colwise (nasm_ldata_t *ldata);
 void *get_packed_ldata_output_rowwise (nasm_ldata_t *ldata);
-void *get_ldata_output (nasm_ldata_t *ldata, LAYER_PARAMS *order);
+ssize_t get_ldata_output (void** out_ptr, nasm_ldata_t *ldata, LAYER_PARAMS *order);
 
 #endif /* _NASM_H_ */

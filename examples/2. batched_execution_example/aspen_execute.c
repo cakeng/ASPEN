@@ -72,7 +72,8 @@ int main (int argc, char* argv[])
     printf ("Resnet50 (Batch of 4):\n");
     // Get the output tensor data from the NASM in a NCWH order.
     LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
-    float *layer_output = dse_get_nasm_result (resnet50_B4_nasm, output_order);
+    float *layer_output = NULL;
+    size_t output_size = dse_get_nasm_result (resnet50_B4_nasm, output_order, (void**)&layer_output);
     // Apply softmax to the output tensor data.
     float *softmax_output = calloc (1000*batch_size, sizeof(float));
     softmax (layer_output, softmax_output, batch_size, 1000);
@@ -87,9 +88,10 @@ int main (int argc, char* argv[])
 
     printf ("VGG-16 (Batch of 2):\n");
     float *layer_outputs[2] = {NULL, NULL};
+    size_t output_sizes[2] = {0, 0};
     // Get the output tensor data from the NASM in a NCWH order.
-    layer_outputs[0] = dse_get_nasm_result (vgg16_B1_nasm_1, output_order);
-    layer_outputs[1] = dse_get_nasm_result (vgg16_B1_nasm_2, output_order);
+    output_sizes[0] = dse_get_nasm_result (vgg16_B1_nasm_1, output_order, (void**)&layer_outputs[0]);
+    output_sizes[1] = dse_get_nasm_result (vgg16_B1_nasm_2, output_order, (void**)&layer_outputs[1]);
     // Apply softmax to the output tensor data.
     softmax_output = calloc (1000*2, sizeof(float));
     softmax (layer_outputs[0], softmax_output, 1, 1000);

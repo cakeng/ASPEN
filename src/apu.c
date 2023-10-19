@@ -224,12 +224,17 @@ void *get_aspen_tensor_data (aspen_tensor_t *tensor, LAYER_PARAMS *output_order)
     return output;
 }
 // Change to add a new layer type
-void *get_ldata_output (nasm_ldata_t *ldata, LAYER_PARAMS *order)
+ssize_t get_ldata_output (void **out_ptr, nasm_ldata_t *ldata, LAYER_PARAMS *order)
 {
     if (ldata == NULL)
     {
         ERROR_PRTF ("Error in get_ldata_output: ldata is NULL.\n");
-        return NULL;
+        return -1;
+    }
+    if (out_ptr == NULL)
+    {
+        ERROR_PRTF ("Error in get_ldata_output: out_ptr is NULL.\n");
+        return -1;
     }
     size_t elem_size = ldata->layer->dnn->element_size;
     size_t data_size = ldata->out_mat_dims[OUT_H] * ldata->out_mat_dims[OUT_W] * elem_size;
@@ -287,7 +292,8 @@ void *get_ldata_output (nasm_ldata_t *ldata, LAYER_PARAMS *order)
     output = calloc (ldata->out_mat_dims[OUT_H] * ldata->out_mat_dims[OUT_W], elem_size);
     memcpy (output, tensor->data, data_size);
     destroy_aspen_tensor (tensor);
-    return output;
+    *out_ptr = output;
+    return data_size;
 }
 
 void* get_aspen_tensor_element_ptr (aspen_tensor_t *tensor, unsigned int *pos)

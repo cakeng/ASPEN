@@ -9,6 +9,8 @@ TLDR -  Run the following commands to execute batched inference and multi-DNN co
 5. gcc -o aspen_execute aspen_execute.c -I../../include -L../../ -laspen -lgomp -lm
 6. ./aspen_execute 100
 
+Note that PyTorch runs VGG-16 with a batch size of 2, and ASPEN runs VGG-16 with a batch size of 2 AND ResNet-50 with a batch size of 4.
+
 ///////////////////////////////////////////////////////////////////////////////////////////
 
 1.  This example guides you through the steps of executing batched inference and multi-DNN co-inference using ASPEN.
@@ -57,6 +59,7 @@ TLDR -  Run the following commands to execute batched inference and multi-DNN co
     Run "gcc -o aspen_execute aspen_execute.c -I../../include -L../../ -laspen -lgomp -lm" to compile the code.
     Run "./aspen_execute <num_iter>" to execute batched multi-dnn co-execution of ASPEN. Specify the number of iterations as arguments.
     In our case, use "./aspen_execute 100" to co-execute ResNet-50 with a batch size of 4 and VGG-16 with a batch size of 2 for 100 iterations. 
+    Note that PyTorch ran VGG-16 with a batch size of 2, and ASPEN runs VGG-16 with a batch size of 2 AND ResNet-50 with a batch size of 4.
     The results should be:
     Resnet50 (Batch of 4):
     Batch 1 results:

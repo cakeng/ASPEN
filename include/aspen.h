@@ -116,8 +116,10 @@ void dse_group_stop (dse_group_t *dse_group);
 void dse_group_run_until_nasm_completion (dse_group_t *dse_group, nasm_t *nasm);
 void dse_wait_for_nasm_completion (nasm_t *nasm);
 unsigned int dse_check_nasm_completion (nasm_t *nasm);
-void *dse_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS *order);
-void *dse_get_nasm_result (nasm_t *nasm, LAYER_PARAMS *order);
+ssize_t dse_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS *order, void** out_ptr);
+ssize_t dse_get_nasm_result (nasm_t *nasm, LAYER_PARAMS *order, void** out_ptr);
+
+void aspen_flush_dynamic_memory();
 
 void print_aspen_build_info(void);
 void print_dnn_info (aspen_dnn_t *dnn, int print_data);

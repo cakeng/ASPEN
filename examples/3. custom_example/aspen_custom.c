@@ -64,7 +64,8 @@ int main (int argc, char* argv[])
     
     // // Get the output tensor data from the NASM in a NCWH order.
     LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
-    float *layer_output = dse_get_nasm_result (aspen_nasm, output_order);
+    float *layer_output = NULL;
+    size_t output_size = dse_get_nasm_result (aspen_nasm, output_order, (void**)&layer_output);
     // Get the results.
     printf ("Predicted: ");
     for (int i = 0; i < batch_size; i++)

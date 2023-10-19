@@ -17,11 +17,11 @@ int main (int argc, char* argv[])
     print_aspen_build_info();
 
     // Parse DNN model specification of ResNet50.
-    aspen_dnn_t *resnet50_dnn = apu_create_dnn("../../files/resnet50_aspen.cfg", "../../files/resnet50_weight.bin");
+    aspen_dnn_t *resnet50_dnn = apu_create_dnn("../../files/resnet50/resnet50_aspen.cfg", "../../files/resnet50/resnet50_weight.bin");
     // Save the model to a file
     apu_save_dnn_to_file (resnet50_dnn, "resnet50.aspen");
     // Parse DNN model specification of VGG-16.
-    aspen_dnn_t *vgg16_dnn = apu_create_dnn("../../files/vgg16_aspen.cfg", "vgg16_weight.bin");
+    aspen_dnn_t *vgg16_dnn = apu_create_dnn("../../files/vgg16/vgg16_aspen.cfg", "vgg16_weight.bin");
     // Save the model to a file
     apu_save_dnn_to_file (vgg16_dnn, "vgg16.aspen");
 

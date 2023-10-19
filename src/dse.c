@@ -465,9 +465,10 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
     atomic_fetch_add (&nasm->num_ldata_completed, 1);
 }
 
-void *dse_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS *order)
+ssize_t dse_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS *order, void** out_ptr)
 {
     nasm_ldata_t *ldata = &nasm->ldata_arr[ldata_idx];
+    size_t total_size = 0;
     if (ldata->layer->type == YOLO_LAYER)
     {
         void *output = NULL;
@@ -492,21 +493,22 @@ void *dse_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS *
                 nasm_ldata_t *targ_ldata = &nasm->ldata_arr[i];
                 if (targ_ldata->layer->type == YOLO_LAYER)
                 {
-                    void *data = get_ldata_output (targ_ldata, order);
-                    size_t elem_size = targ_ldata->layer->dnn->element_size;
-                    size_t data_size = targ_ldata->out_mat_dims[OUT_H] * targ_ldata->out_mat_dims[OUT_W] * elem_size / batch_num;
+                    void *data = NULL;
+                    ssize_t data_size = get_ldata_output (&data, targ_ldata, order);
+                    total_size += data_size;
                     memcpy ((char*)output + offset, (char*)data + data_size*b, data_size);
                     offset += data_size;
                     free (data);
                 }
             }
         }
-        return output;
+        *out_ptr = output;
+        return total_size;
     }
-    return get_ldata_output (ldata, order);
+    return get_ldata_output (out_ptr, ldata, order);
 }
 
-void *dse_get_nasm_result (nasm_t *nasm, LAYER_PARAMS *order)
+ssize_t dse_get_nasm_result (nasm_t *nasm, LAYER_PARAMS *order, void** out_ptr)
 {
-    return dse_get_ldata_result (nasm, nasm->num_ldata - 1, order);
+    return dse_get_ldata_result (nasm, nasm->num_ldata - 1, order, out_ptr);
 }

@@ -24,4 +24,8 @@ The Makefile is configured to compile the ASPEN library with an AVX2 backend.
 
 ---
 
+Weights, pre-generated ASPEN graphs, and other files are stored in (https://drive.google.com/drive/folders/1pH19a9sadbV10_RxHcKnWIqvgX4zQpmh?usp=sharing)[this] Google Drive. 
+
+
+
 ASPEN has a dependency on OpenMP. The examples of this supplementary material have dependencies on PyTorch, TorchVision, and GCC.

@@ -60,9 +60,10 @@ int main (int argc, char* argv[])
     
     // Get the output tensor data from the NASM in a NCWH order.
     LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
-    float *layer_output = dse_get_nasm_result (aspen_nasm, output_order);
+    float *layer_output = NULL; 
+    size_t output_size = dse_get_nasm_result (aspen_nasm, output_order, (void**)&layer_output);
     // Apply softmax to the output tensor data.
-    float *softmax_output = calloc (1000*batch_size, sizeof(float));
+    float *softmax_output = calloc (output_size, sizeof(float));
     softmax (layer_output, softmax_output, batch_size, 1000);
     // Get the top 5 results from the softmax output.
     for (int i = 0; i < batch_size; i++)

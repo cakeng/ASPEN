@@ -16,7 +16,6 @@ void aspen_free (void *ptr);
 void *aspen_dynamic_calloc (size_t num, size_t size);
 void *aspen_dynamic_malloc (size_t num, size_t size);
 void aspen_dynamic_free (void *ptr, size_t num, size_t size);
-void aspen_flush_dynamic_memory ();
 
 size_t get_smallest_dividable (size_t num, size_t divider);
 
