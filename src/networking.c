@@ -87,8 +87,9 @@ void init_server(networking_engine* net_engine, int port, int is_UDP)
             ERROR_PRTF ("ERROR! socket listen error\n");
             assert(0);
         }
-        else 
+        else {
             PRTF ("Networking: TCP Server listening on port %d\n", port);
+        }
         socklen_t edge_addr_len = sizeof(net_engine->edge_addr);
         net_engine->comm_sock = 
             accept(net_engine->listen_sock, (struct sockaddr*)&net_engine->edge_addr, &edge_addr_len);
@@ -107,8 +108,9 @@ void init_server(networking_engine* net_engine, int port, int is_UDP)
         read_n(net_engine->comm_sock, &buf, 8);
         PRTF ("Networking: TCP Server received %s\n", buf);
     }
-    else 
+    else {
         PRTF ("Networking: UDP Server listening on port %d\n", port);
+    }
 }
 
 void init_edge(networking_engine* net_engine, char* ip, int port, int is_UDP) 
@@ -295,9 +297,7 @@ void receive(networking_engine *net_engine)
             // PRTF("Networking: RX Command %d received - ", payload_size);
             if (payload_size == RX_STOP_SIGNAL)
             {
-                #ifdef SUPPRESS_OUTPUT
                 PRTF("RX stop signal received.\n");
-                #endif
                 atomic_store (&net_engine->rx_run, 0);
                 atomic_store (&net_engine->nasm->completed, 1);
                 pthread_mutex_lock (&net_engine->nasm->nasm_mutex);

@@ -87,7 +87,7 @@ int main(int argc, char **argv)
 
     if(num_edge_devices >= SCHEDULE_MAX_DEVICES)
     {
-        printf("num_edge_devices should be less than %d\n", SCHEDULE_MAX_DEVICES);
+        PRTF("num_edge_devices should be less than %d\n", SCHEDULE_MAX_DEVICES);
         exit(1);
     }
 
@@ -104,11 +104,11 @@ int main(int argc, char **argv)
             strncpy(nasm_name, nasm_name_with_ext, nasm_name_ext_end - nasm_name_with_ext);
         else 
             strcpy(nasm_name, nasm_name_with_ext);
-        printf ("nasm_name: %s\n", nasm_name);
+        PRTF ("nasm_name: %s\n", nasm_name);
     }
 
     /** STAGE: Initialization **/
-    printf("STAGE: Initialization\n");
+    PRTF("STAGE: Initialization\n");
     if (!strcmp(schedule_policy, "local"))
     {
         device_mode = DEV_LOCAL;
@@ -120,7 +120,7 @@ int main(int argc, char **argv)
         {
             client_sock_arr[i] = accept_client_sock(server_sock);
             write_n(client_sock_arr[i], &i, sizeof(int));
-            printf("\tEdge %d is connected\n", i);
+            PRTF("\tEdge %d is connected\n", i);
         }
         device_idx = num_edge_devices;
     }
@@ -133,7 +133,7 @@ int main(int argc, char **argv)
     {
         schedule_policy = "local";
     }
-    printf("\tInitialized to device idx: %d\n", device_idx);
+    PRTF("\tInitialized to device idx: %d\n", device_idx);
 
 
 
@@ -173,7 +173,9 @@ int main(int argc, char **argv)
     target_inputs[device_idx] = target_input;
 
     /** STAGE: PARTITIONING **/
-    printf("STAGE: PARTITIONING\n");
+    
+    PRTF("STAGE: PARTITIONING\n");
+    
     if(device_mode == DEV_SERVER)
     {
         for(int i = 0; i < num_edge_devices; i++)
@@ -199,9 +201,11 @@ int main(int argc, char **argv)
             target_dnn_dirs[i][target_dnn_dir_len] = '\0';
             target_inputs[i][target_input_len] = '\0';
 
-            printf("\t[EDGE %d] NASM: %s\n", i, target_nasm_dirs[i]);
-            printf("\t[EDGE %d] DNN: %s\n", i, target_dnn_dirs[i]);
-            printf("\t[EDGE %d] INPUT: %s\n", i, target_inputs[i]);
+            
+            PRTF("\t[EDGE %d] NASM: %s\n", i, target_nasm_dirs[i]);
+            PRTF("\t[EDGE %d] DNN: %s\n", i, target_dnn_dirs[i]);
+            PRTF("\t[EDGE %d] INPUT: %s\n", i, target_inputs[i]);
+            
             
             target_dnn[i] = apu_load_dnn_from_file(target_dnn_dirs[i]);
             target_nasm[i] = apu_load_nasm_from_file(target_nasm_dirs[i], target_dnn[i]);
@@ -230,7 +234,9 @@ int main(int argc, char **argv)
     }
 
     /** STAGE: PROFILING COMPUTATION FOR DYNAMIC OFFLOADING*/
-    printf("STAGE: PROFILING COMPUTATION %d\n", device_idx);
+    
+    PRTF("STAGE: PROFILING COMPUTATION %d\n", device_idx);
+    
     
     for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
     {
@@ -238,14 +244,18 @@ int main(int argc, char **argv)
         {
             ninst_profile[edge_id] = profile_computation(target_nasm[edge_id], dse_num, device_idx, target_inputs[edge_id], device_mode, gpu, 1);
             float avg_computation_time = device_mode == DEV_SERVER ? ninst_profile[edge_id]->avg_server_computation_time : ninst_profile[edge_id]->avg_edge_computation_time;
-            printf("\tTotal: %d\tAvg Computation Time: %fms\n", ninst_profile[edge_id]->num_ninsts, 
+            
+            PRTF("\tTotal: %d\tAvg Computation Time: %fms\n", ninst_profile[edge_id]->num_ninsts, 
                                                 avg_computation_time*1000);
+            
         }
         
     }
     
     /** STAGE: PROFILING NETWORK **/
-    printf("STAGE: PROFILING NETWORK\n");
+    
+    PRTF("STAGE: PROFILING NETWORK\n");
+    
     int connection_key;
     if (device_mode == DEV_SERVER) 
     {
@@ -255,10 +265,10 @@ int main(int argc, char **argv)
             set_time_offset(time_offset, device_mode);
             connection_key = 12534;
             write_n(client_sock_arr[i], &connection_key, sizeof(int));
-            printf("\t[Edge Device %d]connection key: %d\n", i, connection_key);
-            // printf("\t[Edge Device %d]time_offset: %f\n", i, time_offset);
+            PRTF("\t[Edge Device %d]connection key: %d\n", i, connection_key);
+            // PRTF("\t[Edge Device %d]time_offset: %f\n", i, time_offset);
             network_profile[i] = profile_network(device_mode, i, server_sock, client_sock_arr[i]);
-            // printf("\t[Edge Device %d]RTT: %fms Bandwidth: %fMbps\n", i, network_profile[i]->rtt * 1000.0, network_profile[i]->transmit_rate);
+            // PRTF("\t[Edge Device %d]RTT: %fms Bandwidth: %fMbps\n", i, network_profile[i]->rtt * 1000.0, network_profile[i]->transmit_rate);
         }
     }
     else if (device_mode == DEV_EDGE) 
@@ -267,10 +277,10 @@ int main(int argc, char **argv)
         set_time_offset(time_offset, device_mode);
         connection_key = -1;
         read_n(server_sock, &connection_key, sizeof(int));
-        printf("\t[Edge Device %d]connection key: %d\n", device_idx, connection_key);
-        printf("\t[Edge Device %d]time_offset: %f\n", device_idx, time_offset);
+        PRTF("\t[Edge Device %d]connection key: %d\n", device_idx, connection_key);
+        PRTF("\t[Edge Device %d]time_offset: %f\n", device_idx, time_offset);
         network_profile[device_idx] = profile_network(device_mode, device_idx, server_sock, 0);
-        printf("\t[Edge Device %d]RTT: %fms Bandwidth: %fMbps\n", device_idx, network_profile[device_idx]->rtt * 1000.0, network_profile[device_idx]->transmit_rate);
+        PRTF("\t[Edge Device %d]RTT: %fms Bandwidth: %fMbps\n", device_idx, network_profile[device_idx]->rtt * 1000.0, network_profile[device_idx]->transmit_rate);
     }
     
     // Communicate profiles
@@ -283,10 +293,13 @@ int main(int argc, char **argv)
         communicate_profiles_edge(server_sock, network_profile[device_idx], ninst_profile[device_idx]);
 
     /** STAGE: SCHEDULING **/
-    printf ("STAGE: SCHEDULING - %s\n", schedule_policy);
+    PRTF ("STAGE: SCHEDULING - %s\n", schedule_policy);
+
     if (!strcmp(schedule_policy, "partial"))
     {
-        printf("\t[Partial Offloading] Sched Partial Ratio: %f\n", sched_partial_ratio);
+        
+        PRTF("\t[Partial Offloading] Sched Partial Ratio: %f\n", sched_partial_ratio);
+         
         for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
         {
             if(device_mode == DEV_SERVER || device_idx == edge_id)
@@ -297,7 +310,10 @@ int main(int argc, char **argv)
     }
     else if (!strcmp(schedule_policy, "random"))
     {
-        printf("\t[Random Offloading] Sched Partial Ratio: %f\n", sched_partial_ratio);
+        
+        PRTF("\t[Random Offloading] Sched Partial Ratio: %f\n", sched_partial_ratio);
+        
+
         for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
         {
             if(device_mode == DEV_SERVER || device_idx == edge_id)
@@ -320,17 +336,21 @@ int main(int argc, char **argv)
     {
         spinn_scheduler = init_spinn_scheduler(ninst_profile, network_profile, target_nasm, device_mode, device_idx, num_edge_devices);
 
-        printf("\t[Device %d]Init SPINN scheduler\n", device_idx);
+        
+        PRTF("\t[Device %d]Init SPINN scheduler\n", device_idx);
+        
         for(int i = 0; i < num_edge_devices; i++)
         {
             if(device_mode == DEV_SERVER || device_idx == i)
             {
-                printf("\t[Device %d]Avg server ninst computation time: %fms\n", i, spinn_scheduler->avg_server_ninst_compute_time[i]*1000);
-                printf("\t[Device %d]Num serve dse: %d\n", i, spinn_scheduler->server_num_dse[i]);
-                printf("\t[Device %d]Avg edge ninst computation time:   %fms\n", i, spinn_scheduler->avg_edge_ninst_compute_time[i]*1000);
-                printf("\t[Device %d]Num edge dse: %d\n", i, spinn_scheduler->edge_num_dse[i]);
-                printf("\t[Device %d]Avg bandwidth: %fMbps\n", i, spinn_scheduler->avg_bandwidth[i]);
-                printf("\t[Device %d]RTT: %fms\n", i, spinn_scheduler->rtt[i] * 1000.0);
+                
+                PRTF("\t[Device %d]Avg server ninst computation time: %fms\n", i, spinn_scheduler->avg_server_ninst_compute_time[i]*1000);
+                PRTF("\t[Device %d]Num serve dse: %d\n", i, spinn_scheduler->server_num_dse[i]);
+                PRTF("\t[Device %d]Avg edge ninst computation time:   %fms\n", i, spinn_scheduler->avg_edge_ninst_compute_time[i]*1000);
+                PRTF("\t[Device %d]Num edge dse: %d\n", i, spinn_scheduler->edge_num_dse[i]);
+                PRTF("\t[Device %d]Avg bandwidth: %fMbps\n", i, spinn_scheduler->avg_bandwidth[i]);
+                PRTF("\t[Device %d]RTT: %fms\n", i, spinn_scheduler->rtt[i] * 1000.0);
+                
             }
         }
 
@@ -339,7 +359,9 @@ int main(int argc, char **argv)
             if(device_mode == DEV_SERVER || device_idx == edge_id)
             {
                 sched_sequential_idx = spinn_schedule_layer(spinn_scheduler, target_nasm[edge_id], edge_id);
-                printf("\t[Edge Device %d] Split Layer: %d\n", edge_id, sched_sequential_idx);
+                
+                PRTF("\t[Edge Device %d] Split Layer: %d\n", edge_id, sched_sequential_idx);
+                
                 init_sequential_offload(target_nasm[edge_id], sched_sequential_idx, edge_id, num_edge_devices); // server idx == num_edge_devices
             }
         }
@@ -356,15 +378,20 @@ int main(int argc, char **argv)
         dynamic_scheduler = init_dynamic_scheduler(ninst_profile, network_profile, device_mode, device_idx, num_edge_devices);
         dse_group_set_dynamic_scheduler(dse_group, dynamic_scheduler);
         
-        printf("\t[Device %d]Init dynamic scheduler\n", device_idx);
+        
+        PRTF("\t[Device %d]Init dynamic scheduler\n", device_idx);
+        
+
         for(int i = 0; i < num_edge_devices; i++)
         {
             if(device_mode == DEV_SERVER || device_idx == i)
             {
-                printf("\t[Device %d]Avg server ninst computation time: %fms\n", i, dynamic_scheduler->avg_server_ninst_compute_time[i]*1000);
-                printf("\t[Device %d]Avg edge ninst computation time:   %fms\n", i, dynamic_scheduler->avg_edge_ninst_compute_time[i]*1000);
-                printf("\t[Device %d]Avg bandwidth: %fMbps\n", i, dynamic_scheduler->avg_bandwidth[i]);
-                printf("\t[Device %d]RTT: %fms\n", i, dynamic_scheduler->rtt[i] * 1000.0);
+                
+                PRTF("\t[Device %d]Avg server ninst computation time: %fms\n", i, dynamic_scheduler->avg_server_ninst_compute_time[i]*1000);
+                PRTF("\t[Device %d]Avg edge ninst computation time:   %fms\n", i, dynamic_scheduler->avg_edge_ninst_compute_time[i]*1000);
+                PRTF("\t[Device %d]Avg bandwidth: %fMbps\n", i, dynamic_scheduler->avg_bandwidth[i]);
+                PRTF("\t[Device %d]RTT: %fms\n", i, dynamic_scheduler->rtt[i] * 1000.0);
+                
             }
         }
     }
@@ -374,13 +401,15 @@ int main(int argc, char **argv)
     }
     else
     {
-        printf("ERROR: Unknown schedule policy: %s\n", schedule_policy);
+        PRTF("ERROR: Unknown schedule policy: %s\n", schedule_policy);
         exit(1);
     }
 
     /** STAGE: INFERENCE **/
 
-    printf("STAGE: INFERENCE\n");
+    
+    PRTF("STAGE: INFERENCE\n");
+    
     if (!strcmp(schedule_policy, "local"))
     {
         rpool_reset_queue(rpool_arr[device_idx]);
@@ -399,7 +428,7 @@ int main(int argc, char **argv)
         }
 
         double end_time = get_time_secs();
-        printf ("Time taken: %lf seconds\n", (end_time - start_time)/inference_repeat_num);
+        PRTF ("Time taken: %lf seconds\n", (end_time - start_time)/inference_repeat_num);
     }
     else
     {
@@ -440,9 +469,9 @@ int main(int argc, char **argv)
         for(int inf_num = 0; inf_num < inference_repeat_num; inf_num++)
         {
             // synchronize
-            #ifdef SUPPRESS_OUTPUT
-            printf("[Inference %d] inference: %d/%d\n", inf_num+1, inf_num+1, inference_repeat_num);
-            #endif
+            
+            PRTF("[Inference %d] inference: %d/%d\n", inf_num+1, inf_num+1, inference_repeat_num);
+            
             int sync_edge_device[SCHEDULE_MAX_DEVICES] = {0, };
             int num_sync_edges = 0;
 
@@ -457,10 +486,10 @@ int main(int argc, char **argv)
                             float time_offset = profile_network_sync(device_mode, server_sock, client_sock_arr[edge_id]);
                             set_time_offset(time_offset, device_mode);
                             read_n(client_sock_arr[edge_id], &connection_key, sizeof(int));
-                            #ifdef SUPPRESS_OUTPUT
-                            printf("\t[Edge Device %d]connection key: %d\n", edge_id, connection_key);
-                            printf("\t[Edge Device %d]time_offset: %f\n", edge_id, time_offset);
-                            #endif
+                            
+                            PRTF("\t[Edge Device %d]connection key: %d\n", edge_id, connection_key);
+                            PRTF("\t[Edge Device %d]time_offset: %f\n", edge_id, time_offset);
+                            
 
                             sync_edge_device[edge_id] = 1;
                             num_sync_edges++;
@@ -479,10 +508,10 @@ int main(int argc, char **argv)
                     float time_offset = profile_network_sync(device_mode, server_sock, 0);
                     set_time_offset(time_offset, device_mode);
                     write_n(server_sock, &connection_key, sizeof(int));
-                    #ifdef SUPPRESS_OUTPUT
-                    printf("\t[Edge Device %d]connection key: %d\n", device_idx, connection_key);
-                    printf("\t[Edge Device %d]time_offset: %f\n", device_idx, time_offset);
-                    #endif
+                    
+                    PRTF("\t[Edge Device %d]connection key: %d\n", device_idx, connection_key);
+                    PRTF("\t[Edge Device %d]time_offset: %f\n", device_idx, time_offset);
+                    
                     read_n(server_sock, &num_sync_edges, sizeof(int));
                 }
             }
@@ -490,14 +519,11 @@ int main(int argc, char **argv)
             // Communicate profiles
             if(inf_num > 0)
             {
-                #ifdef SUPPRESS_OUTPUT
-                printf("\t[Communicate profiles]\n");
-                #endif
+                PRTF("\t[Communicate profiles]\n");   
                 for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
                 {
                     if(!strcmp(schedule_policy, "spinn") || !strcmp(schedule_policy, "spinn+pipeline"))
                     {
-
                         if(device_mode == DEV_SERVER)
                         {
                             max_computed_time = get_max_computed_time(target_nasm[edge_id]);
@@ -546,16 +572,16 @@ int main(int argc, char **argv)
                         if(device_mode == DEV_SERVER)
                         {
                             read_n(client_sock_arr[edge_id], &sched_sequential_idx, sizeof(int));
-                            #ifdef SUPPRESS_OUTPUT
+                            
                             PRTF("\t[Edge Device %d] Split Layer:%d Total: %d\n", edge_id, sched_sequential_idx, target_nasm[edge_id]->num_ldata);
-                            #endif
+                            
                         }
                         else if(device_mode == DEV_EDGE)
                         {
                             sched_sequential_idx = spinn_schedule_layer(spinn_scheduler, target_nasm[edge_id], edge_id);
-                            #ifdef SUPPRESS_OUTPUT
+                            
                             PRTF("\t[Edge Device %d] Split Layer: %d Total: %d\n", edge_id, sched_sequential_idx, target_nasm[edge_id]->num_ldata);
-                            #endif
+                            
                             write_n(server_sock, &sched_sequential_idx, sizeof(int));   
                         }
                         init_sequential_offload(target_nasm[edge_id], sched_sequential_idx, edge_id, num_edge_devices); // server idx == num_edge_devices
@@ -603,9 +629,7 @@ int main(int argc, char **argv)
 
             if (!(device_mode == DEV_SERVER && is_conventional)) 
             {
-                #ifdef SUPPRESS_OUTPUT
                 PRTF("[Inference %d] Running DSEs...\n", inf_num+1);
-                #endif
                 dse_group_run (dse_group);
             }
 
@@ -615,7 +639,15 @@ int main(int argc, char **argv)
                     dse_wait_for_nasm_completion (target_nasm[edge_id]);
             }
             
+            #ifdef SUPPRESS_OUTPUT
+            get_elapsed_time_only();
+            printf(",");
+            if(device_mode != DEV_SERVER)
+                printf("%f\n",get_max_recv_time(target_nasm[device_idx])-get_min_sent_time(target_nasm[device_idx]));
+            #else
             get_elapsed_time ("run_aspen");
+            #endif
+            
             dse_group_stop (dse_group);
             
             for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
@@ -632,9 +664,7 @@ int main(int argc, char **argv)
             {
                 if(device_mode == DEV_SERVER || device_idx == edge_id)
                 {
-                    #ifdef SUPPRESS_OUTPUT
-                    PRTF("---------------------[Edge %d] Inference result---------------------\n", edge_id);
-                    #endif
+                    PRTF("---------------------[Edge %d] Inference result---------------------\n", edge_id);   
                     LAYER_PARAMS output_order_cnn[] = {BATCH, OUT_H, OUT_W, OUT_C};  // for CNN
                     LAYER_PARAMS output_order_transformer[] = {BATCH, MAT_N, MAT_M};    // for Transformer
                     LAYER_PARAMS *output_order_param = !strcmp(output_order, "cnn") ? output_order_cnn : output_order_transformer;
@@ -643,9 +673,7 @@ int main(int argc, char **argv)
                     naive_softmax (layer_output, softmax_output, target_nasm[edge_id]->batch_size, 1000);
                     for (int i = 0; i < target_nasm[edge_id]->batch_size; i++)
                     {
-                        #ifdef SUPPRESS_OUTPUT
-                        get_probability_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
-                        #endif
+                        get_probability_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);   
                     }
                     free (layer_output);
                     free (softmax_output);
@@ -670,9 +698,7 @@ int main(int argc, char **argv)
                         if(target_nasm[edge_id]->ninst_arr[j].received_time != 0)
                             total_received++;
                     }
-                    #ifdef SUPPRESS_OUTPUT
                     PRTF("\t[Edge %d] Total received : (%d/%d)\n", edge_id, total_received, target_nasm[edge_id]->num_ninst);
-                    #endif
                 }
             }
         }

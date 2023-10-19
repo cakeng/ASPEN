@@ -80,14 +80,14 @@ void print_dynamic_mem_arr()
         init_dynamic_mem ();
     for (size_t i = 0; i < DYNAMIC_ALLOC_RANGE; i++)
     {
-        printf ("\t[%ld KiB]\t\t", dynamic_arr_mem_size[i]/1024);
+        PRTF ("\t[%ld KiB]\t\t", dynamic_arr_mem_size[i]/1024);
         int count = 0;
         for (int j = 0; j < dynamic_arr_max_num[i]; j++)
         {
             if (dynamic_arr[i][j] != NULL)
                 count++;
         }
-        printf ("%d/%d\n", count, dynamic_arr_max_num[i]);
+        PRTF ("%d/%d\n", count, dynamic_arr_max_num[i]);
     }
 }
 
@@ -528,17 +528,17 @@ void NHWC_to_NCHW (void *input, void *output, unsigned int n, unsigned int c, un
 {
     if (input == NULL)
     {
-        printf ("Error: Input is NULL.\n");
+        PRTF ("Error: Input is NULL.\n");
         return;
     }
     if (output == NULL)
     {
-        printf ("Error: Output is NULL.\n");
+        PRTF ("Error: Output is NULL.\n");
         return;
     }
     if (input == output)
     {
-        printf ("Error: Input and output are the same.\n");
+        PRTF ("Error: Input and output are the same.\n");
         return;
     }
     for (int ni = 0; ni < n; ni++)
@@ -561,17 +561,17 @@ void NCHW_to_NHWC (void *input, void *output, unsigned int n, unsigned int c, un
 {
     if (input == NULL)
     {
-        printf ("Error: Input is NULL.\n");
+        PRTF ("Error: Input is NULL.\n");
         return;
     }
     if (output == NULL)
     {
-        printf ("Error: Output is NULL.\n");
+        PRTF ("Error: Output is NULL.\n");
         return;
     }
     if (input == output)
     {
-        printf ("Error: Input and output are the same.\n");
+        PRTF ("Error: Input and output are the same.\n");
         return;
     }
     for (int ni = 0; ni < n; ni++)
@@ -595,7 +595,7 @@ void set_float_tensor_val (float *output, unsigned int n, unsigned int c, unsign
 {
     if (output == NULL)
     {
-        printf ("Error: Output is NULL.\n");
+        PRTF ("Error: Output is NULL.\n");
         return;
     }
     for (int ni = 0; ni < n; ni++)
@@ -617,7 +617,7 @@ void set_float_tensor_val (float *output, unsigned int n, unsigned int c, unsign
 int compare_float_array (float *input1, float* input2, int num_to_compare, float epsilon_ratio, float epsilon_abs, int skip_val)
 {
     int num = 0;
-    printf ("Compare_array_f32 running...\n");
+    PRTF ("Compare_array_f32 running...\n");
     // #pragma omp parallel for
     for (int i = 0; i < num_to_compare; i++)
     {
@@ -627,23 +627,23 @@ int compare_float_array (float *input1, float* input2, int num_to_compare, float
             num++;
             if (num < skip_val)
             {
-                printf ("\tCompare failed at index %d. Value1: %3.3e, Value2: %3.3e, Diff: %1.2e (%2.2e%%)\n"
+                PRTF ("\tCompare failed at index %d. Value1: %3.3e, Value2: %3.3e, Diff: %1.2e (%2.2e%%)\n"
                     , i, *(input1 + i), *(input2 + i), delta, delta*100.0/(*(input1 + i)<0? -*(input1 + i):*(input1 + i)));
             }
             else if (num == skip_val)
             {
-                printf ("\tToo many errors... (More than %d)\n", skip_val);
+                PRTF ("\tToo many errors... (More than %d)\n", skip_val);
             }
         }
     }
-    printf ("Compare_array_f32 complete.\nTotal of %d errors detected out of %d SP floats, with epsilon ratio of %1.1e.\n", num, num_to_compare,epsilon_ratio);
+    PRTF ("Compare_array_f32 complete.\nTotal of %d errors detected out of %d SP floats, with epsilon ratio of %1.1e.\n", num, num_to_compare,epsilon_ratio);
     return num;
 }
 
 int compare_float_tensor (float *input1, float* input2, int n, int c, int h ,int w, float epsilon_ratio, float epsilon_abs, int skip_val)
 {
     int num = 0;
-    printf ("Compare_tensor_f32 running...\n");
+    PRTF ("Compare_tensor_f32 running...\n");
     // #pragma omp parallel for
     for (int ni = 0; ni < n; ni++)
     {
@@ -660,24 +660,24 @@ int compare_float_tensor (float *input1, float* input2, int n, int c, int h ,int
                         num++;
                         if (num < skip_val)
                         {
-                            printf ("\tCompare failed at index (%d, %d, %d, %d). Value1: %3.3e, Value2: %3.3e, Diff: %1.2e (%2.2e%%)\n"
+                            PRTF ("\tCompare failed at index (%d, %d, %d, %d). Value1: %3.3e, Value2: %3.3e, Diff: %1.2e (%2.2e%%)\n"
                                 , ni, ci, hi, wi, *(input1 + i), *(input2 + i), delta, delta*100.0/(*(input1 + i)<0? -*(input1 + i):*(input1 + i)));
                         }
                         else if (num == skip_val)
                         {
-                            printf ("\tToo many errors... (More than %d)\n", skip_val);
+                            PRTF ("\tToo many errors... (More than %d)\n", skip_val);
                         }
                     }
                     // else
                     // {
-                    //     printf ("\t\tCompare passed at index (%d, %d, %d, %d). Value1: %3.3e, Value2: %3.3e, Diff: %1.2e (%2.2e%%)\n"
+                    //     PRTF ("\t\tCompare passed at index (%d, %d, %d, %d). Value1: %3.3e, Value2: %3.3e, Diff: %1.2e (%2.2e%%)\n"
                     //         , ni, ci, hi, wi, *(input1 + i), *(input2 + i), delta, delta*100.0/(*(input1 + i)<0? -*(input1 + i):*(input1 + i)));
                     // }
                 }
             }
         }
     }
-    printf ("Compare_tensor_f32 complete.\nTotal of %d errors detected out of %d SP floats, with epsilon ratio of %1.1e.\n", num, n*c*h*w, epsilon_ratio);
+    PRTF ("Compare_tensor_f32 complete.\nTotal of %d errors detected out of %d SP floats, with epsilon ratio of %1.1e.\n", num, n*c*h*w, epsilon_ratio);
     return num;
 }
 
@@ -705,7 +705,7 @@ void get_probability_results (char *class_data_path, float* probabilities, unsig
     FILE *fptr = fopen(class_data_path, "r");
     if (fptr == NULL)
     {
-        printf ("Error in get_probability_results: Cannot open file %s.\n", class_data_path);
+        PRTF ("Error in get_probability_results: Cannot open file %s.\n", class_data_path);
         return;
     }
     for (int i = 0; i < num; i++)
@@ -713,7 +713,7 @@ void get_probability_results (char *class_data_path, float* probabilities, unsig
         void *tmp = fgets(buffer[i], buffer_length, fptr);
         if (tmp == NULL)
         {
-            printf ("Error in get_probability_results: Cannot read file %s.\n", class_data_path);
+            PRTF ("Error in get_probability_results: Cannot read file %s.\n", class_data_path);
             return;
         }
         for (char *ptr = buffer[i]; *ptr != '\0'; ptr++)
@@ -725,7 +725,7 @@ void get_probability_results (char *class_data_path, float* probabilities, unsig
         }
     }
     fclose(fptr);
-    printf ("Results:\n");
+    PRTF ("Results:\n");
     for (int i = 0; i < 5; i++)
     {
         float max_val = -INFINITY;
@@ -738,7 +738,7 @@ void get_probability_results (char *class_data_path, float* probabilities, unsig
                 max_idx = j;
             }
         }
-        printf ("%d: %s - %2.2f%%\n", i+1, buffer[max_idx], max_val*100);
+        PRTF ("%d: %s - %2.2f%%\n", i+1, buffer[max_idx], max_val*100);
         *(probabilities + max_idx) = -INFINITY;
     }
 }
@@ -818,32 +818,32 @@ void set_elapsed_time_start()
 void print_float_array (float *input, int num, int newline_num)
 {
     int i;
-    printf ("Printing Array of size %d...\n", num);
+    PRTF ("Printing Array of size %d...\n", num);
     for (i = 0; i < num; i++)
     {
         const float val = *(input + i);
         if (val < 0.0)
         {
-            printf ("\t%3.3ef", val);
+            PRTF ("\t%3.3ef", val);
         }
         else
         {
-            printf ("\t %3.3ef", val);
+            PRTF ("\t %3.3ef", val);
         }
         if (i%newline_num == newline_num-1)
         {
-            printf("\n");
+            PRTF("\n");
         }
     }
     if (i%newline_num != newline_num-1)
     {
-        printf("\n");
+        PRTF("\n");
     }
 }
 
 void print_float_tensor (float *input, int n, int c, int h, int w)
 {
-    printf ("\t");
+    PRTF ("\t");
     int size_arr[] = {n, c, h};
     int newline = w;
     for (int i = 2; i >= 0; i--)
@@ -866,16 +866,16 @@ void print_float_tensor (float *input, int n, int c, int h, int w)
                 {
                     if (idx%newline == 0)
                     {
-                        printf("\n(%d, %d, %d, %d):\t", ni, ci, hi, wi);
+                        PRTF("\n(%d, %d, %d, %d):\t", ni, ci, hi, wi);
                     }
                     const float val = *(input + ni*c*h*w + ci*h*w + hi*w + wi);
                     if (val < 0.0)
                     {
-                        printf ("\t%3.3ef", val);
+                        PRTF ("\t%3.3ef", val);
                     }
                     else
                     {
-                        printf ("\t %3.3ef", val);
+                        PRTF ("\t %3.3ef", val);
                     }
                     idx++;
                     
@@ -883,7 +883,7 @@ void print_float_tensor (float *input, int n, int c, int h, int w)
             }
         }
     }
-    printf ("\n");
+    PRTF ("\n");
 }
 
 void save_ninst_log(FILE* log_fp, nasm_t* nasm)
@@ -924,7 +924,7 @@ int create_server_sock(char *server_ip, int server_port) {
     int option = 1;
     setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
     if (server_sock == -1) {
-        printf("Error: socket() returned -1\n");
+        PRTF("Error: socket() returned -1\n");
         assert(0);
     }
 
@@ -934,12 +934,12 @@ int create_server_sock(char *server_ip, int server_port) {
     server_addr.sin_port = htons(server_port);
 
     if (bind(server_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
-        printf("Error: bind() returned -1\n");
+        PRTF("Error: bind() returned -1\n");
         assert(0);
     }
 
     if (listen(server_sock, SCHEDULE_MAX_DEVICES) == -1) {
-        printf("Error: listen() returned -1\n");
+        PRTF("Error: listen() returned -1\n");
         assert(0);
     }
 
@@ -953,7 +953,7 @@ int accept_client_sock(int server_sock) {
     socklen_t client_addr_size = sizeof(client_addr);
     client_sock = accept(server_sock, (struct sockaddr*)&client_addr, &client_addr_size);
     if (client_sock == -1) {
-        printf("Error: accept() returned -1\n");
+        PRTF("Error: accept() returned -1\n");
         assert(0);
     }
 
@@ -967,7 +967,7 @@ int connect_server_sock(char *server_ip, int server_port) {
     // connect to server
     server_sock = socket(AF_INET, SOCK_STREAM, 0);
     if (server_sock == -1) {
-        printf("Error: socket() returned -1\n");
+        PRTF("Error: socket() returned -1\n");
         assert(0);
     }
 
@@ -979,10 +979,10 @@ int connect_server_sock(char *server_ip, int server_port) {
     size_t num_tries = 0;
     while (connect(server_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) 
     {
-        printf("Connecting...\n");
+        PRTF("Connecting...\n");
         if (num_tries > 120000) 
         {
-            printf("Error: connect() returned -1\n");
+            PRTF("Error: connect() returned -1\n");
             assert(0);
         }
         num_tries++;

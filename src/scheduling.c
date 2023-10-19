@@ -203,7 +203,7 @@ void spinn_update_profile(spinn_scheduler_t* spinn_scheduler, float rtt, float a
     }
     if (idx < 0)
     {
-        printf("Error: Cannot find split layer %d in split candidates\n", current_split_layer);
+        PRTF("Error: Cannot find split layer %d in split candidates\n", current_split_layer);
         exit(1);
     }
     
@@ -244,7 +244,7 @@ spinn_scheduler_t* init_spinn_scheduler(avg_ninst_profile_t **ninst_profile, net
 
 int spinn_schedule_layer(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int device_idx)
 {
-    printf("\t[SPINN Scheduler]\n");
+    PRTF("\t[SPINN Scheduler]\n");
     int split_layer = 1;
     float min_latency = 100000000.0;
     for(int i = 0; i < spinn_scheduler->num_split_candidates[device_idx]; i++)
@@ -253,17 +253,17 @@ int spinn_schedule_layer(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int d
             spinn_scheduler->server_offline_layer_latency[device_idx][i] * spinn_scheduler->server_scaling_factors[device_idx] +
             get_data_transmission_latency(spinn_scheduler, nasm, device_idx, spinn_scheduler->split_candidates[device_idx][i]);
         
-        // printf("\tSplit Layer: %d, Edge: %fms, Server: %fms, Transmission: %fms\n",
+        // PRTF("\tSplit Layer: %d, Edge: %fms, Server: %fms, Transmission: %fms\n",
         //     spinn_scheduler->split_candidates[device_idx][i],
         //     spinn_scheduler->edge_offline_layer_latency[device_idx][i] * spinn_scheduler->edge_scaling_factors[device_idx] * 1000.0,
         //     spinn_scheduler->server_offline_layer_latency[device_idx][i] * spinn_scheduler->server_scaling_factors[device_idx] * 1000.0,
         //     get_data_transmission_latency(spinn_scheduler, nasm, device_idx, spinn_scheduler->split_candidates[device_idx][i]) * 1000.0
             // );
-        // printf("BW: %f\n", spinn_scheduler->avg_bandwidth[device_idx]);
+        // PRTF("BW: %f\n", spinn_scheduler->avg_bandwidth[device_idx]);
 
         if(latency < min_latency)
         {
-            // printf("\tSplit Layer: %d, latency: %f, min_latency: %f\n", spinn_scheduler->split_candidates[device_idx][i], latency, min_latency);
+            // PRTF("\tSplit Layer: %d, latency: %f, min_latency: %f\n", spinn_scheduler->split_candidates[device_idx][i], latency, min_latency);
             min_latency = latency;
             split_layer = spinn_scheduler->split_candidates[device_idx][i];
         }
@@ -290,12 +290,12 @@ int spinn_find_idx_by_split_layer(spinn_scheduler_t* spinn_scheduler, int device
 
 void spinn_model_splitter(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int device_idx)
 {
-    printf("[SPINN Model Splitter]\n");
-    printf("\tObtained split candidates: ");
+    PRTF("[SPINN Model Splitter]\n");
+    PRTF("\tObtained split candidates: ");
     int num_split_candidates = 0;
     spinn_scheduler->split_candidates[device_idx] = calloc(nasm->num_ldata, sizeof(int));
     spinn_scheduler->split_candidates[device_idx][num_split_candidates] = 1;
-    printf("%d ", spinn_scheduler->split_candidates[device_idx][num_split_candidates]);
+    PRTF("%d ", spinn_scheduler->split_candidates[device_idx][num_split_candidates]);
     num_split_candidates++;
 
     for(int i = 2; i < nasm->num_ldata-1; i++)
@@ -303,12 +303,12 @@ void spinn_model_splitter(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int 
         if(nasm->ldata_arr[i].layer->type == CONV_LAYER || nasm->ldata_arr[i].layer->type == MAXPOOL_LAYER || nasm->ldata_arr[i].layer->type == RESIDUAL_LAYER)
         {
             spinn_scheduler->split_candidates[device_idx][num_split_candidates] = i;
-            printf("%d ", spinn_scheduler->split_candidates[device_idx][num_split_candidates]);
+            PRTF("%d ", spinn_scheduler->split_candidates[device_idx][num_split_candidates]);
             num_split_candidates++;
         }
     }
     spinn_scheduler->split_candidates[device_idx][num_split_candidates] = nasm->num_ldata-1;
-    printf("%d ", spinn_scheduler->split_candidates[device_idx][num_split_candidates]);
+    PRTF("%d ", spinn_scheduler->split_candidates[device_idx][num_split_candidates]);
     num_split_candidates++;
     spinn_scheduler->server_offline_layer_latency[device_idx] = calloc(num_split_candidates, sizeof(float));
     spinn_scheduler->server_real_latency[device_idx] = calloc(num_split_candidates, sizeof(float));
@@ -320,8 +320,8 @@ void spinn_model_splitter(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int 
     spinn_scheduler->num_split_candidates[device_idx] = num_split_candidates;
     
     
-    printf("\n");
-    // printf("\tTotal num split candidates: (%d/%d)\n", num_split_candidates, nasm->num_ldata);
+    PRTF("\n");
+    // PRTF("\tTotal num split candidates: (%d/%d)\n", num_split_candidates, nasm->num_ldata);
 }
 
 float get_eft_edge(dynamic_scheduler_t* dynamic_scheduler, rpool_t* rpool, int device_idx, int num_dse, int num_child_ninsts)
@@ -375,19 +375,19 @@ void init_random_offload(nasm_t *nasm, float compute_ratio, int edge_id, int ser
 
     if(num_selected > total_num_ninst)
     {
-        printf("Error: num_selected > total_num_ninst\n");
+        PRTF("Error: num_selected > total_num_ninst\n");
         exit(1);
     }
 
-    // printf("\t[Random Offload] Selected ninsts: ");
+    // PRTF("\t[Random Offload] Selected ninsts: ");
 
     int selected_ninst_idx[num_selected];
     for(int i = 0; i < num_selected; i++)
     {
         selected_ninst_idx[i] = rand() % total_num_ninst;
-        // printf("%d ", selected_ninst_idx[i]);
+        // PRTF("%d ", selected_ninst_idx[i]);
     }
-    // printf("\n");
+    // PRTF("\n");
 
     
     for(int i = 0; i < total_num_ninst; i++)
@@ -417,7 +417,7 @@ void init_random_offload(nasm_t *nasm, float compute_ratio, int edge_id, int ser
     // for(int i = 0; i < total_num_ninst; i++)
     // {
     //     ninst_t* ninst = nasm->ninst_arr + i;
-    //     printf("%d: %d, %d\n", ninst->ninst_idx, ninst->dev_to_compute[server_id], ninst->dev_to_compute[edge_id]);
+    //     PRTF("%d: %d, %d\n", ninst->ninst_idx, ninst->dev_to_compute[server_id], ninst->dev_to_compute[edge_id]);
     // }
 
     nasm_set_ninst_send_target_using_child_compute_device(nasm);
@@ -426,7 +426,7 @@ void init_random_offload(nasm_t *nasm, float compute_ratio, int edge_id, int ser
     // for(int i = 0; i < total_num_ninst; i++)
     // {
     //     ninst_t* ninst = nasm->ninst_arr + i;
-    //     printf("%d: %d, %d\n", ninst->ninst_idx, ninst->dev_send_target[server_id], ninst->dev_send_target[edge_id]);
+    //     PRTF("%d: %d, %d\n", ninst->ninst_idx, ninst->dev_send_target[server_id], ninst->dev_send_target[edge_id]);
     // }
 }
 
@@ -435,7 +435,7 @@ void init_partial_offload(nasm_t *nasm, int split_layer, float compute_ratio, in
     int layer_end_ninst_idx = layer_start_ninst_idx + nasm->ldata_arr[split_layer].num_ninst;
     
     int division_idx = layer_start_ninst_idx + (1-compute_ratio) * (layer_end_ninst_idx - layer_start_ninst_idx);
-    printf("division idx: %d\n", division_idx);
+    PRTF("division idx: %d\n", division_idx);
     for (int i = 0; i < nasm->num_ninst; i++) {
         ninst_t *ninst = nasm->ninst_arr + i;
         ninst_clear_compute_device(ninst);
@@ -468,7 +468,7 @@ void init_partial_offload(nasm_t *nasm, int split_layer, float compute_ratio, in
 
 void init_sequential_offload(nasm_t *nasm, int split_layer, int edge_id, int server_id) 
 {
-    printf("[Init sequential offload] division ninst idx: %d from dev: %d server_id: %d\n", split_layer, edge_id, server_id);
+    PRTF("[Init sequential offload] division ninst idx: %d from dev: %d server_id: %d\n", split_layer, edge_id, server_id);
     for (int i = 0; i < nasm->num_ldata; i++) 
     {
         if (i < split_layer) 
@@ -539,14 +539,14 @@ void init_conventional_offload(nasm_t *nasm, int edge_id, int server_id)
 // void save_schedule(sched_processor_t *sched_processor_arr, int num_device, char *file_path) {
 //     // file structure: ${num_device}\n${num_task}\n${tasks...\n}
 //     FILE *fptr = fopen(file_path, "wb");
-//     fprintf(fptr, "%d\n", num_device);
+//     fPRTF(fptr, "%d\n", num_device);
     
 //     for (int i=0; i<num_device; i++) {
-//         fprintf(fptr, "%d\n", sched_processor_arr[i].num_task);
+//         fPRTF(fptr, "%d\n", sched_processor_arr[i].num_task);
 
 //         sched_task_t *iter_task = sched_processor_arr[i].task_list->next;
 //         for (int j=0; j<sched_processor_arr[i].num_task; j++) {
-//             fprintf(fptr, "%d\n", iter_task->idx);
+//             fPRTF(fptr, "%d\n", iter_task->idx);
 //             iter_task = iter_task->next;
 //         }
 //     }
@@ -564,7 +564,7 @@ void init_conventional_offload(nasm_t *nasm, int edge_id, int server_id)
 //     if (device_mode == DEV_SERVER) {
 
 //         for (int i=0; i<num_device; i++) {
-//             printf("send %dth device schedule\n", i);
+//             PRTF("send %dth device schedule\n", i);
 //             write_n(client_sock, &((*sched_processor_arr)[i].num_task), sizeof(int));
 
 //             sched_task_t *iter_task = (*sched_processor_arr)[i].task_list->next;
@@ -581,7 +581,7 @@ void init_conventional_offload(nasm_t *nasm, int edge_id, int server_id)
 
 //         for (int i=0; i<num_device; i++) {
 //             /* TODO: read integer from server, then create and push task into sched_proccessor_arr */
-//             printf("receive %dth device schedule\n", i);
+//             PRTF("receive %dth device schedule\n", i);
 //             sched_processor_t *processor = *sched_processor_arr + i;
 //             sched_task_t *iter_task = processor->task_list;
             

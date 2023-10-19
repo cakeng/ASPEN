@@ -61,7 +61,7 @@ network_profile_t *profile_network(DEVICE_MODE device_mode, int edge_device_idx,
     float transmit_rate = 0.0;
 
     if (device_mode == DEV_SERVER) { 
-        printf("\tprofiling as SERVER...\n");
+        PRTF("\tprofiling as SERVER...\n");
 
         // Profile RTT
         read_n(client_sock, &t0, sizeof(float));
@@ -83,7 +83,7 @@ network_profile_t *profile_network(DEVICE_MODE device_mode, int edge_device_idx,
     }
     else 
     {
-        printf("\tprofiling as EDGE...\n");
+        PRTF("\tprofiling as EDGE...\n");
         // Profile RTT
         t0 = get_time_secs();
         write_n(server_sock, &t0, sizeof(float));
@@ -125,9 +125,7 @@ float profile_network_sync(DEVICE_MODE device_mode, int server_sock, int client_
 
     if (device_mode == DEV_SERVER) 
     {
-        #ifdef SUPPRESS_OUTPUT
-        printf("\tprofiling as SERVER...\n");
-        #endif
+        PRTF("\tprofiling as SERVER...\n");
         read_n(client_sock, &t0, sizeof(float));
         t1 = get_time_secs();
         write_n(client_sock, &t1, sizeof(float));
@@ -137,9 +135,7 @@ float profile_network_sync(DEVICE_MODE device_mode, int server_sock, int client_
     }
     else 
     {
-        #ifdef SUPPRESS_OUTPUT
-        printf("\tprofiling as EDGE...\n");
-        #endif
+        PRTF("\tprofiling as EDGE...\n");
         t0 = get_time_secs();
         write_n(server_sock, &t0, sizeof(float));
         read_n(server_sock, &t1, sizeof(float));
