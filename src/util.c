@@ -805,6 +805,18 @@ void get_elapsed_time_only()
     get_time_last = now;
 }
 
+double get_elapsed_time_only_return()
+{
+    if (get_time_last < 0)
+    {
+        get_time_last = get_time_secs();
+    }
+    double now = get_time_secs();
+    double elapsed = now - get_time_last;
+    get_time_last = now;
+    return elapsed;
+}
+
 void set_elapsed_time_start()
 {
     if (get_time_last < 0)

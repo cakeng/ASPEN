@@ -37,7 +37,9 @@ int total_transferred = 0;
 
 int main(int argc, char **argv)
 {
+    #if SUPPRESS_OUTPUT == 0
     print_aspen_build_info();
+    #endif
     struct gengetopt_args_info ai;
     if (cmdline_parser(argc, argv, &ai) != 0) {
         exit(1);
@@ -474,6 +476,7 @@ int main(int argc, char **argv)
             
             int sync_edge_device[SCHEDULE_MAX_DEVICES] = {0, };
             int num_sync_edges = 0;
+            double inf_latency = 0.0;
 
             if(device_mode == DEV_SERVER)
             {
@@ -513,45 +516,6 @@ int main(int argc, char **argv)
                     PRTF("\t[Edge Device %d]time_offset: %f\n", device_idx, time_offset);
                     
                     read_n(server_sock, &num_sync_edges, sizeof(int));
-                }
-            }
-
-            // Communicate profiles
-            if(inf_num > 0)
-            {
-                PRTF("\t[Communicate profiles]\n");   
-                for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
-                {
-                    if(!strcmp(schedule_policy, "spinn") || !strcmp(schedule_policy, "spinn+pipeline"))
-                    {
-                        if(device_mode == DEV_SERVER)
-                        {
-                            max_computed_time = get_max_computed_time(target_nasm[edge_id]);
-                            min_computed_time = get_min_computed_time(target_nasm[edge_id]);
-                            max_recv_time = get_max_recv_time(target_nasm[edge_id]);
-                            if((max_computed_time - min_computed_time) > 0)
-                                prev_server_latency = max_computed_time - min_computed_time;
-
-                            write_n(client_sock_arr[edge_id], &prev_server_latency, sizeof(float));
-                            write_n(client_sock_arr[edge_id], &max_recv_time, sizeof(float));
-                        }
-                        else if (device_mode == DEV_EDGE && device_idx == edge_id)
-                        {
-                            max_computed_time = get_max_computed_time(target_nasm[edge_id]);
-                            min_computed_time = get_min_computed_time(target_nasm[edge_id]);
-                            min_sent_time = get_min_sent_time(target_nasm[edge_id]);
-                            int idx = spinn_find_idx_by_split_layer(spinn_scheduler, edge_id);
-
-                            if((max_computed_time - min_computed_time) > 0)
-                                prev_edge_latency = max_computed_time - min_computed_time;
-                            
-                            read_n(server_sock, &prev_server_latency, sizeof(float));
-                            read_n(server_sock, &max_recv_time, sizeof(float));
-
-                            prev_bandwidth = spinn_scheduler->data_size_split_candidates[edge_id][idx] / (max_recv_time - min_sent_time) / 125000;
-                            spinn_update_profile(spinn_scheduler, spinn_scheduler->rtt[edge_id], prev_bandwidth, prev_edge_latency, prev_server_latency, edge_id);
-                        }
-                    }
                 }
             }
 
@@ -640,10 +604,8 @@ int main(int argc, char **argv)
             }
             
             #ifdef SUPPRESS_OUTPUT
-            get_elapsed_time_only();
-            printf(",");
-            if(device_mode != DEV_SERVER)
-                printf("%f\n",get_max_recv_time(target_nasm[device_idx])-get_min_sent_time(target_nasm[device_idx]));
+            inf_latency = get_elapsed_time_only_return();
+            printf("%f,", inf_latency);
             #else
             get_elapsed_time ("run_aspen");
             #endif
@@ -658,6 +620,50 @@ int main(int argc, char **argv)
                     net_engine_stop (net_engine_arr[edge_id]);
                 }
             }
+
+            // Communicate profiles
+            PRTF("\t[Communicate profiles]\n");   
+            for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
+            {
+                if(device_mode == DEV_SERVER)
+                {
+                    max_computed_time = get_max_computed_time(target_nasm[edge_id]);
+                    min_computed_time = get_min_computed_time(target_nasm[edge_id]);
+                    max_recv_time = get_max_recv_time(target_nasm[edge_id]);
+                    if((max_computed_time - min_computed_time) > 0)
+                        prev_server_latency = max_computed_time - min_computed_time;
+
+                    write_n(client_sock_arr[edge_id], &prev_server_latency, sizeof(float));
+                    write_n(client_sock_arr[edge_id], &max_recv_time, sizeof(float));
+                }
+                else if (device_mode == DEV_EDGE && device_idx == edge_id)
+                {
+                    max_computed_time = get_max_computed_time(target_nasm[edge_id]);
+                    min_computed_time = get_min_computed_time(target_nasm[edge_id]);
+                    min_sent_time = get_min_sent_time(target_nasm[edge_id]);
+                    
+
+                    if((max_computed_time - min_computed_time) > 0)
+                        prev_edge_latency = max_computed_time - min_computed_time;
+                    
+                    read_n(server_sock, &prev_server_latency, sizeof(float));
+                    read_n(server_sock, &max_recv_time, sizeof(float));
+
+                    if(!strcmp(schedule_policy, "spinn") || !strcmp(schedule_policy, "spinn+pipeline"))
+                    {
+                        int idx = spinn_find_idx_by_split_layer(spinn_scheduler, edge_id);
+                        prev_bandwidth = spinn_scheduler->data_size_split_candidates[edge_id][idx] / (max_recv_time - min_sent_time) / 125000;
+                        spinn_update_profile(spinn_scheduler, spinn_scheduler->rtt[edge_id], prev_bandwidth, prev_edge_latency, prev_server_latency, edge_id);
+                    }
+                }
+            }
+
+            #ifdef SUPPRESS_OUTPUT
+            if (device_mode != DEV_SERVER)
+            {
+                printf("%f,%f\n", max_recv_time-min_sent_time,inf_latency-(max_recv_time-min_sent_time));
+            }
+            #endif
 
             // Get results and save logs
             for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
