@@ -1,6 +1,6 @@
-## NeurIPS'23 Submission Build of ASPEN: Breaking Operator Barriers for Efficient Parallelization of Deep Neural Networks
+## NeurIPS'23 release of ASPEN: Breaking Operator Barriers for Efficient Parallelization of Deep Neural Networks
 
-This repo contains the proof-of-concept CPU implementation of ASPEN used for the NeurIPS'23 paper. [link](https://neurips.cc/virtual/2023/poster/70957)
+This is the proof-of-concept CPU implementation of ASPEN used for the NeurIPS'23 paper [ASPEN: Breaking Operator Barriers for Efficient Parallelization of Deep Neural Networks](https://neurips.cc/virtual/2023/poster/70957).
 
 We also included three simple usage examples of the ASPEN system, which were provided in the supplementary material of the NeurIPS'23 submission.
 
