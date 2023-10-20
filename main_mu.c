@@ -471,7 +471,6 @@ int main(int argc, char **argv)
         for(int inf_num = 0; inf_num < inference_repeat_num; inf_num++)
         {
             // synchronize
-            
             PRTF("[Inference %d] inference: %d/%d\n", inf_num+1, inf_num+1, inference_repeat_num);
             
             int sync_edge_device[SCHEDULE_MAX_DEVICES] = {0, };
@@ -489,11 +488,8 @@ int main(int argc, char **argv)
                             float time_offset = profile_network_sync(device_mode, server_sock, client_sock_arr[edge_id]);
                             set_time_offset(time_offset, device_mode);
                             read_n(client_sock_arr[edge_id], &connection_key, sizeof(int));
-                            
                             PRTF("\t[Edge Device %d]connection key: %d\n", edge_id, connection_key);
                             PRTF("\t[Edge Device %d]time_offset: %f\n", edge_id, time_offset);
-                            
-
                             sync_edge_device[edge_id] = 1;
                             num_sync_edges++;
                         }
@@ -536,16 +532,12 @@ int main(int argc, char **argv)
                         if(device_mode == DEV_SERVER)
                         {
                             read_n(client_sock_arr[edge_id], &sched_sequential_idx, sizeof(int));
-                            
                             PRTF("\t[Edge Device %d] Split Layer:%d Total: %d\n", edge_id, sched_sequential_idx, target_nasm[edge_id]->num_ldata);
-                            
                         }
                         else if(device_mode == DEV_EDGE)
                         {
                             sched_sequential_idx = spinn_schedule_layer(spinn_scheduler, target_nasm[edge_id], edge_id);
-                            
                             PRTF("\t[Edge Device %d] Split Layer: %d Total: %d\n", edge_id, sched_sequential_idx, target_nasm[edge_id]->num_ldata);
-                            
                             write_n(server_sock, &sched_sequential_idx, sizeof(int));   
                         }
                         init_sequential_offload(target_nasm[edge_id], sched_sequential_idx, edge_id, num_edge_devices); // server idx == num_edge_devices
@@ -627,6 +619,7 @@ int main(int argc, char **argv)
             {
                 if(device_mode == DEV_SERVER)
                 {
+                    int fin_signal;
                     max_computed_time = get_max_computed_time(target_nasm[edge_id]);
                     min_computed_time = get_min_computed_time(target_nasm[edge_id]);
                     max_recv_time = get_max_recv_time(target_nasm[edge_id]);
@@ -635,9 +628,11 @@ int main(int argc, char **argv)
 
                     write_n(client_sock_arr[edge_id], &prev_server_latency, sizeof(float));
                     write_n(client_sock_arr[edge_id], &max_recv_time, sizeof(float));
+                    read_n(client_sock_arr[edge_id], &fin_signal, sizeof(int));
                 }
                 else if (device_mode == DEV_EDGE && device_idx == edge_id)
                 {
+                    int fin_signal = 1;
                     max_computed_time = get_max_computed_time(target_nasm[edge_id]);
                     min_computed_time = get_min_computed_time(target_nasm[edge_id]);
                     min_sent_time = get_min_sent_time(target_nasm[edge_id]);
@@ -648,6 +643,7 @@ int main(int argc, char **argv)
                     
                     read_n(server_sock, &prev_server_latency, sizeof(float));
                     read_n(server_sock, &max_recv_time, sizeof(float));
+                    write_n(server_sock, &fin_signal, sizeof(int));
 
                     if(!strcmp(schedule_policy, "spinn") || !strcmp(schedule_policy, "spinn+pipeline"))
                     {
@@ -659,9 +655,13 @@ int main(int argc, char **argv)
             }
 
             #ifdef SUPPRESS_OUTPUT
-            if (device_mode != DEV_SERVER)
+            if (device_mode == DEV_SERVER)
             {
-                printf("%f,%f\n", max_recv_time-min_sent_time,inf_latency-(max_recv_time-min_sent_time));
+                printf("%f\n", min_sent_time);
+            }
+            else
+            {
+                printf("%f\n", max_recv_time);
             }
             #endif
 
