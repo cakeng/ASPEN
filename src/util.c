@@ -827,6 +827,17 @@ void set_elapsed_time_start()
     get_time_last = now;
 }
 
+double get_elapsed_time_start()
+{
+    if (get_time_last < 0)
+    {
+        get_time_last = get_time_secs();
+    }
+    double now = get_time_secs();
+    get_time_last = now;
+    return now;
+}
+
 void print_float_array (float *input, int num, int newline_num)
 {
     int i;
@@ -1016,6 +1027,34 @@ float get_max_recv_time(nasm_t* nasm)
         }
     }
     return max_recv_time;
+}
+
+float get_min_recv_time(nasm_t* nasm)
+{
+    float min_recv_time = 100000000;
+    for(int i = 0; i < nasm->num_ninst; i++)
+    {
+        if(nasm->ninst_arr[i].received_time != 0)
+        {
+            if(nasm->ninst_arr[i].received_time < min_recv_time)
+                min_recv_time = nasm->ninst_arr[i].received_time;
+        }
+    }
+    return min_recv_time;
+}
+
+float get_max_sent_time(nasm_t* nasm)
+{
+    float max_sent_time = 0;
+    for(int i = 0; i < nasm->num_ninst; i++)
+    {
+        if(nasm->ninst_arr[i].sent_time != 0)
+        {
+            if(nasm->ninst_arr[i].sent_time > max_sent_time)
+                max_sent_time = nasm->ninst_arr[i].sent_time;
+        }
+    }
+    return max_sent_time;
 }
 
 float get_min_sent_time(nasm_t* nasm)

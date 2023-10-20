@@ -464,6 +464,8 @@ int main(int argc, char **argv)
         float prev_server_latency = 0.0;
         float prev_bandwidth = 0.0;
         float max_recv_time = 0.0;
+        float max_sent_time = 0.0;
+        float min_recv_time = 0.0;
         float min_sent_time = 0.0;
         float max_computed_time = 0.0;
         float min_computed_time = 0.0;
@@ -476,6 +478,7 @@ int main(int argc, char **argv)
             int sync_edge_device[SCHEDULE_MAX_DEVICES] = {0, };
             int num_sync_edges = 0;
             double inf_latency = 0.0;
+            double start_time = 0.0;
 
             if(device_mode == DEV_SERVER)
             {
@@ -576,7 +579,11 @@ int main(int argc, char **argv)
                 net_engine_add_input_rpool_reverse (net_engine_arr[device_idx], target_nasm[device_idx], target_inputs[device_idx]);
             }
 
+            #ifdef SUPPRESS_OUTPUT
+            start_time = get_elapsed_time_start();
+            #else
             set_elapsed_time_start ();
+            #endif
             for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
             {
                 if(device_mode == DEV_SERVER || device_idx == edge_id)
@@ -617,33 +624,29 @@ int main(int argc, char **argv)
             PRTF("\t[Communicate profiles]\n");   
             for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
             {
+                max_computed_time = get_max_computed_time(target_nasm[edge_id]) - start_time;
+                min_computed_time = get_min_computed_time(target_nasm[edge_id]) - start_time;
+                max_recv_time = get_max_recv_time(target_nasm[edge_id]) - start_time;
+                min_recv_time = get_min_recv_time(target_nasm[edge_id]) - start_time;
+                max_sent_time = get_max_sent_time(target_nasm[edge_id]) - start_time;
+                min_sent_time = get_min_sent_time(target_nasm[edge_id]) - start_time;
+
+
                 if(device_mode == DEV_SERVER)
                 {
-                    int fin_signal;
-                    max_computed_time = get_max_computed_time(target_nasm[edge_id]);
-                    min_computed_time = get_min_computed_time(target_nasm[edge_id]);
-                    max_recv_time = get_max_recv_time(target_nasm[edge_id]);
                     if((max_computed_time - min_computed_time) > 0)
                         prev_server_latency = max_computed_time - min_computed_time;
 
                     write_n(client_sock_arr[edge_id], &prev_server_latency, sizeof(float));
                     write_n(client_sock_arr[edge_id], &max_recv_time, sizeof(float));
-                    read_n(client_sock_arr[edge_id], &fin_signal, sizeof(int));
                 }
                 else if (device_mode == DEV_EDGE && device_idx == edge_id)
                 {
-                    int fin_signal = 1;
-                    max_computed_time = get_max_computed_time(target_nasm[edge_id]);
-                    min_computed_time = get_min_computed_time(target_nasm[edge_id]);
-                    min_sent_time = get_min_sent_time(target_nasm[edge_id]);
-                    
-
                     if((max_computed_time - min_computed_time) > 0)
                         prev_edge_latency = max_computed_time - min_computed_time;
                     
                     read_n(server_sock, &prev_server_latency, sizeof(float));
                     read_n(server_sock, &max_recv_time, sizeof(float));
-                    write_n(server_sock, &fin_signal, sizeof(int));
 
                     if(!strcmp(schedule_policy, "spinn") || !strcmp(schedule_policy, "spinn+pipeline"))
                     {
@@ -655,14 +658,7 @@ int main(int argc, char **argv)
             }
 
             #ifdef SUPPRESS_OUTPUT
-            if (device_mode == DEV_SERVER)
-            {
-                printf("%f\n", min_sent_time);
-            }
-            else
-            {
-                printf("%f\n", max_recv_time);
-            }
+            printf("%f,%f,%f,%f\n", max_recv_time, min_recv_time, max_sent_time, min_sent_time, max_computed_time, min_computed_time);
             #endif
 
             // Get results and save logs
