@@ -260,7 +260,8 @@ void dse_schedule (dse_t *dse)
                         else continue;
                         create_network_buffer_for_ninst (ninst);
                         pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
-                        push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);                            
+                        // push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);       
+                        push_ninsts_to_priority_net_queue(net_engine->tx_queue, &ninst, 1);
                         pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
                     }
                 }
@@ -278,7 +279,8 @@ void dse_schedule (dse_t *dse)
                         else continue;
                         create_network_buffer_for_ninst (ninst);
                         pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
-                        push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
+                        // push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
+                        push_ninsts_to_priority_net_queue(net_engine->tx_queue, &ninst, 1);
                         pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
                     }
                 }

@@ -216,7 +216,8 @@ void transmission(networking_engine *net_engine)
     }
 
     pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
-    num_ninsts = pop_ninsts_from_net_queue(net_engine->tx_queue, target_ninst_list, 1);
+    // num_ninsts = pop_ninsts_from_net_queue(net_engine->tx_queue, target_ninst_list, 1);
+    num_ninsts = pop_ninsts_from_priority_net_queue(net_engine->tx_queue, target_ninst_list, 1);
     pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
     if (num_ninsts == 0)
         return;
@@ -767,6 +768,127 @@ void push_ninsts_to_net_queue_front (networking_queue_t *networking_queue, ninst
     //     atomic_fetch_add (&networking_queue->queue_group->num_ninsts, num_ninsts);
 }
 
+void push_ninsts_to_priority_net_queue (networking_queue_t *networking_queue, ninst_t **ninst_ptr_list, unsigned int num_ninsts)
+{
+    #ifdef DEBUG
+    if (networking_queue == NULL)
+    {
+        ERROR_PRTF ("ERROR: push_ninsts_to_priority_net_queue: networking_queue is NULL.\n");
+        return;
+    }
+    if (ninst_ptr_list == NULL)
+    {
+        ERROR_PRTF ("ERROR: push_ninsts_to_priority_net_queue_back: ninst_ptr_list is NULL.\n");
+        return;
+    }
+    #endif
+
+    if (networking_queue->num_stored + num_ninsts > networking_queue->max_stored)
+        update_net_queue_size (networking_queue, num_ninsts);
+    
+    unsigned i = networking_queue->idx_end;
+    
+    for(int i = 0; i < num_ninsts; i++) {
+        enqueue_ninst(networking_queue, ninst_ptr_list[i]);
+    }
+}
+
+void max_heapify(networking_queue_t* networking_queue, int i)
+{
+    int largest = i;
+    int left = 2*i;
+    int right = 2*i + 1;
+
+    if (left <= networking_queue->num_stored && networking_queue->ninst_ptr_arr[left]->ldata->layer->layer_idx > networking_queue->ninst_ptr_arr[i]->ldata->layer->layer_idx)
+        largest = left;
+    if (right <= networking_queue->num_stored && networking_queue->ninst_ptr_arr[right]->ldata->layer->layer_idx > networking_queue->ninst_ptr_arr[largest]->ldata->layer->layer_idx)
+        largest = right;
+
+    if (largest != i) {
+        ninst_t *temp = *(networking_queue->ninst_ptr_arr + i);
+        *(networking_queue->ninst_ptr_arr + i) = *(networking_queue->ninst_ptr_arr + largest);
+        *(networking_queue->ninst_ptr_arr + largest) = temp;
+        max_heapify(networking_queue, largest);
+        
+    }
+}
+
+ninst_t* dequeue_ninst(networking_queue_t *networking_queue)
+{
+    ninst_t* root_ninst = networking_queue->ninst_ptr_arr[1];
+    networking_queue->ninst_ptr_arr[1] = networking_queue->ninst_ptr_arr[networking_queue->num_stored];
+    networking_queue->num_stored--;
+
+    max_heapify(networking_queue, 1);
+
+    return root_ninst;
+}
+
+unsigned int pop_ninsts_from_priority_net_queue (networking_queue_t *networking_queue, ninst_t **ninst_ptr_list, unsigned int max_ninsts_to_get)
+{
+    #ifdef DEBUG
+    if (networking_queue == NULL)
+    {
+        ERROR_PRTF ("ERROR: pop_nists_from_priority_net_queue: networking_queue is NULL.\n");
+        return 0;
+    }
+    if (ninst_ptr_list == NULL)
+    {
+        ERROR_PRTF ("ERROR: pop_nists_from_priority_net_queue: ninst_ptr_list is NULL.\n");
+        return 0;
+    }
+    #endif
+    unsigned int num_ninsts = 0;
+    unsigned int i = networking_queue->idx_start;
+    unsigned int buffer_usage = 0;
+    
+    if(networking_queue->num_stored > 0) 
+    {
+        for (; num_ninsts < networking_queue->num_stored; num_ninsts++)
+        {
+            if (num_ninsts >= max_ninsts_to_get)
+                break;
+            // ninst_ptr_list[num_ninsts] = networking_queue->ninst_ptr_arr[i];
+            ninst_t* target_ninst = dequeue_ninst(networking_queue);
+            ninst_ptr_list[num_ninsts] = target_ninst;
+            const unsigned int W = target_ninst->tile_dims[OUT_W];
+            const unsigned int H = target_ninst->tile_dims[OUT_H];
+            if (buffer_usage + W * H * sizeof(float) + sizeof (unsigned int) * 2 + sizeof (int) > NETQUEUE_BUFFER_SIZE)
+                break;
+            buffer_usage += W * H * sizeof(float) + sizeof (unsigned int) * 2 + sizeof (int);
+            
+            i++;
+            if (i == networking_queue->max_stored)
+                i = 0;
+        }
+        networking_queue->idx_start = i;
+        // networking_queue->num_stored -= num_ninsts;
+        if (networking_queue->num_stored == 0)
+        {
+            pthread_cond_signal (&networking_queue->queue_cond);
+        }
+    }
+    return num_ninsts;
+}
+
+void enqueue_ninst (networking_queue_t *networking_queue, ninst_t *ninst)
+{
+    int i = 0;
+    networking_queue->num_stored++;
+
+    i = networking_queue->num_stored;
+    *(networking_queue->ninst_ptr_arr + i) = ninst;
+    // printf("enqueue_ninst: %d, %d, %d\n", ninst->ninst_idx, i, networking_queue->ninst_ptr_arr[i]->ldata->layer->layer_idx);
+
+    while(i > 1 && networking_queue->ninst_ptr_arr[i/2]->ldata->layer->layer_idx < networking_queue->ninst_ptr_arr[i]->ldata->layer->layer_idx)
+    {
+        ninst_t *temp = *(networking_queue->ninst_ptr_arr + i/2);
+        *(networking_queue->ninst_ptr_arr + i/2) = *(networking_queue->ninst_ptr_arr + i);
+        *(networking_queue->ninst_ptr_arr + i) = temp;
+        i = i/2;
+    }
+}
+
 void net_engine_add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_filename)
 {
     aspen_dnn_t *dnn = nasm->dnn;
@@ -814,7 +936,8 @@ void net_engine_add_input_rpool (networking_engine *net_engine, nasm_t* nasm, ch
                 // ninst->dev_send_target[i]);
                 create_network_buffer_for_ninst (ninst);
                 pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
-                push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
+                // push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
+                push_ninsts_to_priority_net_queue(net_engine->tx_queue, &ninst, 1);
                 pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
             }
         }
@@ -869,7 +992,8 @@ void net_engine_add_input_rpool_reverse (networking_engine *net_engine, nasm_t* 
                 // ninst->dev_send_target[i]);
                 create_network_buffer_for_ninst (ninst);
                 pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
-                push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
+                // push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
+                push_ninsts_to_priority_net_queue(net_engine->tx_queue, &ninst, 1);
                 pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
             }
         }

@@ -667,19 +667,19 @@ int main(int argc, char **argv)
             {
                 if(device_mode == DEV_SERVER || device_idx == edge_id)
                 {
-                    // PRTF("---------------------[Edge %d] Inference result---------------------\n", edge_id);   
-                    // LAYER_PARAMS output_order_cnn[] = {BATCH, OUT_H, OUT_W, OUT_C};  // for CNN
-                    // LAYER_PARAMS output_order_transformer[] = {BATCH, MAT_N, MAT_M};    // for Transformer
-                    // LAYER_PARAMS *output_order_param = !strcmp(output_order, "cnn") ? output_order_cnn : output_order_transformer;
-                    // float *layer_output = dse_get_nasm_result (target_nasm[edge_id], output_order_param);
-                    // float *softmax_output = calloc (1000*target_nasm[edge_id]->batch_size, sizeof(float));
-                    // naive_softmax (layer_output, softmax_output, target_nasm[edge_id]->batch_size, 1000);
-                    // for (int i = 0; i < target_nasm[edge_id]->batch_size; i++)
-                    // {
-                    //     get_probability_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);   
-                    // }
-                    // free (layer_output);
-                    // free (softmax_output);
+                    PRTF("---------------------[Edge %d] Inference result---------------------\n", edge_id);   
+                    LAYER_PARAMS output_order_cnn[] = {BATCH, OUT_H, OUT_W, OUT_C};  // for CNN
+                    LAYER_PARAMS output_order_transformer[] = {BATCH, MAT_N, MAT_M};    // for Transformer
+                    LAYER_PARAMS *output_order_param = !strcmp(output_order, "cnn") ? output_order_cnn : output_order_transformer;
+                    float *layer_output = dse_get_nasm_result (target_nasm[edge_id], output_order_param);
+                    float *softmax_output = calloc (1000*target_nasm[edge_id]->batch_size, sizeof(float));
+                    naive_softmax (layer_output, softmax_output, target_nasm[edge_id]->batch_size, 1000);
+                    for (int i = 0; i < target_nasm[edge_id]->batch_size; i++)
+                    {
+                        get_probability_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);   
+                    }
+                    free (layer_output);
+                    free (softmax_output);
                 
                     // For logging
                     char file_name[1024], dir_path[1024], dir_edge_path[1024];
