@@ -353,12 +353,11 @@ void receive(networking_engine *net_engine)
                 buffer_ptr += data_size;
                 continue;
             }
-            // if (atomic_exchange (&target_ninst->state, NINST_COMPLETED) == NINST_COMPLETED) 
-            // {
-            //     buffer_ptr += data_size;
-            //     printf("\there\n");
-            //     continue;
-            // }
+            if (atomic_exchange (&target_ninst->state, NINST_COMPLETED) == NINST_COMPLETED) 
+            {
+                buffer_ptr += data_size;
+                continue;
+            }
             #ifdef DEBUG
             if (data_size != target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float))
             {
@@ -378,32 +377,6 @@ void receive(networking_engine *net_engine)
             #endif
             
             unsigned int num_ninst_completed = atomic_fetch_add (&target_ninst->ldata->num_ninst_completed , 1);
-            if(net_engine->device_mode == DEV_SERVER)
-            {
-                for(int i = 0; i < target_ninst->num_child_ninsts; i++)
-                {
-                    ninst_t* child_ninst = target_ninst->child_ninst_arr[i];
-                    ninst_set_compute_device(child_ninst, net_engine->server_idx);
-                }
-
-                // for(int i = 0; i < target_ninst->num_parent_ninsts; i++)
-                // {
-                    // int parent_ninst_idx = target_ninst->parent_ninst_idx_arr[i];
-                    // ninst_t* parent_ninst = &net_engine->nasm->ninst_arr[parent_ninst_idx];
-                    // if(atomic_load (&parent_ninst->state) != NINST_COMPLETED)
-                        // continue;
-                    // printf("\t(N%d L%d) Parent: (N%d L%d) Dev_to_compute[%d]: %d\n",target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, parent_ninst_idx, parent_ninst->ldata->layer->layer_idx, net_engine->server_idx, parent_ninst->dev_to_compute[net_engine->server_idx]);
-                    // for(int j = 0; j < parent_ninst->num_child_ninsts; j++)
-                    // {
-                        // ninst_t* parent_child_ninst = parent_ninst->child_ninst_arr[j];
-                        // ninst_set_compute_device(parent_child_ninst, net_engine->server_idx);
-                        // int temp = parent_child_ninst->dev_to_compute[net_engine->server_idx];
-                        // printf("\t\tParent Child: (N%d L%d) Dev_to_compute[%d]: %d -> %d\n",parent_child_ninst->ninst_idx, parent_child_ninst->ldata->layer->layer_idx, net_engine->server_idx, temp, parent_child_ninst->dev_to_compute[net_engine->server_idx]);
-                    // }
-                    // RED_PRTF ("1 Ninst %d(L%d) downloaded\n", target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx);
-                    // update_children (net_engine->rpool, parent_ninst); 
-                // }
-            }
 
             if(atomic_load(&target_ninst->state) == NINST_COMPLETED)
             {

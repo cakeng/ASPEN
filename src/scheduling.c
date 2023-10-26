@@ -81,6 +81,7 @@ void nasm_set_ninst_send_target_using_child_compute_device(nasm_t *nasm)
             for (int dev = 0; dev < SCHEDULE_MAX_DEVICES; dev++) 
             {
                 ninst->dev_send_target[dev] |= child_ninst->dev_to_compute[dev];
+                ninst->dev_to_compute[dev] |= child_ninst->dev_to_compute[dev];
             }
         }
     }
@@ -397,17 +398,17 @@ void init_random_offload(nasm_t *nasm, float compute_ratio, int edge_id, int ser
         ninst_clear_send_target_device(ninst);
         if (ninst->ldata->layer->layer_idx == 0) {  // for the input data,
             ninst_set_compute_device(ninst, edge_id);  // all inputs are generated from TX
-            ninst_set_send_target_device(ninst, edge_id);
+            ninst_set_send_target_device(ninst, server_id);
         }
         else
         {
             ninst_set_compute_device(ninst, server_id);
+            ninst_set_compute_device(ninst, edge_id);
             for(int count = 0; count < num_selected; count++)
             {
                 if(ninst->ninst_idx == selected_ninst_idx[count])
                 {
-                    ninst_clear_compute_device(ninst);
-                    ninst_set_compute_device(ninst, edge_id);
+                    ninst_set_send_target_device(ninst, server_id);
                     break;
                 }
             }
@@ -420,7 +421,7 @@ void init_random_offload(nasm_t *nasm, float compute_ratio, int edge_id, int ser
     //     PRTF("%d: %d, %d\n", ninst->ninst_idx, ninst->dev_to_compute[server_id], ninst->dev_to_compute[edge_id]);
     // }
 
-    nasm_set_ninst_send_target_using_child_compute_device(nasm);
+    // nasm_set_ninst_send_target_using_child_compute_device(nasm);
     nasm_set_last_layer_ninst_send_target_device(nasm, edge_id);
 
     // for(int i = 0; i < total_num_ninst; i++)
