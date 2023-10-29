@@ -6,6 +6,8 @@
 #define PROFILE_LONG_MESSAGE_SIZE   (1024 * 256)
 #define SCHEDULE_MAX_DEVICES        9
 
+#define SCHEDULE_MAX_CORE           64
+
 #include "nasm.h"
 #include "profiling.h"
 #include "aspen.h"
@@ -87,11 +89,20 @@ struct spinn_scheduler_t{
 
 int is_offloaded(ninst_t *ninst);
 int is_dev_compute(ninst_t *ninst, int device_idx);
+int is_core_compute(ninst_t *ninst, int core_idx);
 void ninst_clear_compute_device(ninst_t *ninst);
 void ninst_set_compute_device(ninst_t *ninst, int device_idx);
 void ninst_set_send_target_device(ninst_t *ninst, int device_idx);
 void ninst_clear_send_target_device(ninst_t *ninst);
 void ninst_copy_compute_device(ninst_t* target_ninst, ninst_t* ninst);
+
+void ninst_core_allow_all(ninst_t *ninst);
+void ninst_core_disallow_all(ninst_t *ninst);
+void ninst_core_allow(ninst_t *ninst, int core_idx, int allow);
+void ninst_core_allow_rand(ninst_t *ninst, int num_core);
+int get_allowed_core_idx(ninst_t *ninst);
+
+void core_init_random(nasm_t *nasm, int num_core);
 
 dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, DEVICE_MODE device_mode, int device_idx, int num_edge_devices);
 spinn_scheduler_t* init_spinn_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, nasm_t** nasms, DEVICE_MODE device_mode, int device_idx, int num_edge_devices);

@@ -43,6 +43,8 @@ struct nasm_t
     // #endif
 
     int inference_id;
+
+    unsigned int num_cores;
 };
 
 struct nasm_ldata_t
@@ -99,7 +101,10 @@ struct ninst_t
     // For Scheduling
     atomic_int dev_to_compute [SCHEDULE_MAX_DEVICES+1];       // who will compute this ninst?
     atomic_int dev_send_target [SCHEDULE_MAX_DEVICES+1];    // who wants the result of this ninst?
-    // atomic_int offloaded;
+    
+    // For core allocation
+    unsigned int num_cores;
+    atomic_int core_allowed[SCHEDULE_MAX_CORE]; // which core is allowed to compute this ninst?
 
     double compute_start;
     double compute_end;

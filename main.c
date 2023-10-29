@@ -124,13 +124,18 @@ int main (int argc, char **argv)
         printf ("Unable to load nasm file\n");
         exit (0);
     }
+    apu_set_nasm_num_cores(target_nasm, num_cores);
   
-    rpool_t *rpool = rpool_init (gpu_idx);
+    // rpool_t *rpool = rpool_init (gpu_idx);
+    rpool_t *rpool = rpool_init_multigroup (gpu_idx, num_cores);
     dse_group_t *dse_group = dse_group_init (num_cores, gpu_idx);
     dse_group_set_rpool (dse_group, rpool);
     dse_group_set_device_mode (dse_group, DEV_LOCAL);
     dse_group_set_device (dse_group, 0);
     init_full_local (target_nasm, 0);
+
+    // core allocation
+    core_init_random (target_nasm, num_cores);
 
     rpool_add_nasm (rpool, target_nasm, "data/batched_input_128.bin");
 

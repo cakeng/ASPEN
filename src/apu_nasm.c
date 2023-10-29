@@ -537,6 +537,9 @@ void init_ninst (nasm_ldata_t *ldata, ninst_t *ninst_ptr, int ninst_idx)
         ldata->out_mat_dims[OUT_W] - ninst_ptr->out_mat_pos[OUT_W]: ldata->ninst_tile_dims[OUT_W];
     ninst_ptr->tile_dims[OUT_H] = ninst_ptr->out_mat_pos[OUT_H] + ldata->ninst_tile_dims[OUT_H] > ldata->out_mat_dims[OUT_H]? 
         ldata->out_mat_dims[OUT_H] - ninst_ptr->out_mat_pos[OUT_H]: ldata->ninst_tile_dims[OUT_H];
+    
+    // default
+    ninst_core_allow_all(ninst_ptr);
 }
 
 void destroy_ninst (ninst_t *ninst)
@@ -863,6 +866,13 @@ void apu_reset_nasm (nasm_t *nasm)
                 ninst->network_buf = NULL;
             }
         }
+    }
+}
+
+void apu_set_nasm_num_cores (nasm_t *nasm, unsigned int num_cores) {
+    nasm->num_cores = num_cores;
+    for (int i=0; i<nasm->num_ninst; i++) {
+        nasm->ninst_arr[i].num_cores = num_cores;
     }
 }
 

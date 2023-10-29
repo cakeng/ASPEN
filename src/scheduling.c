@@ -10,6 +10,10 @@ int is_dev_compute(ninst_t *ninst, int device_idx)
     return atomic_load(&ninst->dev_to_compute[device_idx]);
 }
 
+int is_core_compute(ninst_t *ninst, int core_idx) {
+    return atomic_load(&ninst->core_allowed[core_idx]);
+}
+
 int is_dev_send_target(ninst_t *ninst, int device_idx)
 {
     return atomic_load(&ninst->dev_send_target[device_idx]);
@@ -105,6 +109,44 @@ void nasm_set_last_layer_ninst_send_target_device(nasm_t *nasm, int device_idx)
     {
         // last_ldata_ninst_arr[i].dev_send_target[device_idx] = 1;
         atomic_store(&last_ldata_ninst_arr[i].dev_send_target[device_idx], 1);
+    }
+}
+
+void ninst_core_allow_all(ninst_t *ninst)
+{
+    for (int i = 0; i < ninst->num_cores; i++)
+        atomic_store(&ninst->core_allowed[i], 1);
+}
+
+void ninst_core_disallow_all(ninst_t *ninst)
+{
+    for (int i = 0; i < ninst->num_cores; i++)
+        atomic_store(&ninst->core_allowed[i], 0);
+}
+
+void ninst_core_allow(ninst_t *ninst, int core_idx, int allow)
+{
+    atomic_store(&ninst->core_allowed[core_idx], allow);
+}
+
+void ninst_core_allow_rand(ninst_t *ninst, int num_core) {
+    ninst->core_allowed[rand() % num_core] = 1;
+}
+
+int get_allowed_core_idx(ninst_t *ninst) {
+    for (int i = 0; i < ninst->num_cores; i++) {
+        if (atomic_load(&ninst->core_allowed[i])) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+void core_init_random(nasm_t *nasm, int num_core) {
+    for (int i = 0; i < nasm->num_ninst; i++) {
+        ninst_t *ninst = nasm->ninst_arr + i;
+        ninst_core_disallow_all(ninst);
+        ninst_core_allow_rand(ninst, num_core);
     }
 }
 

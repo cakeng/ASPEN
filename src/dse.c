@@ -55,7 +55,12 @@ void dse_schedule (dse_t *dse)
         }
         else 
         {
-            rpool_fetch_ninsts (dse->rpool, &dse->target, 1, 0);
+            if (dse->rpool->is_core_exclusive) {
+                rpool_fetch_ninsts_from_group (dse->rpool, &dse->target, 1, dse->thread_id);
+            }
+            else {
+                rpool_fetch_ninsts (dse->rpool, &dse->target, 1, 0);
+            }
             if (dse->target == NULL)
                 return;
         }
@@ -124,6 +129,9 @@ void dse_schedule (dse_t *dse)
         //                                                                                     ninst->ninst_idx, 
         //                                                                                     ninst->dev_to_compute[dse->num_edge_devices],
         //                                                                                     ninst->dev_to_compute[dse->device_idx]);
+        if (dse->rpool->is_core_exclusive && !is_core_compute(ninst, dse->thread_id)) {
+            printf("UNALLOWED NINST!!! ninst %d (allowed: %d %d) to dse %d\n", ninst->ninst_idx, ninst->core_allowed[0], ninst->core_allowed[1], dse->thread_id);
+        }
         if (is_dev_compute(ninst, dse->device_idx) || dse->profile_compute)    // It's mine, so compute
         {
             // printf("\t[Device %d] Compute ninst (N%d L%d)\n", target_device, ninst->ninst_idx, ninst->ldata->layer->layer_idx);
@@ -697,7 +705,13 @@ void update_children (rpool_t *rpool, ninst_t *ninst)
             {
                 // BLUE_PRTF ("1 Ninst %d(L%d) ready, pushing to rpool\n", child_ninst->ninst_idx, child_ninst->ldata->layer->layer_idx);
                 atomic_store (&child_ninst->state, NINST_READY);
-                rpool_push_ninsts (rpool, &child_ninst, 1, 0);
+                if (rpool->is_core_exclusive) {
+                    int target_dse = get_allowed_core_idx(child_ninst);
+                    rpool_push_ninsts_to_group (rpool, &child_ninst, 1, target_dse);
+                }
+                else {
+                    rpool_push_ninsts (rpool, &child_ninst, 1, 0);
+                }
             }
             else
             {
@@ -796,15 +810,30 @@ void update_children_but_prioritize_dse_target (rpool_t *rpool, ninst_t *ninst, 
             {
                 
                 atomic_store (&child_ninst->state, NINST_READY);
-                if (dse->target != NULL)
-                {
-                    cache[num_cache++] = child_ninst;
-                    // BLUE_PRTF ("31 Ninst %d(L%d) ready, pushing to rpool\n", child_ninst->ninst_idx, child_ninst->ldata->layer->layer_idx);
+                int target_dse = get_allowed_core_idx(child_ninst);
+                if (rpool->is_core_exclusive) {
+                    if (dse->target != NULL || dse->thread_id != target_dse)
+                    {
+                        cache[num_cache++] = child_ninst;
+                        // BLUE_PRTF ("31 Ninst %d(L%d) ready, pushing to rpool\n", child_ninst->ninst_idx, child_ninst->ldata->layer->layer_idx);
+                    }
+                    else
+                    {
+                        // BLUE_PRTF ("32 Ninst %d(L%d) ready, pushing to rpool\n", child_ninst->ninst_idx, child_ninst->ldata->layer->layer_idx);
+                        dse->target = child_ninst;
+                    }
                 }
-                else
-                {
-                    // BLUE_PRTF ("32 Ninst %d(L%d) ready, pushing to rpool\n", child_ninst->ninst_idx, child_ninst->ldata->layer->layer_idx);
-                    dse->target = child_ninst;
+                else {
+                    if (dse->target != NULL)
+                    {
+                        cache[num_cache++] = child_ninst;
+                        // BLUE_PRTF ("31 Ninst %d(L%d) ready, pushing to rpool\n", child_ninst->ninst_idx, child_ninst->ldata->layer->layer_idx);
+                    }
+                    else
+                    {
+                        // BLUE_PRTF ("32 Ninst %d(L%d) ready, pushing to rpool\n", child_ninst->ninst_idx, child_ninst->ldata->layer->layer_idx);
+                        dse->target = child_ninst;
+                    }
                 }
             }
             else
@@ -822,7 +851,12 @@ void update_children_but_prioritize_dse_target (rpool_t *rpool, ninst_t *ninst, 
                 alloc_ldata_out_mat (child_ninst->ldata);
         }
     }
-    rpool_push_ninsts (rpool, cache, num_cache, 0);
+    if (rpool->is_core_exclusive) {
+        rpool_push_ninsts_to_allowed_group (rpool, cache, num_cache);
+    }
+    else {
+        rpool_push_ninsts (rpool, cache, num_cache, 0);
+    }
 }
 
 void update_children_to_cache_but_prioritize_dse_target (rpool_queue_t *cache, ninst_t *ninst, ninst_t **dse_target)

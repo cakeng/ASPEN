@@ -141,8 +141,10 @@ void apu_destroy_nasm(nasm_t *nasm);
 nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn);
 void apu_save_nasm_to_file(nasm_t *nasm, char *filename);
 void apu_reset_nasm (nasm_t *nasm);
+void apu_set_nasm_num_cores (nasm_t *nasm, unsigned int num_cores);
 
 rpool_t *rpool_init (int gpu_idx);
+rpool_t *rpool_init_multigroup (int gpu_idx, int needed_groups);
 void rpool_destroy (rpool_t *rpool);
 void rpool_add_nasm_raw_input (rpool_t *rpool, nasm_t* nasm, void* input_data);
 void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, char *input_filename);
