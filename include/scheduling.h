@@ -14,6 +14,7 @@
 
 #include <float.h>
 #include <limits.h>
+#include <stdatomic.h>
 
 
 typedef enum {
@@ -94,7 +95,7 @@ struct fl_path_layer_t {
 
     ninst_t **ninst_ptr_arr;
     unsigned int num_ninsts;
-    unsigned int num_ninsts_completed;
+    atomic_uint num_ninsts_completed;
 
 };
 
@@ -102,6 +103,7 @@ struct fl_path_t {
     unsigned int path_idx;
 
     unsigned int num_path_layers;
+    atomic_uint num_path_layers_completed;
     fl_path_layer_t *path_layers_arr;
 
     unsigned int edge_final_layer_idx;
@@ -170,5 +172,7 @@ void apply_schedule_to_nasm(nasm_t *nasm, sched_processor_t *sched_processor, in
 
 void fl_init(nasm_t *nasm);
 fl_path_t *fl_create_path(nasm_t *nasm, ninst_t **last_layer_ninsts, unsigned int num_last_layer_ninsts);
+int fl_is_ninst_in_path_layer(fl_path_layer_t *path_layer, ninst_t *ninst);
+void fl_push_path_ninsts(rpool_t *rpool, fl_path_t *path);
 
 #endif

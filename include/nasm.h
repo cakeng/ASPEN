@@ -14,6 +14,10 @@
 #define APU_GENERATION_NUM_FLOPS 5e8
 #define INIT_NUM_PARENT_LDATA 2
 
+#define NINST_COMPUTE_NO    0
+#define NINST_COMPUTE_DUMMY 1
+#define NINST_COMPUTE_YES   2
+
 struct nasm_t
 {
     unsigned int nasm_id;
@@ -47,7 +51,10 @@ struct nasm_t
     unsigned int num_cores;
 
     unsigned int num_paths;
+    atomic_uint path_now_idx;
     fl_path_t *path_ptr_arr[64];
+
+    int operating_mode;
 };
 
 struct nasm_ldata_t
@@ -64,6 +71,7 @@ struct nasm_ldata_t
     unsigned int out_mat_stride;
     size_t out_mat_mem_size;
     void *out_mat;
+    void *out_mat_dummy;
     pthread_mutex_t out_mat_mutex;
     unsigned int ninst_tile_dims [2];
     ninst_t *ninst_arr_start;
@@ -116,6 +124,8 @@ struct ninst_t
 
     float rank_upward;
     float rank_downward;
+
+    int compute_option;
 
     // #ifdef GPU
     // cudaGraphNode_t cudagraph_node;

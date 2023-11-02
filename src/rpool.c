@@ -727,6 +727,8 @@ rpool_queue_t *get_queue_for_fetching_from_group (rpool_t *rpool, void **input_c
     unsigned int num_queues = atomic_load (&rpool_queue_group->num_queues);
     unsigned int num_des = rpool->ref_dses > 0 ? rpool->ref_dses : 1;
     unsigned int queue_idx = num_queues * dse_idx / num_des;
+    if (queue_idx >= num_queues)
+            queue_idx = queue_idx % num_queues;
     for (int i = 0; i < num_queues; i++)
     {
         rpool_queue_t *rpool_queue = &rpool_queue_group->queue_arr[queue_idx];
@@ -993,6 +995,9 @@ void rpool_push_ninsts_to_group (rpool_t *rpool, ninst_t **ninst_ptr_list, unsig
     #endif
     if (num_ninsts == 0)
         return;
+    if (dse_idx == (unsigned int)-1) {
+        dse_idx = 0;
+    }
     rpool_queue_t *rpool_queue = NULL;
     unsigned int i = 0;
     if (num_ninsts%NINST_PUSH_BATCH_SIZE != 0)

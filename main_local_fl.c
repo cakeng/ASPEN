@@ -124,10 +124,12 @@ int main (int argc, char **argv)
         printf ("Unable to load nasm file\n");
         exit (0);
     }
-    apu_set_nasm_num_cores(target_nasm, num_cores);
+    
+    // fl separate group
+    int fl_split_layer_idx = 4;
   
     // rpool_t *rpool = rpool_init (gpu_idx);
-    rpool_t *rpool = rpool_init_multigroup (gpu_idx, num_cores);
+    rpool_t *rpool = rpool_init_multigroup (gpu_idx, fl_split_layer_idx);
     dse_group_t *dse_group = dse_group_init (num_cores, gpu_idx);
     dse_group_set_rpool (dse_group, rpool);
     dse_group_set_device_mode (dse_group, DEV_LOCAL);
@@ -135,22 +137,30 @@ int main (int argc, char **argv)
     init_full_local (target_nasm, 0);
 
     // core allocation
-    core_init_random (target_nasm, num_cores);
+    // core_init_random (target_nasm, num_cores);
 
     // fl_path allocation
-    unsigned int num_last_layer_ninst = target_nasm->ldata_arr[4].num_ninst;
+    unsigned int num_last_layer_ninst = target_nasm->ldata_arr[fl_split_layer_idx].num_ninst;
 
-    ninst_t **path_last_ninsts1 = (ninst_t **)malloc(sizeof(ninst_t *) * num_last_layer_ninst / 2);
-    ninst_t **path_last_ninsts2 = (ninst_t **)malloc(sizeof(ninst_t *) * num_last_layer_ninst / 2);
+    ninst_t **path_last_ninsts1 = (ninst_t **)malloc(sizeof(ninst_t *) * 7);
+    ninst_t **path_last_ninsts2 = (ninst_t **)malloc(sizeof(ninst_t *) * 8);
+    ninst_t **path_last_ninsts3 = (ninst_t **)malloc(sizeof(ninst_t *) * 7);
+    ninst_t **path_last_ninsts4 = (ninst_t **)malloc(sizeof(ninst_t *) * 8);
 
-    for (int i=0; i<num_last_layer_ninst / 2; i++) {
+    for (int i=0; i<7; i++) {
         path_last_ninsts1[i] = target_nasm->ldata_arr[4].ninst_arr_start + i;
-        path_last_ninsts2[i] = target_nasm->ldata_arr[4].ninst_arr_start + i + num_last_layer_ninst / 2;
+        path_last_ninsts3[i] = target_nasm->ldata_arr[4].ninst_arr_start + i + 15;
+    }
+    for (int i=0; i<8; i++) {
+        path_last_ninsts2[i] = target_nasm->ldata_arr[4].ninst_arr_start + i + 7;
+        path_last_ninsts4[i] = target_nasm->ldata_arr[4].ninst_arr_start + i + 22;
     }
 
     fl_init(target_nasm);
-    fl_path_t *path1 = fl_create_path(target_nasm, path_last_ninsts1, num_last_layer_ninst / 2);
-    fl_path_t *path2 = fl_create_path(target_nasm, path_last_ninsts2, num_last_layer_ninst / 2);
+    fl_path_t *path1 = fl_create_path(target_nasm, path_last_ninsts1, 7);
+    fl_path_t *path2 = fl_create_path(target_nasm, path_last_ninsts2, 8);
+    fl_path_t *path3 = fl_create_path(target_nasm, path_last_ninsts3, 7);
+    fl_path_t *path4 = fl_create_path(target_nasm, path_last_ninsts4, 8);
 
     dse_group_set_operating_mode(dse_group, OPER_MODE_FL_PATH);
 

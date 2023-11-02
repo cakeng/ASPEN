@@ -1062,7 +1062,9 @@ static unsigned int ninst_find_parents(ninst_t **buffer, unsigned int num_buffer
 }
 
 void fl_init(nasm_t *nasm) {
+    nasm->operating_mode = OPER_MODE_FL_PATH;
     nasm->num_paths = 0;
+    nasm->path_now_idx = 0;
 }
 
 fl_path_t *fl_create_path(nasm_t *nasm, ninst_t **last_layer_ninsts, unsigned int num_last_layer_ninsts) {
@@ -1071,6 +1073,7 @@ fl_path_t *fl_create_path(nasm_t *nasm, ninst_t **last_layer_ninsts, unsigned in
     nasm->path_ptr_arr[nasm->num_paths] = path;
     path->path_idx = nasm->num_paths++;
     path->num_path_layers = last_layer_ninsts[0]->ldata->layer->layer_idx;
+    atomic_store(&path->num_path_layers_completed, 0);
     path->path_layers_arr = (fl_path_layer_t *)malloc(sizeof(fl_path_layer_t) * path->num_path_layers);
     path->edge_final_layer_idx = path->num_path_layers;
 
@@ -1090,7 +1093,7 @@ fl_path_t *fl_create_path(nasm_t *nasm, ninst_t **last_layer_ninsts, unsigned in
         path_layer_now->ldata = &nasm->ldata_arr[l+1];
 
         path_layer_now->num_ninsts = num_buffer;
-        path_layer_now->num_ninsts_completed = 0;
+        atomic_store(&path_layer_now->num_ninsts_completed, 0);
         path_layer_now->ninst_ptr_arr = (ninst_t **)malloc(sizeof(ninst_t *) * num_buffer);
         memcpy(path_layer_now->ninst_ptr_arr, buffer, sizeof(ninst_t *) * num_buffer);
         
@@ -1102,3 +1105,23 @@ fl_path_t *fl_create_path(nasm_t *nasm, ninst_t **last_layer_ninsts, unsigned in
 
     return path;
 }
+
+int fl_is_ninst_in_path_layer(fl_path_layer_t *path_layer, ninst_t *ninst) {
+    for (int i=0; i<path_layer->num_ninsts; i++) {
+        if (path_layer->ninst_ptr_arr[i] == ninst) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+void fl_push_path_ninsts(rpool_t *rpool, fl_path_t *path) {
+    for (int i=0; i<path->num_path_layers; i++) {
+        fl_path_layer_t *pushing_path_layer = &path->path_layers_arr[i];
+        for (int j=0; j<pushing_path_layer->num_ninsts; j++) {
+            printf("Push ninst in path %d in rpool group %d: N %d, L %d\n", path->path_idx, i, pushing_path_layer->ninst_ptr_arr[j]->ninst_idx, i+1);
+            rpool_push_ninsts_to_group(rpool, &pushing_path_layer->ninst_ptr_arr[j], 1, i);
+        }
+    }
+}
+

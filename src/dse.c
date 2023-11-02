@@ -1,6 +1,7 @@
 #include "dse.h"
 
 static _Atomic unsigned int dse_thread_id_counter = 0;
+static _Atomic unsigned int dse_now_path_layer_idx = 0;
 
 void *dse_thread_runtime (void* thread_info)
 {
@@ -18,6 +19,10 @@ void *dse_thread_runtime (void* thread_info)
 
 void dse_schedule (dse_t *dse)
 {
+    if (dse->operating_mode == OPER_MODE_FL_PATH) {
+        dse_schedule_fl (dse);
+        return;
+    }
     // print_rpool_info (dse->rpool);
     // print_rpool_queue_info (dse->ninst_cache);
     
@@ -295,6 +300,179 @@ void dse_schedule (dse_t *dse)
     // }
 }
 
+void dse_schedule_fl (dse_t *dse) {
+    /******************************************
+    
+    DSE RUNNING FUNCTION FOR FL_OFFLOADING MODE
+    * Commonly,
+      - State of ninst only affects computing option: real or dummy.
+      - When every path was completed, change operating mode of dse and nasm to default and continue.
+      - rpool_group is for each layer.
+
+    * For DEV_LOCAL,
+      - Every ninst will be given in ready_pool, so never care ninst updates.
+      - If one ninst is completed, check if a path is finished then change path to next one.
+
+    * For DEV_EDGE,
+      - Every ninst will be given in ready_pool, so never care ninst updates.
+      - If one ninst is completed, check if a path is fully offloaded then change path to next one.
+      
+    * For DEV_SERVER,
+      - When target ninst was updated, check if it is in a right path and a right layer.
+        + if not, push the ninst into rpool.
+    
+    ******************************************/
+
+    /* SET TARGET NINST */
+    if (dse->target == NULL && (dse->run != 0 && dse->kill == 0))
+        rpool_fetch_ninsts_from_group (dse->rpool, &dse->target, 1, atomic_load(&dse_now_path_layer_idx));
+    
+    if (dse->target == NULL)
+        return;
+
+    /* EXECUTE NINST */
+    ninst_t *ninst = dse->target;
+    dse->target = NULL;
+
+    // Check if the ninst is mine(device)
+    if (is_dev_compute(ninst, dse->device_idx) || dse->profile_compute) {
+        // Good! it's mine
+
+        // Check the timing to compute
+        nasm_t *nasm = ninst->ldata->nasm;
+        fl_path_t *path = nasm->path_ptr_arr[nasm->path_now_idx];
+        unsigned int ninst_layer_idx = ninst->ldata->layer->layer_idx;
+        fl_path_layer_t *path_layer = &path->path_layers_arr[path->num_path_layers_completed];
+
+        if (!fl_is_ninst_in_path_layer(path_layer, ninst)) {
+            // If it's not a good time to compute this ninst, return the ninst into rpool
+            printf("\tReject ninst (N %d, L %d)\n", ninst->ninst_idx, ninst->ldata->layer->layer_idx);
+            rpool_push_ninsts_to_group(dse->rpool, &ninst, 1, ninst->ldata->layer->layer_idx);
+            return;
+        }
+        
+        
+        printf("\tCompute ninst (N %d, L %d)\n", ninst->ninst_idx, ninst->ldata->layer->layer_idx);
+        if (dse->profile_compute) ninst->compute_start = get_time_secs_offset ();
+        if (ninst->state == NINST_COMPLETED) ninst->compute_option = NINST_COMPUTE_DUMMY;
+
+        switch (ninst->ldata->layer->type)
+        {
+            case CONV_LAYER:
+                tiled_conv2d (ninst, dse);
+                break;
+            case MAXPOOL_LAYER:
+                tiled_maxpool2d (ninst, dse);
+                break;
+            case AVGPOOL_LAYER:
+                tiled_avgpool2d (ninst, dse);
+                break;
+            case FC_LAYER:
+                tiled_fully_connected (ninst, dse);
+                break;
+            case RESIDUAL_LAYER:
+                tiled_residual (ninst, dse);
+                break;
+            case SOFTMAX_LAYER:
+                tiled_softmax (ninst, dse);
+                break;
+            case YOLO_LAYER:
+                tiled_yolo (ninst, dse);
+                break;
+            case APPEND_LAYER:
+                tiled_append (ninst, dse);
+                break;
+            case MATMUL_LAYER:
+                tiled_matmul (ninst, dse);
+                break;
+            case LAYERNORM_LAYER:
+                tiled_layernorm (ninst, dse);
+                break;
+            case K_ATTENTION_LAYER:
+                tiled_k_attention (ninst, dse);
+                break;
+            case V_ATTENTION_LAYER:
+                tiled_v_attention (ninst, dse);
+                break;
+            default:
+                // ERROR_PRTF ("ERROR: dse_thread_runtime: layer type %s is not supported\n", layer_type_str[ninst->ldata->layer->type]);
+                break;
+        }
+
+        // For logging
+        ninst->computed_time = get_time_secs_offset ();
+        if (dse->profile_compute) ninst->compute_end = ninst->computed_time;
+        ninst->dse_idx = dse->thread_id;
+
+        // Check devices to send the computation output
+        if (!dse->profile_compute && dse->is_multiuser_case) 
+        {
+            for (int i = 0; i <= dse->num_edge_devices; i++)
+            {
+                if (i == dse->device_idx) continue;
+                if (atomic_load(&ninst->dev_send_target[i]) == 1) // Should be offload
+                {
+                    networking_engine *net_engine;
+                    if(dse->device_mode == DEV_SERVER) net_engine = dse->net_engine_arr[i];
+                    else if(dse->device_mode == DEV_EDGE) net_engine = dse->net_engine_arr[dse->device_idx];
+                    else continue;
+                    create_network_buffer_for_ninst (ninst);
+                    pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
+                    push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);                            
+                    pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
+                }
+            }
+        }
+        else if (!dse->profile_compute && !dse->is_multiuser_case)
+        {
+            for (int i = 0; i <= dse->num_edge_devices; i++) 
+            {
+                if (i == dse->device_idx) continue;
+                if (atomic_load(&ninst->dev_send_target[i]) == 1) 
+                {
+                    networking_engine *net_engine;
+                    if(dse->device_mode == DEV_SERVER) net_engine = dse->net_engine_arr[i];
+                    else if(dse->device_mode == DEV_EDGE) net_engine = dse->net_engine_arr[dse->device_idx];
+                    else continue;
+                    create_network_buffer_for_ninst (ninst);
+                    pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
+                    push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
+                    pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
+                }
+            }
+        }
+
+        // Update path layer info
+        unsigned int num_player_ninsts_completed = atomic_fetch_add(&path_layer->num_ninsts_completed, 1);
+        if (num_player_ninsts_completed == path_layer->num_ninsts - 1) {
+            printf("PATH_LAYER %d COMPLETE!\n", path_layer->ldata->layer->layer_idx);
+            unsigned int num_path_layers_completed = atomic_fetch_add(&path->num_path_layers_completed, 1) + 1;
+            atomic_fetch_add(&dse_now_path_layer_idx, 1);
+            
+            if (
+                (dse->device_mode == DEV_EDGE && num_path_layers_completed - 1 == path->edge_final_layer_idx)
+                || (dse->device_mode == DEV_SERVER && num_path_layers_completed == path->num_path_layers)
+                || (dse->device_mode == DEV_LOCAL && num_path_layers_completed == path->num_path_layers)
+            ) {
+                // Change path!
+                printf("PATH %d FINISHED!\n", path->path_idx);
+                unsigned int next_path_idx = atomic_fetch_add(&nasm->path_now_idx, 1) + 1;
+
+                atomic_store(&dse_now_path_layer_idx, 0);
+                if (next_path_idx == nasm->num_paths) {
+                    // Change mode!
+                    dse_group_set_operating_mode(dse->dse_group, OPER_MODE_DEFAULT);
+                    return;
+                }
+
+                // Push new ninsts into rpool
+                fl_path_t *next_path = nasm->path_ptr_arr[nasm->path_now_idx];
+                fl_push_path_ninsts(dse->rpool, next_path);
+            }
+        }
+    }
+}
+
 dse_group_t *dse_group_init (unsigned int num_des, int gpu_idx)
 {
     if (gpu_idx >= 0 && gpu_idx >= aspen_num_gpus)
@@ -385,6 +563,18 @@ void dse_group_set_device (dse_group_t *dse_group, int device_idx)
     for (int i = 0; i < dse_group->num_dess; i++)
     {
         dse_group->dse_arr[i].device_idx = device_idx;
+    }
+}
+
+void dse_group_set_operating_mode (dse_group_t *dse_group, int operating_mode) {
+    if (dse_group == NULL)
+    {
+        ERROR_PRTF ("ERROR: dse_group_set_device: dse_group is NULL\n");
+        assert (0);
+    }
+    for (int i = 0; i < dse_group->num_dess; i++)
+    {
+        dse_group->dse_arr[i].operating_mode = operating_mode;
     }
 }
 
@@ -539,6 +729,7 @@ void dse_init (dse_group_t *dse_group, dse_t *dse, int gpu_idx)
     atomic_store (&dse->kill, 0);
     rpool_init_queue (dse->ninst_cache);
     pthread_create (&dse->thread, NULL, dse_thread_runtime, (void*)dse);
+    dse->operating_mode = OPER_MODE_DEFAULT;
 }
 
 void dse_destroy (dse_t *dse)

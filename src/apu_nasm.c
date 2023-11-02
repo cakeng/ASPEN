@@ -540,6 +540,7 @@ void init_ninst (nasm_ldata_t *ldata, ninst_t *ninst_ptr, int ninst_idx)
     
     // default
     ninst_core_allow_all(ninst_ptr);
+    ninst_ptr->compute_option = NINST_COMPUTE_YES;
 }
 
 void destroy_ninst (ninst_t *ninst)
@@ -574,6 +575,7 @@ nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigne
     new_nasm->min_ninst_per_ldata = min_ninst_per_ldata;
     new_nasm->gpu_idx = -1;
     atomic_store (&new_nasm->completed, 0);
+    new_nasm->operating_mode = OPER_MODE_DEFAULT;
     nasm_num++;
     for (int i = 0; i < dnn->num_layers; i++)
     {
@@ -984,6 +986,7 @@ void alloc_ldata_out_mat (nasm_ldata_t *ldata)
     }
     // printf ("allocating %ld KiB of memory for ldata %d\n", ldata->out_mat_mem_size/1024, ldata->layer->layer_idx);
     ldata->out_mat = aspen_dynamic_malloc (1, ldata->out_mat_mem_size);
+    ldata->out_mat_dummy = aspen_dynamic_malloc (1, ldata->out_mat_mem_size);
     pthread_mutex_unlock (&ldata->out_mat_mutex);
 }
 
@@ -993,6 +996,7 @@ void free_ldata_out_mat (nasm_ldata_t *ldata)
     {
         // printf ("freeing %ld KiB of memory for ldata %d\n", ldata->out_mat_mem_size/1024, ldata->layer->layer_idx);
         aspen_dynamic_free (ldata->out_mat, 1, ldata->out_mat_mem_size);
+        aspen_dynamic_free (ldata->out_mat_dummy, 1, ldata->out_mat_mem_size);
         ldata->out_mat = NULL;
     }
 }
