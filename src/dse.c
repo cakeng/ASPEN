@@ -2,6 +2,7 @@
 
 static _Atomic unsigned int dse_thread_id_counter = 0;
 static _Atomic unsigned int dse_now_path_layer_idx = 0;
+static _Atomic fl_path_t *dse_now_path = NULL;
 
 void *dse_thread_runtime (void* thread_info)
 {
@@ -324,8 +325,22 @@ void dse_schedule_fl (dse_t *dse) {
     ******************************************/
 
     /* SET TARGET NINST */
-    if (dse->target == NULL && (dse->run != 0 && dse->kill == 0))
-        rpool_fetch_ninsts_from_group (dse->rpool, &dse->target, 1, atomic_load(&dse_now_path_layer_idx));
+    if (dse->target == NULL && (dse->run != 0 && dse->kill == 0)) {
+        fl_path_t *now_path = atomic_load(&dse_now_path);
+        if (now_path == NULL) {
+            rpool_fetch_ninsts_from_group (dse->rpool, &dse->target, 1, 0);
+            if (dse->target != NULL) {
+                atomic_store(&dse_now_path, dse->target->ldata->nasm->path_ptr_arr[dse->target->ldata->nasm->path_now_idx]);
+            }
+        }
+        else {
+            if (now_path->num_path_layers_completed != now_path->num_path_layers) {
+                rpool_fetch_ninsts_from_group (dse->rpool, &dse->target, 1, now_path->num_path_layers_completed);
+            }
+            else return;
+        }
+    }
+        
     
     if (dse->target == NULL)
         return;
@@ -447,7 +462,7 @@ void dse_schedule_fl (dse_t *dse) {
         if (num_player_ninsts_completed == path_layer->num_ninsts - 1) {
             printf("PATH_LAYER %d COMPLETE!\n", path_layer->ldata->layer->layer_idx);
             unsigned int num_path_layers_completed = atomic_fetch_add(&path->num_path_layers_completed, 1) + 1;
-            atomic_fetch_add(&dse_now_path_layer_idx, 1);
+            // atomic_fetch_add(&dse_now_path_layer_idx, 1);
             
             if (
                 (dse->device_mode == DEV_EDGE && num_path_layers_completed - 1 == path->edge_final_layer_idx)
@@ -458,7 +473,8 @@ void dse_schedule_fl (dse_t *dse) {
                 printf("PATH %d FINISHED!\n", path->path_idx);
                 unsigned int next_path_idx = atomic_fetch_add(&nasm->path_now_idx, 1) + 1;
 
-                atomic_store(&dse_now_path_layer_idx, 0);
+                // atomic_store(&dse_now_path_layer_idx, 0);
+                atomic_store(&dse_now_path, nasm->path_ptr_arr[next_path_idx]);
                 if (next_path_idx == nasm->num_paths) {
                     // Change mode!
                     dse_group_set_operating_mode(dse->dse_group, OPER_MODE_DEFAULT);
