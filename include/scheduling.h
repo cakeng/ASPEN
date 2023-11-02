@@ -87,6 +87,26 @@ struct spinn_scheduler_t{
 
 };
 
+struct fl_path_layer_t {
+    fl_path_t *fl_path;
+
+    nasm_ldata_t *ldata;
+
+    ninst_t **ninst_ptr_arr;
+    unsigned int num_ninsts;
+    unsigned int num_ninsts_completed;
+
+};
+
+struct fl_path_t {
+    unsigned int path_idx;
+
+    unsigned int num_path_layers;
+    fl_path_layer_t *path_layers_arr;
+
+    unsigned int edge_final_layer_idx;
+};
+
 int is_offloaded(ninst_t *ninst);
 int is_dev_compute(ninst_t *ninst, int device_idx);
 int is_core_compute(ninst_t *ninst, int core_idx);
@@ -147,5 +167,8 @@ void save_schedule(sched_processor_t *sched_processor_arr, int num_device, char 
 sched_processor_t *load_schedule(char *file_path);
 void share_schedule(sched_processor_t **sched_processor_arr, int num_device, DEVICE_MODE device_mode, int server_sock, int client_sock);
 void apply_schedule_to_nasm(nasm_t *nasm, sched_processor_t *sched_processor, int num_device, DEVICE_MODE device_mode);
+
+void fl_init(nasm_t *nasm);
+fl_path_t *fl_create_path(nasm_t *nasm, ninst_t **last_layer_ninsts, unsigned int num_last_layer_ninsts);
 
 #endif

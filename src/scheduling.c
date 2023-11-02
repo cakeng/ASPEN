@@ -1033,3 +1033,72 @@ void init_conventional_offload(nasm_t *nasm, int edge_id, int server_id)
 //         iter_task = iter_task->next;
 //     }
 // }
+
+static unsigned int ninst_find_parents(ninst_t **buffer, unsigned int num_buffer, ninst_t **parent_buffer) {
+    nasm_t *nasm = buffer[0]->ldata->nasm;
+
+    unsigned int num_parents = 0;
+    for (int i=0; i<num_buffer; i++) {
+        ninst_t *ninst_now = buffer[i];
+
+        for (int p_idx=0; p_idx<ninst_now->num_parent_ninsts; p_idx++) {
+            ninst_t *parent_now = &nasm->ninst_arr[ninst_now->parent_ninst_idx_arr[p_idx]];
+
+            // check if parent is already in parent_buffer
+            int already_exists = 0;
+            for (int pb_idx=0; pb_idx<num_parents; pb_idx++) {
+                if (parent_buffer[pb_idx] == parent_now) {
+                    already_exists = 1;
+                    break;
+                }
+            }
+
+            if (!already_exists) 
+                parent_buffer[num_parents++] = parent_now;
+        }
+    }
+
+    return num_parents;
+}
+
+void fl_init(nasm_t *nasm) {
+    nasm->num_paths = 0;
+}
+
+fl_path_t *fl_create_path(nasm_t *nasm, ninst_t **last_layer_ninsts, unsigned int num_last_layer_ninsts) {
+    fl_path_t *path = (fl_path_t *)malloc(sizeof(fl_path_t));
+
+    nasm->path_ptr_arr[nasm->num_paths] = path;
+    path->path_idx = nasm->num_paths++;
+    path->num_path_layers = last_layer_ninsts[0]->ldata->layer->layer_idx;
+    path->path_layers_arr = (fl_path_layer_t *)malloc(sizeof(fl_path_layer_t) * path->num_path_layers);
+    path->edge_final_layer_idx = path->num_path_layers;
+
+    unsigned int num_buffer_parent;
+    unsigned int num_buffer;
+    
+    ninst_t *buffer_parent[256];
+    ninst_t *buffer[256];
+
+    num_buffer = num_last_layer_ninsts;
+    for (int i=0; i<num_buffer; i++) buffer[i] = last_layer_ninsts[i];
+
+    for (int l=path->num_path_layers-1; l>=0; l--) {
+        fl_path_layer_t *path_layer_now = &path->path_layers_arr[l];
+
+        path_layer_now->fl_path = path;
+        path_layer_now->ldata = &nasm->ldata_arr[l+1];
+
+        path_layer_now->num_ninsts = num_buffer;
+        path_layer_now->num_ninsts_completed = 0;
+        path_layer_now->ninst_ptr_arr = (ninst_t **)malloc(sizeof(ninst_t *) * num_buffer);
+        memcpy(path_layer_now->ninst_ptr_arr, buffer, sizeof(ninst_t *) * num_buffer);
+        
+        num_buffer_parent = ninst_find_parents(buffer, num_buffer, buffer_parent);
+
+        num_buffer = num_buffer_parent;
+        memcpy(buffer, buffer_parent, sizeof(ninst_t *) * num_buffer);
+    }
+
+    return path;
+}

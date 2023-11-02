@@ -137,6 +137,21 @@ int main (int argc, char **argv)
     // core allocation
     core_init_random (target_nasm, num_cores);
 
+    // fl_path allocation
+    unsigned int num_last_layer_ninst = target_nasm->ldata_arr[4].num_ninst;
+
+    ninst_t **path_last_ninsts1 = (ninst_t **)malloc(sizeof(ninst_t *) * num_last_layer_ninst / 2);
+    ninst_t **path_last_ninsts2 = (ninst_t **)malloc(sizeof(ninst_t *) * num_last_layer_ninst / 2);
+
+    for (int i=0; i<num_last_layer_ninst / 2; i++) {
+        path_last_ninsts1[i] = target_nasm->ldata_arr[4].ninst_arr_start + i;
+        path_last_ninsts2[i] = target_nasm->ldata_arr[4].ninst_arr_start + i + num_last_layer_ninst / 2;
+    }
+
+    fl_init(target_nasm);
+    fl_path_t *path1 = fl_create_path(target_nasm, path_last_ninsts1, num_last_layer_ninst / 2);
+    fl_path_t *path2 = fl_create_path(target_nasm, path_last_ninsts2, num_last_layer_ninst / 2);
+
     rpool_add_nasm (rpool, target_nasm, "data/batched_input_128.bin");
 
     printf ("Running %d iterations\n", number_of_iterations);

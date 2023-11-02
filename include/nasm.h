@@ -45,6 +45,9 @@ struct nasm_t
     int inference_id;
 
     unsigned int num_cores;
+
+    unsigned int num_paths;
+    fl_path_t *path_ptr_arr[64];
 };
 
 struct nasm_ldata_t
