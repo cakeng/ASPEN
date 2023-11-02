@@ -334,7 +334,8 @@ void dse_schedule_fl (dse_t *dse) {
             }
         }
         else {
-            if (now_path->num_path_layers_completed != now_path->num_path_layers) {
+            unsigned int nplc = atomic_load(&now_path->num_path_layers_completed);
+            if (nplc != now_path->num_path_layers) {
                 rpool_fetch_ninsts_from_group (dse->rpool, &dse->target, 1, now_path->num_path_layers_completed);
             }
             else return;

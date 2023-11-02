@@ -85,7 +85,7 @@ rpool_t *rpool_init_multigroup (int gpu_idx, int needed_groups) {
     rpool->needed_groups = needed_groups;
     rpool->num_groups = 0;
     rpool->queue_group_weight_sum = 0;
-    rpool->is_core_exclusive = 1;
+    // rpool->is_core_exclusive = 1;
     bzero (rpool->queue_group_weight_arr, sizeof(float)*MAX_QUEUE_GROUPS);
     rpool_init_queue (&rpool->default_queue);
     if (gpu_idx < 0)
@@ -728,7 +728,7 @@ rpool_queue_t *get_queue_for_fetching_from_group (rpool_t *rpool, void **input_c
     unsigned int num_des = rpool->ref_dses > 0 ? rpool->ref_dses : 1;
     unsigned int queue_idx = num_queues * dse_idx / num_des;
     if (queue_idx >= num_queues)
-            queue_idx = queue_idx % num_queues;
+        queue_idx = queue_idx % num_queues;
     for (int i = 0; i < num_queues; i++)
     {
         rpool_queue_t *rpool_queue = &rpool_queue_group->queue_arr[queue_idx];
