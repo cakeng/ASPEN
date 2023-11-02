@@ -132,7 +132,7 @@ int main (int argc, char **argv)
     rpool_t *rpool = rpool_init_multigroup (gpu_idx, fl_split_layer_idx);
     dse_group_t *dse_group = dse_group_init (num_cores, gpu_idx);
     dse_group_set_rpool (dse_group, rpool);
-    dse_group_set_device_mode (dse_group, DEV_LOCAL);
+    dse_group_set_device_mode (dse_group, DEV_EDGE);
     dse_group_set_device (dse_group, 0);
     init_full_local (target_nasm, 0);
 
@@ -172,7 +172,8 @@ int main (int argc, char **argv)
     {
         rpool_reset_queue (rpool);
         // rpool_reset_nasm (rpool, target_nasm);
-        fl_push_path_ninsts(rpool, path1);
+        fl_push_path_ninsts_until(rpool, path1, 1);
+        path1->edge_final_layer_idx = 1;
         dse_group_run (dse_group);
         dse_wait_for_nasm_completion (target_nasm);
         dse_group_stop (dse_group);

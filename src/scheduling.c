@@ -1125,3 +1125,13 @@ void fl_push_path_ninsts(rpool_t *rpool, fl_path_t *path) {
     }
 }
 
+void fl_push_path_ninsts_until(rpool_t *rpool, fl_path_t *path, unsigned int last_layer_idx) {
+    for (int i=0; i<=last_layer_idx; i++) {
+        fl_path_layer_t *pushing_path_layer = &path->path_layers_arr[i];
+        for (int j=0; j<pushing_path_layer->num_ninsts; j++) {
+            printf("Push ninst in path %d in rpool group %d: N %d, L %d\n", path->path_idx, i, pushing_path_layer->ninst_ptr_arr[j]->ninst_idx, i+1);
+            rpool_push_ninsts_to_group(rpool, &pushing_path_layer->ninst_ptr_arr[j], 1, i);
+        }
+    }
+}
+

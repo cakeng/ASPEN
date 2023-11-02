@@ -466,11 +466,26 @@ void dse_schedule_fl (dse_t *dse) {
             unsigned int num_path_layers_completed = atomic_fetch_add(&path->num_path_layers_completed, 1) + 1;
             // atomic_fetch_add(&dse_now_path_layer_idx, 1);
             
-            if (
-                (dse->device_mode == DEV_EDGE && num_path_layers_completed - 1 == path->edge_final_layer_idx)
-                || (dse->device_mode == DEV_SERVER && num_path_layers_completed == path->num_path_layers)
-                || (dse->device_mode == DEV_LOCAL && num_path_layers_completed == path->num_path_layers)
-            ) {
+            int change_path = 0;
+            if (dse->device_mode == DEV_EDGE) {
+                unsigned int last_layer_num_ninst_complete = atomic_load(
+                    &path->path_layers_arr[path->edge_final_layer_idx].num_ninsts_completed
+                );
+                if (last_layer_num_ninst_complete == path->path_layers_arr[path->edge_final_layer_idx].num_ninsts) {
+                    printf("EDGE STOPPING AT LAYER %d\n", path->edge_final_layer_idx + 1);
+                    change_path = 1;
+                }
+            }
+            else {
+                unsigned int last_layer_num_ninst_complete = atomic_load(
+                    &path->path_layers_arr[path->num_path_layers - 1].num_ninsts_completed
+                );
+                if (last_layer_num_ninst_complete == path->path_layers_arr[path->num_path_layers - 1].num_ninsts) {
+                    printf("NONEDGE STOPPING AT LAYER %d\n", path->edge_final_layer_idx + 1);
+                    change_path = 1;
+                }
+            }
+            if (change_path) {
                 // Change path!
                 printf("PATH %d FINISHED!\n", path->path_idx);
                 unsigned int next_path_idx = atomic_fetch_add(&nasm->path_now_idx, 1) + 1;
@@ -485,7 +500,8 @@ void dse_schedule_fl (dse_t *dse) {
 
                 // Push new ninsts into rpool
                 fl_path_t *next_path = nasm->path_ptr_arr[nasm->path_now_idx];
-                fl_push_path_ninsts(dse->rpool, next_path);
+                fl_push_path_ninsts_until(dse->rpool, next_path, 2);
+                next_path->edge_final_layer_idx = 2;
             }
         }
     }

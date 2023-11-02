@@ -174,5 +174,6 @@ void fl_init(nasm_t *nasm);
 fl_path_t *fl_create_path(nasm_t *nasm, ninst_t **last_layer_ninsts, unsigned int num_last_layer_ninsts);
 int fl_is_ninst_in_path_layer(fl_path_layer_t *path_layer, ninst_t *ninst);
 void fl_push_path_ninsts(rpool_t *rpool, fl_path_t *path);
+void fl_push_path_ninsts_until(rpool_t *rpool, fl_path_t *path, unsigned int last_layer_idx);
 
 #endif
