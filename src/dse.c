@@ -1,7 +1,6 @@
 #include "dse.h"
 
 static _Atomic unsigned int dse_thread_id_counter = 0;
-static _Atomic unsigned int dse_now_path_layer_idx = 0;
 static _Atomic fl_path_t *dse_now_path = NULL;
 
 void *dse_thread_runtime (void* thread_info)
@@ -336,7 +335,7 @@ void dse_schedule_fl (dse_t *dse) {
         else {
             unsigned int nplc = atomic_load(&now_path->num_path_layers_completed);
             if (nplc != now_path->num_path_layers) {
-                rpool_fetch_ninsts_from_group (dse->rpool, &dse->target, 1, now_path->num_path_layers_completed);
+                rpool_fetch_ninsts_from_group (dse->rpool, &dse->target, 1, nplc);
             }
             else return;
         }
@@ -356,14 +355,16 @@ void dse_schedule_fl (dse_t *dse) {
 
         // Check the timing to compute
         nasm_t *nasm = ninst->ldata->nasm;
-        fl_path_t *path = nasm->path_ptr_arr[nasm->path_now_idx];
+        unsigned int path_now_idx = atomic_load(&nasm->path_now_idx);
+        fl_path_t *path = nasm->path_ptr_arr[path_now_idx];
         unsigned int ninst_layer_idx = ninst->ldata->layer->layer_idx;
-        fl_path_layer_t *path_layer = &path->path_layers_arr[path->num_path_layers_completed];
+        unsigned int pnplc = atomic_load(&path->num_path_layers_completed);
+        fl_path_layer_t *path_layer = &path->path_layers_arr[pnplc];
 
         if (!fl_is_ninst_in_path_layer(path_layer, ninst)) {
             // If it's not a good time to compute this ninst, return the ninst into rpool
             printf("\tReject ninst (N %d, L %d)\n", ninst->ninst_idx, ninst->ldata->layer->layer_idx);
-            rpool_push_ninsts_to_group(dse->rpool, &ninst, 1, ninst->ldata->layer->layer_idx);
+            rpool_push_ninsts_to_group(dse->rpool, &ninst, 1, ninst->ldata->layer->layer_idx - 1);
             return;
         }
         
