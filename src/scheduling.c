@@ -1135,3 +1135,24 @@ void fl_push_path_ninsts_until(rpool_t *rpool, fl_path_t *path, unsigned int las
     }
 }
 
+void fl_push_ninsts_after(rpool_t *rpool, nasm_t *nasm, unsigned int last_layer_idx, unsigned int to_group) {
+    unsigned int from = last_layer_idx + 1;
+    unsigned int to = nasm->num_ldata;
+    
+    for (int i=from; i<to; i++) {
+        nasm_ldata_t *ldata = &nasm->ldata_arr[i];
+        for (int j=0; j<ldata->num_ninst; j++) {
+            ninst_t *ninst_to_push = &ldata->ninst_arr_start[j];
+            rpool_push_ninsts_to_group(rpool, &ninst_to_push, 1, to_group);
+        }   
+    }
+}
+
+void fl_push_ninsts_only(rpool_t *rpool, nasm_t *nasm, unsigned int layer_idx, unsigned int to_group) {
+    nasm_ldata_t *ldata = &nasm->ldata_arr[layer_idx];
+    for (int j=0; j<ldata->num_ninst; j++) {
+        ninst_t *ninst_to_push = &ldata->ninst_arr_start[j];
+        ninst_to_push->state = NINST_READY;
+        rpool_push_ninsts_to_group(rpool, &ninst_to_push, 1, to_group);
+    }   
+}
