@@ -340,9 +340,7 @@ void dse_schedule_fl (dse_t *dse) {
             }
             else return;
         }
-        else {
-            rpool_fetch_ninsts_from_group (dse->rpool, &dse->target, 1, fl_post_group_idx);
-        }
+        else return;
     }
         
     
@@ -473,7 +471,8 @@ void dse_schedule_fl (dse_t *dse) {
         }
 
         // Update ninst only for last layer
-        if (ninst->ldata->layer->layer_idx == path->path_layers_arr) {
+        if (ninst->ldata->layer->layer_idx == path->num_path_layers) {
+            ninst->state = NINST_COMPLETED;
             update_children(dse->rpool, ninst);
         }
 
@@ -509,8 +508,6 @@ void dse_schedule_fl (dse_t *dse) {
                     printf("PATH %d FINISHED!\n", path->path_idx);
                     unsigned int next_path_idx = atomic_fetch_add(&nasm->path_now_idx, 1) + 1;
 
-                    // atomic_store(&dse_now_path_layer_idx, 0);
-                    atomic_store(&dse_now_path, nasm->path_ptr_arr[next_path_idx]);
                     if (next_path_idx == nasm->num_paths) {
                         printf("FL_PATH MODE FINISHED!\n");
                         // Change mode!
@@ -519,6 +516,7 @@ void dse_schedule_fl (dse_t *dse) {
                         dse_group_set_operating_mode(dse->dse_group, OPER_MODE_DEFAULT);
                         return;
                     }
+                    atomic_store(&dse_now_path, nasm->path_ptr_arr[next_path_idx]);
 
                     // Push new ninsts into rpool
                     fl_path_t *next_path = nasm->path_ptr_arr[nasm->path_now_idx];

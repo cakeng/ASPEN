@@ -1152,7 +1152,6 @@ void fl_push_ninsts_only(rpool_t *rpool, nasm_t *nasm, unsigned int layer_idx, u
     nasm_ldata_t *ldata = &nasm->ldata_arr[layer_idx];
     for (int j=0; j<ldata->num_ninst; j++) {
         ninst_t *ninst_to_push = &ldata->ninst_arr_start[j];
-        ninst_to_push->state = NINST_READY;
         rpool_push_ninsts_to_group(rpool, &ninst_to_push, 1, to_group);
     }   
 }
