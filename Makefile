@@ -1,6 +1,4 @@
 TARGET=main
-# SUBTARGET=main_scheduling
-SUBTARGET=main_mu
 ALIB=libaspen.a
 OBJECTS=build_info.o apu.o apu_nasm.o apu_file_io.o input_parser.o darknet_parser.o util.o 
 OBJECTS+=rpool.o dse.o naive_kernels.o tiled_kernels.o avx2_kernels.o neon_kernels.o networking.o scheduling.o profiling.o #dse_cudagraph.o
@@ -73,23 +71,12 @@ INFO_FLAGS+= -DBUILD_INFO_GPU_ARCH="\"$(ARCH)\""
 OBJS= $(addprefix $(OBJDIR), $(OBJECTS))
 EXEOBJSA= $(addsuffix .o, $(TARGET))
 EXEOBJS= $(addprefix $(OBJDIR), $(EXEOBJSA))
-SUBEXEOBJSA= $(addsuffix .o, $(SUBTARGET))
-SUBEXEOBJS= $(addprefix $(OBJDIR), $(SUBEXEOBJSA))
-SUBCMDLINE= $(addsuffix .cmdline, $(SUBTARGET))
-SUBCMDOBJ = $(addsuffix .o, $(SUBCMDLINE))
 
-all: obj $(TARGET) $(SUBCMDOBJ) $(SUBTARGET)
+all: obj $(TARGET) 
 
 $(TARGET): $(EXEOBJS) $(ALIB) 
 	$(CC) $(COMMON) $(CFLAGS) $(OPTS) $^ -o $@ $(LDFLAGS) $(ALIB)
-
-$(SUBTARGET): $(SUBEXEOBJS) $(ALIB) $(OBJDIR)$(SUBCMDOBJ)
-	$(CC) $(COMMON) $(CFLAGS) $(OPTS) $^ -o $@ $(LDFLAGS) $(ALIB)
-
-$(SUBCMDOBJ):
-	gengetopt --input=$(SUBCMDLINE) --file-name=subcmdline
-	$(CC) -c subcmdline.c -o $(OBJDIR)$(SUBCMDOBJ)
-
+	
 $(ALIB): $(OBJS)
 	$(AR) $(ARFLAGS) $@ $^
 
@@ -110,5 +97,5 @@ test:
 	$(CC) test_transfer_tx.c -o test_transfer_tx.out
 
 clean:
-	rm -rf $(TARGET) $(SUBCMDOBJ) $(SUBTARGET) $(ALIB) $(EXEOBJS) $(SUBEXEOBJS) $(OBJDIR) $(OBJS)
+	rm -rf $(TARGET) $(ALIB) $(EXEOBJS) $(OBJDIR) $(OBJS)
 
