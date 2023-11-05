@@ -395,7 +395,7 @@ void dse_schedule_fl (dse_t *dse) {
         
         printf("\tCompute ninst (N %d, L %d)\n", ninst->ninst_idx, ninst->ldata->layer->layer_idx);
         if (dse->profile_compute) ninst->compute_start = get_time_secs_offset ();
-        if (atomic_load(&ninst->state) == NINST_COMPLETED) ninst->compute_option = NINST_COMPUTE_DUMMY;
+        if (atomic_exchange(&ninst->state, NINST_COMPLETED) == NINST_COMPLETED) ninst->compute_option = NINST_COMPUTE_DUMMY;
 
         switch (ninst->ldata->layer->type)
         {
@@ -466,58 +466,59 @@ void dse_schedule_fl (dse_t *dse) {
         }
 
         // Update path layer info
-        if (dse->operating_mode == OPER_MODE_FL_PATH) {
-            unsigned int num_player_ninsts_completed = atomic_fetch_add(&path_layer->num_ninsts_completed, 1);
-            if (num_player_ninsts_completed == path_layer->num_ninsts - 1) {
-                printf("PATH_LAYER %d COMPLETE!\n", path_layer->ldata->layer->layer_idx);
-                unsigned int num_path_layers_completed = atomic_fetch_add(&path->num_path_layers_completed, 1) + 1;
-                // atomic_fetch_add(&dse_now_path_layer_idx, 1);
-                
-                int change_path = 0;
-                if (dse->device_mode == DEV_EDGE) {
-                    unsigned int last_layer_num_ninst_complete = atomic_load(
-                        &path->path_layers_arr[path->edge_final_layer_idx - 1].num_ninsts_completed
-                    );
-                    if (last_layer_num_ninst_complete == path->path_layers_arr[path->edge_final_layer_idx - 1].num_ninsts) {
-                        printf("EDGE STOPPING AT LAYER %d\n", path->edge_final_layer_idx);
-                        change_path = 1;
-                    }
-                }
-                else {
-                    unsigned int last_layer_num_ninst_complete = atomic_load(
-                        &path->path_layers_arr[path->num_path_layers - 1].num_ninsts_completed
-                    );
-                    if (last_layer_num_ninst_complete == path->path_layers_arr[path->num_path_layers - 1].num_ninsts) {
-                        printf("NONEDGE STOPPING AT LAYER %d\n", path->num_path_layers);
-                        change_path = 1;
-                    }
-                }
-                if (change_path) {
-                    // Change path!
-                    printf("PATH %d FINISHED!\n", path->path_idx);
-                    unsigned int next_path_idx = atomic_fetch_add(&nasm->path_now_idx, 1) + 1;
-
-                    if (next_path_idx == nasm->num_paths) {
-                        printf("FL_PATH MODE FINISHED!\n");
-                        // Change mode!
-                        fl_post_group_idx = next_path_idx;
-                        // if (dse->device_mode != DEV_EDGE) fl_push_ninsts_only(dse->rpool, nasm, path->num_path_layers + 1, 0);
-                        printf("Now rpool has %u ninsts\n", atomic_load(&dse->rpool->num_stored));
-                        dse_group_set_operating_mode(dse->dse_group, OPER_MODE_DEFAULT);
-                        atomic_store(&dse->net_engine->operating_mode, OPER_MODE_DEFAULT);
-                        return;
-                    }
-                    atomic_store(&dse_now_path, nasm->path_ptr_arr[next_path_idx]);
-
-                    // Push new ninsts into rpool
-                    fl_path_t *next_path = nasm->path_ptr_arr[nasm->path_now_idx];
-                    if (dse->device_mode != DEV_SERVER) fl_push_path_ninsts_edge(dse->rpool, next_path);
-                    else fl_push_path_ninsts_server(dse->rpool, next_path);
-                    // fl_push_path_ninsts_until(dse->rpool, next_path, 2);
-                    // next_path->edge_final_layer_idx = 2;
+        unsigned int num_player_ninsts_completed = atomic_fetch_add(&path_layer->num_ninsts_completed, 1);
+        if (num_player_ninsts_completed == path_layer->num_ninsts - 1) {
+            printf("PATH_LAYER %d COMPLETE!\n", path_layer->ldata->layer->layer_idx);
+            unsigned int num_path_layers_completed = atomic_fetch_add(&path->num_path_layers_completed, 1) + 1;
+            // atomic_fetch_add(&dse_now_path_layer_idx, 1);
+            
+            int change_path = 0;
+            if (dse->device_mode == DEV_EDGE) {
+                unsigned int last_layer_num_ninst_complete = atomic_load(
+                    &path->path_layers_arr[path->edge_final_layer_idx - 1].num_ninsts_completed
+                );
+                if (last_layer_num_ninst_complete == path->path_layers_arr[path->edge_final_layer_idx - 1].num_ninsts) {
+                    printf("EDGE STOPPING AT LAYER %d\n", path->edge_final_layer_idx);
+                    change_path = 1;
                 }
             }
+            else {
+                unsigned int last_layer_num_ninst_complete = atomic_load(
+                    &path->path_layers_arr[path->num_path_layers - 1].num_ninsts_completed
+                );
+                if (last_layer_num_ninst_complete == path->path_layers_arr[path->num_path_layers - 1].num_ninsts) {
+                    printf("NONEDGE STOPPING AT LAYER %d\n", path->num_path_layers);
+                    change_path = 1;
+                }
+            }
+            if (change_path) {
+                // Change path!
+                printf("PATH %d FINISHED!\n", path->path_idx);
+                unsigned int next_path_idx = atomic_fetch_add(&nasm->path_now_idx, 1) + 1;
+
+                if (next_path_idx == nasm->num_paths) {
+                    printf("FL_PATH MODE FINISHED!\n");
+                    // Change mode!
+                    fl_post_group_idx = next_path_idx;
+                    // if (dse->device_mode != DEV_EDGE) fl_push_ninsts_only(dse->rpool, nasm, path->num_path_layers + 1, 0);
+                    printf("Now rpool has %u ninsts\n", atomic_load(&dse->rpool->num_stored));
+                    dse_group_set_operating_mode(dse->dse_group, OPER_MODE_DEFAULT);
+                    
+                    if (dse->device_mode != DEV_LOCAL) atomic_store(&dse->net_engine->operating_mode, OPER_MODE_DEFAULT);
+                    return;
+                }
+                atomic_store(&dse_now_path, nasm->path_ptr_arr[next_path_idx]);
+
+                // Push new ninsts into rpool
+                fl_path_t *next_path = nasm->path_ptr_arr[nasm->path_now_idx];
+                if (dse->device_mode == DEV_EDGE) fl_push_path_ninsts_edge(dse->rpool, next_path);
+                else if (dse->device_mode == DEV_LOCAL) fl_push_path_ninsts(dse->rpool, next_path);
+                else fl_push_path_ninsts_server(dse->rpool, next_path);
+                // fl_push_path_ninsts_until(dse->rpool, next_path, 2);
+                // next_path->edge_final_layer_idx = 2;
+            }
         }
+        
     }
 }
 

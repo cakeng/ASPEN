@@ -356,7 +356,7 @@ void receive(networking_engine *net_engine)
             buffer_ptr += sizeof(int);
             unsigned int data_size = *(unsigned int*)buffer_ptr;
             buffer_ptr += sizeof(unsigned int);
-            #if 1
+            #ifdef DEBUG
             if (net_engine->nasm->inference_id != inference_id && !net_engine->is_fl_offloading)
             {
                 PRTF("Warning: Received inference_id %d is not matched with ninst_idx %d\n", inference_id, ninst_idx);
@@ -489,31 +489,17 @@ void transmission_fl(networking_engine *net_engine)
         target_ninst->network_buf = NULL;
         target_ninst->sent_time = time_sent;
         buffer_ptr += data_size;
-        printf("Networking: Ninst%d, Path %d, Sending %ld bytes, W%d, H%d, data size %ld\n", i, path_idx, data_size + 3*sizeof(int), 
-            target_ninst_list[i]->tile_dims[OUT_W], target_ninst_list[i]->tile_dims[OUT_H], 
-            target_ninst_list[i]->tile_dims[OUT_W]*target_ninst_list[i]->tile_dims[OUT_H]*sizeof(float));
 
-        printf("transmission_fl: (N %d, L %d, P %d). Path Ninsts Completed: %d/%d\n",
+        printf("transmission_fl: (N %d, L %d, P %d).\n",
             target_ninst->ninst_idx,
             target_ninst->ldata->layer->layer_idx,
-            path_idx,
-            0, 0
+            path_idx
         );
     }
     payload_size = buffer_ptr - (char*)net_engine->tx_buffer - sizeof(int32_t);
     *(int32_t*)net_engine->tx_buffer = payload_size;
     payload_size += sizeof(int32_t);
 
-    #ifdef DEBUG
-    PRTF("Networking: Sending %d bytes -", payload_size);
-    for (int i = 0; i < num_ninsts; i++)
-    {
-        ninst_t* target_ninst = target_ninst_list[i];
-        PRTF(" (N%d L%d I%d %ldB)", 
-            target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->inference_id, 
-            target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float));
-    }
-    #endif
     int32_t bytes_sent = 0;
     while (bytes_sent < payload_size)
     {
@@ -526,9 +512,6 @@ void transmission_fl(networking_engine *net_engine)
         }
         bytes_sent += ret;
     }
-    #ifdef DEBUG
-    PRTF(" - Time taken %fs, %d tx queue remains.\n", (get_time_secs() - time_sent), net_engine->tx_queue->num_stored);
-    #endif
 }
 
 void receive_fl(networking_engine *net_engine) 
@@ -596,18 +579,7 @@ void receive_fl(networking_engine *net_engine)
             buffer_ptr += sizeof(int);
             unsigned int data_size = *(unsigned int*)buffer_ptr;
             buffer_ptr += sizeof(unsigned int);
-            #ifdef DEBUG
-            if (net_engine->nasm->inference_id != inference_id)
-            {
-                PRTF("Warning: Received inference_id %d is not matched with ninst_idx %d\n", inference_id, ninst_idx);
-                continue;
-            }
-            if (ninst_idx >= net_engine->nasm->num_ninst)
-            {
-                PRTF("Warning: Received ninst_idx %d is not found in nasm\n", ninst_idx);
-                continue;
-            }
-            #endif
+
             ninst_t* target_ninst = &net_engine->nasm->ninst_arr[ninst_idx];
             fl_path_t *target_path = net_engine->nasm->path_ptr_arr[path_idx];
             if (atomic_exchange (&target_ninst->state, NINST_COMPLETED) == NINST_COMPLETED) 
@@ -629,7 +601,7 @@ void receive_fl(networking_engine *net_engine)
             target_ninst->received_time = get_time_secs_offset ();
             
             unsigned int path_num_ninsts_completed = atomic_fetch_add(&target_path->path_layers_arr[target_path->edge_final_layer_idx - 1].num_ninsts_completed, 1) + 1;
-            printf("receive: (N %d, L %d, P %d). Received Ninsts %d/%d\n",
+            printf("receive_fl: (N %d, L %d, P %d). Received Ninsts %d/%d\n",
                 target_ninst->ninst_idx, 
                 target_ninst->ldata->layer->layer_idx, 
                 path_idx,
@@ -644,9 +616,6 @@ void receive_fl(networking_engine *net_engine)
             
             
         }
-        // #ifdef DEBUG
-        //     PRTF("\n");
-        // #endif
     }
 }
 

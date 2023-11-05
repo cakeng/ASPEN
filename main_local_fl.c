@@ -189,6 +189,7 @@ int main (int argc, char **argv)
             last_layer_ninst_arr_start[i].dev_send_target[DEV_EDGE] = 1;
         }
     }
+    else if (dev_mode == DEV_LOCAL) init_allow_all(target_nasm, 3);
 
     // Networking
     if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
@@ -211,11 +212,15 @@ int main (int argc, char **argv)
     {
         rpool_reset_queue (rpool);
         dse_group_set_operating_mode(dse_group, OPER_MODE_FL_PATH);
-        if (dev_mode != DEV_SERVER) fl_push_path_ninsts_edge(rpool, path1);
+        if (dev_mode == DEV_EDGE) fl_push_path_ninsts_edge(rpool, path1);
+        else if (dev_mode == DEV_LOCAL) fl_push_path_ninsts(rpool, path1);
         dse_group_run (dse_group);
         dse_wait_for_nasm_completion (target_nasm);
-        net_engine_wait_for_tx_queue_completion(net_engine);
-        net_engine_stop(net_engine);
+
+        if (dev_mode != DEV_LOCAL) {
+            net_engine_wait_for_tx_queue_completion(net_engine);
+            net_engine_stop(net_engine);
+        }
         dse_group_stop (dse_group);
     }
     double end_time = get_sec();
