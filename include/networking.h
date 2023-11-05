@@ -67,6 +67,14 @@ struct networking_engine
     int device_idx;
     int server_idx;
     unsigned int inference_whitelist[SCHEDULE_MAX_DEVICES];
+
+    _Atomic int operating_mode;
+
+    // for fl offloading
+    int is_fl_offloading;
+    unsigned int fl_path_idx_queue[256];
+    _Atomic int fl_path_queue_start;
+    _Atomic int fl_path_queue_end;
 };
 
 
@@ -81,6 +89,8 @@ int is_inference_whitelist (networking_engine *net_engine, int inference_id);
 void net_engine_wait(networking_engine* net_engine);
 void transmission(networking_engine *net_engine);
 void receive(networking_engine *net_engine);
+void transmission_fl(networking_engine *net_engine);
+void receive_fl(networking_engine *net_engine);
 
 void net_queue_reset (networking_queue_t *networking_queue);
 void net_engine_reset (networking_engine *net_engine);
@@ -91,8 +101,11 @@ void net_engine_wait_for_tx_queue_completion (networking_engine *net_engine);
 void create_network_buffer_for_ninst (ninst_t *target_ninst);
 unsigned int pop_ninsts_from_net_queue (networking_queue_t *networking_queue, ninst_t **ninst_ptr_list, unsigned int max_ninsts_to_get);
 void push_ninsts_to_net_queue (networking_queue_t *networking_queue, ninst_t **ninst_ptr_list, unsigned int num_ninsts);
+void push_path_idx_to_path_queue (networking_engine *net_engine, unsigned int path_idx);
+unsigned int pop_path_idx_from_path_queue (networking_engine *net_engine);
 void net_engine_add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_filename);
 void net_engine_add_input_rpool_reverse (networking_engine *net_engine, nasm_t* nasm, char *input_filename);
 void net_engine_destroy(networking_engine* net_engine);
+void net_engine_set_operating_mode(networking_engine *net_engine, int operating_mode);
 
 #endif /* _NETWORKING_ */

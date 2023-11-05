@@ -133,6 +133,7 @@ void spinn_update_profile(spinn_scheduler_t* spinn_scheduler, float rtt, float a
 void spinn_model_splitter(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int device_idx);
 int spinn_schedule_layer(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int device_idx);
 
+void init_allow_all(nasm_t *nasm, int num_dev);
 void init_full_local(nasm_t *nasm, int dev_idx);
 void init_full_offload(nasm_t *nasm, int edge_id, int server_id);
 void init_partial_offload(nasm_t *nasm, int split_layer, float compute_ratio, int edge_id, int server_id);
@@ -174,8 +175,11 @@ void fl_init(nasm_t *nasm);
 fl_path_t *fl_create_path(nasm_t *nasm, ninst_t **last_layer_ninsts, unsigned int num_last_layer_ninsts);
 int fl_is_ninst_in_path_layer(fl_path_layer_t *path_layer, ninst_t *ninst);
 void fl_push_path_ninsts(rpool_t *rpool, fl_path_t *path);
+void fl_push_path_ninsts_edge(rpool_t *rpool, fl_path_t *path);
+void fl_push_path_ninsts_server(rpool_t *rpool, fl_path_t *path);
 void fl_push_path_ninsts_until(rpool_t *rpool, fl_path_t *path, unsigned int last_layer_idx);
 void fl_push_ninsts_after(rpool_t *rpool, nasm_t *nasm, unsigned int last_layer_idx, unsigned int to_group);
 void fl_push_ninsts_only(rpool_t *rpool, nasm_t *nasm, unsigned int layer_idx, unsigned int to_group);
+void fl_set_dev_compute(nasm_t *nasm, fl_path_t *path, DEVICE_MODE dev_mode);
 
 #endif

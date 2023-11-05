@@ -62,6 +62,9 @@ struct dse_t
     int profile_compute;
 
     int operating_mode;
+
+    // for fl offloading
+    int is_fl_offloading;
 };
 
 void dse_init (dse_group_t *dse_group, dse_t *dse, int gpu_idx);
@@ -72,6 +75,7 @@ void dse_stop (dse_t *dse);
 
 void dse_schedule (dse_t *dse);
 void dse_schedule_fl (dse_t *dse);
+void dse_set_starting_path (fl_path_t *path);
 
 void dse_group_set_net_engine (dse_group_t *dse_group, networking_engine *net_engine);
 void dse_group_set_device (dse_group_t *dse_group, int device_idx);

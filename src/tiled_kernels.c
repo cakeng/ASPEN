@@ -482,6 +482,11 @@ void tiled_maxpool2d (ninst_t *ninst, dse_t *dse)
     const unsigned int N = ninst->tile_dims[OUT_W];
     const unsigned int ldc = ldata->out_mat_stride;
     void *C = get_ninst_out_mem (ninst);
+    if (ninst->compute_option == NINST_COMPUTE_DUMMY) {
+        C = (char*)ninst->ldata->out_mat_dummy
+        + (ninst->out_mat_pos[OUT_W]*ninst->ldata->out_mat_stride + ninst->out_mat_pos[OUT_H])
+            *ninst->ldata->nasm->dnn->element_size;
+    }
     if (dse->gpu_idx < 0)
     {
         for (int n = 0; n < N; n++)
