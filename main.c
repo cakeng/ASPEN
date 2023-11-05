@@ -137,6 +137,20 @@ int main (int argc, char **argv)
         exit (1);
     }
 
+    nasm_t *target_nasm1 = apu_load_nasm_from_file (nasm_file_name, target_dnn);
+    if (target_nasm == NULL)
+    {
+        printf ("Unable to load ASPEN graph file %s\n", nasm_file_name);
+        exit (1);
+    }
+
+    nasm_t *target_nasm2 = apu_load_nasm_from_file (nasm_file_name, target_dnn);
+    if (target_nasm == NULL)
+    {
+        printf ("Unable to load ASPEN graph file %s\n", nasm_file_name);
+        exit (1);
+    }
+
   
     // 3. Initialize the ASPEN DSEs and Ready Pool
 
@@ -145,6 +159,9 @@ int main (int argc, char **argv)
     dse_group_set_rpool (dse_group, rpool);
     rpool_add_nasm (rpool, target_nasm, "data/batched_input_64.bin");
 
+    print_nasm_info (target_nasm, 0, 0);
+    print_nasm_info (target_nasm1, 0, 0);
+    print_nasm_info (target_nasm2, 0, 0);
 
     // 4. Run the ASPEN DSEs
 

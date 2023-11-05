@@ -3,8 +3,6 @@
 #include "nasm.h"
 #include "input_parser.h"
 
-static unsigned int nasm_num = 0;
-
 int get_nasm_ldata_num_per_layer (aspen_layer_t *layer)
 {
     switch (layer->type)
@@ -82,9 +80,7 @@ void ninst_find_parent (ninst_t *ninst)
                                 for (int l = 0; l < ninst->num_parent_ninsts; l++)
                                 {
                                     if (parent_arr[l] == input_nist->ninst_idx)
-                                    {
                                         duplicate = 1;
-                                    }
                                 }
                                 if (!duplicate)
                                 {
@@ -122,9 +118,7 @@ void ninst_find_parent (ninst_t *ninst)
                     for (int l = 0; l < ninst->num_parent_ninsts; l++)
                     {
                         if (parent_arr[l] == input_nist->ninst_idx)
-                        {
                             duplicate = 1;
-                        }
                     }
                     if (!duplicate)
                     {
@@ -135,9 +129,7 @@ void ninst_find_parent (ninst_t *ninst)
                     for (int l = 0; l < ninst->num_parent_ninsts; l++)
                     {
                         if (parent_arr[l] == input_nist->ninst_idx)
-                        {
                             duplicate = 1;
-                        }
                     }
                     if (!duplicate)
                     {
@@ -475,6 +467,18 @@ void init_ninst (nasm_ldata_t *ldata, ninst_t *ninst_ptr, int ninst_idx)
         ldata->out_mat_dims[OUT_W] - ninst_ptr->out_mat_pos[OUT_W]: ldata->ninst_tile_dims[OUT_W];
     ninst_ptr->tile_dims[OUT_H] = ninst_ptr->out_mat_pos[OUT_H] + ldata->ninst_tile_dims[OUT_H] > ldata->out_mat_dims[OUT_H]? 
         ldata->out_mat_dims[OUT_H] - ninst_ptr->out_mat_pos[OUT_H]: ldata->ninst_tile_dims[OUT_H];
+    ninst_ptr->type_hash = get_ninst_hash (ninst_ptr);
+}
+
+HASH_t get_ninst_hash (ninst_t *ninst)
+{
+    struct val
+    {
+        unsigned int operator;
+        unsigned int tile_dims[2];
+    };
+    struct val v = {.operator=ninst->ldata->layer->type, .tile_dims[0]=ninst->tile_dims[0], .tile_dims[1]=ninst->tile_dims[1]};
+    return get_hash (&v, sizeof(struct val));
 }
 
 void destroy_ninst (ninst_t *ninst)
@@ -499,10 +503,10 @@ nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigne
     new_nasm->tr_seq_len = transformer_seq_len;
     new_nasm->flop_per_ninst = flop_per_ninst > 0? flop_per_ninst : 1;
     new_nasm->batch_size = batch_size > 0? batch_size : 1;
-    new_nasm->nasm_id = nasm_num;
+    size_t unique_val = getpid() + get_time_usec();
+    new_nasm->nasm_hash = get_hash (&unique_val, sizeof (size_t));
     new_nasm->min_ninst_per_ldata = min_ninst_per_ldata;
     atomic_store (&new_nasm->completed, 0);
-    nasm_num++;
     for (int i = 0; i < dnn->num_layers; i++)
     {
         new_nasm->num_ldata += get_nasm_ldata_num_per_layer(&dnn->layers[i]);
@@ -585,14 +589,14 @@ double test_nasm_time_sec (nasm_t *nasm, unsigned int num_iter)
     dse_group_t *dse_group = dse_group_init (num_cpu);
     dse_group_set_rpool (dse_group, rpool);
     rpool_add_nasm (rpool, nasm, NULL);
-    double start = get_time_secs();
+    double start = get_elapsed_secs();
     for (int i = 0; i < num_iter; i++)
     {
         dse_group_run_until_nasm_completion (dse_group, nasm);
         rpool_reset_queue (rpool);
         rpool_reset_nasm (rpool, nasm);
     }
-    total_time = (double)get_time_secs() - start;
+    total_time = (double)get_elapsed_secs() - start;
     dse_group_destroy (dse_group);
     rpool_destroy (rpool);
     return total_time / num_iter;
@@ -1389,7 +1393,7 @@ void print_nasm_info (nasm_t *nasm, int print_ninst, int print_data)
     }
     printf("//////////////////////// Printing NASM Info ////////////////////////\n");
     printf("Original DNN name: %s\n", nasm->dnn->name);
-    printf("Nasm ID: %d\n", nasm->nasm_id);
+    printf("Nasm hash: %08lx\n", nasm->nasm_hash);
     printf("Number of ldata: %d\n", nasm->num_ldata);
     printf("Number of batch: %d\n", nasm->batch_size);
     printf("Number of ninst: %d\n", nasm->num_ninst);
@@ -1481,7 +1485,7 @@ void print_ninst_info (ninst_t *ninst, int print_data)
         printf("Error: ninst is NULL.\n");
         return;
     }
-    printf ("Ninst Idx: %d, State: %s", ninst->ninst_idx, ninst_state_str[ninst->state]);
+    printf ("Ninst Idx: %d, State: %s, Type: %08lx", ninst->ninst_idx, ninst_state_str[ninst->state], ninst->type_hash);
     if (get_ninst_out_mem_without_alloc (ninst) != NULL)
     {
         printf (", Output Matrix: %p\n", get_ninst_out_mem_without_alloc (ninst));

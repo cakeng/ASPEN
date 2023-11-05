@@ -40,6 +40,10 @@ void dse_stop (dse_t *dse);
 
 void dse_schedule (dse_t *dse);
 
+void dse_load_profile_data (dse_t *dse, char *filename);
+void dse_save_profile_data (dse_t *dse, char *filename);
+void dse_profile_ninst (dse_t *dse, ninst_t *ninst);
+
 void update_children_to_cache_but_prioritize_dse_target (rpool_queue_t *cache, ninst_t *ninst, ninst_t **dse_target);
 void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst);
 void update_children_but_prioritize_dse_target (rpool_t *rpool, ninst_t *ninst, dse_t *dse);

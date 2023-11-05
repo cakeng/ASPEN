@@ -5,7 +5,7 @@
 
 struct nasm_t
 {
-    unsigned int nasm_id;
+    HASH_t nasm_hash;
     aspen_dnn_t *dnn;
     unsigned int batch_size;
     unsigned int tr_seq_len;
@@ -53,6 +53,7 @@ struct ninst_t
     unsigned int ninst_idx;
     unsigned int out_mat_pos [2];
     unsigned int tile_dims [2];
+    HASH_t type_hash;
 
     unsigned int *parent_ninst_idx_arr;
     unsigned int num_parent_ninsts;
@@ -71,6 +72,10 @@ double test_nasm_time_sec (nasm_t *nasm, unsigned int num_iter);
 void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata, aspen_layer_t *layer);
 void destroy_nasm_ldata_arr (nasm_ldata_t *ldata_arr, int num_ldata);
 void set_nasm_to_finished (nasm_t *nasm);
+
+void init_ninst (nasm_ldata_t *ldata, ninst_t *ninst_ptr, int ninst_idx);
+HASH_t get_ninst_hash (ninst_t *ninst);
+void destroy_ninst (ninst_t *ninst);
 
 void copy_ldata_out_mat_to_buffer (nasm_ldata_t *ldata, void *buffer);
 void copy_buffer_to_ldata_out_mat (nasm_ldata_t *ldata, void *buffer);

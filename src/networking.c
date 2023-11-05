@@ -185,7 +185,7 @@
 //     char info_str[MAX_STRING_LEN*2];
 //     void *whitelist[NUM_RPOOL_CONDS] = {NULL};
 //     whitelist [RPOOL_NASM] = nasm;
-//     sprintf (info_str, "%s_%s_%d", nasm->dnn->name, "nasm", nasm->nasm_id);
+//     sprintf (info_str, "%s_%s_%d", nasm->dnn->name, "nasm", nasm->nasm_hash);
 //     float queue_per_layer = rpool->ref_dses * NUM_LAYERQUEUE_PER_DSE * NUM_QUEUE_PER_LAYER;
 //     unsigned int num_queues = nasm->dnn->num_layers*queue_per_layer;
 //     if (num_queues < 1)
@@ -387,7 +387,7 @@
 //             if (num_ninst_completed == target_ninst->ldata->num_ninst - 1)
 //             {
 //                 // printf ("\t\tNet engine completed layer %d of nasm %d\n", 
-//                 //     target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->nasm_id);
+//                 //     target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->nasm_hash);
 //                 for (int pidx = 0; pidx < NUM_PARENT_ELEMENTS; pidx++)
 //                 {
 //                     if (target_ninst->ldata->parent_ldata_idx_arr[pidx] == -1)
@@ -790,7 +790,7 @@
 //     else
 //     {
 //         ERROR_PRTF ("ERROR: net_engine_add_input_rpool: first layer of dnn \"%s\" does not have output dimensions. Cannot add nasm \"%s_nasm_%d\".\n", 
-//             dnn->name, dnn->name, nasm->nasm_id);
+//             dnn->name, dnn->name, nasm->nasm_hash);
 //         return;
 //     }
 
@@ -845,7 +845,7 @@
 //     else
 //     {
 //         ERROR_PRTF ("ERROR: net_engine_add_input_rpool_reverse: first layer of dnn \"%s\" does not have output dimensions. Cannot add nasm \"%s_nasm_%d\".\n", 
-//             dnn->name, dnn->name, nasm->nasm_id);
+//             dnn->name, dnn->name, nasm->nasm_hash);
 //         return;
 //     }
 

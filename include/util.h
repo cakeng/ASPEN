@@ -17,6 +17,7 @@ void *aspen_dynamic_calloc (size_t num, size_t size);
 void *aspen_dynamic_malloc (size_t num, size_t size);
 void aspen_dynamic_free (void *ptr, size_t num, size_t size);
 
+HASH_t get_hash (void* data, size_t len);
 size_t get_smallest_dividable (size_t num, size_t divider);
 
 void* load_arr (char *file_path, unsigned int size);
@@ -34,8 +35,10 @@ int compare_float_tensor (float *input1, float* input2, int n, int c, int h ,int
 unsigned int get_cpu_count();
 
 void get_probability_results (char *class_data_path, float* probabilities, unsigned int num);
-double get_time_secs();
-void get_elapsed_time (char *name);
+
+size_t get_time_usec();
+size_t get_elapsed_usec();
+double get_elapsed_secs();
 
 void print_float_array (float *input, int num, int newline_num);
 void print_float_tensor (float *input, int n, int c, int h, int w);

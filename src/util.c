@@ -217,9 +217,59 @@ void aspen_free (void *ptr)
     free (ptr);
 }
 
+HASH_t get_hash (void* data, size_t len)
+{
+    if (data == NULL || len == 0)
+    {
+        ERROR_PRTF ("ERROR get_hash(): invalid arguments.");
+        return 0;
+    }
+    HASH_t hash = HASH_SEED;
+    size_t i = 0;
+    // Check endianness
+    int endianness = 0x1;
+    if (*(char *)&endianness != 0x1)
+    {
+        // Big endian
+        void *tmp = calloc (len, 1);
+        if (tmp == NULL)
+        {
+            ERRNO_PRTF ("ERROR get_hash(): failed to allocate memory.");
+            return 0;
+        }
+        for (int i = 0; i < len; i++)
+        {
+            *(uint8_t *)((char*)tmp + i) = *(uint8_t *)((char*)data + len - i - 1);
+        }
+        data = tmp;
+    }
+    // XORshift 
+    for (; i < len - sizeof(HASH_t); i += sizeof(HASH_t))
+    {
+        hash ^= *(HASH_t *)((char*)data + i);
+        hash ^= hash << 13;
+        hash ^= hash >> 17;
+        hash ^= hash << 5;
+    }
+    for (; i < len; i++)
+    {
+        hash ^= *(uint8_t *)((char*)data + i);
+        hash ^= hash << 13;
+        hash ^= hash >> 17;
+        hash ^= hash << 5;
+    }
+    // Hash of value 0 is reserved for invalid hash state.
+    if (hash == 0)
+        hash = get_hash (&hash, sizeof (HASH_t));
+
+    if (*(char *)&endianness != 0x1)
+        free (data);
+    return hash;
+}
+
 size_t get_smallest_dividable (size_t num, size_t divider)
 {
-    return (num/divider + (num%divider != 0))*divider;
+    return (num + divider - 1) / divider * divider;
 }
 
 void* load_arr (char *file_path, unsigned int size)
@@ -487,70 +537,26 @@ void get_probability_results (char *class_data_path, float* probabilities, unsig
     }
 }
 
-double get_time_secs ()
+size_t get_time_usec()
 {
-    static int initiallized = 0;
-    static struct timeval zero_time;
-    if (initiallized == 0)
-    {
-        initiallized = 1;
-        gettimeofday (&zero_time, NULL);
-    }
-    
-    struct timeval now;
-    gettimeofday (&now, NULL);
-    long sec = now.tv_sec - zero_time.tv_sec;
-    long usec = now.tv_usec - zero_time.tv_usec;
-    return sec + usec*1e-6;
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (tv.tv_sec * 1000000ULL) + (tv.tv_usec);
 }
 
-double get_time_secs_suppressed ()
+size_t get_elapsed_usec()
 {
-    static int initiallized = 0;
-    static struct timeval zero_time;
-    if (initiallized == 0)
-    {
-        initiallized = 1;
-        gettimeofday (&zero_time, NULL);
-    }
-    struct timeval now;
-    gettimeofday (&now, NULL);
-    long sec = now.tv_sec - zero_time.tv_sec;
-    long usec = now.tv_usec - zero_time.tv_usec;
-    return sec + usec*1e-6;
+    static size_t init_time = 0;
+    if (init_time == 0)
+        init_time = get_time_usec();
+    return get_time_usec() - init_time;
 }
 
-void get_elapsed_time (char *name)
+double get_elapsed_secs()
 {
-    static int call_num = 0;
-    static double last = -1;
-    if (last < 0)
-    {
-        last = get_time_secs();
-    }
-    double now = get_time_secs();
-    double elapsed = now - last;
-    if (call_num > 0)
-    {
-        printf ("Time measurement %s (%d): %6.6f - %6.6f secs elapsed since last measurement.\n", name, call_num, now, elapsed);
-    }
-    call_num++;
-    last = now;
+    return (double)get_elapsed_usec() / 1000000.0;
 }
 
-void get_elapsed_time_only()
-{
-    static int call_num = 0;
-    static double last = 0;
-    double now = get_time_secs_suppressed ();
-    double elapsed = now - last;
-    if (call_num > 0)
-    {
-        printf ("%6.6f", elapsed);
-    }
-    call_num++;
-    last = now;
-}
 
 void print_float_array (float *input, int num, int newline_num)
 {

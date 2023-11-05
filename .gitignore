@@ -16,6 +16,8 @@ logs
 .out
 .vscode/*
 main_mu
+data
+obj
 subcmdline.c
 subcmdline.h
 .outputs
