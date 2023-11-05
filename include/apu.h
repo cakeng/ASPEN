@@ -8,9 +8,9 @@
 #include "rpool.h"
 #include "cuda_kernels.h"
 
-#define APU_GENERATION_COEFF ((double)0.8)
-#define APU_GENERATION_NUM_NINST 512
-#define APU_GENERATION_COEFF_GPU ((double)0.8)
+#define APU_GENERATION_COEFF ((double)0.72)
+#define APU_GENERATION_NUM_NINST 1024
+#define APU_GENERATION_COEFF_GPU ((double)0.72)
 #define APU_GENERATION_NUM_NINST_GPU 50
 #define APU_GENERATION_NUM_FLOPS 5e8
 

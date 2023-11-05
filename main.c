@@ -70,139 +70,50 @@ void get_prob_results (char *class_data_path, float* probabilities, unsigned int
     }
 }
 
-int main(void)
+int main(int argc , char *argv[])
 {
     print_aspen_build_info();
     
     int number_of_iterations = 20;
-    int num_cores = 32;
     int gpu_idx = -1;
-    char nasm_file_name [1024] = {0};
-
-    aspen_dnn_t *resnet50_dnn = apu_create_dnn("data/cfg/resnet50_aspen.cfg", "data/resnet50_data.bin");
-    apu_save_dnn_to_file (resnet50_dnn, "nasms/resnet50_base.aspen");
-    nasm_t *resnet50_nasm;
-    for (int batch_size = 1; batch_size < 33; batch_size++)
+   
+    if (argc < 3 || argc > 4)
     {
-        printf ("Generating Resnet 50 NASM for batch size %d\n", batch_size);
-        resnet50_nasm = apu_generate_nasm (resnet50_dnn, batch_size, number_of_iterations, gpu_idx);
-        sprintf (nasm_file_name, "nasms/resnet50_B%d_CPU.nasm", batch_size);
-        apu_save_nasm_to_file (resnet50_nasm, nasm_file_name);
+        printf ("Usage: %s <dnn_name> <batch_size> [seq_len]\n", argv[0]);
+        return 0;
     }
 
-    aspen_dnn_t *vgg16_dnn = apu_create_dnn("data/cfg/vgg16_aspen.cfg", "data/vgg16_data.bin");
-    apu_save_dnn_to_file (vgg16_dnn, "nasms/vgg16_base.aspen");
-    nasm_t *vgg16_nasm;
-    for (int batch_size = 1; batch_size < 17; batch_size++)
-    {
-        printf ("Generating VGG16 NASM for batch size %d\n", batch_size);
-        vgg16_nasm = apu_generate_nasm (vgg16_dnn, batch_size, number_of_iterations, gpu_idx);
-        sprintf (nasm_file_name, "nasms/vgg16_B%d_CPU.nasm", batch_size);
-        apu_save_nasm_to_file (vgg16_nasm, nasm_file_name);
-    }
+    char *dnn_name = argv[1];
+    int batch_size = atoi(argv[2]);
+    int seq_len = -1;
+    if (argc > 3)
+        seq_len = atoi(argv[3]);
 
-    aspen_dnn_t *yolov3_dnn = apu_create_dnn("data/cfg/yolov3_aspen.cfg", "data/yolov3_data.bin");
-    apu_save_dnn_to_file (yolov3_dnn, "nasms/yolov3_base.aspen");
-    nasm_t *yolov3_nasm;
-    for (int batch_size = 1; batch_size < 17; batch_size++)
-    {
-        printf ("Generating YOLOv3 NASM for batch size %d\n", batch_size);
-        yolov3_nasm = apu_generate_nasm (yolov3_dnn, batch_size, number_of_iterations, gpu_idx);
-        sprintf (nasm_file_name, "nasms/yolov3_B%d_CPU.nasm", batch_size);
-        apu_save_nasm_to_file (yolov3_nasm, nasm_file_name);
-    }
+    char dnn_cfg_path[1024];
+    char dnn_data_path[1024];
+    sprintf (dnn_cfg_path, "data/cfg/%s_aspen.cfg", dnn_name);
+    sprintf (dnn_data_path, "data/%s_data.bin", dnn_name);
+    aspen_dnn_t *dnn = apu_create_dnn(dnn_cfg_path, dnn_data_path);
+    char nasm_base_path[1024];
+    sprintf (nasm_base_path, "nasms/%s_base.aspen", dnn_name);
+    apu_save_dnn_to_file (dnn, nasm_base_path);
+    nasm_t *nasm;
+    printf ("Generating %s NASM for batch size %d", dnn_name, batch_size);
+    if (seq_len > 0)
+        printf (" and sequence length %d", seq_len);
+    printf ("\n");
 
-    aspen_dnn_t *bert_dnn = apu_create_dnn("data/cfg/bert_base_encoder.cfg", "data/bert_base_data.bin");
-    apu_save_dnn_to_file (bert_dnn, "nasms/bert_base.aspen");
-    nasm_t *bert_nasm;
-    for (int batch_size = 1; batch_size < 5; batch_size++)
-    {
-        for (int seq_len = 1; seq_len < 33; seq_len++)
-        {
-            printf ("Generating BERT NASM for batch size %d and sequence length %d\n", batch_size, seq_len);
-            bert_nasm = apu_generate_transformer_nasm (bert_dnn, batch_size, seq_len, number_of_iterations, gpu_idx);
-            sprintf (nasm_file_name, "nasms/bert_S%d_B%d_CPU.nasm", seq_len, batch_size);
-            apu_save_nasm_to_file (bert_nasm, nasm_file_name);
-        }
-    }
-    for (int batch_size = 1; batch_size < 2; batch_size++)
-    {
-        for (int seq_len = 32; seq_len < 128; seq_len += 2)
-        {
-            printf ("Generating BERT NASM for batch size %d and sequence length %d\n", batch_size, seq_len);
-            bert_nasm = apu_generate_transformer_nasm (bert_dnn, batch_size, seq_len, number_of_iterations, gpu_idx);
-            sprintf (nasm_file_name, "nasms/bert_S%d_B%d_CPU.nasm", seq_len, batch_size);
-            apu_save_nasm_to_file (bert_nasm, nasm_file_name);
-        }
-        for (int seq_len = 128; seq_len < 513; seq_len += 4)
-        {
-            printf ("Generating BERT NASM for batch size %d and sequence length %d\n", batch_size, seq_len);
-            bert_nasm = apu_generate_transformer_nasm (bert_dnn, batch_size, seq_len, number_of_iterations, gpu_idx);
-            sprintf (nasm_file_name, "nasms/bert_S%d_B%d_CPU.nasm", seq_len, batch_size);
-            apu_save_nasm_to_file (bert_nasm, nasm_file_name);
-        }
-    }
+    if (seq_len > 0)
+        nasm = apu_generate_transformer_nasm (dnn, batch_size, seq_len, number_of_iterations, gpu_idx);
+    else
+        nasm = apu_generate_nasm (dnn, batch_size, number_of_iterations, gpu_idx);
 
-    aspen_dnn_t *bert_large_dnn = apu_create_dnn("data/cfg/bert_large_encoder.cfg", "data/bert_large_data.bin");
-    apu_save_dnn_to_file (bert_large_dnn, "nasms/bert_large_base.aspen");
-    nasm_t *bert_large_nasm;
-    for (int batch_size = 1; batch_size < 5; batch_size++)
-    {
-        for (int seq_len = 1; seq_len < 33; seq_len++)
-        {
-            printf ("Generating BERT LARGE NASM for batch size %d and sequence length %d\n", batch_size, seq_len);
-            bert_large_nasm = apu_generate_transformer_nasm (bert_large_dnn, batch_size, seq_len, number_of_iterations, gpu_idx);
-            sprintf (nasm_file_name, "nasms/bert_large_S%d_B%d_CPU.nasm", seq_len, batch_size);
-            apu_save_nasm_to_file (bert_large_nasm, nasm_file_name);
-        }
-    }
-    for (int batch_size = 1; batch_size < 2; batch_size++)
-    {
-        for (int seq_len = 32; seq_len < 128; seq_len += 2)
-        {
-            printf ("Generating BERT LARGE NASM for batch size %d and sequence length %d\n", batch_size, seq_len);
-            bert_large_nasm = apu_generate_transformer_nasm (bert_large_dnn, batch_size, seq_len, number_of_iterations, gpu_idx);
-            sprintf (nasm_file_name, "nasms/bert_large_S%d_B%d_CPU.nasm", seq_len, batch_size);
-            apu_save_nasm_to_file (bert_large_nasm, nasm_file_name);
-        }
-        for (int seq_len = 128; seq_len < 513; seq_len += 4)
-        {
-            printf ("Generating BERT LARGE NASM for batch size %d and sequence length %d\n", batch_size, seq_len);
-            bert_large_nasm = apu_generate_transformer_nasm (bert_large_dnn, batch_size, seq_len, number_of_iterations, gpu_idx);
-            sprintf (nasm_file_name, "nasms/bert_large_S%d_B%d_CPU.nasm", seq_len, batch_size);
-            apu_save_nasm_to_file (bert_large_nasm, nasm_file_name);
-        }
-    }
+     char nasm_file_name [1024];
+    if (seq_len > 0)
+        sprintf (nasm_file_name, "nasms/%s_S%d_B%d.nasm", dnn_name, seq_len, batch_size);
+    else
+        sprintf (nasm_file_name, "nasms/%s_B%d.nasm", dnn_name, batch_size);
+    apu_save_nasm_to_file (nasm, nasm_file_name);
 
-    aspen_dnn_t *gpt2_124M_dnn = apu_create_dnn("data/cfg/gpt2_124M_encoder.cfg", "data/gpt2_124M_data.bin");
-    apu_save_dnn_to_file (gpt2_124M_dnn, "nasms/gpt2_124M_base.aspen");
-    nasm_t *gpt2_124M_nasm;
-    for (int batch_size = 1; batch_size < 5; batch_size++)
-    {
-        for (int seq_len = 1; seq_len < 32; seq_len++)
-        {
-            printf ("Generating GPT2 124M NASM for batch size %d and sequence length %d\n", batch_size, seq_len);
-            gpt2_124M_nasm = apu_generate_transformer_nasm (gpt2_124M_dnn, batch_size, seq_len, number_of_iterations, gpu_idx);
-            sprintf (nasm_file_name, "nasms/gpt2_124M_S%d_B%d_CPU.nasm", seq_len, batch_size);
-            apu_save_nasm_to_file (gpt2_124M_nasm, nasm_file_name);
-        }
-    }
-    for (int batch_size = 1; batch_size < 2; batch_size++)
-    {
-        for (int seq_len = 32; seq_len < 128; seq_len += 2)
-        {
-            printf ("Generating GPT2 124M NASM for batch size %d and sequence length %d\n", batch_size, seq_len);
-            gpt2_124M_nasm = apu_generate_transformer_nasm (gpt2_124M_dnn, batch_size, seq_len, number_of_iterations, gpu_idx);
-            sprintf (nasm_file_name, "nasms/gpt2_124M_S%d_B%d_CPU.nasm", seq_len, batch_size);
-            apu_save_nasm_to_file (gpt2_124M_nasm, nasm_file_name);
-        }
-        for (int seq_len = 128; seq_len < 513; seq_len += 4)
-        {
-            printf ("Generating GPT2 124M NASM for batch size %d and sequence length %d\n", batch_size, seq_len);
-            gpt2_124M_nasm = apu_generate_transformer_nasm (gpt2_124M_dnn, batch_size, seq_len, number_of_iterations, gpu_idx);
-            sprintf (nasm_file_name, "nasms/gpt2_124M_S%d_B%d_CPU.nasm", seq_len, batch_size);
-            apu_save_nasm_to_file (gpt2_124M_nasm, nasm_file_name);
-        }
-    }
     return 0;
 }

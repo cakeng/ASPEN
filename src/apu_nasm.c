@@ -676,7 +676,7 @@ nasm_t *apu_generate_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned in
         gen_coeff = APU_GENERATION_COEFF_GPU;
     }
     nasm_t *new_nasm = apu_create_nasm(dnn, num_ninst, batch_size);
-    double time = test_nasm_time_sec(new_nasm, 50, gpu_idx);
+    double time = test_nasm_time_sec(new_nasm, 20, gpu_idx);
     double min_time = time;
     size_t min_num_ninst = num_ninst;
     for (int i = 0; i < num_iter; i++)
@@ -688,14 +688,14 @@ nasm_t *apu_generate_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned in
             num_ninst = num_ninst * gen_coeff;
             apu_destroy_nasm (new_nasm);
             new_nasm = apu_create_nasm(dnn, num_ninst, batch_size);
-            time = test_nasm_time_sec(new_nasm, 50, gpu_idx);
+            time = test_nasm_time_sec(new_nasm, 20, gpu_idx);
         }
         else
         {
             num_ninst = num_ninst*gen_coeff + min_num_ninst*(1-gen_coeff);
             apu_destroy_nasm (new_nasm);
             new_nasm = apu_create_nasm(dnn, num_ninst, batch_size);
-            time = test_nasm_time_sec(new_nasm, 50, gpu_idx);
+            time = test_nasm_time_sec(new_nasm, 20, gpu_idx);
         }
         if (time < min_time)
         {
