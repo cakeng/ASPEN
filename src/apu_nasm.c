@@ -38,39 +38,10 @@ void ninst_find_input_pos_idx (ninst_t *ninst)
 {
     nasm_ldata_t *ldata = ninst->ldata;
     aspen_layer_t *layer = ldata->layer;
-    // nasm_ldata_t *p_ldata = (ldata->parent_ldata_idx_arr[PARENT_0] + ldata->nasm->ldata_arr);
-    // aspen_layer_t *p_layer = p_ldata->layer;
     if (layer->type == CONV_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER)
     {
         unsigned int num_input_pos = ninst->tile_dims[OUT_W]*layer->params[WEIGHT_H]*layer->params[WEIGHT_W];
         ninst->num_input_pos = num_input_pos;
-        // ninst->input_pos_idx_arr = calloc(num_input_pos, sizeof(int));
-        // int *input_idx_arr = ninst->input_pos_idx_arr;
-        // unsigned int num_idx = 0;
-        // unsigned int mat_w = ninst->out_mat_pos[OUT_W];
-        // for (; mat_w < ninst->out_mat_pos[OUT_W] + ninst->tile_dims[OUT_W]; mat_w++)
-        // {
-        //     unsigned int out_b = mat_w / (layer->params[OUT_H] * layer->params[OUT_W]); 
-        //     unsigned int out_h = (mat_w % (layer->params[OUT_H] * layer->params[OUT_W])) / layer->params[OUT_W];
-        //     unsigned int out_w = mat_w % layer->params[OUT_W];
-        //     unsigned int in_b = out_b;
-        //     for (int kh = 0; kh < layer->params[WEIGHT_H]; kh++)
-        //     {
-        //         for (int kw = 0; kw < layer->params[WEIGHT_W]; kw++)
-        //         {
-        //             int in_h = out_h * layer->params[STRIDE] + kh  - layer->params[PADDING];
-        //             int in_w = out_w * layer->params[STRIDE] + kw  - layer->params[PADDING];
-        //             if (in_h < 0 || in_h >= p_layer->params[OUT_H] || in_w < 0 || in_w >= p_layer->params[OUT_W])
-        //             {
-        //                 input_idx_arr[num_idx++] = -1;
-        //                 continue;
-        //             }
-        //             int in_idx = in_b * p_layer->params[OUT_H] * p_layer->params[OUT_W] 
-        //                 + in_h * p_layer->params[OUT_W] + in_w;
-        //             input_idx_arr[num_idx++] = in_idx;
-        //         }
-        //     }
-        // }
     }
 }
 
@@ -90,16 +61,6 @@ void ninst_find_parent (ninst_t *ninst)
             unsigned int out_tensor_pos[NUM_PARAM_ELEMENTS] = {0}, in_tensor_pos[NUM_PARAM_ELEMENTS] = {0}; 
             get_tensor_pos_from_out_mat_pos(ldata, out_mat_pos, out_tensor_pos);
             in_tensor_pos[BATCH] = out_tensor_pos[BATCH];
-            // if (layer->params[MAT_M] == 0)
-            //     printf ("NT Layer %d, ninst %d, tile_w %d, tile_h %d, tensor pos %d,%d,%d,%d\n", 
-            //         ldata->layer->layer_idx, ninst->ninst_idx, tile_w, tile_h, out_tensor_pos[BATCH], out_tensor_pos[OUT_C],
-            //             out_tensor_pos[OUT_H],
-            //             out_tensor_pos[OUT_W]);
-            // else
-            //     printf ("Transformer Layer %d, ninst %d, tile_w %d, tile_h %d, tensor pos %d,%d,%d,%d\n", 
-            //         ldata->layer->layer_idx, ninst->ninst_idx, tile_w, tile_h, out_tensor_pos[BATCH], out_tensor_pos[NUM_HEAD],
-            //             out_tensor_pos[MAT_M],
-            //             out_tensor_pos[MAT_N]);
             if (layer->type == CONV_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER)
             {
                 for (int i = 0; i < layer->params[IN_C]; i++)
@@ -118,9 +79,6 @@ void ninst_find_parent (ninst_t *ninst)
                             {
                                 ninst_t *input_nist = get_ninst_from_tensor_pos(parent_ldata, in_tensor_pos);
                                 int duplicate = 0;
-                                // printf ("%d,%d,%d,%d,p:%d ", in_tensor_pos[BATCH], in_tensor_pos[OUT_C],
-                                //     in_tensor_pos[OUT_H],
-                                //     in_tensor_pos[OUT_W], input_nist->ninst_idx);
                                 for (int l = 0; l < ninst->num_parent_ninsts; l++)
                                 {
                                     if (parent_arr[l] == input_nist->ninst_idx)
@@ -132,7 +90,6 @@ void ninst_find_parent (ninst_t *ninst)
                                 {
                                     parent_arr[ninst->num_parent_ninsts] = input_nist->ninst_idx;
                                     ninst->num_parent_ninsts++;  
-                                    // printf ("\n\tnum parent:%d\n", ninst->num_parent_ninsts);
                                 }
                             }
                         }
@@ -162,9 +119,6 @@ void ninst_find_parent (ninst_t *ninst)
                 {
                     ninst_t *input_nist = get_ninst_from_tensor_pos(parent_ldata, in_tensor_pos);
                     int duplicate = 0;
-                    // printf ("%d,%d,%d,%d,p:%d ", in_tensor_pos[BATCH], in_tensor_pos[OUT_C],
-                    //     in_tensor_pos[OUT_H],
-                    //     in_tensor_pos[OUT_W], input_nist->ninst_idx);
                     for (int l = 0; l < ninst->num_parent_ninsts; l++)
                     {
                         if (parent_arr[l] == input_nist->ninst_idx)
@@ -176,7 +130,6 @@ void ninst_find_parent (ninst_t *ninst)
                     {
                         parent_arr[ninst->num_parent_ninsts] = input_nist->ninst_idx;
                         ninst->num_parent_ninsts++;  
-                        // printf ("\n\tnum parent:%d\n", ninst->num_parent_ninsts);
                     }
                     input_nist = get_ninst_from_tensor_pos(ldata->nasm->ldata_arr + ldata->parent_ldata_idx_arr[PARENT_1], in_tensor_pos);
                     for (int l = 0; l < ninst->num_parent_ninsts; l++)
@@ -190,7 +143,6 @@ void ninst_find_parent (ninst_t *ninst)
                     {
                         parent_arr[ninst->num_parent_ninsts] = input_nist->ninst_idx;
                         ninst->num_parent_ninsts++;  
-                        // printf ("\n\tnum parent:%d\n", ninst->num_parent_ninsts);
                     }
                 }
             }
@@ -198,7 +150,7 @@ void ninst_find_parent (ninst_t *ninst)
             {
                 if (parent_ldata->out_mat_stride != parent_ldata->out_mat_dims[OUT_H])
                 {
-                    ERROR_PRTF ("ERROR: FC layer parent stride mismatatch - %d, %d\n", 
+                    ERROR_PRTF ("ERROR: FC layer parent stride mismatatch - %d, %d", 
                         parent_ldata->out_mat_stride, parent_ldata->out_mat_dims[OUT_H]);
                     assert (0);
                 }
@@ -381,7 +333,6 @@ void ninst_find_parent (ninst_t *ninst)
             {
                 aspen_layer_t *p_layer = parent_ldata->layer;
                 unsigned int hidden_per_head = layer->params[NUM_HIDDEN] / layer->params[NUM_HEAD];
-                // Input 0 (Query)
                 for (int k = 0; k < layer->params[MAT_K]; k++)
                 {
                     in_tensor_pos[MAT_M] = k + out_tensor_pos[NUM_HEAD] * hidden_per_head;
@@ -406,7 +357,6 @@ void ninst_find_parent (ninst_t *ninst)
                         }
                     }
                 }
-                // Input 1 (Key)
                 nasm_ldata_t *parent_k_ldata = ldata->nasm->ldata_arr + ldata->parent_ldata_idx_arr[PARENT_1];
                 aspen_layer_t *pk_layer = parent_k_ldata->layer;
                 for (int k = 0; k < layer->params[MAT_K]; k++)
@@ -440,7 +390,6 @@ void ninst_find_parent (ninst_t *ninst)
                 unsigned int hidden_per_head = layer->params[NUM_HIDDEN] / layer->params[NUM_HEAD];
                 unsigned int head_pos = out_tensor_pos[MAT_M] / hidden_per_head;
                 unsigned int seq_num = ldata->nasm->tr_seq_len;
-                // Input 0 (Key_out)
                 for (int k = 0; k < seq_num; k++)
                 {
                     in_tensor_pos[NUM_HEAD] = head_pos;
@@ -467,7 +416,6 @@ void ninst_find_parent (ninst_t *ninst)
                         }
                     }
                 }
-                // Input 1 (Value)
                 nasm_ldata_t *parent_v_ldata = ldata->nasm->ldata_arr + ldata->parent_ldata_idx_arr[PARENT_1];
                 aspen_layer_t *pv_layer = parent_v_ldata->layer;
                 for (int k = 0; k < seq_num; k++)
@@ -497,18 +445,15 @@ void ninst_find_parent (ninst_t *ninst)
             }
             else if (layer->type == INPUT_LAYER)
             {
-                // printf ("\n");
                 return;
             }
             else
             {
-                ERROR_PRTF ( "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
+                ERROR_PRTF ("ERROR: Unsupported layer type %s, at line %d in file %s" , layer_type_str[layer->type], 0, " ");
                 assert (0);
             }
-            // printf ("\n");
         }
     }
-    // fflush (stdout);
     ninst->parent_ninst_idx_arr = calloc(ninst->num_parent_ninsts, sizeof(unsigned int));
     memcpy (ninst->parent_ninst_idx_arr, parent_arr, ninst->num_parent_ninsts*sizeof(unsigned int));
     for (int i = 0; i < ninst->num_parent_ninsts; i++)
@@ -517,20 +462,13 @@ void ninst_find_parent (ninst_t *ninst)
         atomic_fetch_add (&parent->num_child_ninsts, 1);
     }
     free (parent_arr);
-    // printf ("Layer %d, ninst %d, num_parent_ninsts %d\n", 
-    //     ldata->layer->layer_idx, ninst->ninst_idx, ninst->num_parent_ninsts);
-    // for (int i = 0; i < ninst->num_parent_ninsts; i++)
-    // {
-    //     ninst_t *parent = ninst->parent_ninst_idx_arr[i] + ldata->nasm->ninst_arr;
-    //     printf ("\tparent_ninst %d, layer %d, ninst %d\n", i, parent->ldata->layer->layer_idx, parent->ninst_idx);
-    // }
     ninst_find_input_pos_idx (ninst);
 }
 
 void init_ninst (nasm_ldata_t *ldata, ninst_t *ninst_ptr, int ninst_idx)
 {
     ninst_ptr->ldata = ldata;
-    atomic_store (&ninst_ptr->state, NINST_NOT_READY);
+    ninst_ptr->state = NINST_NOT_READY;
     ninst_ptr->ninst_idx = ninst_idx;
     get_out_mat_pos_from_nist (ldata, ninst_ptr, ninst_ptr->out_mat_pos);
     ninst_ptr->tile_dims[OUT_W] = ninst_ptr->out_mat_pos[OUT_W] + ldata->ninst_tile_dims[OUT_W] > ldata->out_mat_dims[OUT_W]?
@@ -547,19 +485,13 @@ void destroy_ninst (ninst_t *ninst)
         free (ninst->parent_ninst_idx_arr);
     if (ninst->child_ninst_arr != NULL)
         free (ninst->child_ninst_arr);
-    if (ninst->input_pos_idx_arr != NULL)
-        free (ninst->input_pos_idx_arr);
-    if (ninst->input_pos_ptr_arr_gpu != NULL && ninst->ldata->nasm->gpu_idx >= 0)
-        aspen_gpu_free (ninst->input_pos_ptr_arr_gpu, ninst->ldata->nasm->gpu_idx);
-    if (ninst->network_buf)
-        free (ninst->network_buf);
 }
 
 nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size,  unsigned int min_ninst_per_ldata, unsigned int transformer_seq_len)
 {
     if (min_ninst_per_ldata < 1)
     {
-        ERROR_PRTF ( "ERROR: min_ninst_per_ldata should be at least 1, at line %d in file %s\n" , 0, " ");
+        ERROR_PRTF ("ERROR: min_ninst_per_ldata should be at least 1, at line %d in file %s" , 0, " ");
         assert (0);
     }
     nasm_t *new_nasm = (nasm_t *) calloc(1, sizeof(nasm_t));
@@ -569,7 +501,6 @@ nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigne
     new_nasm->batch_size = batch_size > 0? batch_size : 1;
     new_nasm->nasm_id = nasm_num;
     new_nasm->min_ninst_per_ldata = min_ninst_per_ldata;
-    new_nasm->gpu_idx = -1;
     atomic_store (&new_nasm->completed, 0);
     nasm_num++;
     for (int i = 0; i < dnn->num_layers; i++)
@@ -640,18 +571,18 @@ void set_child_list (ninst_t *ninst)
             }
         }
     }
-    ERROR_PRTF ("Error: set_child_list failed. Only found %d children for ninst %d, expected %d\n"
+    ERROR_PRTF ("Error: set_child_list failed. Only found %d children for ninst %d, expected %d"
         , child_idx, ninst->ninst_idx, ninst->num_child_ninsts);
 }
 
-double test_nasm_time_sec (nasm_t *nasm, unsigned int num_iter, int gpu_idx)
+double test_nasm_time_sec (nasm_t *nasm, unsigned int num_iter)
 {
     double total_time = 0;
-    rpool_t *rpool = rpool_init (gpu_idx);
+    rpool_t *rpool = rpool_init (-1);
     unsigned int num_cpu = get_cpu_count() / 2;
     if (num_cpu < 1)
         num_cpu = 1;
-    dse_group_t *dse_group = dse_group_init (num_cpu, gpu_idx);
+    dse_group_t *dse_group = dse_group_init (num_cpu);
     dse_group_set_rpool (dse_group, rpool);
     rpool_add_nasm (rpool, nasm, NULL);
     double start = get_time_secs();
@@ -662,24 +593,16 @@ double test_nasm_time_sec (nasm_t *nasm, unsigned int num_iter, int gpu_idx)
         rpool_reset_nasm (rpool, nasm);
     }
     total_time = (double)get_time_secs() - start;
-    // PRTF ("APU: Total time = %f sec, Start time = %f sec, End Time = %f sec, Average time = %f sec\n", 
-    //     total_time, start, (double)get_time_secs(), total_time / num_iter);
     dse_group_destroy (dse_group);
     rpool_destroy (rpool);
     return total_time / num_iter;
 }
 
-nasm_t *apu_generate_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned int num_iter, int gpu_idx)
+nasm_t *apu_generate_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned int num_iter)
 {
     size_t num_ninst = APU_GENERATION_NUM_NINST;
-    double gen_coeff = APU_GENERATION_COEFF;
-    if (gpu_idx >= 0)
-    {
-        num_ninst = APU_GENERATION_NUM_NINST_GPU;
-        gen_coeff = APU_GENERATION_COEFF_GPU;
-    }
     nasm_t *new_nasm = apu_create_nasm(dnn, num_ninst, batch_size);
-    double time = test_nasm_time_sec(new_nasm, 50, gpu_idx);
+    double time = test_nasm_time_sec(new_nasm, 50);
     double min_time = time;
     size_t min_num_ninst = num_ninst;
     for (int i = 0; i < num_iter; i++)
@@ -688,17 +611,17 @@ nasm_t *apu_generate_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned in
         size_t num_old = num_ninst;
         if (time <= min_time*1.05)
         {
-            num_ninst = num_ninst * gen_coeff;
+            num_ninst = num_ninst * APU_GENERATION_COEFF;
             apu_destroy_nasm (new_nasm);
             new_nasm = apu_create_nasm(dnn, num_ninst, batch_size);
-            time = test_nasm_time_sec(new_nasm, 50, gpu_idx);
+            time = test_nasm_time_sec(new_nasm, 50);
         }
         else
         {
-            num_ninst = num_ninst*gen_coeff + min_num_ninst*(1-gen_coeff);
+            num_ninst = num_ninst*APU_GENERATION_COEFF + min_num_ninst*(1-APU_GENERATION_COEFF);
             apu_destroy_nasm (new_nasm);
             new_nasm = apu_create_nasm(dnn, num_ninst, batch_size);
-            time = test_nasm_time_sec(new_nasm, 50, gpu_idx);
+            time = test_nasm_time_sec(new_nasm, 50);
         }
         if (time < min_time)
         {
@@ -706,7 +629,7 @@ nasm_t *apu_generate_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned in
             min_num_ninst = num_ninst;
         }
         PRTF ("\tMin time = %f sec, min num ninst = %ld\n", min_time, min_num_ninst);
-        if (((num_ninst <= num_old*1.10) && (num_ninst >= num_old*0.90)) || (num_ninst <= 1))
+        if (num_ninst <= num_old*1.10 && num_ninst >= num_old*0.90)
             break;
     }
     apu_destroy_nasm (new_nasm);
@@ -715,17 +638,11 @@ nasm_t *apu_generate_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned in
     return new_nasm;
 }
 
-nasm_t *apu_generate_transformer_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned int seq_num, unsigned int num_iter, int gpu_idx)
+nasm_t *apu_generate_transformer_nasm(aspen_dnn_t *dnn, unsigned int batch_size, unsigned int seq_num, unsigned int num_iter)
 {
     size_t num_ninst = APU_GENERATION_NUM_NINST;
-    double gen_coeff = APU_GENERATION_COEFF;
-    if (gpu_idx >= 0)
-    {
-        num_ninst = APU_GENERATION_NUM_NINST_GPU;
-        gen_coeff = APU_GENERATION_COEFF_GPU;
-    }
     nasm_t *new_nasm = apu_create_transformer_nasm(dnn, num_ninst, batch_size, seq_num);
-    double time = test_nasm_time_sec(new_nasm, 50, gpu_idx);
+    double time = test_nasm_time_sec(new_nasm, 50);
     double min_time = time;
     size_t min_num_ninst = num_ninst;
     for (int i = 0; i < num_iter; i++)
@@ -734,17 +651,17 @@ nasm_t *apu_generate_transformer_nasm(aspen_dnn_t *dnn, unsigned int batch_size,
         size_t num_old = num_ninst;
         if (time <= min_time*1.05)
         {
-            num_ninst = num_ninst * gen_coeff;
+            num_ninst = num_ninst * APU_GENERATION_COEFF;
             apu_destroy_nasm (new_nasm);
             new_nasm = apu_create_transformer_nasm(dnn, num_ninst, batch_size, seq_num);
-            time = test_nasm_time_sec(new_nasm, 50, gpu_idx);
+            time = test_nasm_time_sec(new_nasm, 50);
         }
         else
         {
-            num_ninst = num_ninst*gen_coeff + min_num_ninst*(1-gen_coeff);
+            num_ninst = num_ninst*APU_GENERATION_COEFF + min_num_ninst*(1-APU_GENERATION_COEFF);
             apu_destroy_nasm (new_nasm);
             new_nasm = apu_create_transformer_nasm(dnn, num_ninst, batch_size, seq_num);
-            time = test_nasm_time_sec(new_nasm, 50, gpu_idx);
+            time = test_nasm_time_sec(new_nasm, 50);
         }
         if (time < min_time)
         {
@@ -808,8 +725,8 @@ nasm_t *apu_create_transformer_nasm
         {
             ninst_find_parent (&new_nasm->ldata_arr[i].ninst_arr_start[j]);
         }
-        PRTF ("\tAPU: Graphing layer %d/%d (%2.2f%%).\r", i+1, new_nasm->num_ldata, ((float)(i+1)/(float)new_nasm->num_ldata*100));
-        fflush (stdout);
+        PRTF ("APU: Layer %d, parents for %d ninsts found.\n", i, new_nasm->ldata_arr[i].num_ninst);
+
     }
     PRTF ("\n");
     for (int i = 0; i < new_nasm->num_ldata; i++)
@@ -819,6 +736,7 @@ nasm_t *apu_create_transformer_nasm
         {
             set_child_list (&new_nasm->ldata_arr[i].ninst_arr_start[j]);
         }
+        PRTF ("Layer %d, children for %d ninsts found.\n", i, new_nasm->ldata_arr[i].num_ninst);
     }
     PRTF ("\n");
     // Calculate total flops
@@ -842,26 +760,12 @@ void apu_reset_nasm (nasm_t *nasm)
         atomic_store (&ldata->num_ninst_completed, 0);
         atomic_store (&ldata->num_child_ldata_completed, 0);
         if (i != 0)
-        {
             free_ldata_out_mat (ldata);
-            // YELLOW_PRTF ("ldata %d output freed by apu_reset_nasm\n", ldata->layer->layer_idx);
-        }
         for (int j = 0; j < ldata->num_ninst; j++)
         {
             ninst_t *ninst = &ldata->ninst_arr_start[j];
-            ninst->compute_end = 0;
-            ninst->compute_start = 0;
-            ninst->computed_time = 0;
-            ninst->received_time = 0;
-            ninst->sent_time = 0;
-            // ninst->offloaded = 0;
             atomic_store (&ninst->state, NINST_NOT_READY);
             atomic_store (&ninst->num_parent_ninsts_completed, 0);
-            if (ninst->network_buf)
-            {
-                free (ninst->network_buf);
-                ninst->network_buf = NULL;
-            }
         }
     }
 }
@@ -888,7 +792,7 @@ void copy_ldata_out_mat_to_buffer (nasm_ldata_t *ldata, void *buffer)
     #ifdef DEBUG
     if (ldata == NULL || buffer == NULL)
     {
-        PRTF ("ERROR: ldata or buffer is NULL.\n");
+        ERROR_PRTF ("ERROR: ldata or buffer is NULL.");
         assert(0);
     }
     #endif
@@ -907,7 +811,7 @@ void copy_buffer_to_ldata_out_mat (nasm_ldata_t *ldata, void *buffer)
     #ifdef DEBUG
     if (ldata == NULL || buffer == NULL)
     {
-        PRTF ("ERROR: ldata or buffer is NULL.\n");
+        ERROR_PRTF ("ERROR: ldata or buffer is NULL.");
         assert(0);
     }
     #endif
@@ -927,12 +831,12 @@ void copy_ninst_data_to_buffer (ninst_t *ninst, void *buffer)
     #ifdef DEBUG
     if (ninst == NULL || buffer == NULL)
     {
-        PRTF ("ERROR: ninst or buffer is NULL.\n");
+        ERROR_PRTF ("ERROR: ninst or buffer is NULL.");
         assert(0);
     }
     if (out_mat == NULL)
     {
-        PRTF ("ERROR: ninst out_mat is NULL.\n");
+        ERROR_PRTF ("ERROR: ninst out_mat is NULL.");
         assert(0);
     }
     #endif
@@ -950,7 +854,7 @@ void copy_buffer_to_ninst_data (ninst_t *ninst, void *buffer)
     #ifdef DEBUG
     if (ninst == NULL || buffer == NULL)
     {
-        PRTF ("ERROR: ninst or buffer is NULL.\n");
+        ERROR_PRTF ("ERROR: ninst or buffer is NULL.");
         assert(0);
     }
     #endif
@@ -972,7 +876,6 @@ void alloc_ldata_out_mat (nasm_ldata_t *ldata)
         pthread_mutex_unlock (&ldata->out_mat_mutex);
         return;
     }
-    // printf ("allocating %ld KiB of memory for ldata %d\n", ldata->out_mat_mem_size/1024, ldata->layer->layer_idx);
     ldata->out_mat = aspen_dynamic_malloc (1, ldata->out_mat_mem_size);
     pthread_mutex_unlock (&ldata->out_mat_mutex);
 }
@@ -981,7 +884,6 @@ void free_ldata_out_mat (nasm_ldata_t *ldata)
 {
     if (ldata->out_mat != NULL)
     {
-        // printf ("freeing %ld KiB of memory for ldata %d\n", ldata->out_mat_mem_size/1024, ldata->layer->layer_idx);
         aspen_dynamic_free (ldata->out_mat, 1, ldata->out_mat_mem_size);
         ldata->out_mat = NULL;
     }
@@ -991,7 +893,6 @@ void *get_ninst_out_mem (ninst_t *ninst)
 {
     if (ninst->ldata->out_mat == NULL)
     {
-        // BLUE_PRTF ("APU: Allocating output memory for ldata %d\n", ninst->ldata->layer->layer_idx);
         alloc_ldata_out_mat (ninst->ldata);
     }
     return (char*)ninst->ldata->out_mat
@@ -1015,16 +916,10 @@ void destroy_nasm_ldata (nasm_ldata_t *ldata)
     if (ldata->child_ldata_idx_arr != NULL)
         free(ldata->child_ldata_idx_arr);
     free_ldata_out_mat (ldata);
-    // YELLOW_PRTF ("ldata %d output freed by destroy_nasm_ldata\n", ldata->layer->layer_idx);
     for (int i = 0; i < ldata->num_ninst; i++)
     {
         destroy_ninst(&ldata->ninst_arr_start[i]);
     }
-}
-
-void set_nasm_inference_id (nasm_t *nasm, int inference_id) {
-    nasm->inference_id = inference_id;
-    // PRTF ("APU: NASM inference id set to %d\n", inference_id);
 }
 
 void destroy_nasm_ldata_arr (nasm_ldata_t *ldata_arr, int num_ldata)
@@ -1045,11 +940,8 @@ void apu_destroy_nasm (nasm_t *nasm)
     destroy_nasm_ldata_arr(nasm->ldata_arr, nasm->num_ldata);
     if (nasm->ninst_arr != NULL)
         free(nasm->ninst_arr);
-    if (nasm->gpu_null_data != NULL)
-    {
-        if (nasm->gpu_idx >= 0)
-            aspen_gpu_free (nasm->gpu_null_data, nasm->gpu_idx);
-    }
+    if (nasm->data != NULL)
+        aspen_free (nasm->data);
     nasm->dnn->ref_nasms--;
     free(nasm);
 }
@@ -1125,7 +1017,7 @@ void get_out_mat_info (nasm_ldata_t *ldata)
     }
     else
     {
-        ERROR_PRTF ( "ERROR) Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
+        ERROR_PRTF ("ERROR) Unsupported layer type %s, at line %d in file %s" , layer_type_str[layer->type], 0, " ");
         assert (0);
     }
 }
@@ -1184,7 +1076,6 @@ void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata_ptr, aspen_layer_t *laye
                 {
                     ldata_ptr->parent_ldata_idx_arr [i] = lidx;
                     parent_ldata->num_child_ldata++;
-                    break;
                 }
             }
         }
@@ -1302,14 +1193,11 @@ unsigned int get_tensor_idx_from_pos (aspen_tensor_t *tensor, unsigned int *pos)
 }
 void get_tensor_pos_from_idx (aspen_tensor_t *tensor, unsigned int idx, unsigned int *pos)
 {
-    // printf ("idx = %d, tensor num dims %d, dim order %s, %s, %s\n", idx, tensor->num_dims,
-        // param_type_str[tensor->data_dim_order[0]], param_type_str[tensor->data_dim_order[1]], param_type_str[tensor->data_dim_order[2]]);
     for (int i = tensor->num_dims - 1; i >= 0; i--)
     {
         LAYER_PARAMS dim = tensor->data_dim_order[i];
         pos[dim] = idx%tensor->dims[dim];
         idx /= tensor->dims[dim];
-        // printf ("\tidx = %d, dim %s , pos %d\n", idx, param_type_str[dim], pos[dim]);
     }
 }
 ninst_t *get_ninst_from_tensor_pos (nasm_ldata_t *ldata, unsigned int *tensor_pos)
@@ -1374,7 +1262,7 @@ void get_out_mat_pos_from_tensor_pos (nasm_ldata_t *ldata, unsigned int *tensor_
     }
     else
     {
-        ERROR_PRTF ( "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
+        ERROR_PRTF ("ERROR: Unsupported layer type %s, at line %d in file %s" , layer_type_str[layer->type], 0, " ");
         assert (0);
     }
 }
@@ -1427,7 +1315,7 @@ void get_tensor_pos_from_out_mat_pos (nasm_ldata_t *ldata, unsigned int *out_mat
     }
     else
     {
-        ERROR_PRTF ( "ERROR: Unsupported layer type %s, at line %d in file %s\n" , layer_type_str[layer->type], 0, " ");
+        ERROR_PRTF ("ERROR: Unsupported layer type %s, at line %d in file %s" , layer_type_str[layer->type], 0, " ");
         assert (0);
     }
 }
@@ -1442,7 +1330,7 @@ void *get_packed_ldata_output_colwise (nasm_ldata_t *ldata)
 {
     if (ldata == NULL)
     {
-        ERROR_PRTF ("Error in get_packed_ldata_output_colwise: ldata is NULL.\n");
+        ERROR_PRTF ("Error in get_packed_ldata_output_colwise: ldata is NULL.");
         return NULL;
     }
     void *packed_data = NULL;
@@ -1451,28 +1339,15 @@ void *get_packed_ldata_output_colwise (nasm_ldata_t *ldata)
     packed_data = calloc (1, data_size);
     if (packed_data == NULL)
     {
-        ERROR_PRTF ("Error in get_packed_ldata_output_colwise: calloc failed.\n");
+        ERRNO_PRTF ("Error in get_packed_ldata_output_colwise: calloc failed.");
         return NULL;
     }
     void *out_mat = ldata->out_mat;
-    if (ldata->nasm->gpu_idx >= 0)
-    {
-        out_mat = aspen_calloc (ldata->out_mat_mem_size, 1);
-        aspen_gpu_to_host_memcpy (out_mat, ldata->out_mat, ldata->out_mat_mem_size, ldata->nasm->gpu_idx);
-    }
     for (unsigned int w = 0; w < ldata->out_mat_dims[OUT_W]; w++)
     {
-        void *packed_ptr = (char*)packed_data + w * ldata->out_mat_dims[OUT_H] * elem_size;
-        void *input_ptr = (char*)out_mat + w * ldata->out_mat_stride * elem_size;
-        // for (unsigned int h = 0; h < ldata->out_mat_dims[OUT_H]; h++)
-        // {
-        //     *((float*)packed_ptr + h) = *((float*)input_ptr + h);
-        // }
+        void *packed_ptr = packed_data + w * ldata->out_mat_dims[OUT_H] * elem_size;
+        void *input_ptr = out_mat + w * ldata->out_mat_stride * elem_size;
         memcpy (packed_ptr, input_ptr, ldata->out_mat_dims[OUT_H] * elem_size);
-    }
-    if (ldata->nasm->gpu_idx >= 0)
-    {
-        aspen_free (out_mat);
     }
     return packed_data;
 }
@@ -1481,7 +1356,7 @@ void *get_packed_ldata_output_rowwise (nasm_ldata_t *ldata)
 {
     if (ldata == NULL)
     {
-        ERROR_PRTF ("Error in get_packed_ldata_output_rolwise: ldata is NULL.\n");
+        ERROR_PRTF ("Error in get_packed_ldata_output_rolwise: ldata is NULL.");
         return NULL;
     }
     void *packed_data = NULL;
@@ -1490,7 +1365,7 @@ void *get_packed_ldata_output_rowwise (nasm_ldata_t *ldata)
     packed_data = calloc (1, data_size);
     if (packed_data == NULL)
     {
-        ERROR_PRTF ("Error in get_packed_ldata_output_rolwise: calloc failed.\n");
+        ERRNO_PRTF ("Error in get_packed_ldata_output_rolwise: calloc failed.");
         return NULL;
     }
     for (unsigned int w = 0; w < ldata->out_mat_dims[OUT_W]; w++)
@@ -1669,30 +1544,7 @@ void print_ninst_info (ninst_t *ninst, int print_data)
             child_ninst->ninst_idx);
     }
     printf("\n\t\tInput pos indexes (%d): ", ninst->num_input_pos);
-    // for (int i = 0; i < ninst->num_input_pos; i++)
-    // {
-    //     if (ninst->input_pos_idx_arr == NULL)
-    //     {
-    //         printf("\n\t\t\tError: Input pos index array is NULL.\n");
-    //         break;  
-    //     }
-    //     printf("%d ", ninst->input_pos_idx_arr[i]);
-    // }
     printf ("\n");
-
-    printf("\t\tDevices scheduled for computation:");
-    for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++)
-    {
-        printf(" %d", ninst->dev_to_compute[i]);
-    }
-    printf("\n\t\tDevices scheduled as send target:");
-    for (int i = 0; i < SCHEDULE_MAX_DEVICES; i++)
-    {
-        printf(" %d", ninst->dev_send_target[i]);
-    }
-    printf("\n\t\tCompute Start/End time: %3.3f/%3.3f\n", 
-        ninst->compute_start, ninst->compute_end);
-
     if (print_data)
     {
         printf("\n\t\tData:");

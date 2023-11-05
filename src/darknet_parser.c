@@ -40,13 +40,13 @@ void error(const char *s)
 
 void malloc_error()
 {
-    ERROR_PRTF ( "Malloc error\n");
+    ERRNO_PRTF ("Malloc error");
     exit(-1);
 }
 
 void file_error(char *s)
 {
-    ERROR_PRTF ( "Couldn't open file: %s\n", s);
+    ERRNO_PRTF ("Couldn't open file: %s", s);
     exit(0);
 }
 
@@ -241,7 +241,7 @@ void option_unused(list *l)
     while(n){
         kvp *p = (kvp *)n->val;
         if(!p->used){
-            ERROR_PRTF ( "Unused field: '%s = %s'\n", p->key, p->val);
+            ERROR_PRTF ("Unused field: '%s = %s'\n", p->key, p->val);
         }
         n = n->next;
     }
@@ -271,7 +271,7 @@ int option_find_int(list *l, char *key, int def)
 {
     char *v = option_find(l, key);
     if(v) return atoi(v);
-    ERROR_PRTF ( "%s: Using default '%d'\n", key, def);
+    ERROR_PRTF ("%s: Using default '%d'", key, def);
     return def;
 }
 
@@ -293,7 +293,7 @@ float option_find_float(list *l, char *key, float def)
 {
     char *v = option_find(l, key);
     if(v) return atof(v);
-    ERROR_PRTF ( "%s: Using default '%lf'\n", key, def);
+    ERROR_PRTF ("%s: Using default '%lf'", key, def);
     return def;
 }
 
@@ -328,7 +328,7 @@ list *read_data_cfg(char *filename)
     FILE *file = fopen(filename, "r");
     if(file == NULL)
     {
-        ERROR_PRTF ("Couldn't open file: %s\n", filename);
+        ERRNO_PRTF ("Couldn't open file: %s", filename);
         return NULL;
     }
     char *line;
@@ -352,7 +352,7 @@ list *read_data_cfg(char *filename)
                 break;
             default:
                 if(!read_option(line, current->options)){
-                    ERROR_PRTF ("Config file error line %d, could parse: %s\n", nu, line);
+                    ERROR_PRTF ("Config file error line %d, could parse: %s", nu, line);
                     free(line);
                 }
                 break;
@@ -370,7 +370,7 @@ metadata get_metadata(char *file)
     char *name_list = option_find_str(options, "names", 0);
     if(!name_list) name_list = option_find_str(options, "labels", 0);
     if(!name_list) {
-        ERROR_PRTF ( "No names or labels found\n");
+        ERROR_PRTF ("No names or labels found\n");
     } else {
         m.names = get_labels(name_list);
     }
@@ -381,17 +381,7 @@ metadata get_metadata(char *file)
 
 void parse_input_layer_options (list *options, aspen_layer_t *layer)
 {
-    // net->batch = option_find_int(options, "batch",1);
-    // int subdivs = option_find_int(options, "subdivisions",1);
-    // net->batch /= subdivs;
-    // net->batch *= net->time_steps;
-    // net->subdivisions = subdivs;
 
-    // net->h = option_find_int_quiet(options, "height",0);
-    // net->w = option_find_int_quiet(options, "width",0);
-    // net->c = option_find_int_quiet(options, "channels",0);
-    // net->inputs = option_find_int_quiet(options, "inputs", net->h * net->w * net->c);
-    // if(!net->inputs && !(net->h && net->w && net->c)) error("No input parameters supplied");
 }
 
 int is_network(section *s)
@@ -405,6 +395,7 @@ LAYER_ACT get_activation(char *s)
     if (!s) return NO_ACTIVATION;
     if (strcmp(s, "logistic")==0) return SIGMOID;
     if (strcmp(s, "linear")==0) return NO_ACTIVATION;
+    if (strcmp(s, "none")==0) return NO_ACTIVATION;
     if (strcmp(s, "leaky")==0) return LEAKY_RELU;
     if (strcmp(s, "relu")==0) return RELU;
     if (strcmp(s, "elu")==0) return ELU;
@@ -412,7 +403,7 @@ LAYER_ACT get_activation(char *s)
     if (strcmp(s, "tanh")==0) return TANH;
     if (strcmp(s, "gelu")==0) return GELU;
     if (strcmp(s, "gelu_acc")==0) return GELU_ACCURATE;
-    ERROR_PRTF ( "Couldn't find activation function %s, going with ReLU\n", s);
+    ERROR_PRTF ("Couldn't find activation function %s, going with ReLU", s);
     return RELU;
 }
 
@@ -453,7 +444,7 @@ void remove_unsupported_sections (list *sections)
         node *next = n->next;
         if (string_to_layer_type (s->type) == NO_LAYER_TYPE) 
         {
-            ERROR_PRTF ("Unsupported section type: %s\n", s->type);
+            ERROR_PRTF ("Unsupported section type: %s", s->type);
             free_section(s);
             list_remove (sections, n);
         }
@@ -518,7 +509,7 @@ void parse_section (section *s, aspen_layer_t *layer)
         }
         else
         {
-            ERROR_PRTF ("YOLO layer has no mask.\n");
+            ERROR_PRTF ("YOLO layer has no mask.");
         }
         a = option_find_str(options, "anchors", 0);
         if(a)
@@ -540,7 +531,7 @@ void parse_section (section *s, aspen_layer_t *layer)
         }
         else
         {
-            ERROR_PRTF ("YOLO layer has no anchors.\n");
+            ERROR_PRTF ("YOLO layer has no anchors.");
         }
         LAYER_PARAMS dim_order[] = {OUT_C};
         unsigned int params[NUM_PARAM_ELEMENTS];
@@ -553,7 +544,6 @@ void parse_section (section *s, aspen_layer_t *layer)
             ((float*)layer->tensors[ANCHOR_TENSOR]->data)[i*2] = anchors[masks[i]*2];
             ((float*)layer->tensors[ANCHOR_TENSOR]->data)[i*2 + 1] = anchors[masks[i]*2 + 1];
         }
-        // print_tensor_info (layer->tensors [ANCHOR_TENSOR], 1);
         if (masks)
             free (masks);
         if (anchors)

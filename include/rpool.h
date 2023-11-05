@@ -4,11 +4,10 @@
 #include "aspen.h"
 #include "nasm.h"
 #include "dse.h"
-#include <stdatomic.h>
 
-#define RPOOL_INIT_QUEUE_SIZE 1024
+#define INIT_QUEUE_SIZE 1024
 #define MAX_QUEUE_GROUPS 128
-#define MAX_NUM_QUEUES (1024*4)
+#define MAX_NUM_QUEUES 1024*4
 #define NINST_PUSH_BATCH_SIZE 16
 #define NUM_QUEUE_PER_LAYER ((float)0.5)
 #define NUM_LAYERQUEUE_PER_DSE ((float)0.1)
@@ -16,7 +15,6 @@
 struct rpool_queue_t
 {
     rpool_queue_group_t* queue_group;
-    // _Atomic unsigned int occupied;
     pthread_mutex_t occupied_mutex;
     unsigned int idx_start;
     unsigned int idx_end;
@@ -33,8 +31,6 @@ struct rpool_queue_group_t
     void* whitelist_conds [NUM_RPOOL_CONDS];
     rpool_queue_t queue_arr[MAX_NUM_QUEUES];
     _Atomic unsigned int num_queues;
-    // _Atomic unsigned int num_ninsts;
-    // _Atomic unsigned int num_fetched;
 };
 
 struct rpool_t
@@ -45,8 +41,6 @@ struct rpool_t
     float queue_group_weight_sum;
     rpool_queue_t default_queue;
     _Atomic unsigned int ref_dses;
-    int gpu_idx;
-    _Atomic unsigned int num_stored;
 };
 
 void rpool_init_queue (rpool_queue_t *rpool_queue);
@@ -68,12 +62,11 @@ void rpool_set_nasm_weight (rpool_t *rpool, nasm_t* nasm, float weight);
 
 void set_queue_group_weight (rpool_t *rpool, rpool_queue_group_t *rpool_queue_group, float weight);
 void queue_group_add_queues (rpool_queue_group_t *rpool_queue_group, unsigned int num_queues);
-void add_ref_dses (rpool_t *rpool, unsigned int num_dess);
+void add_ref_dses (rpool_t *rpool, unsigned int num_dses);
 unsigned int check_blacklist_cond (void **blacklist, void **input_cond);
 unsigned int check_whitelist_cond (void **whitelist, void **input_cond);
 
 unsigned int pop_ninsts_from_queue (rpool_queue_t *rpool_queue, ninst_t **ninst_ptr_list, unsigned int max_ninsts_to_get);
-unsigned int pop_ninsts_from_queue_enabled (rpool_queue_t *rpool_queue, ninst_t **ninst_ptr_list, unsigned int max_ninsts_to_get, int *enabled_device);
 unsigned int pop_ninsts_from_queue_back (rpool_queue_t *rpool_queue, ninst_t **ninst_ptr_list, unsigned int max_ninsts_to_get);
 void push_ninsts_to_queue (rpool_queue_t *rpool_queue, ninst_t **ninst_ptr_list, unsigned int num_ninsts);
 void push_ninsts_to_queue_front (rpool_queue_t *rpool_queue, ninst_t **ninst_ptr_list, unsigned int num_ninsts);

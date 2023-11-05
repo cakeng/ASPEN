@@ -10,7 +10,7 @@ char *read_check_and_return (FILE *fp, char *buffer, char *check_str, unsigned i
 {
     if (fgets(buffer, MAX_STRING_LEN, fp) == NULL)
     {
-        ERROR_PRTF (stderr,"ASPEN DNN file parse error: Unexpected EOF.\n");
+        ERRNO_PRTF ("ASPEN DNN file parse error: Unexpected EOF.");
         return NULL;
     }
     (*line_num)++;
@@ -20,7 +20,7 @@ char *read_check_and_return (FILE *fp, char *buffer, char *check_str, unsigned i
         line++;
     if (strncmp(line, check_str, strlen(check_str)) != 0)
     {
-        ERROR_PRTF ("Wrong ASPEN DNN file format at line %d, expected \"%s\", got \"%s\"\n", *line_num, check_str, line);
+        ERROR_PRTF ("Wrong ASPEN DNN file format at line %d, expected \"%s\", got \"%s\"", *line_num, check_str, line);
         return NULL;
     }
     return line + strlen(check_str);
@@ -39,7 +39,7 @@ char *read_and_return_if_EOF (FILE *fp, char *buffer, char *check_str, unsigned 
         line++;
     if (strncmp(line, check_str, strlen(check_str)) != 0)
     {
-        ERROR_PRTF ("Wrong ASPEN DNN file format at line %d, expected \"%s\", got \"%s\"\n", *line_num, check_str, line);
+        ERROR_PRTF ("Wrong ASPEN DNN file format at line %d, expected \"%s\", got \"%s\"", *line_num, check_str, line);
         return NULL;
     }
     return line + strlen(check_str);
@@ -50,7 +50,7 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
     FILE *fp = fopen(input_path, "rb");
     if (fp == NULL)
     {
-        ERROR_PRTF ("ASPEN DNN file %s not found.\n", input_path);
+        ERRNO_PRTF ("ASPEN DNN file %s not found.", input_path);
         return;
     }
     
@@ -63,13 +63,13 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
     LAYER_TENSORS tensor_type = NULL_TENSOR;
     if ((ptr = read_check_and_return (fp, line, "ASPEN_DATA", &line_num)) == NULL)
     {
-        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing ASPEN_DATA.\n", input_path);
+        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing ASPEN_DATA.", input_path);
         fclose (fp);
         return;
     }
     if ((ptr = read_check_and_return (fp, line, "LAYER:", &line_num)) == NULL)
     {
-        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing LAYER.\n", input_path);
+        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing LAYER.", input_path);
         if (bn_mean != NULL)
             free (bn_mean);
         if (bn_weight != NULL)
@@ -95,13 +95,12 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
                 if (weighted_layer == file_layer_num)
                 {
                     layer_num = i;
-                    // PRTF ("File Layer %d loading into DNN layer %d: ", file_layer_num, layer_num);
                     break;
                 }
             }
             if (i == dnn->num_layers - 1)
             {
-                ERROR_PRTF ("ASPEN DNN file %s parse error: Invalid file LAYER %d.\n", input_path, file_layer_num);
+                ERROR_PRTF ("ASPEN DNN file %s parse error: Invalid file LAYER %d.", input_path, file_layer_num);
                 if (bn_mean != NULL)
                     free (bn_mean);
                 if (bn_weight != NULL)
@@ -115,7 +114,7 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
         aspen_layer_t *layer = &dnn->layers[layer_num];
         if ((ptr = read_check_and_return (fp, line, "TENSOR_TYPE:", &line_num)) == NULL)
         {
-            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing TENSOR_TYPE.\n", input_path);
+            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing TENSOR_TYPE.", input_path);
             if (bn_mean != NULL)
                 free (bn_mean);
             if (bn_weight != NULL)
@@ -142,7 +141,7 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
         else
         {
             ptr[20] = '\0';
-            ERROR_PRTF ("ASPEN DNN file %s file layer %d parse error: Invalid TENSOR_TYPE %s.\n", 
+            ERROR_PRTF ("ASPEN DNN file %s file layer %d parse error: Invalid TENSOR_TYPE %s.", 
                 input_path, file_layer_num, ptr);
             if (bn_mean != NULL)
                 free (bn_mean);
@@ -153,10 +152,9 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
             fclose (fp);
             return;
         }
-        // PRTF ("Tensor type %s.\n", tensor_type_str[tensor_type]);
         if ((ptr = read_check_and_return (fp, line, "DATA_SIZE:", &line_num)) == NULL)
         {
-            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing DATA_SIZE.\n", input_path);
+            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing DATA_SIZE.", input_path);
             if (bn_mean != NULL)
                 free (bn_mean);
             if (bn_weight != NULL)
@@ -169,7 +167,7 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
         data_size = atoi(ptr);
         if ((ptr = read_check_and_return (fp, line, "DATA_START:", &line_num)) == NULL)
         {
-            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing DATA_START.\n", input_path);
+            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing DATA_START.", input_path);
             if (bn_mean != NULL)
                 free (bn_mean);
             if (bn_weight != NULL)
@@ -182,7 +180,7 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
         void *buffer = malloc(data_size);
         if (buffer == NULL)
         {
-            ERROR_PRTF ("ASPEN DNN file %s parse error: Failed to allocate memory.\n", input_path);
+            ERRNO_PRTF ("ASPEN DNN file %s parse error: Failed to allocate memory.", input_path);
             free (buffer);
             if (bn_mean != NULL)
                 free (bn_mean);
@@ -195,7 +193,7 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
         }
         if (fread(buffer, data_size, 1, fp) != 1)
         {
-            ERROR_PRTF ("ASPEN DNN file %s parse error: Failed to read data.\n", input_path);
+            ERRNO_PRTF ("ASPEN DNN file %s parse error: Failed to read data.", input_path);
             free (buffer);
             if (bn_mean != NULL)
                 free (bn_mean);
@@ -208,7 +206,7 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
         }
         if ((ptr = read_check_and_return (fp, line, "DATA_END", &line_num)) == NULL)
         {
-            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing DATA_END.\n", input_path);
+            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing DATA_END.", input_path);
             free (buffer);
             if (bn_mean != NULL)
                 free (bn_mean);
@@ -256,10 +254,10 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
                     }
                 }
                 if (layer->tensors[WEIGHT_TENSOR]->num_elements*layer->tensors[WEIGHT_TENSOR]->element_size == data_size)
-                    copy_ptr_to_aspen_tensor (layer->tensors[WEIGHT_TENSOR], buffer);
+                    copy_buffer_to_aspen_tensor (layer->tensors[WEIGHT_TENSOR], buffer);
                 else
                 {
-                    ERROR_PRTF ("ASPEN DNN file %s parse error: Layer %d WEIGHT_TENSOR size mismatch.\nTensor: %d, File: %ld.\n", input_path, layer_num,
+                    ERROR_PRTF ("ASPEN DNN file %s parse error: Layer %d WEIGHT_TENSOR size mismatch.\nTensor: %d, File: %ld.", input_path, layer_num,
                             layer->tensors[WEIGHT_TENSOR]->num_elements*layer->tensors[WEIGHT_TENSOR]->element_size,
                             data_size);
                     assert(0);
@@ -276,7 +274,7 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
             }
             else 
             {
-                ERROR_PRTF ("ASPEN DNN file %s parse error: Layer %d missing WEIGHT_TENSOR.\n",
+                ERROR_PRTF ("ASPEN DNN file %s parse error: Layer %d missing WEIGHT_TENSOR.",
                     input_path, layer_num);
                 free (buffer);
                 if (bn_mean != NULL)
@@ -312,11 +310,11 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
                 }
                 
                 if (layer->tensors[BIAS_TENSOR]->num_elements*layer->tensors[BIAS_TENSOR]->element_size == data_size)
-                    copy_ptr_to_aspen_tensor (layer->tensors[BIAS_TENSOR], buffer);
+                    copy_buffer_to_aspen_tensor (layer->tensors[BIAS_TENSOR], buffer);
                 else
                 {
                     ERROR_PRTF ("ASPEN DNN file %s parse error: Layer %d BIAS_TENSOR size mismatch:\
-                        Tensor: %d, File: %ld.\n", input_path, layer_num,
+                        Tensor: %d, File: %ld.", input_path, layer_num,
                             layer->tensors[BIAS_TENSOR]->num_elements*layer->tensors[BIAS_TENSOR]->element_size,
                             data_size);
                     free (buffer);
@@ -332,7 +330,7 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
             }
             else 
             {
-                ERROR_PRTF ("ASPEN DNN file %s parse error: Layer %d missing BIAS_TENSOR.\n", input_path, layer_num);
+                ERROR_PRTF ("ASPEN DNN file %s parse error: Layer %d missing BIAS_TENSOR.", input_path, layer_num);
                 free (buffer);
                 if (bn_mean != NULL)
                     free (bn_mean);
@@ -351,7 +349,7 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
                 bn_var = (float *)buffer;
             else
             {
-                ERROR_PRTF ("ASPEN DNN file %s parse error: Duplicate BN_VAR.\n", input_path);
+                ERROR_PRTF ("ASPEN DNN file %s parse error: Duplicate BN_VAR.", input_path);
                 free (buffer);
                 if (bn_mean != NULL)
                     free (bn_mean);
@@ -369,7 +367,7 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
                 bn_mean = (float *)buffer;
             else
             {
-                ERROR_PRTF ("ASPEN DNN file %s parse error: Duplicate BN_MEAN.\n", input_path);
+                ERROR_PRTF ("ASPEN DNN file %s parse error: Duplicate BN_MEAN.", input_path);
                 free (buffer);
                 if (bn_mean != NULL)
                     free (bn_mean);
@@ -387,7 +385,7 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
                 bn_weight = (float *)buffer;
             else
             {
-                ERROR_PRTF ("ASPEN DNN file %s parse error: Duplicate BN_WEIGHT.\n", input_path);
+                ERROR_PRTF ("ASPEN DNN file %s parse error: Duplicate BN_WEIGHT.", input_path);
                 free (buffer);
                 if (bn_mean != NULL)
                     free (bn_mean);
@@ -413,11 +411,9 @@ void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path)
             bn_mean = NULL;
             bn_weight = NULL;
         }
-        // printf ("Layer %d data loaded from file info string LAYER: %d, TENSOR_TYPE: %s, DATA_SIZE: %ld\n",
-        //      layer_num, file_layer_num, tensor_type_str[tensor_type], data_size);
         if ((ptr = read_check_and_return (fp, line, "LAYER_END", &line_num)) == NULL)
         {
-            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing LAYER_END.\n", input_path);
+            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing LAYER_END.", input_path);
             if (bn_mean != NULL)
                 free (bn_mean);
             if (bn_weight != NULL)
@@ -440,7 +436,7 @@ void apu_save_dnn_to_file(aspen_dnn_t *dnn, char *filename)
     FILE *fp = fopen(filename, "wb");
     if (fp == NULL)
     {
-        ERROR_PRTF ( "Error: apu_save_dnn_to_file Failed to open file %s for writing\n", filename);
+        ERRNO_PRTF ("Error: apu_save_dnn_to_file Failed to open file %s for writing", filename);
         return;
     }
     fprintf (fp, "ASPEN_DNN\n");
@@ -512,36 +508,36 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
     char* ptr;
     if ((ptr = read_check_and_return (*fp_t, line, "ASPEN_DNN", line_num)) == NULL)
     {
-        ERROR_PRTF ("ASPEN DNN file %s parse error: Not an ASPEN DNN file.\n", filename);
+        ERROR_PRTF ("ASPEN DNN file %s parse error: Not an ASPEN DNN file.", filename);
         return NULL;
     }
     if ((ptr = read_check_and_return (*fp_t, line, "ASPEN_BUILD:", line_num)) == NULL)
     {
-        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing ASPEN_BUILD.\n", filename);
+        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing ASPEN_BUILD.", filename);
         return NULL;
     }
     if ((ptr = read_check_and_return (*fp_t, line, "DNN_NAME:", line_num)) == NULL)
     {
-        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing DNN_NAME.\n", filename);
+        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing DNN_NAME.", filename);
         return NULL;
     }
     sscanf(ptr, "%s", dnn_name);
     if ((ptr = read_check_and_return (*fp_t, line, "DNN_ELEMENT_SIZE:", line_num)) == NULL)
     {
-        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing DNN_ELEMENT_SIZE.\n", filename);
+        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing DNN_ELEMENT_SIZE.", filename);
         return NULL;
     }
     size_t element_size = atol(ptr);
     if ((ptr = read_check_and_return (*fp_t, line, "NUM_LAYERS:", line_num)) == NULL)
     {
-        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing NUM_LAYERS.\n", filename);
+        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing NUM_LAYERS.", filename);
         return NULL;
     }
     num_layers = atoi(ptr);
     aspen_dnn_t *dnn = init_aspen_dnn(num_layers, dnn_name);
     if (dnn == NULL)
     {
-        ERROR_PRTF ("ASPEN DNN file %s parse error: Failed to create DNN.\n", filename);
+        ERROR_PRTF ("ASPEN DNN file %s parse error: Failed to create DNN.", filename);
         return NULL;
     }
     dnn->element_size = element_size;
@@ -550,28 +546,28 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
         aspen_layer_t *layer = dnn->layers + i;
         if ((ptr = read_check_and_return (*fp_t, line, "LAYER_IDX:", line_num)) == NULL)
         {
-            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing LAYER_IDX.\n", filename);
+            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing LAYER_IDX.", filename);
             apu_destroy_dnn(dnn);
             return NULL;
         }
         layer->layer_idx = atoi(ptr);
         if ((ptr = read_check_and_return (*fp_t, line, "LAYER_TYPE:", line_num)) == NULL)
         {
-            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing LAYER_TYPE.\n", filename);
+            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing LAYER_TYPE.", filename);
             apu_destroy_dnn(dnn);
             return NULL;
         }
         layer->type = atoi(ptr);
         if ((ptr = read_check_and_return (*fp_t, line, "LAYER_ACTIVATION:", line_num)) == NULL)
         {
-            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing LAYER_ACTIVATION.\n", filename);
+            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing LAYER_ACTIVATION.", filename);
             apu_destroy_dnn(dnn);
             return NULL;
         }
         layer->activation = atoi(ptr);
         if ((ptr = read_check_and_return (*fp_t, line, "LAYER_PARENTS:", line_num)) == NULL)
         {
-            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing LAYER_PARENTS.\n", filename);
+            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing LAYER_PARENTS.", filename);
             apu_destroy_dnn(dnn);
             return NULL;
         }
@@ -580,7 +576,7 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
             void *tmp = fgets (line, MAX_STRING_LEN, *fp_t);
             if (tmp == NULL)
             {
-                ERROR_PRTF ("ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
+                ERRNO_PRTF ("ASPEN DNN file %s parse error at source line %d, soruce file %s", 
                     filename, 0, " ");
                 apu_destroy_dnn(dnn);
                 return NULL;
@@ -599,13 +595,13 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
         }
         if ((ptr = read_check_and_return (*fp_t, line, "LAYER_PARENTS_END", line_num)) == NULL)
         {
-            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing LAYER_PARENTS_END.\n", filename);
+            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing LAYER_PARENTS_END.", filename);
             apu_destroy_dnn(dnn);
             return NULL;
         }
         if ((ptr = read_check_and_return (*fp_t, line, "LAYER_PARAMS:", line_num)) == NULL)
         {
-            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing LAYER_PARAMS.\n", filename);
+            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing LAYER_PARAMS.", filename);
             apu_destroy_dnn(dnn);
             return NULL;
         }
@@ -614,7 +610,7 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
             void *tmp = fgets (line, MAX_STRING_LEN, *fp_t);
             if (tmp == NULL)
             {
-                ERROR_PRTF ("ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
+                ERRNO_PRTF ("ASPEN DNN file %s parse error at source line %d, soruce file %s", 
                     filename, 0, " ");
                 apu_destroy_dnn(dnn);
                 return NULL;
@@ -630,13 +626,13 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
         }
         if ((ptr = read_check_and_return (*fp_t, line, "LAYER_PARAMS_END", line_num)) == NULL)
         {
-            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing LAYER_PARAMS_END.\n", filename);
+            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing LAYER_PARAMS_END.", filename);
             apu_destroy_dnn(dnn);
             return NULL;
         }
         if ((ptr = read_check_and_return (*fp_t, line, "LAYER_TENSORS:", line_num)) == NULL)
         {
-            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing LAYER_TENSORS.\n", filename);
+            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing LAYER_TENSORS.", filename);
             apu_destroy_dnn(dnn);
             return NULL;
         }
@@ -645,7 +641,7 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
             void * tmp = fgets (line, MAX_STRING_LEN, *fp_t);
             if (tmp == NULL)
             {
-                ERROR_PRTF ("ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
+                ERRNO_PRTF ("ASPEN DNN file %s parse error at source line %d, soruce file %s", 
                     filename, 0, " ");
                 apu_destroy_dnn(dnn);
                 return NULL;
@@ -665,20 +661,20 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
                 aspen_tensor_t *tensor = layer->tensors[tensor_idx];
                 if (tensor == NULL)
                 {
-                    ERROR_PRTF ("ASPEN DNN file %s parse error: Failed to create tensor.\n", filename);
+                    ERRNO_PRTF ("ASPEN DNN file %s parse error: Failed to create tensor.", filename);
                     apu_destroy_dnn(dnn);
                     return NULL;
                 }
                 if ((ptr = read_check_and_return (*fp_t, line, "NUM_DIMS:", line_num)) == NULL)
                 {
-                    ERROR_PRTF ("ASPEN DNN file %s parse error: Missing NUM_DIMS.\n", filename);
+                    ERROR_PRTF ("ASPEN DNN file %s parse error: Missing NUM_DIMS.", filename);
                     apu_destroy_dnn(dnn);
                     return NULL;
                 }
                 tensor->num_dims = atoi(ptr);
                 if ((ptr = read_check_and_return (*fp_t, line, "DATA_DIM_ORDER:", line_num)) == NULL)
                 {
-                    ERROR_PRTF ("ASPEN DNN file %s parse error: Missing DATA_DIM_ORDER.\n", filename);
+                    ERROR_PRTF ("ASPEN DNN file %s parse error: Missing DATA_DIM_ORDER.", filename);
                     apu_destroy_dnn(dnn);
                     return NULL;
                 }
@@ -687,7 +683,7 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
                     void * tmp = fgets (line, MAX_STRING_LEN, *fp_t);
                     if (tmp == NULL)
                     {
-                        ERROR_PRTF ("ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
+                        ERRNO_PRTF ("ASPEN DNN file %s parse error at source line %d, soruce file %s", 
                             filename, 0, " ");
                         apu_destroy_dnn(dnn);
                         return NULL;
@@ -703,13 +699,13 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
                 }
                 if ((ptr = read_check_and_return (*fp_t, line, "DATA_DIM_ORDER_END", line_num)) == NULL)
                 {
-                    ERROR_PRTF ("ASPEN DNN file %s parse error: Missing DATA_DIM_ORDER_END.\n", filename);
+                    ERROR_PRTF ("ASPEN DNN file %s parse error: Missing DATA_DIM_ORDER_END.", filename);
                     apu_destroy_dnn(dnn);
                     return NULL;
                 }
                 if ((ptr = read_check_and_return (*fp_t, line, "TENSOR_DIMS:", line_num)) == NULL)
                 {
-                    ERROR_PRTF ("ASPEN DNN file %s parse error: Missing TENSOR_DIMS.\n", filename);
+                    ERROR_PRTF ("ASPEN DNN file %s parse error: Missing TENSOR_DIMS.", filename);
                     apu_destroy_dnn(dnn);
                     return NULL;
                 }
@@ -718,7 +714,7 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
                     void * tmp = fgets (line, MAX_STRING_LEN, *fp_t);
                     if (tmp == NULL)
                     {
-                        ERROR_PRTF ("ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
+                        ERRNO_PRTF ("ASPEN DNN file %s parse error at source line %d, soruce file %s", 
                             filename, 0, " ");
                         apu_destroy_dnn(dnn);
                         return NULL;
@@ -734,13 +730,13 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
                 }
                 if ((ptr = read_check_and_return (*fp_t, line, "TENSOR_DIMS_END", line_num)) == NULL)
                 {
-                    ERROR_PRTF ("ASPEN DNN file %s parse error: Missing TENSOR_DIMS_END.\n", filename);
+                    ERROR_PRTF ("ASPEN DNN file %s parse error: Missing TENSOR_DIMS_END.", filename);
                     apu_destroy_dnn(dnn);
                     return NULL;
                 }
                 if ((ptr = read_check_and_return (*fp_t, line, "TENSOR_DATA:", line_num)) == NULL)
                 {
-                    ERROR_PRTF ("ASPEN DNN file %s parse error: Missing TENSOR_DATA.\n", filename);
+                    ERROR_PRTF ("ASPEN DNN file %s parse error: Missing TENSOR_DATA.", filename);
                     apu_destroy_dnn(dnn);
                     return NULL;
                 }
@@ -756,24 +752,16 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
                     tensor->data = aspen_calloc (num_elements, layer->dnn->element_size);
                     if (tensor->data == NULL)
                     {
-                        ERROR_PRTF ("ASPEN DNN file %s parse error: Failed to allocate tensor data.\n", filename);
+                        ERRNO_PRTF ("ASPEN DNN file %s parse error: Failed to allocate tensor data.", filename);
                         apu_destroy_dnn(dnn);
                         return NULL;
                     }
                     size_t val = fread (tensor->data, layer->dnn->element_size, num_elements, *fp_t);
                     if (val != num_elements)
                     {
-                        ERROR_PRTF ("ASPEN DNN file %s parse error: Failed to read tensor data.\n", filename);
+                        ERROR_PRTF ("ASPEN DNN file %s parse error: Failed to read tensor data.", filename);
                         apu_destroy_dnn(dnn);
                         return NULL;
-                    }
-                    if (aspen_num_gpus > 0)
-                    {
-                        calloc_aspen_gpu_tensors (tensor);
-                        for (unsigned int k = 0; k < aspen_num_gpus; k++)
-                        {
-                            copy_aspen_tensor_to_gpu (tensor, k);
-                        }
                     }
                 }
                 else
@@ -782,7 +770,7 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
                 }
                 if ((ptr = read_check_and_return (*fp_t, line, "TENSOR_DATA_END", line_num)) == NULL)
                 {
-                    ERROR_PRTF ("ASPEN DNN file %s parse error: Missing TENSOR_DATA_END.\n", filename);
+                    ERROR_PRTF ("ASPEN DNN file %s parse error: Missing TENSOR_DATA_END.", filename);
                     apu_destroy_dnn(dnn);
                     return NULL;
                 }
@@ -790,14 +778,14 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
         }
         if ((ptr = read_check_and_return (*fp_t, line, "LAYER_TENSORS_END", line_num)) == NULL)
         {
-            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing LAYER_TENSORS_END.\n", filename);
+            ERROR_PRTF ("ASPEN DNN file %s parse error: Missing LAYER_TENSORS_END.", filename);
             apu_destroy_dnn(dnn);
             return NULL;
         }
     }
     if ((ptr = read_check_and_return (*fp_t, line, "ASPEN_DNN_END", line_num)) == NULL)
     {
-        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing ASPEN_DNN_END.\n", filename);
+        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing ASPEN_DNN_END.", filename);
         apu_destroy_dnn(dnn);
         return NULL;
     }
@@ -811,7 +799,7 @@ aspen_dnn_t *apu_load_dnn_from_file(char *filename)
     FILE *fp = fopen(filename, "rb");
     if (fp == NULL)
     {
-        ERROR_PRTF ("ASPEN DNN file %s not found.\n", filename);
+        ERRNO_PRTF ("ASPEN DNN file %s not found.", filename);
         return NULL;
     }
     unsigned int line_num = 0;
@@ -824,18 +812,18 @@ void apu_save_nasm_to_file(nasm_t *nasm, char *filename)
 {
     if (nasm == NULL)
     {
-        ERROR_PRTF ("ASPEN NASM to save is null.\n");
+        ERROR_PRTF ("ASPEN NASM to save is null.");
         return;
     }
     if (filename == NULL)
     {
-        ERROR_PRTF ("ASPEN NASM file name not specified.\n");
+        ERROR_PRTF ("ASPEN NASM file name not specified.");
         return;
     }
     FILE *fp = fopen (filename, "wb");
     if (fp == NULL)
     {
-        ERROR_PRTF ( "Error: apu_save_dnn_to_file Failed to open file %s for writing\n", filename);
+        ERRNO_PRTF ("Error: apu_save_dnn_to_file Failed to open file %s for writing", filename);
         return;
     }
     fprintf (fp, "ASPEN_NASM\n");
@@ -868,9 +856,6 @@ void apu_save_nasm_to_file(nasm_t *nasm, char *filename)
             }
             fprintf (fp, "\tCHILD_NINST_IDXES_END\n");
             fprintf (fp, "\tNUM_INPUT_POS:%d\n", ninst->num_input_pos);
-            // fprintf (fp, "\tINPUT_POS:\n");
-            // fwrite (ninst->input_pos_idx_arr, sizeof(int), ninst->num_input_pos, fp);
-            // fprintf (fp, "\tINPUT_POS_END\n");
         }
     }
     fprintf (fp, "NASM_NINSTS_END\n");
@@ -882,13 +867,13 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn)
 {
     if (dnn == NULL)
     {
-        ERROR_PRTF ("ASPEN DNN NASM load error: dnn is null.\n");
+        ERROR_PRTF ("ASPEN DNN NASM load error: dnn is null.");
         return NULL;
     }
     FILE *fp = fopen(filename, "rb");
     if (fp == NULL)
     {
-        ERROR_PRTF ("ASPEN DNN NASM load error: file %s not found.\n", filename);
+        ERRNO_PRTF ("ASPEN DNN NASM load error: file %s not found.", filename);
         return NULL;
     }
     char line[MAX_STRING_LEN] = {0};
@@ -899,53 +884,53 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn)
     nasm_t *nasm = NULL;
     if ((ptr = read_check_and_return (fp, line, "ASPEN_NASM", &line_num)) == NULL)
     {
-        ERROR_PRTF ("ASPEN DNN file %s parse error: Not an ASPEN NASM file.\n", filename);
+        ERROR_PRTF ("ASPEN DNN file %s parse error: Not an ASPEN NASM file.", filename);
         fclose (fp);
         return NULL;
     }
     if ((ptr = read_check_and_return (fp, line, "DNN_NAME:", &line_num)) == NULL)
     {
-        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing DNN_NAME.\n", filename);
+        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing DNN_NAME.", filename);
         fclose (fp);
         return NULL;
     }
     if (strcmp(ptr, dnn->name) != 0)
     {
-        ERROR_PRTF ("ASPEN DNN file %s parse error: DNN_NAME %s does not match dnn name %s.\n", filename, ptr, dnn->name);
+        ERROR_PRTF ("ASPEN DNN file %s parse error: DNN_NAME %s does not match dnn name %s.", filename, ptr, dnn->name);
         fclose (fp);
         return NULL;
     }
     if ((ptr = read_check_and_return (fp, line, "NUM_BATCH:", &line_num)) == NULL)
     {
-        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing NUM_BATCH.\n", filename);
+        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing NUM_BATCH.", filename);
         fclose (fp);
         return NULL;
     }
     batch_size = atoi(ptr);
     if ((ptr = read_check_and_return (fp, line, "MIN_NINST_PER_LDATA:", &line_num)) == NULL)
     {
-        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing MIN_NINST_PER_LDATA.\n", filename);
+        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing MIN_NINST_PER_LDATA.", filename);
         fclose (fp);
         return NULL;
     }
     min_ninst_per_ldata = atoi(ptr);
     if ((ptr = read_check_and_return (fp, line, "TOTAL_FLOPS:", &line_num)) == NULL)
     {
-        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing TOTAL_FLOPS.\n", filename);
+        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing TOTAL_FLOPS.", filename);
         fclose (fp);
         return NULL;
     }
     unsigned long total_flops = atol(ptr);
     if ((ptr = read_check_and_return (fp, line, "FLOP_PER_NINST:", &line_num)) == NULL)
     {
-        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing FLOP_PER_NINST.\n", filename);
+        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing FLOP_PER_NINST.", filename);
         fclose (fp);
         return NULL;
     }
     flop_per_ninst = atoi(ptr);
     if ((ptr = read_check_and_return (fp, line, "SEQ_LEN:", &line_num)) == NULL)
     {
-        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing SEQ_LEN.\n", filename);
+        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing SEQ_LEN.", filename);
         fclose (fp);
         return NULL;
     }
@@ -954,14 +939,14 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn)
         (dnn, flop_per_ninst, batch_size, min_ninst_per_ldata, tr_seq_len);
     if (nasm == NULL)
     {
-        ERROR_PRTF ("ASPEN DNN file %s parse error: Failed to create NASM.\n", filename);
+        ERROR_PRTF ("ASPEN DNN file %s parse error: Failed to create NASM.", filename);
         fclose (fp);
         return NULL;
     }
     nasm->total_flops = total_flops;
     if ((ptr = read_check_and_return (fp, line, "NASM_NINSTS:", &line_num)) == NULL)
     {
-        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing NASM_NINSTS.\n", filename);
+        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing NASM_NINSTS.", filename);
         apu_destroy_nasm (nasm);
         fclose (fp);
         return NULL;
@@ -973,7 +958,7 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn)
             ninst_t *ninst = nasm->ldata_arr[i].ninst_arr_start + j;
             if ((ptr = read_check_and_return (fp, line, "NINST_IDX:", &line_num)) == NULL)
             {
-                ERROR_PRTF ("ASPEN DNN file %s parse error: Missing NINST_IDX.\n", filename);
+                ERROR_PRTF ("ASPEN DNN file %s parse error: Missing NINST_IDX.", filename);
                 apu_destroy_nasm (nasm);
                 fclose (fp);
                 return NULL;
@@ -981,14 +966,14 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn)
             unsigned int ninst_idx = atoi(ptr);
             if (ninst_idx != (ninst - nasm->ninst_arr))
             {
-                ERROR_PRTF ("ASPEN DNN file %s parse error: NINST_IDX mismatch.\n", filename);
+                ERROR_PRTF ("ASPEN DNN file %s parse error: NINST_IDX mismatch.", filename);
                 apu_destroy_nasm (nasm);
                 fclose (fp);
                 return NULL;
             }
             if ((ptr = read_check_and_return (fp, line, "NUM_CHILD_NINSTS:", &line_num)) == NULL)
             {
-                ERROR_PRTF ("ASPEN DNN file %s parse error: Missing NUM_CHILD_NINSTS.\n", filename);
+                ERROR_PRTF ("ASPEN DNN file %s parse error: Missing NUM_CHILD_NINSTS.", filename);
                 apu_destroy_nasm (nasm);
                 fclose (fp);
                 return NULL;
@@ -996,7 +981,7 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn)
             ninst->num_child_ninsts = atoi(ptr);
             if ((ptr = read_check_and_return (fp, line, "NUM_PARENT_NINSTS:", &line_num)) == NULL)
             {
-                ERROR_PRTF ("ASPEN DNN file %s parse error: Missing NUM_PARENT_NINSTS.\n", filename);
+                ERROR_PRTF ("ASPEN DNN file %s parse error: Missing NUM_PARENT_NINSTS.", filename);
                 apu_destroy_nasm (nasm);
                 fclose (fp);
                 return NULL;
@@ -1005,7 +990,7 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn)
             ninst->parent_ninst_idx_arr = calloc (ninst->num_parent_ninsts, sizeof(unsigned int));
             if ((ptr = read_check_and_return (fp, line, "PARENT_NINSTS:", &line_num)) == NULL)
             {
-                ERROR_PRTF ("ASPEN DNN file %s parse error: Missing PARENT_NINSTS.\n", filename);
+                ERROR_PRTF ("ASPEN DNN file %s parse error: Missing PARENT_NINSTS.", filename);
                 apu_destroy_nasm (nasm);
                 fclose (fp);
                 return NULL;
@@ -1015,7 +1000,7 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn)
                 void * tmp = fgets (line, MAX_STRING_LEN, fp);
                 if (tmp == NULL)
                 {
-                    ERROR_PRTF ("ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
+                    ERRNO_PRTF ("ASPEN DNN file %s parse error at source line %d, soruce file %s", 
                         filename, 0, " ");
                     apu_destroy_nasm (nasm);
                     fclose (fp);
@@ -1032,14 +1017,14 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn)
             }
             if ((ptr = read_check_and_return (fp, line, "PARENT_NINSTS_END", &line_num)) == NULL)
             {
-                ERROR_PRTF ("ASPEN DNN file %s parse error: Missing PARENT_NINSTS_END.\n", filename);
+                ERROR_PRTF ("ASPEN DNN file %s parse error: Missing PARENT_NINSTS_END.", filename);
                 apu_destroy_nasm (nasm);
                 fclose (fp);
                 return NULL;
             }
             if ((ptr = read_check_and_return (fp, line, "NUM_CHILD_NINSTS:", &line_num)) == NULL)
             {
-                ERROR_PRTF ("ASPEN DNN file %s parse error: Missing NUM_CHILD_NINSTS.\n", filename);
+                ERROR_PRTF ("ASPEN DNN file %s parse error: Missing NUM_CHILD_NINSTS.", filename);
                 apu_destroy_nasm (nasm);
                 fclose (fp);
                 return NULL;
@@ -1047,7 +1032,7 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn)
             ninst->num_child_ninsts = atoi(ptr);
             if ((ptr = read_check_and_return (fp, line, "CHILD_NINST_IDXES:", &line_num)) == NULL)
             {
-                ERROR_PRTF ("ASPEN DNN file %s parse error: Missing CHILD_NINST_IDXES.\n", filename);
+                ERROR_PRTF ("ASPEN DNN file %s parse error: Missing CHILD_NINST_IDXES.", filename);
                 apu_destroy_nasm (nasm);
                 fclose (fp);
                 return NULL;
@@ -1058,7 +1043,7 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn)
                 void * tmp = fgets (line, MAX_STRING_LEN, fp);
                 if (tmp == NULL)
                 {
-                    ERROR_PRTF ("ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
+                    ERRNO_PRTF ("ASPEN DNN file %s parse error at source line %d, soruce file %s", 
                         filename, 0, " ");
                     apu_destroy_nasm (nasm);
                     fclose (fp);
@@ -1075,56 +1060,31 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn)
             }
             if ((ptr = read_check_and_return (fp, line, "CHILD_NINST_IDXES_END", &line_num)) == NULL)
             {
-                ERROR_PRTF ("ASPEN DNN file %s parse error: Missing CHILD_NINST_IDXES_END.\n", filename);
+                ERROR_PRTF ("ASPEN DNN file %s parse error: Missing CHILD_NINST_IDXES_END.", filename);
                 apu_destroy_nasm (nasm);
                 fclose (fp);
                 return NULL;
             }
             if ((ptr = read_check_and_return (fp, line, "NUM_INPUT_POS:", &line_num)) == NULL)
             {
-                ERROR_PRTF ("ASPEN DNN file %s parse error: Missing NUM_INPUT_POS.\n", filename);
+                ERROR_PRTF ("ASPEN DNN file %s parse error: Missing NUM_INPUT_POS.", filename);
                 apu_destroy_nasm (nasm);
                 fclose (fp);
                 return NULL;
             }
             ninst->num_input_pos = atoi(ptr);
-            // if (ninst->num_input_pos > 0)
-            //     ninst->input_pos_idx_arr = calloc (ninst->num_input_pos, sizeof(int));
-            // if ((ptr = read_check_and_return (fp, line, "INPUT_POS:", &line_num)) == NULL)
-            // {
-            //     ERROR_PRTF ("ASPEN DNN file %s parse error: Missing INPUT_POS.\n", filename);
-            //     apu_destroy_nasm (nasm);
-            //     fclose (fp);
-            //     return NULL;
-            // }
-            // size_t val = fread (ninst->input_pos_idx_arr, sizeof(int), ninst->num_input_pos, fp);
-            // if (val != ninst->num_input_pos)
-            // {
-            //     ERROR_PRTF ("ASPEN DNN file %s parse error at source line %d, soruce file %s\n", 
-            //         filename, 0, " ");
-            //     apu_destroy_nasm (nasm);
-            //     fclose (fp);
-            //     return NULL;
-            // }
-            // if ((ptr = read_check_and_return (fp, line, "INPUT_POS_END", &line_num)) == NULL)
-            // {
-            //     ERROR_PRTF ("ASPEN DNN file %s parse error: Missing INPUT_POS_END.\n", filename);
-            //     apu_destroy_nasm (nasm);
-            //     fclose (fp);
-            //     return NULL;
-            // }
         }
     }
     if ((ptr = read_check_and_return (fp, line, "NASM_NINSTS_END", &line_num)) == NULL)
     {
-        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing NASM_NINSTS_END.\n", filename);
+        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing NASM_NINSTS_END.", filename);
         apu_destroy_nasm (nasm);
         fclose (fp);
         return NULL;
     }
     if ((ptr = read_check_and_return (fp, line, "ASPEN_NASM_END", &line_num)) == NULL)
     {
-        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing ASPEN_NASM_END.\n", filename);
+        ERROR_PRTF ("ASPEN DNN file %s parse error: Missing ASPEN_NASM_END.", filename);
         apu_destroy_nasm (nasm);
         fclose (fp);
         return NULL;
