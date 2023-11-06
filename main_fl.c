@@ -113,6 +113,68 @@ int main (int argc, char **argv)
     // apu_save_dnn_to_file (target_dnn, target_aspen);
     // nasm_t *target_nasm = apu_create_nasm (target_dnn, num_tiles, batch_size);
     // apu_save_nasm_to_file (target_nasm, nasm_file_name);
+    
+    double start_time, end_time;
+    
+    /* BASIC MODULES */
+
+    // fl separate group
+    int fl_split_layer_idx = 4;
+
+    // rpool_t *rpool = rpool_init (gpu_idx);
+    rpool_t *rpool = rpool_init_multigroup (gpu_idx, fl_split_layer_idx + 1);
+    dse_group_t *dse_group = dse_group_init (num_cores, gpu_idx);
+    dse_group_set_rpool (dse_group, rpool);
+    dse_group_set_device_mode (dse_group, dev_mode);
+    dse_group_set_device (dse_group, 0);
+    dse_group_set_num_edge_devices (dse_group, 2);
+    networking_engine* net_engine = NULL;
+    
+    /* REFERENCE */
+    aspen_dnn_t *ref_dnn = apu_load_dnn_from_file (target_aspen);
+    if (ref_dnn == NULL)
+    {
+        printf ("Unable to load dnn file\n");
+        exit (0);
+    }
+    nasm_t *ref_nasm = apu_load_nasm_from_file (nasm_file_name, ref_dnn);
+    if (ref_nasm == NULL)
+    {
+        printf ("Unable to load nasm file\n");
+        exit (0);
+    }
+
+    init_allow_all(ref_nasm, 2);
+    rpool_add_nasm (rpool, ref_nasm, "data/batched_input_128.bin");
+
+    printf ("Running ref iterations\n");
+    start_time = get_sec();
+    for (int i = 0; i < number_of_iterations; i++)
+    {
+        // rpool_reset_queue (rpool);
+        dse_group_set_operating_mode(dse_group, OPER_MODE_DEFAULT);
+        dse_group_run (dse_group);
+        dse_wait_for_nasm_completion (ref_nasm);
+        dse_group_stop (dse_group);
+    }
+    end_time = get_sec();
+    printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);
+
+    if (strcmp(dnn, "bert_base") != 0)
+    {
+        LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
+        float *layer_output = dse_get_nasm_result (ref_nasm, output_order);
+        float *softmax_output = calloc (1000*batch_size, sizeof(float));
+        softmax (layer_output, softmax_output, batch_size, 1000);
+        for (int i = 0; i < batch_size; i++)
+        {
+            get_prob_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
+        }
+        free (layer_output);
+        free (softmax_output);
+    }
+
+    /* REAL INFERENCE */
 
     aspen_dnn_t *target_dnn = apu_load_dnn_from_file (target_aspen);
     if (target_dnn == NULL)
@@ -126,23 +188,9 @@ int main (int argc, char **argv)
         printf ("Unable to load nasm file\n");
         exit (0);
     }
-    
-    // fl separate group
-    int fl_split_layer_idx = 4;
-  
-    // rpool_t *rpool = rpool_init (gpu_idx);
-    rpool_t *rpool = rpool_init_multigroup (gpu_idx, fl_split_layer_idx + 1);
-    dse_group_t *dse_group = dse_group_init (num_cores, gpu_idx);
-    dse_group_set_rpool (dse_group, rpool);
-    dse_group_set_device_mode (dse_group, dev_mode);
-    dse_group_set_device (dse_group, 0);
-    dse_group_set_num_edge_devices (dse_group, 2);
-    networking_engine* net_engine = NULL;
 
-    // core allocation
-    // core_init_random (target_nasm, num_cores);
+    /* FL PATH CREATION */
 
-    // fl_path allocation
     unsigned int num_last_layer_ninst = target_nasm->ldata_arr[fl_split_layer_idx].num_ninst;
 
     ninst_t **path_last_ninsts1 = (ninst_t **)malloc(sizeof(ninst_t *) * 7);
@@ -207,7 +255,7 @@ int main (int argc, char **argv)
     rpool_add_nasm (rpool, target_nasm, "data/batched_input_128.bin");
 
     printf ("Running %d iterations\n", number_of_iterations);
-    double start_time = get_sec();
+    start_time = get_sec();
     for (int i = 0; i < number_of_iterations; i++)
     {
         rpool_reset_queue (rpool);
@@ -223,7 +271,7 @@ int main (int argc, char **argv)
         }
         dse_group_stop (dse_group);
     }
-    double end_time = get_sec();
+    end_time = get_sec();
     printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);
 
     if (strcmp(dnn, "bert_base") != 0)
