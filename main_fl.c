@@ -222,6 +222,8 @@ int main (int argc, char **argv)
         dse_wait_for_nasm_completion (target_nasm);
 
         if (dev_mode != DEV_LOCAL) {
+            unsigned int tx_remaining = atomic_load(&net_engine->rpool->num_stored);
+            while (tx_remaining > 0) tx_remaining = atomic_load(&net_engine->rpool->num_stored);
             net_engine_wait_for_tx_queue_completion(net_engine);
             net_engine_stop(net_engine);
         }

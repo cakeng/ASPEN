@@ -13,6 +13,7 @@ void *dse_thread_runtime (void* thread_info)
 {
     dse_t *dse = (dse_t*) thread_info;
     pthread_mutex_lock(&dse->thread_mutex);
+    atomic_store (&dse->run, 0);
     pthread_cond_wait(&dse->thread_cond, &dse->thread_mutex); 
     while (dse->kill == 0 || dse->target != NULL)
     {
@@ -392,7 +393,7 @@ void dse_schedule_fl (dse_t *dse) {
             if (!fl_is_ninst_in_path_layer(path_layer, ninst)) {
                 // If it's not a good time to compute this ninst, return the ninst into rpool
                 printf("\tReject ninst (N %d, L %d)\n", ninst->ninst_idx, ninst->ldata->layer->layer_idx);
-                rpool_push_ninsts_to_group(dse->rpool, &ninst, 1, ninst->ldata->layer->layer_idx - 1);
+                rpool_push_ninsts_to_group(dse->rpool, &ninst, 1, ninst->ldata->layer->layer_idx);
                 return;
             }
         }
@@ -518,7 +519,13 @@ void dse_schedule_fl (dse_t *dse) {
                     printf("Now rpool has %u ninsts\n", atomic_load(&dse->rpool->num_stored));
                     dse_group_set_operating_mode(dse->dse_group, OPER_MODE_DEFAULT);
                     
-                    if (dse->device_mode != DEV_LOCAL) atomic_store(&dse->net_engine->operating_mode, OPER_MODE_DEFAULT);
+                    if (dse->device_mode == DEV_SERVER) {
+                        atomic_store(&dse->net_engine->operating_mode, OPER_MODE_DEFAULT);
+                    }
+                    else if (dse->device_mode == DEV_EDGE) {
+                        net_engine_wait_for_tx_queue_completion(dse->net_engine);
+                        atomic_store(&dse->net_engine->operating_mode, OPER_MODE_DEFAULT);
+                    }
                     return;
                 }
                 atomic_store(&dse_now_path, nasm->path_ptr_arr[next_path_idx]);
@@ -787,7 +794,7 @@ void dse_init (dse_group_t *dse_group, dse_t *dse, int gpu_idx)
     dse->thread_cond = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
     dse->ninst_cache = calloc (1, sizeof (rpool_queue_t));
     for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) dse->prioritize_rpool[i] = -1;
-    atomic_store (&dse->run, 0);
+    atomic_store (&dse->run, -1);
     atomic_store (&dse->kill, 0);
     rpool_init_queue (dse->ninst_cache);
     pthread_create (&dse->thread, NULL, dse_thread_runtime, (void*)dse);
@@ -824,7 +831,9 @@ void dse_run (dse_t *dse)
         ERROR_PRTF ("ERROR: dse_run: dse is NULL\n");
         return;
     }
-    unsigned int state = atomic_exchange (&dse->run, 1);
+    int state = atomic_load (&dse->run);
+    while (state == -1)
+        state = atomic_load (&dse->run);
     if (state == 1)
     {
         return;
@@ -832,6 +841,7 @@ void dse_run (dse_t *dse)
     else 
     {
         pthread_mutex_lock (&dse->thread_mutex);
+        atomic_store (&dse->run, 1);
         pthread_cond_signal (&dse->thread_cond);
         pthread_mutex_unlock (&dse->thread_mutex);
     }

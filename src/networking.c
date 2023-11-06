@@ -4,6 +4,7 @@ void *net_tx_thread_runtime (void* thread_info)
 {
     networking_engine *net_engine = (networking_engine*) thread_info;
     pthread_mutex_lock (&net_engine->tx_thread_mutex);
+    atomic_store (&net_engine->tx_run, 0);
     pthread_cond_wait (&net_engine->tx_thread_cond, &net_engine->tx_thread_mutex);
     while (!net_engine->tx_kill)
     {
@@ -18,6 +19,7 @@ void *net_rx_thread_runtime (void* thread_info)
 {
     networking_engine *net_engine = (networking_engine*) thread_info;
     pthread_mutex_lock (&net_engine->rx_thread_mutex);
+    atomic_store (&net_engine->rx_run, 0);
     pthread_cond_wait (&net_engine->rx_thread_cond, &net_engine->rx_thread_mutex);
     while (!net_engine->rx_kill)
     {
@@ -153,8 +155,8 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE de
     init_networking_queue(networking_queue);
 
     net_engine->tx_queue = networking_queue;
-    atomic_store (&net_engine->tx_run, 0);
-    atomic_store (&net_engine->rx_run, 0);
+    atomic_store (&net_engine->tx_run, -1);
+    atomic_store (&net_engine->rx_run, -1);
     atomic_store (&net_engine->tx_kill, 0);
     atomic_store (&net_engine->rx_kill, 0);
 
@@ -663,15 +665,23 @@ void net_engine_run (networking_engine *net_engine)
         ERROR_PRTF ("ERROR: net_engine_run: net_engine is NULL\n");
         return;
     }
-    unsigned int state = atomic_exchange (&net_engine->rx_run, 1);
+    unsigned int state = atomic_load (&net_engine->rx_run);
+    while (state == -1)
+        state = atomic_load (&net_engine->rx_run);
     if (state != 1)
     {
+        pthread_mutex_lock (&net_engine->rx_thread_mutex);
+        atomic_store (&net_engine->rx_run, 1);
         pthread_cond_signal (&net_engine->rx_thread_cond);
         pthread_mutex_unlock (&net_engine->rx_thread_mutex);
     }
-    state = atomic_exchange (&net_engine->tx_run, 1);
+    state = atomic_load (&net_engine->tx_run);
+    while (state == -1)
+        state = atomic_load (&net_engine->tx_run);
     if (state != 1)
     {
+        pthread_mutex_lock (&net_engine->tx_thread_mutex);
+        atomic_store (&net_engine->tx_run, 1);
         pthread_cond_signal (&net_engine->tx_thread_cond);
         pthread_mutex_unlock (&net_engine->tx_thread_mutex);
     }
@@ -719,6 +729,8 @@ void net_engine_stop (networking_engine* net_engine)
     #ifdef DEBUG
     PRTF("Networking: Network engine stopped.\n");
     #endif
+    pthread_mutex_unlock (&net_engine->rx_thread_mutex);
+    pthread_mutex_unlock (&net_engine->tx_thread_mutex);
 }
 
 void net_engine_destroy (networking_engine* net_engine)
@@ -736,6 +748,8 @@ void net_engine_destroy (networking_engine* net_engine)
     atomic_store (&net_engine->rx_kill, 1);
     atomic_store (&net_engine->tx_run, 1);
     atomic_store (&net_engine->rx_run, 1);
+    pthread_mutex_lock(&net_engine->tx_thread_mutex);
+    pthread_mutex_lock(&net_engine->rx_thread_mutex);
     pthread_cond_signal (&net_engine->tx_thread_cond);
     pthread_cond_signal (&net_engine->rx_thread_cond);
     pthread_mutex_unlock (&net_engine->tx_thread_mutex);
