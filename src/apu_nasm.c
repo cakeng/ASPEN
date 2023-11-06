@@ -841,6 +841,7 @@ void apu_reset_nasm (nasm_t *nasm)
 {
     atomic_store (&nasm->num_ldata_completed, 0);
     atomic_store (&nasm->completed, 0);
+    atomic_store (&nasm->path_now_idx, 0);
     for (int i = 0; i < nasm->num_ldata; i++)
     {
         nasm_ldata_t *ldata = &nasm->ldata_arr[i];
@@ -867,6 +868,7 @@ void apu_reset_nasm (nasm_t *nasm)
                 free (ninst->network_buf);
                 ninst->network_buf = NULL;
             }
+            ninst->compute_option = NINST_COMPUTE_YES;
         }
     }
 }

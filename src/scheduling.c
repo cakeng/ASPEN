@@ -1116,6 +1116,16 @@ fl_path_t *fl_create_path(nasm_t *nasm, ninst_t **last_layer_ninsts, unsigned in
     return path;
 }
 
+void fl_reset_path(fl_path_t *path) {
+    atomic_store(&path->num_path_layers_completed, 0);
+    for (int i=0; i<path->num_path_layers; i++) {
+        fl_path_layer_t *path_layer = &path->path_layers_arr[i];
+        
+        atomic_store(&path_layer->num_ninsts_completed, 0);
+    }
+    
+}
+
 int fl_is_ninst_in_path_layer(fl_path_layer_t *path_layer, ninst_t *ninst) {
     for (int i=0; i<path_layer->num_ninsts; i++) {
         if (path_layer->ninst_ptr_arr[i] == ninst) {

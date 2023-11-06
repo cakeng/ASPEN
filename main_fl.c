@@ -215,6 +215,7 @@ int main (int argc, char **argv)
     for (int i = 0; i < number_of_iterations; i++)
     {
         rpool_reset_queue (rpool);
+        apu_reset_nasm(target_nasm);
         dse_group_set_operating_mode(dse_group, OPER_MODE_FL_PATH);
         if (dev_mode == DEV_EDGE) fl_push_path_ninsts_edge(rpool, path1);
         else if (dev_mode == DEV_LOCAL) fl_push_path_ninsts(rpool, path1);
@@ -225,9 +226,18 @@ int main (int argc, char **argv)
             unsigned int tx_remaining = atomic_load(&net_engine->rpool->num_stored);
             while (tx_remaining > 0) tx_remaining = atomic_load(&net_engine->rpool->num_stored);
             net_engine_wait_for_tx_queue_completion(net_engine);
-            net_engine_stop(net_engine);
+            net_engine_reset(net_engine);
+            net_engine_set_operating_mode(net_engine, OPER_MODE_FL_PATH);
         }
         dse_group_stop (dse_group);
+
+        fl_reset_path(path1);
+        fl_reset_path(path2);
+        fl_reset_path(path3);
+        fl_reset_path(path4);
+
+        dse_set_starting_path (path1);
+
     }
     end_time = get_sec();
     printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);

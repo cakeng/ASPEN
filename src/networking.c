@@ -225,7 +225,7 @@ void transmission(networking_engine *net_engine)
 
     if(!net_engine->pipelined && net_engine->device_mode == DEV_SERVER)
     {
-        if(!atomic_load(&net_engine->nasm->completed))
+        if(!atomic_load(&net_engine->nasm->completed) && net_engine->rpool->num_stored == 0)
             return;
     }
 
@@ -250,9 +250,9 @@ void transmission(networking_engine *net_engine)
         target_ninst->network_buf = NULL;
         target_ninst->sent_time = time_sent;
         buffer_ptr += data_size;
-        PRTF("Networking: Ninst%d, Sending %d bytes, W%d, H%d, data size %d\n", i, data_size + 3*sizeof(int), 
-            target_ninst_list[i]->tile_dims[OUT_W], target_ninst_list[i]->tile_dims[OUT_H], 
-            target_ninst_list[i]->tile_dims[OUT_W]*target_ninst_list[i]->tile_dims[OUT_H]*sizeof(float));
+        // PRTF("Networking: Ninst%d(idx %d), Sending %d bytes, W%d, H%d, data size %d\n", i, target_ninst->ninst_idx, data_size + 3*sizeof(int), 
+        //     target_ninst_list[i]->tile_dims[OUT_W], target_ninst_list[i]->tile_dims[OUT_H], 
+        //     target_ninst_list[i]->tile_dims[OUT_W]*target_ninst_list[i]->tile_dims[OUT_H]*sizeof(float));
     }
     payload_size = buffer_ptr - (char*)net_engine->tx_buffer - sizeof(int32_t);
     *(int32_t*)net_engine->tx_buffer = payload_size;
@@ -292,7 +292,6 @@ void receive(networking_engine *net_engine)
         return;
     }
 
-    printf("receive: start...\n");
     int32_t payload_size;
     int ret = read(net_engine->comm_sock, (char*)&payload_size, sizeof(int32_t));
     if (ret == -1)
@@ -367,7 +366,9 @@ void receive(networking_engine *net_engine)
             }
             #endif
             ninst_t* target_ninst = &net_engine->nasm->ninst_arr[ninst_idx];
+            #ifdef DEBUG
             printf("receive: target ninst is N %d\n", target_ninst->ninst_idx);
+            #endif
             if (!is_inference_whitelist(net_engine, inference_id) && !net_engine->is_fl_offloading)
             {
                 printf("not whitelist.\n");

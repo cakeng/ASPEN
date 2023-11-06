@@ -355,6 +355,10 @@ void dse_schedule_fl (dse_t *dse) {
         
         if (nplc != now_path->num_path_layers) {
             rpool_fetch_ninsts_from_group (dse->rpool, &dse->target, 1, nplc+1);
+            #ifdef DEBUG
+            if (dse->target != NULL)
+                printf("Popped (N %d, L %d)\n", dse->target->ninst_idx, dse->target->ldata->layer->layer_idx);
+            #endif
         }
     }
         
@@ -386,7 +390,9 @@ void dse_schedule_fl (dse_t *dse) {
             nasm = ninst->ldata->nasm;
             path_now_idx = atomic_load(&nasm->path_now_idx);
             path = nasm->path_ptr_arr[path_now_idx];
+            
             if (path == NULL) return;
+            
             ninst_layer_idx = ninst->ldata->layer->layer_idx;
             pnplc = atomic_load(&path->num_path_layers_completed);
             path_layer = &path->path_layers_arr[pnplc];
