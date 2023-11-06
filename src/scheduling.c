@@ -1130,7 +1130,9 @@ void fl_push_path_ninsts(rpool_t *rpool, fl_path_t *path) {
         fl_path_layer_t *pushing_path_layer = &path->path_layers_arr[i];
         for (int j=0; j<pushing_path_layer->num_ninsts; j++) {
             atomic_store(&pushing_path_layer->ninst_ptr_arr[j]->state, NINST_READY);
+            #ifdef DEBUG
             printf("Push: P %d, L %d, N %d, RPG %d\n", path->path_idx, i+1, pushing_path_layer->ninst_ptr_arr[j]->ninst_idx, i+1);
+            #endif
             rpool_push_ninsts_to_group(rpool, &pushing_path_layer->ninst_ptr_arr[j], 1, i+1);
         }
     }
@@ -1141,7 +1143,9 @@ void fl_push_path_ninsts_edge(rpool_t *rpool, fl_path_t *path) {
         fl_path_layer_t *pushing_path_layer = &path->path_layers_arr[i];
         for (int j=0; j<pushing_path_layer->num_ninsts; j++) {
             atomic_store(&pushing_path_layer->ninst_ptr_arr[j]->state, NINST_READY);
+            #ifdef DEBUG
             printf("Push: P %d, L %d, N %d, RPG %d\n", path->path_idx, i+1, pushing_path_layer->ninst_ptr_arr[j]->ninst_idx, i+1);
+            #endif
             rpool_push_ninsts_to_group(rpool, &pushing_path_layer->ninst_ptr_arr[j], 1, i+1);
         }
     }
@@ -1153,7 +1157,9 @@ void fl_push_path_ninsts_server(rpool_t *rpool, fl_path_t *path) {
         fl_path_layer_t *pushing_path_layer = &path->path_layers_arr[i];
         for (int j=0; j<pushing_path_layer->num_ninsts; j++) {
             atomic_store(&pushing_path_layer->ninst_ptr_arr[j]->state, NINST_NOT_READY);
+            #ifdef DEBUG
             printf("Push: P %d, L %d, N %d, RPG %d\n", path->path_idx, i+1, pushing_path_layer->ninst_ptr_arr[j]->ninst_idx, i+1);
+            #endif
             rpool_push_ninsts_to_group(rpool, &pushing_path_layer->ninst_ptr_arr[j], 1, i+1);
         }
     }
@@ -1164,7 +1170,9 @@ void fl_push_path_ninsts_until(rpool_t *rpool, fl_path_t *path, unsigned int las
         fl_path_layer_t *pushing_path_layer = &path->path_layers_arr[i];
         for (int j=0; j<pushing_path_layer->num_ninsts; j++) {
             atomic_store(&pushing_path_layer->ninst_ptr_arr[j]->state, NINST_READY);
+            #ifdef DEBUG
             printf("Push: P %d, L %d, N %d, RPG %d\n", path->path_idx, i+1, pushing_path_layer->ninst_ptr_arr[j]->ninst_idx, i+1);
+            #endif
             rpool_push_ninsts_to_group(rpool, &pushing_path_layer->ninst_ptr_arr[j], 1, i+1);
         }
     }

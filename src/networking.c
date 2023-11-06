@@ -234,7 +234,6 @@ void transmission(networking_engine *net_engine)
     pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
     if (num_ninsts == 0)
         return;
-    printf("transmission: found ninst to send\n");
     double time_sent = get_time_secs_offset();
     for (int i = 0; i < num_ninsts; i++)
     {
@@ -251,10 +250,7 @@ void transmission(networking_engine *net_engine)
         target_ninst->network_buf = NULL;
         target_ninst->sent_time = time_sent;
         buffer_ptr += data_size;
-        // PRTF("Networking: Ninst%d, Sending %d bytes, W%d, H%d, data size %d\n", i, data_size + 3*sizeof(int), 
-        //     target_ninst_list[i]->tile_dims[OUT_W], target_ninst_list[i]->tile_dims[OUT_H], 
-        //     target_ninst_list[i]->tile_dims[OUT_W]*target_ninst_list[i]->tile_dims[OUT_H]*sizeof(float));
-        printf("Networking: Ninst%d, Sending %d bytes, W%d, H%d, data size %d\n", i, data_size + 3*sizeof(int), 
+        PRTF("Networking: Ninst%d, Sending %d bytes, W%d, H%d, data size %d\n", i, data_size + 3*sizeof(int), 
             target_ninst_list[i]->tile_dims[OUT_W], target_ninst_list[i]->tile_dims[OUT_H], 
             target_ninst_list[i]->tile_dims[OUT_W]*target_ninst_list[i]->tile_dims[OUT_H]*sizeof(float));
     }
@@ -394,7 +390,6 @@ void receive(networking_engine *net_engine)
             copy_buffer_to_ninst_data (target_ninst, buffer_ptr);
             buffer_ptr += data_size;
             atomic_store(&target_ninst->state, NINST_COMPLETED);
-            printf("receive: set N %d as NINST_COMPLETE\n", target_ninst->ninst_idx);
             target_ninst->received_time = get_time_secs_offset ();
             #ifdef DEBUG
             printf("\t[Device %d] (N%d L%d I%d %ldB) state: %d\n",
@@ -407,7 +402,7 @@ void receive(networking_engine *net_engine)
 
             if(atomic_load(&target_ninst->state) == NINST_COMPLETED)
             {
-                RED_PRTF ("2 Ninst %d(L%d) downloaded\n", target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx);
+                // RED_PRTF ("2 Ninst %d(L%d) downloaded\n", target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx);
                 update_children (net_engine->rpool, target_ninst);
             }
             
@@ -471,7 +466,7 @@ void transmission_fl(networking_engine *net_engine)
     pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
     if (num_ninsts == 0)
         return;
-    // printf("transmission: found ninst to send\n");
+    
     double time_sent = get_time_secs_offset();
     for (int i = 0; i < num_ninsts; i++)
     {
@@ -492,11 +487,13 @@ void transmission_fl(networking_engine *net_engine)
         target_ninst->sent_time = time_sent;
         buffer_ptr += data_size;
 
+        #ifdef DEBUG
         printf("transmission_fl: (N %d, L %d, P %d).\n",
             target_ninst->ninst_idx,
             target_ninst->ldata->layer->layer_idx,
             path_idx
         );
+        #endif
     }
     payload_size = buffer_ptr - (char*)net_engine->tx_buffer - sizeof(int32_t);
     *(int32_t*)net_engine->tx_buffer = payload_size;
@@ -589,6 +586,7 @@ void receive_fl(networking_engine *net_engine)
                 unsigned int path_num_ninsts_completed = atomic_fetch_add(&target_path->path_layers_arr[target_path->edge_final_layer_idx - 1].num_ninsts_completed, 1) + 1;
 
                 copy_buffer_to_ninst_dummy_data (target_ninst, buffer_ptr);
+                #ifdef DEBUG
                 printf("receive_fl: (N %d, L %d, P %d), Dup. Received Ninsts %d/%d\n",
                     target_ninst->ninst_idx, 
                     target_ninst->ldata->layer->layer_idx, 
@@ -596,6 +594,7 @@ void receive_fl(networking_engine *net_engine)
                     path_num_ninsts_completed,
                     target_path->path_layers_arr[target_path->edge_final_layer_idx - 1].num_ninsts
                 );    
+                #endif
                 buffer_ptr += data_size;
                 continue;
             }
@@ -612,6 +611,7 @@ void receive_fl(networking_engine *net_engine)
             target_ninst->received_time = get_time_secs_offset ();
             
             unsigned int path_num_ninsts_completed = atomic_fetch_add(&target_path->path_layers_arr[target_path->edge_final_layer_idx - 1].num_ninsts_completed, 1) + 1;
+            #ifdef DEBUG
             printf("receive_fl: (N %d, L %d, P %d). Received Ninsts %d/%d\n",
                 target_ninst->ninst_idx, 
                 target_ninst->ldata->layer->layer_idx, 
@@ -619,9 +619,12 @@ void receive_fl(networking_engine *net_engine)
                 path_num_ninsts_completed,
                 target_path->path_layers_arr[target_path->edge_final_layer_idx - 1].num_ninsts
             );
+            #endif
             
             if (target_path->path_idx == 0 && path_num_ninsts_completed == target_path->path_layers_arr[target_path->edge_final_layer_idx - 1].num_ninsts) {
+                #ifdef DEBUG
                 printf("PATH %d READY!\n", path_idx);
+                #endif
                 fl_push_path_ninsts_server(net_engine->rpool, target_path);
             }
             

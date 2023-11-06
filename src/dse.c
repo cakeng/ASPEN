@@ -274,7 +274,6 @@ void dse_schedule (dse_t *dse)
             // check devices to send to for the computation output
             if (dse->is_fl_offloading && dse->device_mode == DEV_SERVER) {
                 if (atomic_load(&ninst->dev_send_target[DEV_EDGE])) {
-                    printf("Offload!\n");
                     networking_engine *net_engine = dse->net_engine;
                     create_network_buffer_for_ninst (ninst);
                     pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
@@ -369,7 +368,9 @@ void dse_schedule_fl (dse_t *dse) {
 
     // Check if the ninst is mine(device)
     if (!is_dev_compute(ninst, dse->device_idx) && !dse->profile_compute) {
+        #ifdef DEBUG
         printf("Not a ninst to compute (N %d, L %d, S %d)\n", ninst->ninst_idx, ninst->ldata->layer->layer_idx, ninst->state);
+        #endif
     }
     else {
         // Good! it's mine
@@ -392,14 +393,18 @@ void dse_schedule_fl (dse_t *dse) {
 
             if (!fl_is_ninst_in_path_layer(path_layer, ninst)) {
                 // If it's not a good time to compute this ninst, return the ninst into rpool
+                #ifdef DEBUG
                 printf("\tReject ninst (N %d, L %d)\n", ninst->ninst_idx, ninst->ldata->layer->layer_idx);
+                #endif
                 rpool_push_ninsts_to_group(dse->rpool, &ninst, 1, ninst->ldata->layer->layer_idx);
                 return;
             }
         }
         
-        
+        #ifdef DEBUG
         printf("\tCompute ninst (N %d, L %d)\n", ninst->ninst_idx, ninst->ldata->layer->layer_idx);
+        #endif
+
         if (dse->profile_compute) ninst->compute_start = get_time_secs_offset ();
         if (atomic_exchange(&ninst->state, NINST_COMPLETED) == NINST_COMPLETED) ninst->compute_option = NINST_COMPUTE_DUMMY;
 
@@ -474,7 +479,9 @@ void dse_schedule_fl (dse_t *dse) {
         // Update path layer info
         unsigned int num_player_ninsts_completed = atomic_fetch_add(&path_layer->num_ninsts_completed, 1);
         if (num_player_ninsts_completed == path_layer->num_ninsts - 1) {
+            #ifdef DEBUG
             printf("PATH_LAYER %d COMPLETE!\n", path_layer->ldata->layer->layer_idx);
+            #endif
             unsigned int num_path_layers_completed = atomic_fetch_add(&path->num_path_layers_completed, 1) + 1;
             // atomic_fetch_add(&dse_now_path_layer_idx, 1);
             
@@ -484,7 +491,9 @@ void dse_schedule_fl (dse_t *dse) {
                     &path->path_layers_arr[path->edge_final_layer_idx - 1].num_ninsts_completed
                 );
                 if (last_layer_num_ninst_complete == path->path_layers_arr[path->edge_final_layer_idx - 1].num_ninsts) {
+                    #ifdef DEBUG
                     printf("EDGE STOPPING AT LAYER %d\n", path->edge_final_layer_idx);
+                    #endif
                     change_path = 1;
                 }
             }
@@ -493,13 +502,17 @@ void dse_schedule_fl (dse_t *dse) {
                     &path->path_layers_arr[path->num_path_layers - 1].num_ninsts_completed
                 );
                 if (last_layer_num_ninst_complete == path->path_layers_arr[path->num_path_layers - 1].num_ninsts) {
+                    #ifdef DEBUG
                     printf("NONEDGE STOPPING AT LAYER %d\n", path->num_path_layers);
+                    #endif
                     change_path = 1;
                 }
             }
             if (change_path) {
                 // Change path!
+                #ifdef DEBUG
                 printf("PATH %d FINISHED!\n", path->path_idx);
+                #endif
                 unsigned int next_path_idx = atomic_fetch_add(&nasm->path_now_idx, 1) + 1;
                 fl_path_t *next_path = nasm->path_ptr_arr[nasm->path_now_idx];
 
@@ -512,11 +525,15 @@ void dse_schedule_fl (dse_t *dse) {
                 }
 
                 if (next_path_idx == nasm->num_paths) {
+                    #ifdef DEBUG
                     printf("FL_PATH MODE FINISHED!\n");
+                    #endif
                     // Change mode!
                     fl_post_group_idx = next_path_idx;
                     // if (dse->device_mode != DEV_EDGE) fl_push_ninsts_only(dse->rpool, nasm, path->num_path_layers + 1, 0);
+                    #ifdef DEBUG
                     printf("Now rpool has %u ninsts\n", atomic_load(&dse->rpool->num_stored));
+                    #endif
                     dse_group_set_operating_mode(dse->dse_group, OPER_MODE_DEFAULT);
                     
                     if (dse->device_mode == DEV_SERVER) {
