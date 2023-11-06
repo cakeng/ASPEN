@@ -976,6 +976,25 @@ void copy_buffer_to_ninst_data (ninst_t *ninst, void *buffer)
     }
 }
 
+void copy_buffer_to_ninst_dummy_data (ninst_t *ninst, void *buffer)
+{
+    #ifdef DEBUG
+    if (ninst == NULL || buffer == NULL)
+    {
+        PRTF ("ERROR: ninst or buffer is NULL.\n");
+        assert(0);
+    }
+    #endif
+    char* out_mat = get_ninst_out_mem_dummy (ninst);
+    const unsigned int W = ninst->tile_dims[OUT_W];
+    const unsigned int H = ninst->tile_dims[OUT_H];
+    const unsigned int stride = ninst->ldata->out_mat_stride;
+    for(int w = 0; w < W; w++) 
+    {
+        memcpy(out_mat + w * stride * sizeof(float), buffer + w * H * sizeof(float), H * sizeof(float));
+    }
+}
+
 void alloc_ldata_out_mat (nasm_ldata_t *ldata)
 {
     pthread_mutex_lock (&ldata->out_mat_mutex);
@@ -1009,6 +1028,18 @@ void *get_ninst_out_mem (ninst_t *ninst)
         alloc_ldata_out_mat (ninst->ldata);
     }
     return (char*)ninst->ldata->out_mat
+        + (ninst->out_mat_pos[OUT_W]*ninst->ldata->out_mat_stride + ninst->out_mat_pos[OUT_H])
+            *ninst->ldata->nasm->dnn->element_size;
+}
+
+void *get_ninst_out_mem_dummy (ninst_t *ninst)
+{
+    if (ninst->ldata->out_mat == NULL)
+    {
+        // BLUE_PRTF ("APU: Allocating output memory for ldata %d\n", ninst->ldata->layer->layer_idx);
+        alloc_ldata_out_mat (ninst->ldata);
+    }
+    return (char*)ninst->ldata->out_mat_dummy
         + (ninst->out_mat_pos[OUT_W]*ninst->ldata->out_mat_stride + ninst->out_mat_pos[OUT_H])
             *ninst->ldata->nasm->dnn->element_size;
 }

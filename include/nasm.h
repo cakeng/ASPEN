@@ -145,11 +145,13 @@ void copy_ldata_out_mat_to_buffer (nasm_ldata_t *ldata, void *buffer);
 void copy_buffer_to_ldata_out_mat (nasm_ldata_t *ldata, void *buffer);
 void copy_ninst_data_to_buffer (ninst_t *ninst, void *buffer);
 void copy_buffer_to_ninst_data (ninst_t *ninst, void *buffer);
+void copy_buffer_to_ninst_dummy_data (ninst_t *ninst, void *buffer);
 
 void alloc_ldata_out_mat (nasm_ldata_t *ldata);
 void free_ldata_out_mat (nasm_ldata_t *ldata);
 
 void *get_ninst_out_mem (ninst_t *ninst);
+void *get_ninst_out_mem_dummy (ninst_t *ninst);
 void *get_ninst_out_mem_without_alloc (ninst_t *ninst);
 
 unsigned int get_tensor_idx_from_pos (aspen_tensor_t *tensor, unsigned int *pos);

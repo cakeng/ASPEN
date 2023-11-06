@@ -180,9 +180,7 @@ void tiled_conv2d (ninst_t *ninst, dse_t *dse)
     void *B = (char *) scratchpad;
     void *C = get_ninst_out_mem (ninst);
     if (ninst->compute_option == NINST_COMPUTE_DUMMY) {
-        C = (char*)ninst->ldata->out_mat_dummy
-        + (ninst->out_mat_pos[OUT_W]*ninst->ldata->out_mat_stride + ninst->out_mat_pos[OUT_H])
-            *ninst->ldata->nasm->dnn->element_size;
+        C = get_ninst_out_mem_dummy (ninst);
     }
     const unsigned int rem_n = N % _TILE_SIZE_N;
     const unsigned int rem_m = M % _TILE_SIZE_M;
@@ -483,9 +481,7 @@ void tiled_maxpool2d (ninst_t *ninst, dse_t *dse)
     const unsigned int ldc = ldata->out_mat_stride;
     void *C = get_ninst_out_mem (ninst);
     if (ninst->compute_option == NINST_COMPUTE_DUMMY) {
-        C = (char*)ninst->ldata->out_mat_dummy
-        + (ninst->out_mat_pos[OUT_W]*ninst->ldata->out_mat_stride + ninst->out_mat_pos[OUT_H])
-            *ninst->ldata->nasm->dnn->element_size;
+        C = get_ninst_out_mem_dummy (ninst);
     }
     if (dse->gpu_idx < 0)
     {

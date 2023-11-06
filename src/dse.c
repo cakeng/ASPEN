@@ -3,6 +3,11 @@
 static _Atomic unsigned int dse_thread_id_counter = 0;
 static _Atomic fl_path_t *dse_now_path = NULL;
 static unsigned int fl_post_group_idx;
+static nasm_t *ref_nasm = NULL;
+
+void dse_set_ref_nasm (nasm_t *_ref_nasm) {
+    ref_nasm = _ref_nasm;
+}
 
 void *dse_thread_runtime (void* thread_info)
 {
@@ -144,7 +149,7 @@ void dse_schedule (dse_t *dse)
             printf("UNALLOWED NINST!!! ninst %d (allowed: %d %d) to dse %d\n", ninst->ninst_idx, ninst->core_allowed[0], ninst->core_allowed[1], dse->thread_id);
         }
         else {
-            printf("\t[Device %d] Compute ninst (N%d L%d)\n", target_device, ninst->ninst_idx, ninst->ldata->layer->layer_idx);
+            // printf("\t[Device %d] Compute ninst (N%d L%d)\n", target_device, ninst->ninst_idx, ninst->ldata->layer->layer_idx);
             if (dse->profile_compute) ninst->compute_start = get_time_secs_offset ();
             switch (ninst->ldata->layer->type)
             {
@@ -495,6 +500,15 @@ void dse_schedule_fl (dse_t *dse) {
                 // Change path!
                 printf("PATH %d FINISHED!\n", path->path_idx);
                 unsigned int next_path_idx = atomic_fetch_add(&nasm->path_now_idx, 1) + 1;
+                fl_path_t *next_path = nasm->path_ptr_arr[nasm->path_now_idx];
+
+                if (dse->device_mode == DEV_SERVER && next_path_idx != nasm->num_paths) {
+                    // Busy wait until path is prepared
+                    while (1) {
+                        unsigned int path_num_ninsts_completed = atomic_load(&next_path->path_layers_arr[next_path->edge_final_layer_idx - 1].num_ninsts_completed);
+                        if (path_num_ninsts_completed == next_path->path_layers_arr[next_path->edge_final_layer_idx - 1].num_ninsts) break;
+                    }
+                }
 
                 if (next_path_idx == nasm->num_paths) {
                     printf("FL_PATH MODE FINISHED!\n");
@@ -510,7 +524,6 @@ void dse_schedule_fl (dse_t *dse) {
                 atomic_store(&dse_now_path, nasm->path_ptr_arr[next_path_idx]);
 
                 // Push new ninsts into rpool
-                fl_path_t *next_path = nasm->path_ptr_arr[nasm->path_now_idx];
                 if (dse->device_mode == DEV_EDGE) fl_push_path_ninsts_edge(dse->rpool, next_path);
                 else if (dse->device_mode == DEV_LOCAL) fl_push_path_ninsts(dse->rpool, next_path);
                 else fl_push_path_ninsts_server(dse->rpool, next_path);
