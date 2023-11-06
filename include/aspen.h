@@ -92,6 +92,7 @@ typedef struct rpool_queue_group_t rpool_queue_group_t;
 
 typedef struct dse_t dse_t;     // Distributed scheduling engine
 typedef struct dse_group_t dse_group_t;
+typedef struct dse_profile_t dse_profile_t;
 
 aspen_dnn_t *apu_create_dnn(char *input_path, char *data_path);
 void apu_destroy_dnn(aspen_dnn_t *dnn);
@@ -124,6 +125,9 @@ void dse_wait_for_nasm_completion (nasm_t *nasm);
 unsigned int dse_check_nasm_completion (nasm_t *nasm);
 ssize_t dse_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS *order, void** out_ptr);
 ssize_t dse_get_nasm_result (nasm_t *nasm, LAYER_PARAMS *order, void** out_ptr);
+void dse_group_load_profile_data (dse_group_t *dse_group, char *filename);
+void dse_group_save_profile_data (dse_group_t *dse_group, char *filename);
+void dse_group_profile_nasm (dse_group_t *dse_group, nasm_t *nasm);
 
 void aspen_flush_dynamic_memory();
 
