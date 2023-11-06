@@ -6,6 +6,7 @@ void *dse_thread_runtime (void* thread_info)
 {
     dse_t *dse = (dse_t*) thread_info;
     pthread_mutex_lock(&dse->thread_mutex);
+    atomic_store (&dse->run, 0);
     pthread_cond_wait(&dse->thread_cond, &dse->thread_mutex); 
     while (dse->kill == 0 || dse->target != NULL)
     {
@@ -527,7 +528,7 @@ void dse_init (dse_group_t *dse_group, dse_t *dse, int gpu_idx)
     dse->thread_cond = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
     dse->ninst_cache = calloc (1, sizeof (rpool_queue_t));
     for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) dse->prioritize_rpool[i] = -1;
-    atomic_store (&dse->run, 0);
+    atomic_store (&dse->run, -1);
     atomic_store (&dse->kill, 0);
     rpool_init_queue (dse->ninst_cache);
     pthread_create (&dse->thread, NULL, dse_thread_runtime, (void*)dse);
@@ -559,10 +560,12 @@ void dse_run (dse_t *dse)
 {
     if (dse == NULL)
     {
-        ERROR_PRTF ("ERROR: dse_run: dse is NULL\n");
+        ERROR_PRTF ("ERROR: dse_run: dse is NULL");
         return;
     }
-    unsigned int state = atomic_exchange (&dse->run, 1);
+    int state = atomic_load (&dse->run);
+    while (state == -1)
+        state = atomic_load (&dse->run);
     if (state == 1)
     {
         return;
@@ -570,6 +573,7 @@ void dse_run (dse_t *dse)
     else 
     {
         pthread_mutex_lock (&dse->thread_mutex);
+        atomic_store (&dse->run, 1);
         pthread_cond_signal (&dse->thread_cond);
         pthread_mutex_unlock (&dse->thread_mutex);
     }
