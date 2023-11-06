@@ -80,6 +80,7 @@ int main (int argc, char **argv)
     int num_cores = 1;
     int num_tiles = 50;
     int gpu_idx = -1;
+    int dev_mode = -1;
 
     if (argc > 5)
     {
@@ -88,10 +89,11 @@ int main (int argc, char **argv)
         num_tiles = atoi (argv[3]);
         number_of_iterations = atoi (argv[4]);
         num_cores = atoi (argv[5]);
+        dev_mode = atoi (argv[6]);
     }
     else
     {
-        printf ("Usage: %s <dnn> <batch_size> <num_tiles> <number_of_iterations> <num_cores>\n", argv[0]);
+        printf ("Usage: %s <dnn> <batch_size> <num_tiles> <number_of_iterations> <num_cores> <dev_mode>\n", argv[0]);
         exit (0);
     }
 
@@ -111,6 +113,24 @@ int main (int argc, char **argv)
     // apu_save_dnn_to_file (target_dnn, target_aspen);
     // nasm_t *target_nasm = apu_create_nasm (target_dnn, num_tiles, batch_size);
     // apu_save_nasm_to_file (target_nasm, nasm_file_name);
+    
+    double start_time, end_time;
+    
+    /* BASIC MODULES */
+
+    // fl separate group
+    int fl_split_layer_idx = 4;
+
+    // rpool_t *rpool = rpool_init (gpu_idx);
+    rpool_t *rpool = rpool_init_multigroup (gpu_idx, fl_split_layer_idx + 1);
+    dse_group_t *dse_group = dse_group_init (num_cores, gpu_idx);
+    dse_group_set_rpool (dse_group, rpool);
+    dse_group_set_device_mode (dse_group, dev_mode);
+    dse_group_set_device (dse_group, 0);
+    dse_group_set_num_edge_devices (dse_group, 2);
+    networking_engine* net_engine = NULL;
+
+    /* NASM PREPARATION */
 
     aspen_dnn_t *target_dnn = apu_load_dnn_from_file (target_aspen);
     if (target_dnn == NULL)
@@ -124,52 +144,103 @@ int main (int argc, char **argv)
         printf ("Unable to load nasm file\n");
         exit (0);
     }
-    apu_set_nasm_num_cores(target_nasm, num_cores);
-  
-    // rpool_t *rpool = rpool_init (gpu_idx);
-    rpool_t *rpool = rpool_init_multigroup (gpu_idx, num_cores);
-    dse_group_t *dse_group = dse_group_init (num_cores, gpu_idx);
-    dse_group_set_rpool (dse_group, rpool);
-    dse_group_set_device_mode (dse_group, DEV_LOCAL);
-    dse_group_set_device (dse_group, 0);
-    init_full_local (target_nasm, 0);
 
-    // core allocation
-    core_init_random (target_nasm, num_cores);
+    /* FL PATH CREATION */
 
-    // fl_path allocation
-    unsigned int num_last_layer_ninst = target_nasm->ldata_arr[4].num_ninst;
+    unsigned int num_last_layer_ninst = target_nasm->ldata_arr[fl_split_layer_idx].num_ninst;
 
-    ninst_t **path_last_ninsts1 = (ninst_t **)malloc(sizeof(ninst_t *) * num_last_layer_ninst / 2);
-    ninst_t **path_last_ninsts2 = (ninst_t **)malloc(sizeof(ninst_t *) * num_last_layer_ninst / 2);
+    ninst_t **path_last_ninsts1 = (ninst_t **)malloc(sizeof(ninst_t *) * 7);
+    ninst_t **path_last_ninsts2 = (ninst_t **)malloc(sizeof(ninst_t *) * 8);
+    ninst_t **path_last_ninsts3 = (ninst_t **)malloc(sizeof(ninst_t *) * 7);
+    ninst_t **path_last_ninsts4 = (ninst_t **)malloc(sizeof(ninst_t *) * 8);
 
-    for (int i=0; i<num_last_layer_ninst / 2; i++) {
+    for (int i=0; i<7; i++) {
         path_last_ninsts1[i] = target_nasm->ldata_arr[4].ninst_arr_start + i;
-        path_last_ninsts2[i] = target_nasm->ldata_arr[4].ninst_arr_start + i + num_last_layer_ninst / 2;
+        path_last_ninsts3[i] = target_nasm->ldata_arr[4].ninst_arr_start + i + 15;
+    }
+    for (int i=0; i<8; i++) {
+        path_last_ninsts2[i] = target_nasm->ldata_arr[4].ninst_arr_start + i + 7;
+        path_last_ninsts4[i] = target_nasm->ldata_arr[4].ninst_arr_start + i + 22;
     }
 
     fl_init(target_nasm);
-    fl_path_t *path1 = fl_create_path(target_nasm, path_last_ninsts1, num_last_layer_ninst / 2);
-    fl_path_t *path2 = fl_create_path(target_nasm, path_last_ninsts2, num_last_layer_ninst / 2);
+    fl_path_t *path1 = fl_create_path(target_nasm, path_last_ninsts1, 7);
+    fl_path_t *path2 = fl_create_path(target_nasm, path_last_ninsts2, 8);
+    fl_path_t *path3 = fl_create_path(target_nasm, path_last_ninsts3, 7);
+    fl_path_t *path4 = fl_create_path(target_nasm, path_last_ninsts4, 8);
 
-    dse_group_set_operating_mode(dse_group, OPER_MODE_FL_PATH);
+    path1->edge_final_layer_idx = 3;
+    path2->edge_final_layer_idx = 2;
+    path3->edge_final_layer_idx = 1;
+    path4->edge_final_layer_idx = 2;
+
+    dse_set_starting_path (path1);
+
+    fl_set_dev_compute(target_nasm, path1, dev_mode);
+    fl_set_dev_compute(target_nasm, path2, dev_mode);
+    fl_set_dev_compute(target_nasm, path3, dev_mode);
+    fl_set_dev_compute(target_nasm, path4, dev_mode);
+
+    for (int i=0; i<num_cores; i++) dse_group->dse_arr[i].is_fl_offloading = 1;
+
+    if (dev_mode == DEV_SERVER) {
+        init_allow_all(target_nasm, 2);
+
+        ninst_t *last_layer_ninst_arr_start = target_nasm->ldata_arr[target_nasm->num_ldata - 1].ninst_arr_start;
+        unsigned int last_layer_num_ninst = target_nasm->ldata_arr[target_nasm->num_ldata - 1].num_ninst;
+
+        for (int i=0; i<last_layer_num_ninst; i++) {
+            last_layer_ninst_arr_start[i].dev_send_target[DEV_EDGE] = 1;
+        }
+    }
+    else if (dev_mode == DEV_LOCAL) init_allow_all(target_nasm, 3);
+
+    // Networking
+    if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
+    {
+        net_engine = init_networking(target_nasm, rpool, dev_mode, "127.0.0.1", 60000, 0, 1);
+        net_engine->is_fl_offloading = 1;
+        dse_group_set_net_engine(dse_group, net_engine);
+        dse_group_set_device(dse_group, dev_mode);
+        net_engine->dse_group = dse_group;
+        net_engine_set_operating_mode(net_engine, OPER_MODE_FL_PATH);
+
+        net_engine_run(net_engine);
+    }
 
     rpool_add_nasm (rpool, target_nasm, "data/batched_input_128.bin");
 
     printf ("Running %d iterations\n", number_of_iterations);
-    double start_time = get_sec();
+    start_time = get_sec();
     for (int i = 0; i < number_of_iterations; i++)
     {
         rpool_reset_queue (rpool);
-        // rpool_reset_nasm (rpool, target_nasm);
-        fl_push_path_ninsts(rpool, path1);
+        apu_reset_nasm(target_nasm);
+        dse_group_set_operating_mode(dse_group, OPER_MODE_FL_PATH);
+        if (dev_mode == DEV_EDGE) fl_push_path_ninsts_edge(rpool, path1);
+        else if (dev_mode == DEV_LOCAL) fl_push_path_ninsts(rpool, path1);
         dse_group_run (dse_group);
         dse_wait_for_nasm_completion (target_nasm);
+
+        if (dev_mode != DEV_LOCAL) {
+            unsigned int tx_remaining = atomic_load(&net_engine->rpool->num_stored);
+            while (tx_remaining > 0) tx_remaining = atomic_load(&net_engine->rpool->num_stored);
+            net_engine_wait_for_tx_queue_completion(net_engine);
+            net_engine_reset(net_engine);
+            net_engine_set_operating_mode(net_engine, OPER_MODE_FL_PATH);
+        }
         dse_group_stop (dse_group);
+
+        fl_reset_path(path1);
+        fl_reset_path(path2);
+        fl_reset_path(path3);
+        fl_reset_path(path4);
+
+        dse_set_starting_path (path1);
+
     }
-    double end_time = get_sec();
+    end_time = get_sec();
     printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);
-    aspen_flush_dynamic_memory ();
 
     if (strcmp(dnn, "bert_base") != 0)
     {
@@ -184,6 +255,10 @@ int main (int argc, char **argv)
         free (layer_output);
         free (softmax_output);
     }
+
+    aspen_flush_dynamic_memory ();
+
+    net_engine_destroy (net_engine);
     dse_group_destroy (dse_group);
     rpool_destroy (rpool);
     apu_destroy_nasm (target_nasm);

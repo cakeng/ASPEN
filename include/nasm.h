@@ -14,6 +14,10 @@
 #define APU_GENERATION_NUM_FLOPS 5e8
 #define INIT_NUM_PARENT_LDATA 2
 
+#define NINST_COMPUTE_NO    0
+#define NINST_COMPUTE_DUMMY 1
+#define NINST_COMPUTE_YES   2
+
 struct nasm_t
 {
     unsigned int nasm_id;
@@ -43,6 +47,14 @@ struct nasm_t
     // #endif
 
     int inference_id;
+
+    unsigned int num_cores;
+
+    unsigned int num_paths;
+    atomic_uint path_now_idx;
+    fl_path_t *path_ptr_arr[64];
+
+    int operating_mode;
 };
 
 struct nasm_ldata_t
@@ -59,6 +71,7 @@ struct nasm_ldata_t
     unsigned int out_mat_stride;
     size_t out_mat_mem_size;
     void *out_mat;
+    void *out_mat_dummy;
     pthread_mutex_t out_mat_mutex;
     unsigned int ninst_tile_dims [2];
     ninst_t *ninst_arr_start;
@@ -99,7 +112,10 @@ struct ninst_t
     // For Scheduling
     atomic_int dev_to_compute [SCHEDULE_MAX_DEVICES+1];       // who will compute this ninst?
     atomic_int dev_send_target [SCHEDULE_MAX_DEVICES+1];    // who wants the result of this ninst?
-    // atomic_int offloaded;
+    
+    // For core allocation
+    unsigned int num_cores;
+    atomic_int core_allowed[SCHEDULE_MAX_CORE]; // which core is allowed to compute this ninst?
 
     double compute_start;
     double compute_end;
@@ -108,6 +124,8 @@ struct ninst_t
 
     float rank_upward;
     float rank_downward;
+
+    int compute_option;
 
     // #ifdef GPU
     // cudaGraphNode_t cudagraph_node;
@@ -127,11 +145,13 @@ void copy_ldata_out_mat_to_buffer (nasm_ldata_t *ldata, void *buffer);
 void copy_buffer_to_ldata_out_mat (nasm_ldata_t *ldata, void *buffer);
 void copy_ninst_data_to_buffer (ninst_t *ninst, void *buffer);
 void copy_buffer_to_ninst_data (ninst_t *ninst, void *buffer);
+void copy_buffer_to_ninst_dummy_data (ninst_t *ninst, void *buffer);
 
 void alloc_ldata_out_mat (nasm_ldata_t *ldata);
 void free_ldata_out_mat (nasm_ldata_t *ldata);
 
 void *get_ninst_out_mem (ninst_t *ninst);
+void *get_ninst_out_mem_dummy (ninst_t *ninst);
 void *get_ninst_out_mem_without_alloc (ninst_t *ninst);
 
 unsigned int get_tensor_idx_from_pos (aspen_tensor_t *tensor, unsigned int *pos);

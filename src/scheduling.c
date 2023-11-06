@@ -10,6 +10,10 @@ int is_dev_compute(ninst_t *ninst, int device_idx)
     return atomic_load(&ninst->dev_to_compute[device_idx]);
 }
 
+int is_core_compute(ninst_t *ninst, int core_idx) {
+    return atomic_load(&ninst->core_allowed[core_idx]);
+}
+
 int is_dev_send_target(ninst_t *ninst, int device_idx)
 {
     return atomic_load(&ninst->dev_send_target[device_idx]);
@@ -105,6 +109,44 @@ void nasm_set_last_layer_ninst_send_target_device(nasm_t *nasm, int device_idx)
     {
         // last_ldata_ninst_arr[i].dev_send_target[device_idx] = 1;
         atomic_store(&last_ldata_ninst_arr[i].dev_send_target[device_idx], 1);
+    }
+}
+
+void ninst_core_allow_all(ninst_t *ninst)
+{
+    for (int i = 0; i < ninst->num_cores; i++)
+        atomic_store(&ninst->core_allowed[i], 1);
+}
+
+void ninst_core_disallow_all(ninst_t *ninst)
+{
+    for (int i = 0; i < ninst->num_cores; i++)
+        atomic_store(&ninst->core_allowed[i], 0);
+}
+
+void ninst_core_allow(ninst_t *ninst, int core_idx, int allow)
+{
+    atomic_store(&ninst->core_allowed[core_idx], allow);
+}
+
+void ninst_core_allow_rand(ninst_t *ninst, int num_core) {
+    ninst->core_allowed[rand() % num_core] = 1;
+}
+
+int get_allowed_core_idx(ninst_t *ninst) {
+    for (int i = 0; i < ninst->num_cores; i++) {
+        if (atomic_load(&ninst->core_allowed[i])) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+void core_init_random(nasm_t *nasm, int num_core) {
+    for (int i = 0; i < nasm->num_ninst; i++) {
+        ninst_t *ninst = nasm->ninst_arr + i;
+        ninst_core_disallow_all(ninst);
+        ninst_core_allow_rand(ninst, num_core);
     }
 }
 
@@ -339,6 +381,16 @@ float get_eft_server(dynamic_scheduler_t* dynamic_scheduler, networking_engine* 
                     (net_tx_queue_num_stored) * net_tx_queue_bytes * 8 / dynamic_scheduler->avg_bandwidth[device_idx] / 1000000 // Transmission latency
                     + dynamic_scheduler->scheduling_latency[device_idx];
     return eft_edge;
+}
+
+void init_allow_all(nasm_t *nasm, int num_dev) {
+    for (int i = 0; i < nasm->num_ninst; i++) 
+    {
+        ninst_t *ninst = nasm->ninst_arr + i;
+        ninst_clear_compute_device(ninst);
+        for (int j=0; j < num_dev; j++)
+            ninst_set_compute_device(ninst, j);
+    }
 }
 
 void init_full_local(nasm_t *nasm, int dev_idx) {
@@ -991,3 +1043,194 @@ void init_conventional_offload(nasm_t *nasm, int edge_id, int server_id)
 //         iter_task = iter_task->next;
 //     }
 // }
+
+static unsigned int ninst_find_parents(ninst_t **buffer, unsigned int num_buffer, ninst_t **parent_buffer) {
+    nasm_t *nasm = buffer[0]->ldata->nasm;
+
+    unsigned int num_parents = 0;
+    for (int i=0; i<num_buffer; i++) {
+        ninst_t *ninst_now = buffer[i];
+
+        for (int p_idx=0; p_idx<ninst_now->num_parent_ninsts; p_idx++) {
+            ninst_t *parent_now = &nasm->ninst_arr[ninst_now->parent_ninst_idx_arr[p_idx]];
+
+            // check if parent is already in parent_buffer
+            int already_exists = 0;
+            for (int pb_idx=0; pb_idx<num_parents; pb_idx++) {
+                if (parent_buffer[pb_idx] == parent_now) {
+                    already_exists = 1;
+                    break;
+                }
+            }
+
+            if (!already_exists) 
+                parent_buffer[num_parents++] = parent_now;
+        }
+    }
+
+    return num_parents;
+}
+
+void fl_init(nasm_t *nasm) {
+    nasm->operating_mode = OPER_MODE_FL_PATH;
+    nasm->num_paths = 0;
+    nasm->path_now_idx = 0;
+}
+
+fl_path_t *fl_create_path(nasm_t *nasm, ninst_t **last_layer_ninsts, unsigned int num_last_layer_ninsts) {
+    fl_path_t *path = (fl_path_t *)malloc(sizeof(fl_path_t));
+
+    nasm->path_ptr_arr[nasm->num_paths] = path;
+    path->path_idx = nasm->num_paths++;
+    path->num_path_layers = last_layer_ninsts[0]->ldata->layer->layer_idx;
+    atomic_store(&path->num_path_layers_completed, 0);
+    path->path_layers_arr = (fl_path_layer_t *)malloc(sizeof(fl_path_layer_t) * path->num_path_layers);
+    path->edge_final_layer_idx = path->num_path_layers;
+
+    unsigned int num_buffer_parent;
+    unsigned int num_buffer;
+    
+    ninst_t *buffer_parent[256];
+    ninst_t *buffer[256];
+
+    num_buffer = num_last_layer_ninsts;
+    for (int i=0; i<num_buffer; i++) buffer[i] = last_layer_ninsts[i];
+
+    for (int l=path->num_path_layers-1; l>=0; l--) {
+        fl_path_layer_t *path_layer_now = &path->path_layers_arr[l];
+
+        path_layer_now->fl_path = path;
+        path_layer_now->ldata = &nasm->ldata_arr[l+1];
+
+        path_layer_now->num_ninsts = num_buffer;
+        atomic_store(&path_layer_now->num_ninsts_completed, 0);
+        path_layer_now->ninst_ptr_arr = (ninst_t **)malloc(sizeof(ninst_t *) * num_buffer);
+        memcpy(path_layer_now->ninst_ptr_arr, buffer, sizeof(ninst_t *) * num_buffer);
+        
+        num_buffer_parent = ninst_find_parents(buffer, num_buffer, buffer_parent);
+
+        num_buffer = num_buffer_parent;
+        memcpy(buffer, buffer_parent, sizeof(ninst_t *) * num_buffer);
+    }
+
+    return path;
+}
+
+void fl_reset_path(fl_path_t *path) {
+    atomic_store(&path->num_path_layers_completed, 0);
+    for (int i=0; i<path->num_path_layers; i++) {
+        fl_path_layer_t *path_layer = &path->path_layers_arr[i];
+        
+        atomic_store(&path_layer->num_ninsts_completed, 0);
+    }
+    
+}
+
+int fl_is_ninst_in_path_layer(fl_path_layer_t *path_layer, ninst_t *ninst) {
+    for (int i=0; i<path_layer->num_ninsts; i++) {
+        if (path_layer->ninst_ptr_arr[i] == ninst) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+void fl_push_path_ninsts(rpool_t *rpool, fl_path_t *path) {
+    for (int i=0; i<path->num_path_layers; i++) {
+        fl_path_layer_t *pushing_path_layer = &path->path_layers_arr[i];
+        for (int j=0; j<pushing_path_layer->num_ninsts; j++) {
+            atomic_store(&pushing_path_layer->ninst_ptr_arr[j]->state, NINST_READY);
+            #ifdef DEBUG
+            printf("Push: P %d, L %d, N %d, RPG %d\n", path->path_idx, i+1, pushing_path_layer->ninst_ptr_arr[j]->ninst_idx, i+1);
+            #endif
+            rpool_push_ninsts_to_group(rpool, &pushing_path_layer->ninst_ptr_arr[j], 1, i+1);
+        }
+    }
+}
+
+void fl_push_path_ninsts_edge(rpool_t *rpool, fl_path_t *path) {
+    for (int i=0; i<path->edge_final_layer_idx; i++) {
+        fl_path_layer_t *pushing_path_layer = &path->path_layers_arr[i];
+        for (int j=0; j<pushing_path_layer->num_ninsts; j++) {
+            atomic_store(&pushing_path_layer->ninst_ptr_arr[j]->state, NINST_READY);
+            #ifdef DEBUG
+            printf("Push: P %d, L %d, N %d, RPG %d\n", path->path_idx, i+1, pushing_path_layer->ninst_ptr_arr[j]->ninst_idx, i+1);
+            #endif
+            rpool_push_ninsts_to_group(rpool, &pushing_path_layer->ninst_ptr_arr[j], 1, i+1);
+        }
+    }
+}
+
+void fl_push_path_ninsts_server(rpool_t *rpool, fl_path_t *path) {
+    atomic_store(&path->num_path_layers_completed, path->edge_final_layer_idx);
+    for (int i=path->edge_final_layer_idx; i<path->num_path_layers; i++) {
+        fl_path_layer_t *pushing_path_layer = &path->path_layers_arr[i];
+        for (int j=0; j<pushing_path_layer->num_ninsts; j++) {
+            atomic_store(&pushing_path_layer->ninst_ptr_arr[j]->state, NINST_NOT_READY);
+            #ifdef DEBUG
+            printf("Push: P %d, L %d, N %d, RPG %d\n", path->path_idx, i+1, pushing_path_layer->ninst_ptr_arr[j]->ninst_idx, i+1);
+            #endif
+            rpool_push_ninsts_to_group(rpool, &pushing_path_layer->ninst_ptr_arr[j], 1, i+1);
+        }
+    }
+}
+
+void fl_push_path_ninsts_until(rpool_t *rpool, fl_path_t *path, unsigned int last_layer_idx) {
+    for (int i=0; i<=last_layer_idx; i++) {
+        fl_path_layer_t *pushing_path_layer = &path->path_layers_arr[i];
+        for (int j=0; j<pushing_path_layer->num_ninsts; j++) {
+            atomic_store(&pushing_path_layer->ninst_ptr_arr[j]->state, NINST_READY);
+            #ifdef DEBUG
+            printf("Push: P %d, L %d, N %d, RPG %d\n", path->path_idx, i+1, pushing_path_layer->ninst_ptr_arr[j]->ninst_idx, i+1);
+            #endif
+            rpool_push_ninsts_to_group(rpool, &pushing_path_layer->ninst_ptr_arr[j], 1, i+1);
+        }
+    }
+}
+
+void fl_push_ninsts_after(rpool_t *rpool, nasm_t *nasm, unsigned int last_layer_idx, unsigned int to_group) {
+    unsigned int from = last_layer_idx + 1;
+    unsigned int to = nasm->num_ldata;
+    
+    for (int i=from; i<to; i++) {
+        nasm_ldata_t *ldata = &nasm->ldata_arr[i];
+        for (int j=0; j<ldata->num_ninst; j++) {
+            ninst_t *ninst_to_push = &ldata->ninst_arr_start[j];
+            ninst_to_push->state = NINST_READY;
+            rpool_push_ninsts_to_group(rpool, &ninst_to_push, 1, to_group);
+        }   
+    }
+}
+
+void fl_push_ninsts_only(rpool_t *rpool, nasm_t *nasm, unsigned int layer_idx, unsigned int to_group) {
+    nasm_ldata_t *ldata = &nasm->ldata_arr[layer_idx];
+    for (int j=0; j<ldata->num_ninst; j++) {
+        ninst_t *ninst_to_push = &ldata->ninst_arr_start[j];
+        atomic_store(&ninst_to_push->state, NINST_READY);
+        rpool_push_ninsts_to_group(rpool, &ninst_to_push, 1, to_group);
+    }   
+}
+
+void fl_set_dev_compute(nasm_t *nasm, fl_path_t *path, DEVICE_MODE dev_mode) {
+    if (dev_mode == DEV_EDGE) {
+        for (int i=0; i<path->edge_final_layer_idx; i++) {
+            fl_path_layer_t *now_path_layer = &path->path_layers_arr[i];
+            for (int j=0; j<now_path_layer->num_ninsts; j++) {
+                ninst_set_compute_device(now_path_layer->ninst_ptr_arr[j], DEV_EDGE);
+            }
+        }
+
+        fl_path_layer_t *offloading_layer = &path->path_layers_arr[path->edge_final_layer_idx - 1];
+        for (int i=0; i<offloading_layer->num_ninsts; i++) {
+            ninst_set_send_target_device(offloading_layer->ninst_ptr_arr[i], DEV_SERVER);
+        }
+    }
+    else if (dev_mode == DEV_SERVER) {
+        for (int i=0; i<path->num_path_layers; i++) {
+            fl_path_layer_t *now_path_layer = &path->path_layers_arr[i];
+            for (int j=0; j<now_path_layer->num_ninsts; j++) {
+                ninst_set_compute_device(now_path_layer->ninst_ptr_arr[j], DEV_SERVER);
+            }
+        }
+    }
+}

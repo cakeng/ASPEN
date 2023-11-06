@@ -39,6 +39,7 @@ struct rpool_queue_group_t
 
 struct rpool_t
 {
+    unsigned int needed_groups;
     _Atomic unsigned int num_groups;
     rpool_queue_group_t queue_group_arr[MAX_QUEUE_GROUPS];
     float queue_group_weight_arr[MAX_QUEUE_GROUPS];
@@ -47,6 +48,8 @@ struct rpool_t
     _Atomic unsigned int ref_dses;
     int gpu_idx;
     _Atomic unsigned int num_stored;
+
+    unsigned int is_core_exclusive;
 };
 
 void rpool_init_queue (rpool_queue_t *rpool_queue);
@@ -82,6 +85,9 @@ rpool_queue_t *get_queue_for_fetching (rpool_t *rpool, void **input_cond, unsign
 rpool_queue_t *get_queue_for_storing (rpool_t *rpool, unsigned int queue_val, void **input_cond);
 
 unsigned int rpool_fetch_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int max_ninst_to_fetch, unsigned int dse_idx);
+unsigned int rpool_fetch_ninsts_from_group (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int max_ninst_to_fetch, unsigned int dse_idx);
 void rpool_push_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int num_ninsts, unsigned int dse_idx);
+void rpool_push_ninsts_to_group (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int num_ninsts, unsigned int dse_idx);
+void rpool_push_ninsts_to_allowed_group (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int num_ninsts);
 
 #endif /* _RPOOL_H_ */

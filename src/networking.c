@@ -4,6 +4,7 @@ void *net_tx_thread_runtime (void* thread_info)
 {
     networking_engine *net_engine = (networking_engine*) thread_info;
     pthread_mutex_lock (&net_engine->tx_thread_mutex);
+    atomic_store (&net_engine->tx_run, 0);
     pthread_cond_wait (&net_engine->tx_thread_cond, &net_engine->tx_thread_mutex);
     while (!net_engine->tx_kill)
     {
@@ -18,6 +19,7 @@ void *net_rx_thread_runtime (void* thread_info)
 {
     networking_engine *net_engine = (networking_engine*) thread_info;
     pthread_mutex_lock (&net_engine->rx_thread_mutex);
+    atomic_store (&net_engine->rx_run, 0);
     pthread_cond_wait (&net_engine->rx_thread_cond, &net_engine->rx_thread_mutex);
     while (!net_engine->rx_kill)
     {
@@ -153,8 +155,8 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE de
     init_networking_queue(networking_queue);
 
     net_engine->tx_queue = networking_queue;
-    atomic_store (&net_engine->tx_run, 0);
-    atomic_store (&net_engine->rx_run, 0);
+    atomic_store (&net_engine->tx_run, -1);
+    atomic_store (&net_engine->rx_run, -1);
     atomic_store (&net_engine->tx_kill, 0);
     atomic_store (&net_engine->rx_kill, 0);
 
@@ -186,12 +188,12 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE de
     void *whitelist[NUM_RPOOL_CONDS] = {NULL};
     whitelist [RPOOL_NASM] = nasm;
     sprintf (info_str, "%s_%s_%d", nasm->dnn->name, "nasm", nasm->nasm_id);
-    float queue_per_layer = rpool->ref_dses * NUM_LAYERQUEUE_PER_DSE * NUM_QUEUE_PER_LAYER;
-    unsigned int num_queues = nasm->dnn->num_layers*queue_per_layer;
-    if (num_queues < 1)
-        num_queues = 1;
-    nasm->gpu_idx = rpool->gpu_idx;
-    rpool_add_queue_group (rpool, info_str, num_queues, NULL, whitelist);
+    // float queue_per_layer = rpool->ref_dses * NUM_LAYERQUEUE_PER_DSE * NUM_QUEUE_PER_LAYER;
+    // unsigned int num_queues = nasm->dnn->num_layers*queue_per_layer;
+    // if (num_queues < 1)
+    //     num_queues = 1;
+    // nasm->gpu_idx = rpool->gpu_idx;
+    // rpool_add_queue_group (rpool, info_str, num_queues, NULL, whitelist);
 
     net_engine->rx_thread_cond = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
     net_engine->rx_thread_mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
@@ -199,11 +201,23 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE de
     net_engine->tx_thread_mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
     pthread_create (&net_engine->tx_thread, NULL, net_tx_thread_runtime, (void*)net_engine);
     pthread_create (&net_engine->rx_thread, NULL, net_rx_thread_runtime, (void*)net_engine);
+
+    // for FL path offloading
+    net_engine->is_fl_offloading = 0;
+    atomic_store(&net_engine->operating_mode, OPER_MODE_DEFAULT);
+    atomic_store(&net_engine->fl_path_queue_start, 0);
+    atomic_store(&net_engine->fl_path_queue_end, 0);
+
     return net_engine;
 }
 
 void transmission(networking_engine *net_engine) 
 {
+    if (net_engine->operating_mode == OPER_MODE_FL_PATH && net_engine->device_mode == DEV_EDGE) {
+        transmission_fl(net_engine);
+        return;
+    }
+    // printf("transmission: start...\n");
     ninst_t *target_ninst_list[32];
     unsigned int num_ninsts = 0;
     int32_t payload_size = 0;
@@ -211,7 +225,7 @@ void transmission(networking_engine *net_engine)
 
     if(!net_engine->pipelined && net_engine->device_mode == DEV_SERVER)
     {
-        if(!atomic_load(&net_engine->nasm->completed))
+        if(!atomic_load(&net_engine->nasm->completed) && net_engine->rpool->num_stored == 0)
             return;
     }
 
@@ -236,7 +250,7 @@ void transmission(networking_engine *net_engine)
         target_ninst->network_buf = NULL;
         target_ninst->sent_time = time_sent;
         buffer_ptr += data_size;
-        // PRTF("Networking: Ninst%d, Sending %d bytes, W%d, H%d, data size %d\n", i, data_size + 3*sizeof(int), 
+        // PRTF("Networking: Ninst%d(idx %d), Sending %d bytes, W%d, H%d, data size %d\n", i, target_ninst->ninst_idx, data_size + 3*sizeof(int), 
         //     target_ninst_list[i]->tile_dims[OUT_W], target_ninst_list[i]->tile_dims[OUT_H], 
         //     target_ninst_list[i]->tile_dims[OUT_W]*target_ninst_list[i]->tile_dims[OUT_H]*sizeof(float));
     }
@@ -273,7 +287,11 @@ void transmission(networking_engine *net_engine)
 
 void receive(networking_engine *net_engine) 
 {
-    
+    if (net_engine->operating_mode == OPER_MODE_FL_PATH && net_engine->device_mode == DEV_SERVER) {
+        receive_fl(net_engine);
+        return;
+    }
+
     int32_t payload_size;
     int ret = read(net_engine->comm_sock, (char*)&payload_size, sizeof(int32_t));
     if (ret == -1)
@@ -294,7 +312,7 @@ void receive(networking_engine *net_engine)
     {
         if (payload_size <= 0)
         {
-            // PRTF("Networking: RX Command %d received - ", payload_size);
+            printf("Networking: RX Command %d received - ", payload_size);
             if (payload_size == RX_STOP_SIGNAL)
             {
                 PRTF("RX stop signal received.\n");
@@ -336,7 +354,7 @@ void receive(networking_engine *net_engine)
             unsigned int data_size = *(unsigned int*)buffer_ptr;
             buffer_ptr += sizeof(unsigned int);
             #ifdef DEBUG
-            if (net_engine->nasm->inference_id != inference_id)
+            if (net_engine->nasm->inference_id != inference_id && !net_engine->is_fl_offloading)
             {
                 PRTF("Warning: Received inference_id %d is not matched with ninst_idx %d\n", inference_id, ninst_idx);
                 continue;
@@ -348,13 +366,18 @@ void receive(networking_engine *net_engine)
             }
             #endif
             ninst_t* target_ninst = &net_engine->nasm->ninst_arr[ninst_idx];
-            if (!is_inference_whitelist(net_engine, inference_id))
+            #ifdef DEBUG
+            printf("receive: target ninst is N %d\n", target_ninst->ninst_idx);
+            #endif
+            if (!is_inference_whitelist(net_engine, inference_id) && !net_engine->is_fl_offloading)
             {
+                printf("not whitelist.\n");
                 buffer_ptr += data_size;
                 continue;
             }
             if (atomic_exchange (&target_ninst->state, NINST_COMPLETED) == NINST_COMPLETED) 
             {
+                printf("already complete.\n");
                 buffer_ptr += data_size;
                 continue;
             }
@@ -370,7 +393,7 @@ void receive(networking_engine *net_engine)
             atomic_store(&target_ninst->state, NINST_COMPLETED);
             target_ninst->received_time = get_time_secs_offset ();
             #ifdef DEBUG
-            PRTF("\t[Device %d] (N%d L%d I%d %ldB) state: %d\n",
+            printf("\t[Device %d] (N%d L%d I%d %ldB) state: %d\n",
                 net_engine->device_idx,
                 target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->inference_id, 
                 target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float), atomic_load(&target_ninst->state));
@@ -425,6 +448,192 @@ void receive(networking_engine *net_engine)
     }
 }
 
+void transmission_fl(networking_engine *net_engine) 
+{
+    // printf("transmission: start...\n");
+    ninst_t *target_ninst_list[32];
+    unsigned int num_ninsts = 0;
+    int32_t payload_size = 0;
+    char* buffer_ptr = (char*)net_engine->tx_buffer + sizeof(int32_t);
+
+    if(!net_engine->pipelined && net_engine->device_mode == DEV_SERVER)
+    {
+        if(!atomic_load(&net_engine->nasm->completed))
+            return;
+    }
+
+    pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
+    num_ninsts = pop_ninsts_from_net_queue(net_engine->tx_queue, target_ninst_list, 1);
+    pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
+    if (num_ninsts == 0)
+        return;
+    
+    double time_sent = get_time_secs_offset();
+    for (int i = 0; i < num_ninsts; i++)
+    {
+        ninst_t* target_ninst = target_ninst_list[i];
+        unsigned int path_idx = pop_path_idx_from_path_queue(net_engine);
+        *(unsigned int*)buffer_ptr = path_idx;
+        buffer_ptr += sizeof(unsigned int);
+        *(unsigned int*)buffer_ptr = target_ninst_list[i]->ninst_idx;
+        buffer_ptr += sizeof(unsigned int);
+        *(int*)buffer_ptr = target_ninst_list[i]->ldata->nasm->inference_id;
+        buffer_ptr += sizeof(int);
+        unsigned int data_size = target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float);
+        *(unsigned int*)buffer_ptr = data_size;
+        buffer_ptr += sizeof(unsigned int);
+        memcpy(buffer_ptr, target_ninst->network_buf, data_size);
+        free (target_ninst->network_buf);
+        target_ninst->network_buf = NULL;
+        target_ninst->sent_time = time_sent;
+        buffer_ptr += data_size;
+
+        #ifdef DEBUG
+        printf("transmission_fl: (N %d, L %d, P %d).\n",
+            target_ninst->ninst_idx,
+            target_ninst->ldata->layer->layer_idx,
+            path_idx
+        );
+        #endif
+    }
+    payload_size = buffer_ptr - (char*)net_engine->tx_buffer - sizeof(int32_t);
+    *(int32_t*)net_engine->tx_buffer = payload_size;
+    payload_size += sizeof(int32_t);
+
+    int32_t bytes_sent = 0;
+    while (bytes_sent < payload_size)
+    {
+        int ret = write(net_engine->comm_sock
+            , (char*)net_engine->tx_buffer + bytes_sent, payload_size - bytes_sent);
+        if (ret < 0)
+        {
+            ERROR_PRTF ( "Error: send() failed. ret: %d\n", ret);
+            assert(0);
+        }
+        bytes_sent += ret;
+    }
+}
+
+void receive_fl(networking_engine *net_engine) 
+{
+    int32_t payload_size;
+    int ret = read(net_engine->comm_sock, (char*)&payload_size, sizeof(int32_t));
+    if (ret == -1)
+    {
+        return;
+    }
+    else if (ret < 0)
+    {
+        ERROR_PRTF ( "Error: recv() failed. ret: %d\n", ret);
+        assert(0);
+    }
+    else if (ret == 0)
+    {
+        ERROR_PRTF ( "Error: RX Connection closed unexpectedly.\n");
+        assert(0);
+    }
+    else
+    {
+        if (payload_size <= 0)
+        {
+            printf("Networking: RX Command %d received - ", payload_size);
+            if (payload_size == RX_STOP_SIGNAL)
+            {
+                PRTF("RX stop signal received.\n");
+                atomic_store (&net_engine->rx_run, 0);
+                atomic_store (&net_engine->nasm->completed, 1);
+                pthread_mutex_lock (&net_engine->nasm->nasm_mutex);
+                pthread_cond_signal (&net_engine->nasm->nasm_cond);
+                pthread_mutex_unlock (&net_engine->nasm->nasm_mutex);
+                return;
+            }
+            else
+            {
+                PRTF("Unknown command\n");
+                assert(0);
+            }
+        }
+        int32_t bytes_received = 0;
+        while (bytes_received < payload_size)
+        {
+            ret = read(net_engine->comm_sock
+                , (char*)net_engine->rx_buffer + bytes_received, payload_size - bytes_received);
+            if (ret < 0)
+            {
+                ERROR_PRTF ("Error: recv() failed. ret: %d\n", ret);
+                assert(0);
+            }
+            bytes_received += ret;
+        }
+        #ifdef DEBUG
+        // PRTF("Networking: Received %d bytes -", bytes_received);
+        #endif
+        char* buffer_ptr = (char*)net_engine->rx_buffer;
+        while (buffer_ptr < (char*)net_engine->rx_buffer + bytes_received)
+        {
+            unsigned int path_idx = *(unsigned int*)buffer_ptr;
+            buffer_ptr += sizeof(unsigned int);
+            unsigned int ninst_idx = *(unsigned int*)buffer_ptr;
+            buffer_ptr += sizeof(unsigned int);
+            int inference_id = *(int*)buffer_ptr;
+            buffer_ptr += sizeof(int);
+            unsigned int data_size = *(unsigned int*)buffer_ptr;
+            buffer_ptr += sizeof(unsigned int);
+
+            ninst_t* target_ninst = &net_engine->nasm->ninst_arr[ninst_idx];
+            fl_path_t *target_path = net_engine->nasm->path_ptr_arr[path_idx];
+            if (atomic_exchange (&target_ninst->state, NINST_COMPLETED) == NINST_COMPLETED) 
+            {
+                unsigned int path_num_ninsts_completed = atomic_fetch_add(&target_path->path_layers_arr[target_path->edge_final_layer_idx - 1].num_ninsts_completed, 1) + 1;
+
+                copy_buffer_to_ninst_dummy_data (target_ninst, buffer_ptr);
+                #ifdef DEBUG
+                printf("receive_fl: (N %d, L %d, P %d), Dup. Received Ninsts %d/%d\n",
+                    target_ninst->ninst_idx, 
+                    target_ninst->ldata->layer->layer_idx, 
+                    path_idx,
+                    path_num_ninsts_completed,
+                    target_path->path_layers_arr[target_path->edge_final_layer_idx - 1].num_ninsts
+                );    
+                #endif
+                buffer_ptr += data_size;
+                continue;
+            }
+            #ifdef DEBUG
+            if (data_size != target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float))
+            {
+                ERROR_PRTF ( "Error: Received data size %d is not matched with ninst_idx %d\n", data_size, ninst_idx);
+                assert(0);
+            }
+            #endif
+            copy_buffer_to_ninst_data (target_ninst, buffer_ptr);
+            buffer_ptr += data_size;
+            atomic_store(&target_ninst->state, NINST_COMPLETED);
+            target_ninst->received_time = get_time_secs_offset ();
+            
+            unsigned int path_num_ninsts_completed = atomic_fetch_add(&target_path->path_layers_arr[target_path->edge_final_layer_idx - 1].num_ninsts_completed, 1) + 1;
+            #ifdef DEBUG
+            printf("receive_fl: (N %d, L %d, P %d). Received Ninsts %d/%d\n",
+                target_ninst->ninst_idx, 
+                target_ninst->ldata->layer->layer_idx, 
+                path_idx,
+                path_num_ninsts_completed,
+                target_path->path_layers_arr[target_path->edge_final_layer_idx - 1].num_ninsts
+            );
+            #endif
+            
+            if (target_path->path_idx == 0 && path_num_ninsts_completed == target_path->path_layers_arr[target_path->edge_final_layer_idx - 1].num_ninsts) {
+                #ifdef DEBUG
+                printf("PATH %d READY!\n", path_idx);
+                #endif
+                fl_push_path_ninsts_server(net_engine->rpool, target_path);
+            }
+            
+            
+        }
+    }
+}
+
 void net_queue_reset (networking_queue_t *networking_queue)
 {
     unsigned int queue_idx = networking_queue->idx_start;
@@ -460,15 +669,23 @@ void net_engine_run (networking_engine *net_engine)
         ERROR_PRTF ("ERROR: net_engine_run: net_engine is NULL\n");
         return;
     }
-    unsigned int state = atomic_exchange (&net_engine->rx_run, 1);
+    unsigned int state = atomic_load (&net_engine->rx_run);
+    while (state == -1)
+        state = atomic_load (&net_engine->rx_run);
     if (state != 1)
     {
+        pthread_mutex_lock (&net_engine->rx_thread_mutex);
+        atomic_store (&net_engine->rx_run, 1);
         pthread_cond_signal (&net_engine->rx_thread_cond);
         pthread_mutex_unlock (&net_engine->rx_thread_mutex);
     }
-    state = atomic_exchange (&net_engine->tx_run, 1);
+    state = atomic_load (&net_engine->tx_run);
+    while (state == -1)
+        state = atomic_load (&net_engine->tx_run);
     if (state != 1)
     {
+        pthread_mutex_lock (&net_engine->tx_thread_mutex);
+        atomic_store (&net_engine->tx_run, 1);
         pthread_cond_signal (&net_engine->tx_thread_cond);
         pthread_mutex_unlock (&net_engine->tx_thread_mutex);
     }
@@ -516,6 +733,8 @@ void net_engine_stop (networking_engine* net_engine)
     #ifdef DEBUG
     PRTF("Networking: Network engine stopped.\n");
     #endif
+    pthread_mutex_unlock (&net_engine->rx_thread_mutex);
+    pthread_mutex_unlock (&net_engine->tx_thread_mutex);
 }
 
 void net_engine_destroy (networking_engine* net_engine)
@@ -533,6 +752,8 @@ void net_engine_destroy (networking_engine* net_engine)
     atomic_store (&net_engine->rx_kill, 1);
     atomic_store (&net_engine->tx_run, 1);
     atomic_store (&net_engine->rx_run, 1);
+    pthread_mutex_lock(&net_engine->tx_thread_mutex);
+    pthread_mutex_lock(&net_engine->rx_thread_mutex);
     pthread_cond_signal (&net_engine->tx_thread_cond);
     pthread_cond_signal (&net_engine->rx_thread_cond);
     pthread_mutex_unlock (&net_engine->tx_thread_mutex);
@@ -738,6 +959,16 @@ void push_ninsts_to_net_queue (networking_queue_t *networking_queue, ninst_t **n
     networking_queue->num_stored += num_ninsts;
 }
 
+void push_path_idx_to_path_queue (networking_engine *net_engine, unsigned int path_idx) {
+    unsigned int idx_to_push = atomic_fetch_add(&net_engine->fl_path_queue_start, 1);
+    net_engine->fl_path_idx_queue[idx_to_push] = path_idx;
+}
+
+unsigned int pop_path_idx_from_path_queue (networking_engine *net_engine) {
+    unsigned int idx_to_pop = atomic_fetch_add(&net_engine->fl_path_queue_end, 1);
+    return net_engine->fl_path_idx_queue[idx_to_pop];
+}
+
 void push_ninsts_to_net_queue_front (networking_queue_t *networking_queue, ninst_t **ninst_ptr_list, unsigned int num_ninsts)
 {
     #ifdef DEBUG
@@ -877,3 +1108,6 @@ void net_engine_add_input_rpool_reverse (networking_engine *net_engine, nasm_t* 
     aspen_free (input_data); 
 }
 
+void net_engine_set_operating_mode(networking_engine *net_engine, int operating_mode) {
+    net_engine->operating_mode = operating_mode;
+}

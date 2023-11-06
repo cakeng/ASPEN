@@ -56,8 +56,36 @@ rpool_t *rpool_init (int gpu_idx)
     rpool_t *rpool = calloc (1, sizeof(rpool_t));
     rpool->num_stored = 0;
     rpool->ref_dses = 0;
+    rpool->needed_groups = 1;
     rpool->num_groups = 0;
     rpool->queue_group_weight_sum = 0;
+    rpool->is_core_exclusive = 0;
+    bzero (rpool->queue_group_weight_arr, sizeof(float)*MAX_QUEUE_GROUPS);
+    rpool_init_queue (&rpool->default_queue);
+    if (gpu_idx < 0)
+        rpool->gpu_idx = -1;
+    else
+        rpool->gpu_idx = gpu_idx;
+    // unsigned int num_queues = rpool->ref_dses * NUM_LAYERQUEUE_PER_DSE * 100 *  NUM_QUEUE_PER_LAYER;
+    // if (num_queues < 1)
+    //     num_queues = 1;
+    // rpool_add_queue_group (rpool, "default group", num_queues, NULL, NULL);
+    return rpool;
+}
+
+rpool_t *rpool_init_multigroup (int gpu_idx, int needed_groups) {
+    if (gpu_idx >= 0 && gpu_idx >= aspen_num_gpus)
+    {
+        ERROR_PRTF ("ERROR: rpool_init: gpu_idx %d is out of range... Falling back to CPU\n", gpu_idx);
+        gpu_idx = -1;
+    }
+    rpool_t *rpool = calloc (1, sizeof(rpool_t));
+    rpool->num_stored = 0;
+    rpool->ref_dses = 0;
+    rpool->needed_groups = needed_groups;
+    rpool->num_groups = 0;
+    rpool->queue_group_weight_sum = 0;
+    // rpool->is_core_exclusive = 1;
     bzero (rpool->queue_group_weight_arr, sizeof(float)*MAX_QUEUE_GROUPS);
     rpool_init_queue (&rpool->default_queue);
     if (gpu_idx < 0)
@@ -212,9 +240,11 @@ void rpool_add_nasm_raw_input (rpool_t *rpool, nasm_t* nasm, void* input_data)
     if (rpool->num_groups == 0)
     {
         unsigned int num_queues = rpool->ref_dses * NUM_LAYERQUEUE_PER_DSE * 150 *  NUM_QUEUE_PER_LAYER;
-        if (num_queues < 1)
-            num_queues = 1;
-        rpool_add_queue_group (rpool, "default", num_queues, NULL, NULL);
+        for (int i = 0; i < rpool->needed_groups; i++) {
+            char groupinfo[16] = {0};
+            sprintf(groupinfo, "core%d", i);
+            rpool_add_queue_group (rpool, groupinfo, num_queues, NULL, NULL);
+        }
     }
     push_first_layer_to_rpool (rpool, nasm, input_data);
 }
@@ -681,6 +711,43 @@ rpool_queue_t *get_queue_for_fetching (rpool_t *rpool, void **input_cond, unsign
     }
     return NULL;
 }
+
+rpool_queue_t *get_queue_for_fetching_from_group (rpool_t *rpool, void **input_cond, unsigned int dse_idx)
+{
+    #ifdef DEBUG
+    if (rpool == NULL)
+    {
+        ERROR_PRTF ("ERROR: get_queue_for_fetching: rpool is NULL.\n");
+        return NULL;
+    }
+    #endif
+    
+    rpool_queue_group_t *rpool_queue_group = &rpool->queue_group_arr[dse_idx];
+    
+    unsigned int num_queues = atomic_load (&rpool_queue_group->num_queues);
+    unsigned int num_des = rpool->ref_dses > 0 ? rpool->ref_dses : 1;
+    unsigned int queue_idx = num_queues * dse_idx / num_des;
+    if (queue_idx >= num_queues)
+        queue_idx = queue_idx % num_queues;
+    for (int i = 0; i < num_queues; i++)
+    {
+        rpool_queue_t *rpool_queue = &rpool_queue_group->queue_arr[queue_idx];
+        // printf ("queue %d: num_stored: %d\n", i, rpool_queue->num_stored);
+        if (rpool_queue->num_stored > 0)
+        {
+            // if (atomic_exchange (&rpool_queue->occupied, 1) == 0)
+            if (pthread_mutex_trylock (&rpool_queue->occupied_mutex) == 0)
+            {
+                return rpool_queue;
+            }
+        }
+        queue_idx++;
+        if (queue_idx == num_queues)
+            queue_idx = 0;
+    }
+    return NULL;
+}
+
 rpool_queue_t *get_queue_for_storing (rpool_t *rpool, unsigned int queue_val, void **input_cond)
 {
     #ifdef DEBUG
@@ -715,6 +782,42 @@ rpool_queue_t *get_queue_for_storing (rpool_t *rpool, unsigned int queue_val, vo
     //     pthread_mutex_lock (&rpool->default_queue.occupied_mutex);
     //     return &rpool->default_queue;
     // }
+    rpool_queue_t *rpool_queue = NULL;
+    unsigned int num_queues = atomic_load (&rpool_queue_group->num_queues);
+    #ifdef DEBUG
+    if (num_queues == 0)
+    {
+        ERROR_PRTF ("ERROR: get_queue_for_storing: num_queues is 0.\n");
+        return NULL;
+    }
+    #endif
+    unsigned int queue_idx = queue_val % num_queues;
+    while (rpool_queue == NULL)
+    {
+        // if (atomic_exchange (&rpool_queue_group->queue_arr[queue_idx].occupied, 1) == 0)
+        if (pthread_mutex_trylock (&rpool_queue_group->queue_arr[queue_idx].occupied_mutex) == 0)
+            rpool_queue = &rpool_queue_group->queue_arr[queue_idx];
+        else
+        {
+            queue_idx++;
+            if (queue_idx == num_queues)
+                queue_idx = 0;
+        }
+    }
+    return rpool_queue;
+}
+
+rpool_queue_t *get_queue_for_storing_from_group (rpool_t *rpool, unsigned int queue_val, void **input_cond, int dse_idx)
+{
+    #ifdef DEBUG
+    if (rpool == NULL)
+    {
+        ERROR_PRTF ("ERROR: get_queue_for_storing: rpool is NULL.\n");
+        return NULL;
+    }
+    #endif
+    rpool_queue_group_t *rpool_queue_group = &rpool->queue_group_arr[dse_idx];
+    
     rpool_queue_t *rpool_queue = NULL;
     unsigned int num_queues = atomic_load (&rpool_queue_group->num_queues);
     #ifdef DEBUG
@@ -793,6 +896,33 @@ unsigned int rpool_fetch_ninsts_enabled (rpool_t *rpool, ninst_t **ninst_ptr_lis
     return num_ninsts;
 }
 
+unsigned int rpool_fetch_ninsts_from_group (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int max_ninst_to_fetch, unsigned int dse_idx)
+{
+    #ifdef DEBUG
+    if (rpool == NULL)
+    {
+        ERROR_PRTF ("ERROR: rpool_fetch_ninsts: rpool is NULL.\n");
+        return 0;
+    }
+    if (ninst_ptr_list == NULL)
+    {
+        ERROR_PRTF ("ERROR: rpool_fetch_ninsts: ninst_ptr_list is NULL.\n");
+        return 0;
+    }
+    #endif
+    if (max_ninst_to_fetch == 0)
+        return 0;
+    rpool_queue_t *rpool_queue = NULL;
+    rpool_queue = get_queue_for_fetching_from_group (rpool, NULL, dse_idx);
+    if (rpool_queue == NULL)
+        return 0;
+    unsigned int num_ninsts = pop_ninsts_from_queue (rpool_queue, ninst_ptr_list, max_ninst_to_fetch);
+    // atomic_store (&rpool_queue->occupied, 0);
+    pthread_mutex_unlock (&rpool_queue->occupied_mutex);
+    atomic_fetch_sub(&rpool->num_stored, num_ninsts);
+    return num_ninsts;
+}
+
 void rpool_push_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int num_ninsts, unsigned int dse_idx)
 {
     #ifdef DEBUG
@@ -846,6 +976,106 @@ void rpool_push_ninsts (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int n
         // atomic_store (&rpool_queue->occupied, 0);
         pthread_mutex_unlock (&rpool_queue->occupied_mutex);
     }
+    atomic_fetch_add(&rpool->num_stored, num_ninsts);
+}
+
+void rpool_push_ninsts_to_group (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int num_ninsts, unsigned int dse_idx)
+{
+    #ifdef DEBUG
+    if (rpool == NULL)
+    {
+        ERROR_PRTF ("ERROR: rpool_push_ninsts: rpool is NULL.\n");
+        return;
+    }
+    if (ninst_ptr_list == NULL)
+    {
+        ERROR_PRTF ("ERROR: rpool_push_ninsts: ninst_ptr_list is NULL.\n");
+        return;
+    }
+    #endif
+    if (num_ninsts == 0)
+        return;
+    if (dse_idx == (unsigned int)-1) {
+        dse_idx = 0;
+    }
+    rpool_queue_t *rpool_queue = NULL;
+    unsigned int i = 0;
+    if (num_ninsts%NINST_PUSH_BATCH_SIZE != 0)
+    {
+        ninst_t *ninst = ninst_ptr_list[i];
+        aspen_layer_t *layer = ninst->ldata->layer;
+        unsigned int queue_val = (dse_idx * layer->dnn->num_layers * NUM_LAYERQUEUE_PER_DSE + (layer->layer_idx - 1)) * NUM_QUEUE_PER_LAYER
+            + (ninst->ninst_idx % 8);
+        if (queue_val < 0)
+            queue_val = 0;
+        void* input_conds[NUM_RPOOL_CONDS] = {[RPOOL_DNN] = (void*)layer->dnn,
+            [RPOOL_LAYER_TYPE] = (void*)layer->type, [RPOOL_LAYER_IDX] = (void*)(NULL + layer->layer_idx),
+                [RPOOL_NASM] = (void*)ninst->ldata->nasm, [RPOOL_DSE] = NULL};
+        
+        rpool_queue = get_queue_for_storing_from_group (rpool, queue_val, input_conds, dse_idx);
+        
+        push_ninsts_to_queue (rpool_queue, &ninst_ptr_list[i], num_ninsts%NINST_PUSH_BATCH_SIZE);
+        // atomic_store (&rpool_queue->occupied, 0);
+        pthread_mutex_unlock (&rpool_queue->occupied_mutex);
+        i += num_ninsts%NINST_PUSH_BATCH_SIZE;
+    }
+    for (; i < num_ninsts; i += NINST_PUSH_BATCH_SIZE)
+    {
+        ninst_t *ninst = ninst_ptr_list[i];
+        aspen_layer_t *layer = ninst->ldata->layer;
+        unsigned int queue_val = (dse_idx * layer->dnn->num_layers * NUM_LAYERQUEUE_PER_DSE + (layer->layer_idx - 1)) * NUM_QUEUE_PER_LAYER
+            + (ninst->ninst_idx % 8);
+        if (queue_val < 0)
+            queue_val = 0;
+        void* input_conds[NUM_RPOOL_CONDS] = {[RPOOL_DNN] = (void*)layer->dnn,
+            [RPOOL_LAYER_TYPE] = (void*)layer->type, [RPOOL_LAYER_IDX] = (void*)(NULL + layer->layer_idx),
+                [RPOOL_NASM] = (void*)ninst->ldata->nasm, [RPOOL_DSE] = NULL};
+        rpool_queue = get_queue_for_storing_from_group (rpool, queue_val, input_conds, dse_idx);
+        push_ninsts_to_queue (rpool_queue, &ninst_ptr_list[i], NINST_PUSH_BATCH_SIZE);
+        // atomic_store (&rpool_queue->occupied, 0);
+        pthread_mutex_unlock (&rpool_queue->occupied_mutex);
+    }
+    atomic_fetch_add(&rpool->num_stored, num_ninsts);
+}
+
+void rpool_push_ninsts_to_allowed_group (rpool_t *rpool, ninst_t **ninst_ptr_list, unsigned int num_ninsts)
+{
+    #ifdef DEBUG
+    if (rpool == NULL)
+    {
+        ERROR_PRTF ("ERROR: rpool_push_ninsts: rpool is NULL.\n");
+        return;
+    }
+    if (ninst_ptr_list == NULL)
+    {
+        ERROR_PRTF ("ERROR: rpool_push_ninsts: ninst_ptr_list is NULL.\n");
+        return;
+    }
+    #endif
+    if (num_ninsts == 0)
+        return;
+    rpool_queue_t *rpool_queue = NULL;
+    unsigned int i = 0;
+
+    for (; i < num_ninsts; i++) {
+        ninst_t *ninst = ninst_ptr_list[i];
+        aspen_layer_t *layer = ninst->ldata->layer;
+        int dse_idx = get_allowed_core_idx(ninst);
+        unsigned int queue_val = (dse_idx * layer->dnn->num_layers * NUM_LAYERQUEUE_PER_DSE + (layer->layer_idx - 1)) * NUM_QUEUE_PER_LAYER
+            + (ninst->ninst_idx % 8);
+        if (queue_val < 0)
+            queue_val = 0;
+        void* input_conds[NUM_RPOOL_CONDS] = {[RPOOL_DNN] = (void*)layer->dnn,
+            [RPOOL_LAYER_TYPE] = (void*)layer->type, [RPOOL_LAYER_IDX] = (void*)(NULL + layer->layer_idx),
+                [RPOOL_NASM] = (void*)ninst->ldata->nasm, [RPOOL_DSE] = NULL};
+        
+        rpool_queue = get_queue_for_storing_from_group (rpool, queue_val, input_conds, dse_idx);
+        
+        push_ninsts_to_queue (rpool_queue, &ninst_ptr_list[i], 1);
+        // atomic_store (&rpool_queue->occupied, 0);
+        pthread_mutex_unlock (&rpool_queue->occupied_mutex);
+    }
+
     atomic_fetch_add(&rpool->num_stored, num_ninsts);
 }
 

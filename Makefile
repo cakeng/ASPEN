@@ -1,4 +1,4 @@
-TARGET=main
+TARGET=main_fl
 # SUBTARGET=main_scheduling
 SUBTARGET=main_mu
 ALIB=libaspen.a
@@ -9,7 +9,7 @@ NEON=0
 GPU=0
 ANDROID=0
 DEBUG=0
-SUPPRESS_OUTPUT=1
+SUPPRESS_OUTPUT=0
 
 CC=gcc
 NVCC=nvcc
