@@ -1,4 +1,4 @@
-TARGET=main_local_fl
+TARGET=main_fl
 # SUBTARGET=main_scheduling
 SUBTARGET=main_mu
 ALIB=libaspen.a
