@@ -10,15 +10,19 @@
 
 #define DSE_NINST_CACHE_BALLANCE 1
 #define DSE_NINST_CACHE_DIFF 0
-#define DSE_SCRATCHPAD_SIZE 1024*1024*128 // 128 MiB
+#define DSE_SCRATCHPAD_SIZE 1024*1024*4 // 4 MiB
+#define DSE_PROFILE_RUN_NUM 100
 
 struct dse_group_t
 {
     unsigned int num_dses;
     dse_t *dse_arr;
 
+    aspen_peer_t *my_peer_data;
+
     size_t num_profiles;
-    dse_profile_t *profile_arr;
+    size_t max_num_profiles;
+    runtime_profile_t **profile_arr;
 };
 
 struct dse_t
@@ -35,7 +39,7 @@ struct dse_t
     rpool_t *rpool;
 };
 
-struct dse_profile_t
+struct runtime_profile_t
 {
     HASH_t ninst_hash;
     size_t runtime_usec;
@@ -47,8 +51,11 @@ void dse_destroy (dse_t *dse);
 void dse_run (dse_t *dse);
 void dse_stop (dse_t *dse);
 
+void dse_execute (dse_t *dse, ninst_t *ninst);
 void dse_schedule (dse_t *dse);
-size_t dse_get_ninst_runtime_usec (dse_t *dse, ninst_t *ninst);
+
+runtime_profile_t *dse_profile_init (HASH_t ninst_hash, size_t runtime_usec);
+void dse_profile_destroy (runtime_profile_t *dse_profile);
 
 void update_children_to_cache_but_prioritize_dse_target (rpool_queue_t *cache, ninst_t *ninst, ninst_t **dse_target);
 void update_children_to_cache (rpool_queue_t *cache, ninst_t *ninst);

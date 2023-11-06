@@ -3,9 +3,25 @@
 
 #include "aspen.h"
 
+#define PEER_FLAG_SEND 0b01
+#define PEER_FLAG_COMPUTE 0b10
+
+struct aspen_peer_t
+{
+    pthread_mutex_t peer_mutex;
+    HASH_t peer_hash;
+    char ip[MAX_STRING_LEN];
+    int listen_port;
+    int sock;  
+    int isUDP;
+    ssize_t latency_usec;
+    ssize_t bandwidth_bps;
+};
+
 struct nasm_t
 {
     HASH_t nasm_hash;
+    HASH_t type_hash;
     aspen_dnn_t *dnn;
     unsigned int batch_size;
     unsigned int tr_seq_len;
@@ -22,6 +38,9 @@ struct nasm_t
     void *data;
     pthread_mutex_t nasm_mutex;
     pthread_cond_t nasm_cond;
+
+    int num_peers;
+    aspen_peer_t *peer_map;
 };
 
 struct nasm_ldata_t
@@ -63,6 +82,8 @@ struct ninst_t
     _Atomic unsigned int num_child_ninsts;
 
     unsigned int num_input_pos;
+    
+    char *peer_flag; // First bit : Compute, Second bit: Send
 };
 
 nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size,  unsigned int min_ninst_per_ldata, unsigned int transformer_seq_len);
@@ -77,6 +98,16 @@ void init_ninst (nasm_ldata_t *ldata, ninst_t *ninst_ptr, int ninst_idx);
 HASH_t get_ninst_hash (ninst_t *ninst);
 void destroy_ninst (ninst_t *ninst);
 
+aspen_peer_t *init_peer ();
+aspen_peer_t *copy_peer (aspen_peer_t *new_peer, aspen_peer_t *peer);
+void set_ninst_compute_peer_idx (ninst_t *ninst, int peer_idx);
+void set_ninst_send_peer_idx (ninst_t *ninst, int peer_idx);
+int check_ninst_compute_peer_idx (ninst_t *ninst, int peer_idx);
+int check_ninst_send_peer_idx (ninst_t *ninst, int peer_idx);
+int get_peer_idx (nasm_t *nasm, HASH_t peer_hash);
+aspen_peer_t *get_peer (nasm_t *nasm, int peer_idx);
+
+void copy_ninst (ninst_t *new_ninst, ninst_t *ninst);
 void copy_ldata_out_mat_to_buffer (nasm_ldata_t *ldata, void *buffer);
 void copy_buffer_to_ldata_out_mat (nasm_ldata_t *ldata, void *buffer);
 void copy_ninst_data_to_buffer (ninst_t *ninst, void *buffer);

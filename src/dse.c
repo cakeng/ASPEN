@@ -17,25 +17,8 @@ void *dse_thread_runtime (void* thread_info)
     return NULL;
 }
 
-void dse_schedule (dse_t *dse)
+void dse_execute (dse_t *dse, ninst_t *ninst)
 {
-    if (dse->target == NULL && (dse->run != 0 && dse->kill == 0))
-    {
-        rpool_fetch_ninsts (dse->rpool, &dse->target, 1, 0);
-    }
-    if (dse->target == NULL)
-        return;
-
-    // Execute.
-    ninst_t *ninst = dse->target;
-    dse->target = NULL;
-    #ifdef DEBUG 
-    if (ninst->state != NINST_READY)
-    {
-        ERROR_PRTF ("Error: ninst->state != NINST_READY in dse_thread_runtime()");
-        assert (0);
-    }
-    #endif
     switch (ninst->ldata->layer->type)
     {
         case CONV_LAYER:
@@ -77,6 +60,28 @@ void dse_schedule (dse_t *dse)
         default:
             break;
     }
+}
+
+void dse_schedule (dse_t *dse)
+{
+    if (dse->target == NULL && (dse->run != 0 && dse->kill == 0))
+    {
+        rpool_fetch_ninsts (dse->rpool, &dse->target, 1, 0);
+    }
+    if (dse->target == NULL)
+        return;
+
+    // Execute.
+    ninst_t *ninst = dse->target;
+    dse->target = NULL;
+    #ifdef DEBUG 
+    if (ninst->state != NINST_READY)
+    {
+        ERROR_PRTF ("Error: ninst->state != NINST_READY in dse_thread_runtime()");
+        assert (0);
+    }
+    #endif
+    dse_execute (dse, ninst);
     ninst->state = NINST_COMPLETED;
     unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
     if (num_ninst_completed == ninst->ldata->num_ninst - 1)
@@ -107,6 +112,183 @@ void dse_schedule (dse_t *dse)
     update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
 }
 
+runtime_profile_t *dse_profile_init (HASH_t ninst_hash, size_t runtime_usec)
+{
+    runtime_profile_t *profile = (runtime_profile_t *) calloc (1, sizeof (runtime_profile_t));
+    profile->ninst_hash = ninst_hash;
+    profile->runtime_usec = runtime_usec;
+    return profile;
+}
+
+void dse_profile_destroy (runtime_profile_t *dse_profile)
+{
+    if (dse_profile == NULL)
+        return;
+    free (dse_profile);
+}
+
+void dse_group_add_profile (dse_group_t *dse_group, ninst_t *ninst)
+{
+    if (dse_group == NULL)
+    {
+        ERROR_PRTF ("ERROR: dse_group_add_profile: dse_group is NULL");
+        assert (0);
+    }
+    HASH_t ninst_hash = ninst->type_hash;
+    ssize_t runtime_usec = dse_group_get_profile (dse_group, ninst);
+    if (runtime_usec != -1)
+        return;
+
+    // Allocate memory
+    int free_flag = 0;
+    if (ninst->ldata->out_mat == NULL)
+    {
+        free_flag = 1;
+        alloc_ldata_out_mat (ninst->ldata);
+    }
+    int *free_flag_parent= calloc (ninst->num_parent_ninsts, sizeof (int));
+    for (int i = 0; i < ninst->num_parent_ninsts; i++)
+    {
+        ninst_t *parent_ninst = ninst->ldata->nasm->ninst_arr + ninst->parent_ninst_idx_arr[i];
+        if (parent_ninst->ldata->out_mat == NULL)
+        {
+            free_flag_parent[i] = 1;
+            alloc_ldata_out_mat (parent_ninst->ldata);
+        }
+    }
+    
+    // Execute
+    size_t start = get_elapsed_usec ();
+    for (int i = 0; i < dse_group->num_dses; i++)
+        for (int j = 0; j < DSE_PROFILE_RUN_NUM; j++)
+            dse_execute (&dse_group->dse_arr[i], ninst);
+    runtime_usec = get_elapsed_usec () - start;
+    runtime_usec /= DSE_PROFILE_RUN_NUM;
+    runtime_usec /= dse_group->num_dses;
+
+    // Add profile
+    runtime_profile_t *profile = dse_profile_init (ninst_hash, runtime_usec);
+    dse_group->profile_arr[dse_group->num_profiles++] = profile;
+    if (dse_group->num_profiles == dse_group->max_num_profiles)
+    {
+        dse_group->max_num_profiles *= 2;
+        dse_group->profile_arr = (runtime_profile_t **) realloc (dse_group->profile_arr, dse_group->max_num_profiles * sizeof (runtime_profile_t *));
+    }
+
+    // Free memory
+    if (free_flag)
+        free_ldata_out_mat (ninst->ldata);
+    for (int i = 0; i < ninst->num_parent_ninsts; i++)
+    {
+        ninst_t *parent_ninst = ninst->ldata->nasm->ninst_arr + ninst->parent_ninst_idx_arr[i];
+        if (free_flag_parent[i])
+            free_ldata_out_mat (parent_ninst->ldata);
+    }
+    printf ("Profiled Ninst %016lx: Runtime %lu usecs.\n", ninst_hash, runtime_usec);
+    print_ninst_info (ninst, 0);
+
+}
+
+ssize_t dse_group_get_profile (dse_group_t *dse_group, ninst_t *ninst)
+{
+    if (dse_group == NULL)
+    {
+        ERROR_PRTF ("ERROR: dse_group_get_ninst_time: dse_group is NULL");
+        assert (0);
+    }
+    HASH_t ninst_hash = ninst->type_hash;
+    for (int i = 0; i < dse_group->num_profiles; i++)
+    {
+        if (dse_group->profile_arr[i]->ninst_hash == ninst_hash)
+            return dse_group->profile_arr[i]->runtime_usec;
+    }
+    return -1;
+}
+
+void dse_group_profile_nasm (dse_group_t *dse_group, nasm_t *nasm)
+{
+    if (dse_group == NULL)
+    {
+        ERROR_PRTF ("ERROR: dse_group_profile_nasm: dse_group is NULL");
+        assert (0);
+    }
+    if (nasm == NULL)
+    {
+        ERROR_PRTF ("ERROR: dse_group_profile_nasm: nasm is NULL");
+        assert (0);
+    }
+    for (int i = 0; i < nasm->num_ninst; i++)
+    {
+        ninst_t *ninst = &nasm->ninst_arr[i];
+        dse_group_add_profile (dse_group, ninst);
+    }
+}
+
+void dse_group_load_profile_data (dse_group_t *dse_group, char *filename)
+{
+    if (dse_group == NULL)
+    {
+        ERROR_PRTF ("ERROR: dse_group_load_profile_data: dse_group is NULL");
+        assert (0);
+    }
+    if (filename == NULL)
+    {
+        ERROR_PRTF ("ERROR: dse_group_load_profile_data: filename is NULL");
+        assert (0);
+    }
+    FILE *fp = fopen (filename, "r");
+    if (fp == NULL)
+    {
+        ERRNO_PRTF ("ERROR: dse_group_load_profile_data: Unable to open file %s", filename);
+        assert (0);
+    }
+    while (!feof (fp))
+    {
+        HASH_t ninst_hash;
+        size_t runtime_usec;
+        int ret = fscanf (fp, "%016lx, %lu\n", &ninst_hash, &runtime_usec);
+        if (ret != 2)
+        {
+            ERRNO_PRTF ("ERROR: dse_group_load_profile_data: fscanf failed");
+            assert (0);
+        }
+        runtime_profile_t *profile = dse_profile_init (ninst_hash, runtime_usec);
+        dse_group->profile_arr[dse_group->num_profiles++] = profile;
+        if (dse_group->num_profiles == dse_group->max_num_profiles)
+        {
+            dse_group->max_num_profiles *= 2;
+            dse_group->profile_arr = (runtime_profile_t **) realloc (dse_group->profile_arr, dse_group->max_num_profiles * sizeof (runtime_profile_t *));
+        }
+    }
+    fclose (fp);
+}
+
+void dse_group_save_profile_data (dse_group_t *dse_group, char *filename)
+{
+    if (dse_group == NULL)
+    {
+        ERROR_PRTF ("ERROR: dse_group_save_profile_data: dse_group is NULL");
+        assert (0);
+    }
+    if (filename == NULL)
+    {
+        ERROR_PRTF ("ERROR: dse_group_load_profile_data: filename is NULL");
+        assert (0);
+    }
+    FILE *fp = fopen (filename, "w");
+    if (fp == NULL)
+    {
+        ERRNO_PRTF ("ERROR: dse_group_save_profile_data: Unable to open file %s", filename);
+        assert (0);
+    }
+    for (int i = 0; i < dse_group->num_profiles; i++)
+    {
+        runtime_profile_t *profile = dse_group->profile_arr[i];
+        fprintf (fp, "%016lx, %lu\n", profile->ninst_hash, profile->runtime_usec);
+    }
+    fclose (fp);
+}
+
 dse_group_t *dse_group_init (unsigned int num_dse)
 {
     dse_group_t *dse_group = (dse_group_t *) calloc (1, sizeof (dse_group_t));
@@ -114,6 +296,9 @@ dse_group_t *dse_group_init (unsigned int num_dse)
     dse_group->dse_arr = (dse_t *) calloc (num_dse, sizeof (dse_t));
     for (int i = 0; i < num_dse; i++)
         dse_init (&dse_group->dse_arr[i]);
+    dse_group->max_num_profiles = 32;
+    dse_group->num_profiles = 0;
+    dse_group->profile_arr = (runtime_profile_t **) calloc (dse_group->max_num_profiles, sizeof (runtime_profile_t *));
     return dse_group;
 }
 
@@ -147,6 +332,9 @@ void dse_group_destroy (dse_group_t *dse_group)
         dse_destroy (&dse_group->dse_arr[i]);
     }
     free (dse_group->dse_arr);
+    for (int i = 0 ; i < dse_group->max_num_profiles; i++)
+        dse_profile_destroy (dse_group->profile_arr[i]);
+    free (dse_group->profile_arr);
     free (dse_group);
 }
 
@@ -160,6 +348,11 @@ void dse_init (dse_t *dse)
     dse->thread_id = atomic_fetch_add (&dse_thread_id_counter, 1);
     dse->rpool = NULL;
     dse->scratchpad = aspen_calloc (DSE_SCRATCHPAD_SIZE, 1);
+    if (dse->scratchpad == NULL)
+    {
+        ERRNO_PRTF ("ERROR: dse_init: Unable to allocate scratchpad");
+        assert (0);
+    }
     dse->thread_mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
     dse->thread_cond = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
     dse->ninst_cache = calloc (1, sizeof (rpool_queue_t));

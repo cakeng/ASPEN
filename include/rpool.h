@@ -4,6 +4,7 @@
 #include "aspen.h"
 #include "nasm.h"
 #include "dse.h"
+#include "networking.h"
 
 #define INIT_QUEUE_SIZE 1024
 #define MAX_QUEUE_GROUPS 128
@@ -41,6 +42,10 @@ struct rpool_t
     float queue_group_weight_sum;
     rpool_queue_t default_queue;
     _Atomic unsigned int ref_dses;
+
+    nasm_t **nasm_arr;
+    unsigned int num_nasms;
+    unsigned int max_num_nasms;
 };
 
 void rpool_init_queue (rpool_queue_t *rpool_queue);

@@ -332,7 +332,7 @@
 //     return eft_edge;
 // }
 
-// float get_eft_server(dynamic_scheduler_t* dynamic_scheduler, networking_engine* net_engine, int device_idx, int net_tx_queue_bytes)
+// float get_eft_server(dynamic_scheduler_t* dynamic_scheduler, networking_engine_t* net_engine, int device_idx, int net_tx_queue_bytes)
 // {
 //     unsigned int net_tx_queue_num_stored = atomic_load(&net_engine->tx_queue->num_stored);
 //     float eft_edge = dynamic_scheduler->rtt[device_idx] + // RTT

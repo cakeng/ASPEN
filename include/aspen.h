@@ -82,6 +82,7 @@ typedef struct aspen_dnn_t aspen_dnn_t;
 typedef struct aspen_layer_t aspen_layer_t;
 typedef struct aspen_tensor_t aspen_tensor_t;
 
+typedef struct aspen_peer_t aspen_peer_t;
 typedef struct ninst_t ninst_t; // Ninst - ASPEN Graph Nodes
 typedef struct nasm_t nasm_t;   // Nasm - ASPEN Graph
 typedef struct nasm_ldata_t nasm_ldata_t; // Dynamic layer data
@@ -90,9 +91,11 @@ typedef struct rpool_t rpool_t; // Ready pool
 typedef struct rpool_queue_t rpool_queue_t;
 typedef struct rpool_queue_group_t rpool_queue_group_t;
 
+typedef struct networking_engine_t networking_engine_t;
+
 typedef struct dse_t dse_t;     // Distributed scheduling engine
 typedef struct dse_group_t dse_group_t;
-typedef struct dse_profile_t dse_profile_t;
+typedef struct runtime_profile_t runtime_profile_t;
 
 aspen_dnn_t *apu_create_dnn(char *input_path, char *data_path);
 void apu_destroy_dnn(aspen_dnn_t *dnn);
@@ -103,6 +106,7 @@ nasm_t *apu_generate_nasm (aspen_dnn_t *dnn, unsigned int batch_size, unsigned i
 nasm_t *apu_generate_transformer_nasm (aspen_dnn_t *dnn, unsigned int batch_size, unsigned int seq_num, unsigned int num_iter);
 nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int min_ninst_per_ldata, unsigned int batch_size);
 nasm_t *apu_create_transformer_nasm(aspen_dnn_t *dnn, unsigned int min_ninst_per_ldata, unsigned int batch_size, unsigned int seq_num);
+nasm_t *apu_copy_nasm (nasm_t *nasm);
 void apu_destroy_nasm(nasm_t *nasm);
 nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn);
 void apu_save_nasm_to_file(nasm_t *nasm, char *filename);
@@ -127,9 +131,14 @@ ssize_t dse_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS
 ssize_t dse_get_nasm_result (nasm_t *nasm, LAYER_PARAMS *order, void** out_ptr);
 void dse_group_load_profile_data (dse_group_t *dse_group, char *filename);
 void dse_group_save_profile_data (dse_group_t *dse_group, char *filename);
+ssize_t dse_group_get_profile (dse_group_t *dse_group, ninst_t *ninst);
+void dse_group_add_profile (dse_group_t *dse_group, ninst_t *ninst);
 void dse_group_profile_nasm (dse_group_t *dse_group, nasm_t *nasm);
 
 void aspen_flush_dynamic_memory();
+
+void connect_aspen_peer_idx (nasm_t *nasm, int peer_idx, char *ip, int port, int isUDP);
+void serve_aspen_peer (HASH_t *nasm_list, int num_nasms, dse_group_t *dse_group, rpool_t *rpool, int port, int isUDP);
 
 void print_aspen_build_info(void);
 void print_dnn_info (aspen_dnn_t *dnn, int print_data);

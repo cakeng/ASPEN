@@ -476,8 +476,11 @@ HASH_t get_ninst_hash (ninst_t *ninst)
     {
         unsigned int operator;
         unsigned int tile_dims[2];
+        unsigned int ldata_dims[2];
     };
-    struct val v = {.operator=ninst->ldata->layer->type, .tile_dims[0]=ninst->tile_dims[0], .tile_dims[1]=ninst->tile_dims[1]};
+    struct val v = {.operator=ninst->ldata->layer->type, 
+    .tile_dims[0]=ninst->tile_dims[0], .tile_dims[1]=ninst->tile_dims[1]
+    , .ldata_dims[0]=ninst->ldata->out_mat_dims[0], .ldata_dims[1]=ninst->ldata->out_mat_dims[1]};
     return get_hash (&v, sizeof(struct val));
 }
 
@@ -489,6 +492,24 @@ void destroy_ninst (ninst_t *ninst)
         free (ninst->parent_ninst_idx_arr);
     if (ninst->child_ninst_arr != NULL)
         free (ninst->child_ninst_arr);
+}
+
+HASH_t get_nasm_type_hash (nasm_t *nasm)
+{
+    struct apu_nasm_type_hash_val
+    {
+        char dnn_name[MAX_STRING_LEN];
+        unsigned int flop_per_ninst;
+        unsigned int batch_size;
+        unsigned int min_ninst_per_ldata;
+        unsigned int transformer_seq_len;
+    };
+    struct apu_nasm_type_hash_val nasm_type_hash_val = 
+        {.flop_per_ninst=nasm->flop_per_ninst, .batch_size=nasm->batch_size,
+            .min_ninst_per_ldata=nasm->min_ninst_per_ldata, .transformer_seq_len=nasm->tr_seq_len};
+    memset (nasm_type_hash_val.dnn_name, 0, MAX_STRING_LEN);
+    strcpy (nasm_type_hash_val.dnn_name, nasm->dnn->name);
+    return get_hash (&nasm_type_hash_val, sizeof(struct apu_nasm_type_hash_val));
 }
 
 nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size,  unsigned int min_ninst_per_ldata, unsigned int transformer_seq_len)
@@ -505,6 +526,7 @@ nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigne
     new_nasm->batch_size = batch_size > 0? batch_size : 1;
     size_t unique_val = getpid() + get_time_usec();
     new_nasm->nasm_hash = get_hash (&unique_val, sizeof (size_t));
+    new_nasm->type_hash = get_nasm_type_hash (new_nasm);
     new_nasm->min_ninst_per_ldata = min_ninst_per_ldata;
     atomic_store (&new_nasm->completed, 0);
     for (int i = 0; i < dnn->num_layers; i++)
@@ -541,6 +563,12 @@ nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigne
     {
         update_ldata_child_list(&new_nasm->ldata_arr[i]);
     }
+
+    pthread_mutex_init (&new_nasm->nasm_mutex, NULL);
+    pthread_cond_init (&new_nasm->nasm_cond, NULL);
+
+    new_nasm->num_peers = 0;
+    new_nasm->peer_map = NULL;
     dnn->ref_nasms++;
     return new_nasm;
 }
@@ -705,7 +733,7 @@ nasm_t *apu_create_nasm(aspen_dnn_t *dnn, unsigned int min_ninst_per_ldata, unsi
             set_child_list (&new_nasm->ldata_arr[i].ninst_arr_start[j]);
         }
     }
-    // Calculat total flops
+    // Calculate total flops
     new_nasm->total_flops = 0;
     for (int i = 0; i < new_nasm->num_ldata; i++)
     {
@@ -729,8 +757,8 @@ nasm_t *apu_create_transformer_nasm
         {
             ninst_find_parent (&new_nasm->ldata_arr[i].ninst_arr_start[j]);
         }
-        PRTF ("APU: Layer %d, parents for %d ninsts found.\n", i, new_nasm->ldata_arr[i].num_ninst);
-
+        PRTF ("\tAPU: Graphing layer %d/%d (%2.2f%%).\r", i+1, new_nasm->num_ldata, ((float)(i+1)/(float)new_nasm->num_ldata*100));
+        fflush (stdout);
     }
     PRTF ("\n");
     for (int i = 0; i < new_nasm->num_ldata; i++)
@@ -740,7 +768,6 @@ nasm_t *apu_create_transformer_nasm
         {
             set_child_list (&new_nasm->ldata_arr[i].ninst_arr_start[j]);
         }
-        PRTF ("Layer %d, children for %d ninsts found.\n", i, new_nasm->ldata_arr[i].num_ninst);
     }
     PRTF ("\n");
     // Calculate total flops
@@ -789,6 +816,171 @@ void set_nasm_to_finished (nasm_t *nasm)
             atomic_store (&ninst->num_parent_ninsts_completed, ninst->num_parent_ninsts);
         }
     }
+}
+aspen_peer_t *init_peer ()
+{
+    aspen_peer_t *peer = calloc (1, sizeof(aspen_peer_t));
+    pthread_mutex_init (&peer->peer_mutex, NULL);
+    peer->peer_hash = 0;
+    memset (peer->ip, 0, MAX_STRING_LEN);
+    peer->listen_port = 0;
+    peer->sock = 0;
+    peer->isUDP = -1;
+    peer->latency_usec = -1;
+    peer->bandwidth_bps = -1;
+    return peer;
+
+}
+aspen_peer_t *copy_peer (aspen_peer_t *new_peer, aspen_peer_t *peer)
+{
+    if (new_peer == NULL || peer == NULL)
+    {
+        ERROR_PRTF ("ERROR: new_peer or peer is NULL.");
+        assert(0);
+    }
+    new_peer->peer_hash = peer->peer_hash;
+    strcpy (new_peer->ip, peer->ip);
+    new_peer->listen_port = peer->listen_port;
+    new_peer->sock = peer->sock;
+    new_peer->isUDP = peer->isUDP;
+    new_peer->latency_usec = peer->latency_usec;
+    new_peer->bandwidth_bps = peer->bandwidth_bps;
+    return new_peer;
+}
+void set_ninst_compute_peer_idx (ninst_t *ninst, int peer_idx)
+{
+    if (ninst == NULL)
+    {
+        ERROR_PRTF ("ERROR: ninst is NULL.");
+        assert(0);
+    }
+    if (peer_idx < 0 || peer_idx >= ninst->ldata->nasm->num_peers)
+    {
+        ERROR_PRTF ("ERROR: peer_idx %d is out of range [0, %d].", peer_idx, ninst->ldata->nasm->num_peers);
+        assert(0);
+    }
+    ninst->peer_flag[peer_idx] |= PEER_FLAG_COMPUTE;
+}
+void set_ninst_send_peer_idx (ninst_t *ninst, int peer_idx)
+{
+    if (ninst == NULL)
+    {
+        ERROR_PRTF ("ERROR: ninst is NULL.");
+        assert(0);
+    }
+    if (peer_idx < 0 || peer_idx >= ninst->ldata->nasm->num_peers)
+    {
+        ERROR_PRTF ("ERROR: peer_idx %d is out of range [0, %d].", peer_idx, ninst->ldata->nasm->num_peers);
+        assert(0);
+    }
+    ninst->peer_flag[peer_idx] |= PEER_FLAG_SEND;
+}
+int check_ninst_compute_peer_idx (ninst_t *ninst, int peer_idx)
+{
+    if (ninst == NULL)
+    {
+        ERROR_PRTF ("ERROR: ninst is NULL.");
+        assert(0);
+    }
+    if (peer_idx < 0 || peer_idx >= ninst->ldata->nasm->num_peers)
+    {
+        ERROR_PRTF ("ERROR: peer_idx %d is out of range [0, %d].", peer_idx, ninst->ldata->nasm->num_peers);
+        assert(0);
+    }
+    return ninst->peer_flag[peer_idx] & PEER_FLAG_COMPUTE;
+
+}
+int check_ninst_send_peer_idx (ninst_t *ninst, int peer_idx)
+{
+    if (ninst == NULL)
+    {
+        ERROR_PRTF ("ERROR: ninst is NULL.");
+        assert(0);
+    }
+    if (peer_idx < 0 || peer_idx >= ninst->ldata->nasm->num_peers)
+    {
+        ERROR_PRTF ("ERROR: peer_idx %d is out of range [0, %d].", peer_idx, ninst->ldata->nasm->num_peers);
+        assert(0);
+    }
+    return ninst->peer_flag[peer_idx] & PEER_FLAG_SEND;
+}
+int get_peer_idx (nasm_t *nasm, HASH_t peer_hash)
+{
+    if (nasm == NULL)
+    {
+        ERROR_PRTF ("ERROR: nasm is NULL.");
+        assert(0);
+    }
+    for (int i = 0; i < nasm->num_peers; i++)
+    {
+        if (nasm->peer_map[i].peer_hash == peer_hash)
+            return i;
+    }
+    return -1;
+}
+aspen_peer_t *get_peer (nasm_t *nasm, int peer_idx)
+{
+    if (nasm == NULL)
+    {
+        ERROR_PRTF ("ERROR: nasm is NULL.");
+        assert(0);
+    }
+    if (peer_idx < 0 || peer_idx >= nasm->num_peers)
+    {
+        ERROR_PRTF ("ERROR: peer_idx %d is out of range [0, %d].", peer_idx, nasm->num_peers);
+        assert(0);
+    }
+    return nasm->peer_map + peer_idx;
+}
+
+
+nasm_t *apu_copy_nasm (nasm_t *nasm)
+{
+    nasm_t *new_nasm = apu_create_nasm_without_finding_ninst_parents 
+        (nasm->dnn, nasm->flop_per_ninst, nasm->batch_size, nasm->min_ninst_per_ldata, nasm->tr_seq_len);
+    if (new_nasm->type_hash != nasm->type_hash)
+    {
+        ERROR_PRTF ("ERROR: new_nasm type hash %016lx is not equal to nasm type hash %016lx.", new_nasm->type_hash, nasm->type_hash);
+        assert(0);
+    }
+    new_nasm->nasm_hash = nasm->nasm_hash;
+    new_nasm->total_flops = nasm->total_flops;
+    new_nasm->num_peers = nasm->num_peers;
+    new_nasm->peer_map = calloc (new_nasm->num_peers, sizeof(HASH_t));
+    for (int i = 0; i < new_nasm->num_peers; i++)
+        copy_peer (new_nasm->peer_map + i, nasm->peer_map + i);
+    for (int i = 0; i < nasm->num_ninst; i++)
+    {
+        copy_ninst (new_nasm->ninst_arr + i, nasm->ninst_arr + i);
+    }
+    return new_nasm;
+}
+
+void copy_ninst (ninst_t *new_ninst, ninst_t *ninst)
+{
+    if (new_ninst == NULL || ninst == NULL)
+    {
+        ERROR_PRTF ("ERROR: new_ninst or ninst is NULL.");
+        assert(0);
+    }
+    if (ninst->type_hash != new_ninst->type_hash)
+    {
+        ERROR_PRTF ("ERROR: ninst type hash %016lx is not equal to new_ninst type hash %016lx.", ninst->type_hash, new_ninst->type_hash);
+        assert(0);
+    }
+    new_ninst->num_parent_ninsts = ninst->num_parent_ninsts;
+    new_ninst->num_child_ninsts = ninst->num_child_ninsts;
+    new_ninst->num_input_pos = ninst->num_input_pos;
+    new_ninst->parent_ninst_idx_arr = calloc (new_ninst->num_parent_ninsts, sizeof(unsigned int));
+    new_ninst->child_ninst_arr = calloc (new_ninst->num_child_ninsts, sizeof(ninst_t*));
+    memcpy (new_ninst->parent_ninst_idx_arr, ninst->parent_ninst_idx_arr, new_ninst->num_parent_ninsts*sizeof(unsigned int));
+    for (int i = 0; i < new_ninst->num_child_ninsts; i++)
+    {
+        new_ninst->child_ninst_arr[i] = (ninst->child_ninst_arr[i] - ninst->ldata->nasm->ninst_arr) 
+            + new_ninst->ldata->nasm->ninst_arr;
+    }
+    new_ninst->peer_flag = calloc (ninst->ldata->nasm->num_peers, sizeof(char));
+    memcpy (new_ninst->peer_flag, ninst->peer_flag, sizeof(char)*ninst->ldata->nasm->num_peers);
 }
 
 void copy_ldata_out_mat_to_buffer (nasm_ldata_t *ldata, void *buffer)
@@ -1393,7 +1585,7 @@ void print_nasm_info (nasm_t *nasm, int print_ninst, int print_data)
     }
     printf("//////////////////////// Printing NASM Info ////////////////////////\n");
     printf("Original DNN name: %s\n", nasm->dnn->name);
-    printf("Nasm hash: %08lx\n", nasm->nasm_hash);
+    printf("Nasm hash: %016lx, Type hash: %016lx\n", nasm->nasm_hash, nasm->type_hash);
     printf("Number of ldata: %d\n", nasm->num_ldata);
     printf("Number of batch: %d\n", nasm->batch_size);
     printf("Number of ninst: %d\n", nasm->num_ninst);
@@ -1485,7 +1677,9 @@ void print_ninst_info (ninst_t *ninst, int print_data)
         printf("Error: ninst is NULL.\n");
         return;
     }
-    printf ("Ninst Idx: %d, State: %s, Type: %08lx", ninst->ninst_idx, ninst_state_str[ninst->state], ninst->type_hash);
+    printf ("Ninst Idx: %d, State: %s, Type: %016lx, Operator: %s", 
+        ninst->ninst_idx, ninst_state_str[ninst->state], ninst->type_hash,
+            layer_type_str[ninst->ldata->layer->type]);
     if (get_ninst_out_mem_without_alloc (ninst) != NULL)
     {
         printf (", Output Matrix: %p\n", get_ninst_out_mem_without_alloc (ninst));

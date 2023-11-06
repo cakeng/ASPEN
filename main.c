@@ -1,4 +1,5 @@
 #include "aspen.h"
+#include "dse.h"
 
 double get_sec()
 {
@@ -116,7 +117,6 @@ int main (int argc, char **argv)
         exit (1);
     }
 
-
     // 3. Create or load the ASPEN graph (.nasm file)
 
     // 3-1. Generate the ASPEN graph (nasm)
@@ -130,27 +130,13 @@ int main (int argc, char **argv)
 
     // 3-2. Load the ASPEN graph (nasm)
 
-    nasm_t *target_nasm = apu_load_nasm_from_file (nasm_file_name, target_dnn);
-    if (target_nasm == NULL)
+    nasm_t *target1_nasm = apu_load_nasm_from_file (nasm_file_name, target_dnn);
+    if (target1_nasm == NULL)
     {
         printf ("Unable to load ASPEN graph file %s\n", nasm_file_name);
         exit (1);
     }
-
-    nasm_t *target_nasm1 = apu_load_nasm_from_file (nasm_file_name, target_dnn);
-    if (target_nasm == NULL)
-    {
-        printf ("Unable to load ASPEN graph file %s\n", nasm_file_name);
-        exit (1);
-    }
-
-    nasm_t *target_nasm2 = apu_load_nasm_from_file (nasm_file_name, target_dnn);
-    if (target_nasm == NULL)
-    {
-        printf ("Unable to load ASPEN graph file %s\n", nasm_file_name);
-        exit (1);
-    }
-
+    nasm_t *target_nasm = apu_copy_nasm (target1_nasm);
   
     // 3. Initialize the ASPEN DSEs and Ready Pool
 
@@ -159,9 +145,13 @@ int main (int argc, char **argv)
     dse_group_set_rpool (dse_group, rpool);
     rpool_add_nasm (rpool, target_nasm, "data/batched_input_64.bin");
 
-    print_nasm_info (target_nasm, 0, 0);
-    print_nasm_info (target_nasm1, 0, 0);
-    print_nasm_info (target_nasm2, 0, 0);
+    // dse_group_profile_nasm (dse_group, target_nasm);
+    // char profile_file_name [1024] = {0};
+    // if (num_seq == -1)
+    //     sprintf (profile_file_name, "data/%s/%s_B%d_profile.csv", dnn, dnn, batch_size);
+    // else
+    //     sprintf (profile_file_name, "data/%s/%s_S%d_B%d_profile.csv", dnn, dnn, num_seq, batch_size);
+    // dse_group_save_profile_data (dse_group, profile_file_name);
 
     // 4. Run the ASPEN DSEs
 

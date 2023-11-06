@@ -179,7 +179,7 @@ void rpool_add_nasm_raw_input (rpool_t *rpool, nasm_t* nasm, void* input_data)
     }
     if (weight <= 0)
     {
-        ERROR_PRTF ("ERROR: rpool_add_nasm_raw_input: weight must be positive. Cannot add nasm \"%s_nasm_%08lx\".", nasm->dnn->name, nasm->nasm_hash);
+        ERROR_PRTF ("ERROR: rpool_add_nasm_raw_input: weight must be positive. Cannot add nasm \"%s_nasm_%016lx\".", nasm->dnn->name, nasm->nasm_hash);
         return;
     }
     if (rpool->num_groups == 0)
@@ -214,7 +214,7 @@ void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, char *input_filename)
     }
     else
     {
-        ERROR_PRTF ("ERROR: rpool_add_nasm: first layer of dnn \"%s\" does not have output dimensions. Cannot add nasm \"%s_nasm_%08lx\".", 
+        ERROR_PRTF ("ERROR: rpool_add_nasm: first layer of dnn \"%s\" does not have output dimensions. Cannot add nasm \"%s_nasm_%016lx\".", 
             dnn->name, dnn->name, nasm->nasm_hash);
         return;
     }
@@ -226,7 +226,7 @@ void rpool_pop_all_nasm (rpool_t *rpool, nasm_t *nasm)
 {
     int queue_group_idx = get_queue_group_idx_from_nasm (rpool, nasm);
     if (queue_group_idx == -1)
-        ERROR_PRTF ("ERROR: rpool_pop_all_nasm: nasm \"%s_nasm_%08lx\" is not in rpool.", nasm->dnn->name, nasm->nasm_hash);
+        ERROR_PRTF ("ERROR: rpool_pop_all_nasm: nasm \"%s_nasm_%016lx\" is not in rpool.", nasm->dnn->name, nasm->nasm_hash);
     rpool_queue_group_t *queue_group = &rpool->queue_group_arr[queue_group_idx];
     unsigned int num_queues = queue_group->num_queues;
     for (int i = 0; i < num_queues; i++)
@@ -270,7 +270,7 @@ void rpool_reset_nasm (rpool_t *rpool, nasm_t *nasm)
     apu_reset_nasm (nasm);
     int queue_group_idx = get_queue_group_idx_from_nasm (rpool, nasm);
     if (queue_group_idx == -1)
-        ERROR_PRTF ("ERROR: rpool_reset_nasm: nasm \"%s_nasm_%08lx\" is not in rpool.", nasm->dnn->name, nasm->nasm_hash);
+        ERROR_PRTF ("ERROR: rpool_reset_nasm: nasm \"%s_nasm_%016lx\" is not in rpool.", nasm->dnn->name, nasm->nasm_hash);
     rpool->queue_group_weight_sum += weight - rpool->queue_group_weight_arr[queue_group_idx];
     rpool->queue_group_weight_arr[queue_group_idx] = weight;
     push_first_layer_to_rpool (rpool, nasm, NULL);
@@ -695,7 +695,7 @@ void print_rpool_cond_list (void **input_list)
     for (int i = 0; i < NUM_RPOOL_CONDS; i++)
     {
         if (i == RPOOL_NASM && input_list[i] != NULL)
-            printf("%s:%08lx ", rpool_cond_str[i], ((nasm_t*)input_list[i])->nasm_hash);
+            printf("%s:%016lx ", rpool_cond_str[i], ((nasm_t*)input_list[i])->nasm_hash);
         else
             printf("%s:%p ", rpool_cond_str[i], input_list[i]);
     }
@@ -757,7 +757,7 @@ void print_rpool_queue_info (rpool_queue_t *rpool_queue)
     for (int i = 0; i < rpool_queue->num_stored; i++)
     {
         ninst_t *ninst = rpool_queue->ninst_ptr_arr[(i + rpool_queue->idx_start)%rpool_queue->max_stored];
-        printf("%d:(N%08lx:L%ld:%d) ", i, ninst->ldata->nasm->nasm_hash,
+        printf("%d:(N%016lx:L%ld:%d) ", i, ninst->ldata->nasm->nasm_hash,
             ninst->ldata - ninst->ldata->nasm->ldata_arr, ninst->ninst_idx);
     }
     printf("\n");

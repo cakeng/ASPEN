@@ -2,7 +2,7 @@
 
 // void *net_tx_thread_runtime (void* thread_info) 
 // {
-//     networking_engine *net_engine = (networking_engine*) thread_info;
+//     networking_engine_t *net_engine = (networking_engine_t*) thread_info;
 //     pthread_mutex_lock (&net_engine->tx_thread_mutex);
 //     pthread_cond_wait (&net_engine->tx_thread_cond, &net_engine->tx_thread_mutex);
 //     while (!net_engine->tx_kill)
@@ -16,7 +16,7 @@
 
 // void *net_rx_thread_runtime (void* thread_info) 
 // {
-//     networking_engine *net_engine = (networking_engine*) thread_info;
+//     networking_engine_t *net_engine = (networking_engine_t*) thread_info;
 //     pthread_mutex_lock (&net_engine->rx_thread_mutex);
 //     pthread_cond_wait (&net_engine->rx_thread_cond, &net_engine->rx_thread_mutex);
 //     while (!net_engine->rx_kill)
@@ -41,7 +41,7 @@
 //     networking_queue->queue_mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
 // }
 
-// void init_server(networking_engine* net_engine, int port, int is_UDP) 
+// void init_server(networking_engine_t* net_engine, int port, int is_UDP) 
 // {
 //     if (is_UDP != 0) 
 //     {
@@ -113,7 +113,7 @@
 //     }
 // }
 
-// void init_edge(networking_engine* net_engine, char* ip, int port, int is_UDP) 
+// void init_edge(networking_engine_t* net_engine, char* ip, int port, int is_UDP) 
 // {
 //     bzero (&net_engine->listen_addr, sizeof(net_engine->listen_addr));
 //     bzero (&net_engine->server_addr, sizeof(net_engine->server_addr));
@@ -145,10 +145,10 @@
 // }
 
 
-// networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE device_mode, char* ip, int port, int is_UDP, int pipelined) 
+// networking_engine_t* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE device_mode, char* ip, int port, int is_UDP, int pipelined) 
 // {
 //     PRTF("Initializing Networking Engine...\n");
-//     networking_engine *net_engine = calloc (1, sizeof(networking_engine));
+//     networking_engine_t *net_engine = calloc (1, sizeof(networking_engine_t));
 //     networking_queue_t *networking_queue = calloc (1, sizeof(networking_queue_t));
 //     init_networking_queue(networking_queue);
 
@@ -202,7 +202,7 @@
 //     return net_engine;
 // }
 
-// void transmission(networking_engine *net_engine) 
+// void transmission(networking_engine_t *net_engine) 
 // {
 //     ninst_t *target_ninst_list[32];
 //     unsigned int num_ninsts = 0;
@@ -271,7 +271,7 @@
 //     #endif
 // }
 
-// void receive(networking_engine *net_engine) 
+// void receive(networking_engine_t *net_engine) 
 // {
     
 //     int32_t payload_size;
@@ -448,12 +448,12 @@
 //     networking_queue->num_stored = 0;
 // }
 
-// void net_engine_reset (networking_engine *net_engine)
+// void net_engine_reset (networking_engine_t *net_engine)
 // {
 //     net_queue_reset(net_engine->tx_queue);
 // }
 
-// void net_engine_run (networking_engine *net_engine)
+// void net_engine_run (networking_engine_t *net_engine)
 // {
 //     if (net_engine == NULL)
 //     {
@@ -485,7 +485,7 @@
 //     pthread_cond_destroy(&net_queue->queue_cond);
 // }
 
-// void net_engine_stop (networking_engine* net_engine)
+// void net_engine_stop (networking_engine_t* net_engine)
 // {
 //     if (net_engine == NULL)
 //     {
@@ -518,7 +518,7 @@
 //     #endif
 // }
 
-// void net_engine_destroy (networking_engine* net_engine)
+// void net_engine_destroy (networking_engine_t* net_engine)
 // {
 //     if(net_engine == NULL) 
 //         return;
@@ -557,7 +557,7 @@
 //     free(net_engine);
 // }
 
-// void net_engine_wait_for_tx_queue_completion (networking_engine *net_engine)
+// void net_engine_wait_for_tx_queue_completion (networking_engine_t *net_engine)
 // {
 //     pthread_mutex_lock (&net_engine->tx_queue->queue_mutex);
 //     if (net_engine->tx_queue->num_stored > 0)
@@ -567,7 +567,7 @@
 //     pthread_mutex_unlock (&net_engine->tx_queue->queue_mutex);
 // }
 
-// void add_inference_whitelist (networking_engine *net_engine, int inference_id) 
+// void add_inference_whitelist (networking_engine_t *net_engine, int inference_id) 
 // {
 //     for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) 
 //     {
@@ -579,7 +579,7 @@
 //     }
 // }
 
-// void remove_inference_whitelist (networking_engine *net_engine, int inference_id) 
+// void remove_inference_whitelist (networking_engine_t *net_engine, int inference_id) 
 // {
 //     for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) 
 //     {
@@ -591,7 +591,7 @@
 //     }
 // }
 
-// int is_inference_whitelist (networking_engine *net_engine, int inference_id) 
+// int is_inference_whitelist (networking_engine_t *net_engine, int inference_id) 
 // {
 //     for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) 
 //     {
@@ -767,7 +767,7 @@
 //     //     atomic_fetch_add (&networking_queue->queue_group->num_ninsts, num_ninsts);
 // }
 
-// void net_engine_add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_filename)
+// void net_engine_add_input_rpool (networking_engine_t *net_engine, nasm_t* nasm, char *input_filename)
 // {
 //     aspen_dnn_t *dnn = nasm->dnn;
 //     aspen_layer_t *first_layer = &dnn->layers[0];
@@ -822,7 +822,7 @@
 //     aspen_free (input_data); 
 // }
 
-// void net_engine_add_input_rpool_reverse (networking_engine *net_engine, nasm_t* nasm, char *input_filename)
+// void net_engine_add_input_rpool_reverse (networking_engine_t *net_engine, nasm_t* nasm, char *input_filename)
 // {
 //     aspen_dnn_t *dnn = nasm->dnn;
 //     aspen_layer_t *first_layer = &dnn->layers[0];
