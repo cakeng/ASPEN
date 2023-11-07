@@ -145,7 +145,7 @@ int main (int argc, char **argv)
 
     // 4. Profile the execution
 
-    print_nasm_info (target_nasm, 1, 0);
+    // print_nasm_info (target_nasm, 1, 0);
 
     dse_group_profile_nasm (dse_group, target_nasm);
     char profile_file_name [1024] = {0};
