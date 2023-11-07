@@ -134,6 +134,7 @@ void dse_group_save_profile_data (dse_group_t *dse_group, char *filename);
 ssize_t dse_group_get_profile (dse_group_t *dse_group, ninst_t *ninst);
 void dse_group_add_profile (dse_group_t *dse_group, ninst_t *ninst);
 void dse_group_profile_nasm (dse_group_t *dse_group, nasm_t *nasm);
+void dse_group_nasm_export_heft_data (dse_group_t *dse_group, nasm_t *nasm, char *filename);
 
 void aspen_flush_dynamic_memory();
 

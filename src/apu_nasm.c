@@ -462,6 +462,7 @@ void ninst_init (nasm_ldata_t *ldata, ninst_t *ninst_ptr, int ninst_idx)
     ninst_ptr->ldata = ldata;
     ninst_ptr->state = NINST_NOT_READY;
     ninst_ptr->ninst_idx = ninst_idx;
+    ninst_ptr->rank = 0;
     get_out_mat_pos_from_nist (ldata, ninst_ptr, ninst_ptr->out_mat_pos);
     ninst_ptr->tile_dims[OUT_W] = ninst_ptr->out_mat_pos[OUT_W] + ldata->ninst_tile_dims[OUT_W] > ldata->out_mat_dims[OUT_W]?
         ldata->out_mat_dims[OUT_W] - ninst_ptr->out_mat_pos[OUT_W]: ldata->ninst_tile_dims[OUT_W];
@@ -1247,13 +1248,15 @@ void get_out_mat_info (nasm_ldata_t *ldata)
 
 void get_ninst_tile_dims (nasm_ldata_t *ldata)
 {
-    ldata->ninst_tile_dims[OUT_H] = NINST_H_MIN < ldata->out_mat_dims[OUT_H] ? NINST_H_MIN : ldata->out_mat_dims[OUT_H];
-    ldata->ninst_tile_dims[OUT_W] = NINST_W_MIN < ldata->out_mat_dims[OUT_W] ? NINST_W_MIN : ldata->out_mat_dims[OUT_W];
-    if (ldata->ninst_tile_dims[OUT_H] <= 0)
-        ldata->ninst_tile_dims[OUT_H] = 1;
-    if (ldata->ninst_tile_dims[OUT_W] <= 0)
-        ldata->ninst_tile_dims[OUT_W] = 1;
-
+    // ldata->ninst_tile_dims[OUT_H] = NINST_H_MIN < ldata->out_mat_dims[OUT_H] ? NINST_H_MIN : ldata->out_mat_dims[OUT_H];
+    // ldata->ninst_tile_dims[OUT_W] = NINST_W_MIN < ldata->out_mat_dims[OUT_W] ? NINST_W_MIN : ldata->out_mat_dims[OUT_W];
+    // if (ldata->ninst_tile_dims[OUT_H] <= 0)
+    //     ldata->ninst_tile_dims[OUT_H] = 1;
+    // if (ldata->ninst_tile_dims[OUT_W] <= 0)
+    //     ldata->ninst_tile_dims[OUT_W] = 1;
+    ldata->ninst_tile_dims[OUT_H] = ldata->out_mat_dims[OUT_H];
+    ldata->ninst_tile_dims[OUT_W] = ldata->out_mat_dims[OUT_W];
+    
     while (ldata->ninst_tile_dims[OUT_H]*ldata->ninst_tile_dims[OUT_W] < ldata->nasm->flop_per_ninst/ldata->flop_per_output)
     {
         if (ldata->ninst_tile_dims[OUT_H] < ldata->out_mat_dims[OUT_H])

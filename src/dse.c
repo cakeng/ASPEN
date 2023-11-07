@@ -138,8 +138,9 @@ void dse_schedule (dse_t *dse)
         assert (0);
     }
     #endif
-    if (dse_check_compute(dse, ninst))
-        dse_execute (dse, ninst);
+    if (!dse_check_compute(dse, ninst))
+        return;
+    dse_execute (dse, ninst);
     ninst->state = NINST_COMPLETED;
     unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
     if (num_ninst_completed == ninst->ldata->num_ninst - 1)
@@ -224,6 +225,7 @@ void dse_group_add_profile (dse_group_t *dse_group, ninst_t *ninst)
     runtime_usec = get_elapsed_usec () - start;
     runtime_usec /= DSE_PROFILE_RUN_NUM;
     runtime_usec /= dse_group->num_dses;
+    runtime_usec = runtime_usec < 1 ? 1 : runtime_usec;
 
     // Add profile
     runtime_profile_t *profile = dse_profile_init (ninst_hash, runtime_usec);
@@ -344,6 +346,53 @@ void dse_group_save_profile_data (dse_group_t *dse_group, char *filename)
     {
         runtime_profile_t *profile = dse_group->profile_arr[i];
         fprintf (fp, "%016lx, %lu\n", profile->ninst_hash, profile->runtime_usec);
+    }
+    fclose (fp);
+}
+
+void dse_group_nasm_export_heft_data (dse_group_t *dse_group, nasm_t *nasm, char *filename)
+{
+    if (dse_group == NULL)
+    {
+        ERROR_PRTF ("ERROR: dse_group_save_profile_data: dse_group is NULL");
+        assert (0);
+    }
+    if (filename == NULL)
+    {
+        ERROR_PRTF ("ERROR: dse_group_load_profile_data: filename is NULL");
+        assert (0);
+    }
+    FILE *fp = fopen (filename, "w");
+    if (fp == NULL)
+    {
+        ERRNO_PRTF ("ERROR: dse_group_save_profile_data: Unable to open file %s", filename);
+        assert (0);
+    }
+    fprintf (fp, "%d\n", nasm->num_ninst);
+    fprintf (fp, "1\n");
+    for (int i = 0; i < nasm->num_ninst; i++)
+        fprintf (fp, "%ld ", dse_group_get_profile (dse_group, &nasm->ninst_arr[i]));
+    fprintf (fp, "\n");
+    for (int i = 0; i < nasm->num_ninst; i++)
+    {
+        ninst_t *ninst = &nasm->ninst_arr[i];
+        for (int j = 0; j < nasm->num_ninst; j++)
+        {
+            int printed = 0;
+            ninst_t *child = &nasm->ninst_arr[j];
+            for (int k = 0; k < ninst->num_child_ninsts; k++)
+            {
+                if (child == ninst->child_ninst_arr[k])
+                {
+                    printed = 0;
+                    fprintf (fp, "%d ", ninst->tile_dims[OUT_H] * ninst->tile_dims[OUT_W]);
+                    break;
+                }
+            }
+            if (printed == 0)
+                fprintf (fp, "0 ");
+        }
+        fprintf (fp, "\n");
     }
     fclose (fp);
 }

@@ -109,7 +109,6 @@ int main (int argc, char **argv)
 
 
     // 2. Load the ASPEN DNN weight file (.aspen file)
-
     aspen_dnn_t *target_dnn = apu_load_dnn_from_file (target_aspen);
     if (target_dnn == NULL)
     {
@@ -121,21 +120,21 @@ int main (int argc, char **argv)
 
     // 3-1. Generate the ASPEN graph (nasm)
 
-    // nasm_t *target_nasm = NULL;
-    // if (num_seq == -1)
-    //     target_nasm = apu_generate_nasm (target_dnn, batch_size, 20);
-    // else
-    //     target_nasm = apu_generate_transformer_nasm (target_dnn, batch_size, num_seq, 20);
-    // apu_save_nasm_to_file (target_nasm, nasm_file_name);
+    nasm_t *target_nasm = NULL;
+    if (num_seq == -1)
+        target_nasm = apu_create_nasm (target_dnn, 20, batch_size);
+    else
+        target_nasm = apu_create_transformer_nasm (target_dnn, 50, batch_size, num_seq);
+    apu_save_nasm_to_file (target_nasm, nasm_file_name);
 
     // 3-2. Load the ASPEN graph (nasm)
 
-    nasm_t *target_nasm = apu_load_nasm_from_file (nasm_file_name, target_dnn);
-    if (target_nasm == NULL)
-    {
-        printf ("Unable to load ASPEN graph file %s\n", nasm_file_name);
-        exit (1);
-    }
+    // nasm_t *target_nasm = apu_load_nasm_from_file (nasm_file_name, target_dnn);
+    // if (target_nasm == NULL)
+    // {
+    //     printf ("Unable to load ASPEN graph file %s\n", nasm_file_name);
+    //     exit (1);
+    // }
   
     // 3. Initialize the ASPEN DSEs and Ready Pool
 
@@ -144,15 +143,26 @@ int main (int argc, char **argv)
     dse_group_set_rpool (dse_group, rpool);
     rpool_add_nasm (rpool, target_nasm, "data/batched_input_64.bin");
 
-    // dse_group_profile_nasm (dse_group, target_nasm);
-    // char profile_file_name [1024] = {0};
-    // if (num_seq == -1)
-    //     sprintf (profile_file_name, "data/%s/%s_B%d_profile.csv", dnn, dnn, batch_size);
-    // else
-    //     sprintf (profile_file_name, "data/%s/%s_S%d_B%d_profile.csv", dnn, dnn, num_seq, batch_size);
-    // dse_group_save_profile_data (dse_group, profile_file_name);
+    // 4. Profile the execution
 
-    // 4. Run the ASPEN DSEs
+    print_nasm_info (target_nasm, 1, 0);
+
+    dse_group_profile_nasm (dse_group, target_nasm);
+    char profile_file_name [1024] = {0};
+    if (num_seq == -1)
+        sprintf (profile_file_name, "profiles/%s/%s_B%d_profile.csv", dnn, dnn, batch_size);
+    else
+        sprintf (profile_file_name, "profiles/%s/%s_S%d_B%d_profile.csv", dnn, dnn, num_seq, batch_size);
+    dse_group_profile_nasm (dse_group, target_nasm);
+    dse_group_save_profile_data (dse_group, profile_file_name);
+    char heft_file_name [1024] = {0};
+    if (num_seq == -1)
+        sprintf (heft_file_name, "profiles/%s/%s_B%d_heft.txt", dnn, dnn, batch_size);
+    else
+        sprintf (heft_file_name, "profiles/%s/%s_S%d_B%d_heft.txt", dnn, dnn, num_seq, batch_size);
+    dse_group_nasm_export_heft_data (dse_group, target_nasm, heft_file_name);
+
+    // 5. Run the ASPEN DSEs
 
     printf ("Running %d iterations\n", number_of_iterations);
     double start_time = get_sec();
@@ -168,7 +178,7 @@ int main (int argc, char **argv)
     printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);
     aspen_flush_dynamic_memory ();
 
-    // 5. Print the top-5 results
+    // 6. Print the top-5 results
 
     LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
     float *layer_output = NULL;
@@ -178,7 +188,7 @@ int main (int argc, char **argv)
     for (int i = 0; i < batch_size; i++)
         get_prob_results ("data/imagenet_classes.txt", probabilities + i * 1000, 1000);
 
-    // // 5. Save the DNN output to a file
+    // // 6. Save the DNN output to a file
 
     // LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
     // void *layer_output = NULL;
@@ -194,7 +204,7 @@ int main (int argc, char **argv)
     // fclose (output_file);
     // free (layer_output);
 
-    // 6. Cleanup
+    // 7. Cleanup
 
     dse_group_destroy (dse_group);
     rpool_destroy (rpool);

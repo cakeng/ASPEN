@@ -97,6 +97,7 @@ struct ninst_t
     unsigned int num_input_pos;
     
     char *peer_flag; // First bit : Compute, Second bit: Send
+    unsigned int rank;
 };
 
 nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigned int flop_per_ninst, unsigned int batch_size,  unsigned int min_ninst_per_ldata, unsigned int transformer_seq_len);
