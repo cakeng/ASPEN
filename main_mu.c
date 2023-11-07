@@ -401,6 +401,10 @@ int main(int argc, char **argv)
     {
         init_sequential_offload (target_nasm[device_idx], 0, device_idx, device_idx);
     }
+    else if (!strcmp(schedule_policy, "file_input"))
+    {
+        read_schedule_from_file ("schedule_input.txt", target_nasm[device_idx]);
+    } 
     else
     {
         PRTF("ERROR: Unknown schedule policy: %s\n", schedule_policy);

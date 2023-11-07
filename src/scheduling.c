@@ -108,6 +108,49 @@ void nasm_set_last_layer_ninst_send_target_device(nasm_t *nasm, int device_idx)
     }
 }
 
+void read_schedule_from_file (char *filepath, nasm_t *nasm)
+{
+    if (filepath == NULL || nasm == NULL)
+    {
+        ERROR_PRTF("Error: read_schedule_from_file: filepath or nasm is NULL\n");
+        exit(1);
+    }
+    FILE *fp = fopen(filepath, "r");
+    if (fp == NULL)
+    {
+        ERROR_PRTF("Error: read_schedule_from_file: cannot open file %s\n", filepath);
+        exit(1);
+    }
+    while (1)
+    {
+        char *line = NULL;
+        size_t len = 0;
+        ssize_t read = getline(&line, &len, fp);
+        if (read == -1)
+            break;
+        if (line[0] == '#')
+            continue;
+        char *ptr = strtok(line, " ");
+        if (ptr == NULL)
+        {
+            ERROR_PRTF("Error: read_schedule_from_file: cannot read line %s - no ninst_idx\n", line);
+            exit(1);
+        }
+        int ninst_idx = atoi(ptr);
+        ptr = strtok(NULL, " ");
+        if (ptr == NULL)
+        {
+            ERROR_PRTF("Error: read_schedule_from_file: cannot read line %s - no device_idx\n", line);
+            exit(1);
+        }
+        int device_idx = atoi(ptr);
+        ninst_t *ninst = nasm->ninst_arr + ninst_idx;
+        ninst_clear_compute_device(ninst);
+        ninst_set_compute_device(ninst, device_idx);
+    }
+    nasm_set_ninst_send_target_using_child_compute_device(nasm);
+}
+
 dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, DEVICE_MODE device_mode, int device_idx, int num_edge_devices)
 {
     dynamic_scheduler_t *dynamic_scheduler = calloc(1, sizeof(dynamic_scheduler_t));
