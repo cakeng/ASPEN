@@ -67,7 +67,6 @@ if __name__ == "__main__":
     print (dag)
     print (computation_costs)
     print (communication_costs)
-
     orders, jobson = schedule(dag, range(number_of_processors), compcost, commcost)
     for eachP in sorted(orders):
         print("Device ", eachP, orders[eachP])
