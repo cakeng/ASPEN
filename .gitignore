@@ -22,3 +22,4 @@ subcmdline.c
 subcmdline.h
 *.outputs
 *.csv
+*.schedule

@@ -369,7 +369,10 @@ void dse_group_nasm_export_heft_data (dse_group_t *dse_group, nasm_t *nasm, char
         assert (0);
     }
     fprintf (fp, "%d\n", nasm->num_ninst);
-    fprintf (fp, "1\n");
+    fprintf (fp, "2\n");
+    for (int i = 0; i < nasm->num_ninst; i++)
+        fprintf (fp, "%ld ", dse_group_get_profile (dse_group, &nasm->ninst_arr[i]));
+    fprintf (fp, "\n");
     for (int i = 0; i < nasm->num_ninst; i++)
         fprintf (fp, "%ld ", dse_group_get_profile (dse_group, &nasm->ninst_arr[i]));
     fprintf (fp, "\n");
@@ -386,7 +389,7 @@ void dse_group_nasm_export_heft_data (dse_group_t *dse_group, nasm_t *nasm, char
                 {
                     printed = 0;
                     fprintf (fp, "%ld ", ninst->tile_dims[OUT_H] * ninst->tile_dims[OUT_W] * sizeof(float) 
-                        /1000  + 5);
+                        /7  + 5000);
                     break;
                 }
             }

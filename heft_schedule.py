@@ -65,7 +65,7 @@ if __name__ == "__main__":
     filepath = sys.argv[1]
     number_of_tasks, number_of_processors, dag, computation_costs, communication_costs = parse_heft_data(filepath)
     sys.setrecursionlimit(10**6)
-    orders, jobson = schedule(dag, range(number_of_processors), compcost, commcost)
+    orders, jobson = schedule(dag, range(number_of_processors), compcost, commcost, 32, 2009)
     for eachP in sorted(orders):
         print("Device ", eachP, orders[eachP])
     export_schedule (filepath + ".schedule", orders, jobson)
