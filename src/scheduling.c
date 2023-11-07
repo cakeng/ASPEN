@@ -108,19 +108,20 @@ void nasm_set_last_layer_ninst_send_target_device(nasm_t *nasm, int device_idx)
     }
 }
 
-void read_schedule_from_file (char *filepath, nasm_t *nasm)
+void init_schedule_from_file (char *filepath, nasm_t *nasm, int edge_id)
 {
     if (filepath == NULL || nasm == NULL)
     {
-        ERROR_PRTF("Error: read_schedule_from_file: filepath or nasm is NULL\n");
+        ERROR_PRTF("Error: init_schedule_from_file: filepath or nasm is NULL\n");
         exit(1);
     }
     FILE *fp = fopen(filepath, "r");
     if (fp == NULL)
     {
-        ERROR_PRTF("Error: read_schedule_from_file: cannot open file %s\n", filepath);
+        ERROR_PRTF("Error: init_schedule_from_file: cannot open file %s\n", filepath);
         exit(1);
     }
+    int max_ninst_idx = 0;
     while (1)
     {
         char *line = NULL;
@@ -131,24 +132,34 @@ void read_schedule_from_file (char *filepath, nasm_t *nasm)
         if (line[0] == '#')
             continue;
         char *ptr = strtok(line, " ");
+        printf ("ptr: %s\n", ptr);
         if (ptr == NULL)
         {
-            ERROR_PRTF("Error: read_schedule_from_file: cannot read line %s - no ninst_idx\n", line);
+            ERROR_PRTF("Error: init_schedule_from_file: cannot read line %s - no ninst_idx\n", line);
             exit(1);
         }
         int ninst_idx = atoi(ptr);
         ptr = strtok(NULL, " ");
+        printf ("ptr: %s\n", ptr);
         if (ptr == NULL)
         {
-            ERROR_PRTF("Error: read_schedule_from_file: cannot read line %s - no device_idx\n", line);
+            ERROR_PRTF("Error: init_schedule_from_file: cannot read line %s - no device_idx\n", line);
             exit(1);
         }
         int device_idx = atoi(ptr);
         ninst_t *ninst = nasm->ninst_arr + ninst_idx;
+        max_ninst_idx = max_ninst_idx > ninst_idx ? max_ninst_idx : ninst_idx;
         ninst_clear_compute_device(ninst);
         ninst_set_compute_device(ninst, device_idx);
     }
+    if (max_ninst_idx != nasm->num_ninst - 1)
+    {
+        ERROR_PRTF("Error: init_schedule_from_file: max_ninst_idx (%d) != nasm->num_ninst - 1 (%d)\n", max_ninst_idx, nasm->num_ninst - 1);
+        exit(1);
+    }
+    fclose(fp);
     nasm_set_ninst_send_target_using_child_compute_device(nasm);
+    nasm_set_last_layer_ninst_send_target_device(nasm, edge_id);
 }
 
 dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, DEVICE_MODE device_mode, int device_idx, int num_edge_devices)

@@ -107,6 +107,7 @@ void init_random_offload(nasm_t *nasm, float compute_ratio, int edge_id, int ser
 void init_sequential_offload(nasm_t *nasm, int split_layer, int edge_id, int server_id);
 void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode, int edge_id, int server_id);
 void init_conventional_offload(nasm_t *nasm, int edge_id, int server_id);
+void init_schedule_from_file (char *filepath, nasm_t *nasm, int edge_id);
 sched_processor_t *init_heft(char *target_dnn_dir, char *target_nasm_dir, ninst_profile_t **ninst_profile, network_profile_t *network_profile, int num_device);
 
 void heft_gen_dependency(nasm_t *nasm, int **dependency);

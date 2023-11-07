@@ -403,7 +403,11 @@ int main(int argc, char **argv)
     }
     else if (!strcmp(schedule_policy, "file_input"))
     {
-        read_schedule_from_file ("schedule_input.txt", target_nasm[device_idx]);
+        for(int i = 0; i < num_edge_devices; i++)
+        {
+            if(device_mode == DEV_SERVER || device_idx == i)
+                init_schedule_from_file ("schedule_input.txt", target_nasm[i], i);
+        }
     } 
     else
     {
@@ -411,6 +415,11 @@ int main(int argc, char **argv)
         exit(1);
     }
 
+    for(int i = 0; i < num_edge_devices; i++)
+    {
+        if(device_mode == DEV_SERVER || device_idx == i)
+            print_nasm_info (target_nasm[i], 1, 0);
+    }
     /** STAGE: INFERENCE **/
 
     
