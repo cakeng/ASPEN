@@ -19,7 +19,7 @@ BUILD_INFO_GCC = $(shell gcc --version | grep -Ei "gcc \([0-9a-zA-Z\. -~]+\) [0-
 BUILD_INFO_UNAME = $(shell uname -srvpim)
 BUILD_INFO_BRANCH = $(shell git log -1 | grep -Eio "commit [0-9a-zA-Z]+")
 
-OPTS= -m64 -Ofast -march=native -funroll-loops
+OPTS= -Ofast -march=native -funroll-loops
 LDFLAGS=-lm -lgomp
 COMMON= -Iinclude/
 ifeq ($(DEBUG), 1) 
@@ -28,7 +28,7 @@ endif
 CFLAGS= -Wall -Wno-unused-variable -fopenmp
 ARFLAGS=rcs
 ifeq ($(AVX2), 1)
-OPTS+=-mavx2 -mfma -DAVX2
+OPTS+=-mavx2 -mfma -DAVX2 -m64
 endif
 ifeq ($(NEON), 1)
 OPTS+=-DNEON
