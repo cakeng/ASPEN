@@ -122,7 +122,7 @@ int main (int argc, char **argv)
 
     nasm_t *target_nasm = NULL;
     if (num_seq == -1)
-        target_nasm = apu_create_nasm (target_dnn, 20, batch_size);
+        target_nasm = apu_create_nasm (target_dnn, 50, batch_size);
     else
         target_nasm = apu_create_transformer_nasm (target_dnn, 50, batch_size, num_seq);
     apu_save_nasm_to_file (target_nasm, nasm_file_name);
@@ -145,7 +145,7 @@ int main (int argc, char **argv)
 
     // 4. Profile the execution
 
-    print_nasm_info (target_nasm, 1, 0);
+    // print_nasm_info (target_nasm, 1, 0);
 
     dse_group_profile_nasm (dse_group, target_nasm);
     char profile_file_name [1024] = {0};
