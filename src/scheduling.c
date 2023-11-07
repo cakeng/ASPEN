@@ -132,7 +132,6 @@ void init_schedule_from_file (char *filepath, nasm_t *nasm, int edge_id)
         if (line[0] == '#')
             continue;
         char *ptr = strtok(line, " ");
-        printf ("ptr: %s\n", ptr);
         if (ptr == NULL)
         {
             ERROR_PRTF("Error: init_schedule_from_file: cannot read line %s - no ninst_idx\n", line);
@@ -140,7 +139,6 @@ void init_schedule_from_file (char *filepath, nasm_t *nasm, int edge_id)
         }
         int ninst_idx = atoi(ptr);
         ptr = strtok(NULL, " ");
-        printf ("ptr: %s\n", ptr);
         if (ptr == NULL)
         {
             ERROR_PRTF("Error: init_schedule_from_file: cannot read line %s - no device_idx\n", line);

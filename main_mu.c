@@ -415,11 +415,11 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    for(int i = 0; i < num_edge_devices; i++)
-    {
-        if(device_mode == DEV_SERVER || device_idx == i)
-            print_nasm_info (target_nasm[i], 1, 0);
-    }
+    // for(int i = 0; i < num_edge_devices; i++)
+    // {
+    //     if(device_mode == DEV_SERVER || device_idx == i)
+    //         print_nasm_info (target_nasm[i], 1, 0);
+    // }
     /** STAGE: INFERENCE **/
 
     
