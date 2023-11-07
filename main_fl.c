@@ -122,7 +122,7 @@ int main (int argc, char **argv)
     int fl_split_layer_idx = 4;
 
     // rpool_t *rpool = rpool_init (gpu_idx);
-    rpool_t *rpool = rpool_init_multigroup (gpu_idx, fl_split_layer_idx + 1);
+    rpool_t *rpool = rpool_init_multigroup (gpu_idx, fl_split_layer_idx + 2);
     dse_group_t *dse_group = dse_group_init (num_cores, gpu_idx);
     dse_group_set_rpool (dse_group, rpool);
     dse_group_set_device_mode (dse_group, dev_mode);
@@ -164,15 +164,10 @@ int main (int argc, char **argv)
     }
 
     fl_init(target_nasm);
-    fl_path_t *path1 = fl_create_path(target_nasm, path_last_ninsts1, 7);
-    fl_path_t *path2 = fl_create_path(target_nasm, path_last_ninsts2, 8);
-    fl_path_t *path3 = fl_create_path(target_nasm, path_last_ninsts3, 7);
-    fl_path_t *path4 = fl_create_path(target_nasm, path_last_ninsts4, 8);
-
-    path1->edge_final_layer_idx = 3;
-    path2->edge_final_layer_idx = 2;
-    path3->edge_final_layer_idx = 1;
-    path4->edge_final_layer_idx = 2;
+    fl_path_t *path1 = fl_create_path(target_nasm, path_last_ninsts1, 7, 0);
+    fl_path_t *path2 = fl_create_path(target_nasm, path_last_ninsts2, 8, 1);
+    fl_path_t *path3 = fl_create_path(target_nasm, path_last_ninsts3, 7, 2);
+    fl_path_t *path4 = fl_create_path(target_nasm, path_last_ninsts4, 8, 3);
 
     dse_set_starting_path (path1);
 
@@ -204,8 +199,6 @@ int main (int argc, char **argv)
         dse_group_set_device(dse_group, dev_mode);
         net_engine->dse_group = dse_group;
         net_engine_set_operating_mode(net_engine, OPER_MODE_FL_PATH);
-
-        net_engine_run(net_engine);
     }
 
     rpool_add_nasm (rpool, target_nasm, "data/batched_input_128.bin");
@@ -214,6 +207,7 @@ int main (int argc, char **argv)
     start_time = get_sec();
     for (int i = 0; i < number_of_iterations; i++)
     {
+        net_engine_run(net_engine);
         rpool_reset_queue (rpool);
         apu_reset_nasm(target_nasm);
         dse_group_set_operating_mode(dse_group, OPER_MODE_FL_PATH);
@@ -230,6 +224,7 @@ int main (int argc, char **argv)
             net_engine_set_operating_mode(net_engine, OPER_MODE_FL_PATH);
         }
         dse_group_stop (dse_group);
+        net_engine_stop (net_engine);
 
         fl_reset_path(path1);
         fl_reset_path(path2);
@@ -255,6 +250,12 @@ int main (int argc, char **argv)
         free (layer_output);
         free (softmax_output);
     }
+
+    /* WRAP UP */
+    fl_destroy_path(path1);
+    fl_destroy_path(path2);
+    fl_destroy_path(path3);
+    fl_destroy_path(path4);
 
     aspen_flush_dynamic_memory ();
 

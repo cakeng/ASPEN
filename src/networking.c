@@ -584,7 +584,7 @@ void receive_fl(networking_engine *net_engine)
             fl_path_t *target_path = net_engine->nasm->path_ptr_arr[path_idx];
             if (atomic_exchange (&target_ninst->state, NINST_COMPLETED) == NINST_COMPLETED) 
             {
-                unsigned int path_num_ninsts_completed = atomic_fetch_add(&target_path->path_layers_arr[target_path->edge_final_layer_idx - 1].num_ninsts_completed, 1) + 1;
+                unsigned int path_num_ninsts_completed = atomic_fetch_add(&target_path->path_layers_arr[target_path->edge_final_layer_idx].num_ninsts_completed, 1) + 1;
 
                 copy_buffer_to_ninst_dummy_data (target_ninst, buffer_ptr);
                 #ifdef DEBUG
@@ -593,7 +593,7 @@ void receive_fl(networking_engine *net_engine)
                     target_ninst->ldata->layer->layer_idx, 
                     path_idx,
                     path_num_ninsts_completed,
-                    target_path->path_layers_arr[target_path->edge_final_layer_idx - 1].num_ninsts
+                    target_path->path_layers_arr[target_path->edge_final_layer_idx].num_ninsts
                 );    
                 #endif
                 buffer_ptr += data_size;
@@ -611,18 +611,18 @@ void receive_fl(networking_engine *net_engine)
             atomic_store(&target_ninst->state, NINST_COMPLETED);
             target_ninst->received_time = get_time_secs_offset ();
             
-            unsigned int path_num_ninsts_completed = atomic_fetch_add(&target_path->path_layers_arr[target_path->edge_final_layer_idx - 1].num_ninsts_completed, 1) + 1;
+            unsigned int path_num_ninsts_completed = atomic_fetch_add(&target_path->path_layers_arr[target_path->edge_final_layer_idx].num_ninsts_completed, 1) + 1;
             #ifdef DEBUG
             printf("receive_fl: (N %d, L %d, P %d). Received Ninsts %d/%d\n",
                 target_ninst->ninst_idx, 
                 target_ninst->ldata->layer->layer_idx, 
                 path_idx,
                 path_num_ninsts_completed,
-                target_path->path_layers_arr[target_path->edge_final_layer_idx - 1].num_ninsts
+                target_path->path_layers_arr[target_path->edge_final_layer_idx].num_ninsts
             );
             #endif
             
-            if (target_path->path_idx == 0 && path_num_ninsts_completed == target_path->path_layers_arr[target_path->edge_final_layer_idx - 1].num_ninsts) {
+            if (target_path->path_idx == 0 && path_num_ninsts_completed == target_path->path_layers_arr[target_path->edge_final_layer_idx].num_ninsts) {
                 #ifdef DEBUG
                 printf("PATH %d READY!\n", path_idx);
                 #endif
