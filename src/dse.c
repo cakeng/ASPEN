@@ -225,6 +225,7 @@ void dse_group_add_profile (dse_group_t *dse_group, ninst_t *ninst)
     runtime_usec = get_elapsed_usec () - start;
     runtime_usec /= DSE_PROFILE_RUN_NUM;
     runtime_usec /= dse_group->num_dses;
+    runtime_usec /= dse_group->num_dses;
     runtime_usec = runtime_usec < 1 ? 1 : runtime_usec;
 
     // Add profile
