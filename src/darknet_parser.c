@@ -537,7 +537,7 @@ void parse_section (section *s, aspen_layer_t *layer)
         unsigned int params[NUM_PARAM_ELEMENTS];
         for (int i = 0; i < NUM_PARAM_ELEMENTS; i++)
             params[i] = 6;
-        layer->tensors [ANCHOR_TENSOR] = init_aspen_tensor (params, dim_order, 1, layer->dnn->element_size);
+        layer->tensors [ANCHOR_TENSOR] = aspen_tensor_init (params, dim_order, 1, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [ANCHOR_TENSOR]);
         for (int i = 0; i < 3; i++)
         {
@@ -559,7 +559,7 @@ aspen_dnn_t *parse_darknet_cfg (char *filename)
     if(!n) error ("Config file has no sections");
     remove_unsupported_sections (sections);
     PRTF ("Config file has %d sections \n", sections->size);
-    aspen_dnn_t *dnn = init_aspen_dnn (sections->size, filename);
+    aspen_dnn_t *dnn = aspen_dnn_init (sections->size, filename);
 
     section *s = (section *)n->val;
     if(!is_network(s)) error("First section must be [net] or [network]");

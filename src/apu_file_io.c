@@ -534,7 +534,7 @@ aspen_dnn_t *apu_parse_dnn_from_file(char *filename, FILE **fp_t, unsigned int *
         return NULL;
     }
     num_layers = atoi(ptr);
-    aspen_dnn_t *dnn = init_aspen_dnn(num_layers, dnn_name);
+    aspen_dnn_t *dnn = aspen_dnn_init(num_layers, dnn_name);
     if (dnn == NULL)
     {
         ERROR_PRTF ("ASPEN DNN file %s parse error: Failed to create DNN.", filename);

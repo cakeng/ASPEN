@@ -56,7 +56,7 @@ void apu_destroy_dnn (aspen_dnn_t *dnn)
     free(dnn);
 }
 
-aspen_dnn_t *init_aspen_dnn (unsigned int num_layers, char* name)
+aspen_dnn_t *aspen_dnn_init (unsigned int num_layers, char* name)
 {
     aspen_dnn_t *new_dnn = (aspen_dnn_t *) calloc(1, sizeof(aspen_dnn_t));
     strncpy(new_dnn->name, name, MAX_STRING_LEN-1);
@@ -65,7 +65,7 @@ aspen_dnn_t *init_aspen_dnn (unsigned int num_layers, char* name)
     new_dnn->layers = (aspen_layer_t *) calloc(num_layers, sizeof(aspen_layer_t));
     for (int i = 0; i < num_layers; i++)
     {
-        init_aspen_layer(new_dnn->layers + i, i, new_dnn);
+        aspen_layer_init(new_dnn->layers + i, i, new_dnn);
     }
     #ifdef AVX2
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
@@ -74,7 +74,7 @@ aspen_dnn_t *init_aspen_dnn (unsigned int num_layers, char* name)
     return new_dnn;
 }
 
-void init_aspen_layer (aspen_layer_t *layer, unsigned int layer_idx, aspen_dnn_t *dnn)
+void aspen_layer_init (aspen_layer_t *layer, unsigned int layer_idx, aspen_dnn_t *dnn)
 {
     layer->layer_idx = layer_idx;
     layer->dnn = dnn;
@@ -101,7 +101,7 @@ void destroy_aspen_layers (aspen_layer_t* layers, unsigned int num_layers)
     free (layers);
 }
 
-aspen_tensor_t *init_aspen_tensor (unsigned int *params_arr, LAYER_PARAMS *order, int num_dims, unsigned int element_size)
+aspen_tensor_t *aspen_tensor_init (unsigned int *params_arr, LAYER_PARAMS *order, int num_dims, unsigned int element_size)
 {
     aspen_tensor_t *new_tensor = (aspen_tensor_t *) calloc(1, sizeof(aspen_tensor_t));
     new_tensor->num_dims = num_dims;
@@ -178,7 +178,7 @@ void copy_aspen_tensor_to_tensor  (aspen_tensor_t *dst, aspen_tensor_t *src)
 void reorder_aspen_tensor (aspen_tensor_t **tensor_ptr, unsigned int *params_arr, LAYER_PARAMS *order, int num_dims)
 {
     aspen_tensor_t *tensor = *tensor_ptr;
-    aspen_tensor_t *new_tensor = init_aspen_tensor (params_arr, order, num_dims, tensor->element_size);
+    aspen_tensor_t *new_tensor = aspen_tensor_init (params_arr, order, num_dims, tensor->element_size);
     if (new_tensor->num_elements < tensor->num_elements)
     {
         ERROR_PRTF ("Error: cannot reorder tensor into smaller number of elements.");
@@ -210,7 +210,7 @@ void reorder_aspen_tensor (aspen_tensor_t **tensor_ptr, unsigned int *params_arr
 void *get_aspen_tensor_data (aspen_tensor_t *tensor, LAYER_PARAMS *output_order)
 {
     void *output = calloc (tensor->num_elements, tensor->element_size);
-    aspen_tensor_t *new_tensor = init_aspen_tensor (tensor->dims, output_order, tensor->num_dims, tensor->element_size);
+    aspen_tensor_t *new_tensor = aspen_tensor_init (tensor->dims, output_order, tensor->num_dims, tensor->element_size);
     unsigned int pos[NUM_PARAM_ELEMENTS] = {0};
     for (int idx = 0; idx < tensor->num_elements; idx++)
     {
@@ -252,7 +252,7 @@ ssize_t get_ldata_output (void **out_ptr, nasm_ldata_t *ldata, LAYER_PARAMS *ord
         unsigned int params[NUM_PARAM_ELEMENTS];
         memcpy (params, layer->params, NUM_PARAM_ELEMENTS * sizeof (unsigned int));
         params[BATCH] = ldata->nasm->batch_size;
-        tensor = init_aspen_tensor (params, org_order, 4, layer->dnn->element_size);
+        tensor = aspen_tensor_init (params, org_order, 4, layer->dnn->element_size);
     }
     else if (layer->type == FC_LAYER || layer->type == SOFTMAX_LAYER)
     {
@@ -260,7 +260,7 @@ ssize_t get_ldata_output (void **out_ptr, nasm_ldata_t *ldata, LAYER_PARAMS *ord
         unsigned int params[NUM_PARAM_ELEMENTS];
         memcpy (params, layer->params, NUM_PARAM_ELEMENTS * sizeof (unsigned int));
         params[BATCH] = ldata->nasm->batch_size;
-        tensor = init_aspen_tensor (params, org_order, 2, layer->dnn->element_size);
+        tensor = aspen_tensor_init (params, org_order, 2, layer->dnn->element_size);
     }
     else if (layer->type == MATMUL_LAYER || layer->type == LAYERNORM_LAYER || layer->type == RESIDUAL_LAYER ||
         layer->type == INPUT_LAYER || layer->type == V_ATTENTION_LAYER)
@@ -270,7 +270,7 @@ ssize_t get_ldata_output (void **out_ptr, nasm_ldata_t *ldata, LAYER_PARAMS *ord
         memcpy (params, layer->params, NUM_PARAM_ELEMENTS * sizeof (unsigned int));
         params[BATCH] = ldata->nasm->batch_size;
         params[MAT_N] = ldata->nasm->tr_seq_len;
-        tensor = init_aspen_tensor (params, org_order, 3, layer->dnn->element_size);
+        tensor = aspen_tensor_init (params, org_order, 3, layer->dnn->element_size);
     }
     else if (layer->type == K_ATTENTION_LAYER)
     {
@@ -279,7 +279,7 @@ ssize_t get_ldata_output (void **out_ptr, nasm_ldata_t *ldata, LAYER_PARAMS *ord
         memcpy (params, layer->params, NUM_PARAM_ELEMENTS * sizeof (unsigned int));
         params[BATCH] = ldata->nasm->batch_size;
         params[MAT_N] = ldata->nasm->tr_seq_len;
-        tensor = init_aspen_tensor (params, org_order, 4, layer->dnn->element_size);
+        tensor = aspen_tensor_init (params, org_order, 4, layer->dnn->element_size);
     }
     else 
     {
@@ -368,41 +368,41 @@ void create_layer_tensors (aspen_layer_t *layer)
     if (layer->type == CONV_LAYER)
     {
         LAYER_PARAMS weight_dim_order[] = {OUT_C, WEIGHT_H, WEIGHT_W, IN_C};
-        layer->tensors [WEIGHT_TENSOR] = init_aspen_tensor (layer->params, weight_dim_order, 4, layer->dnn->element_size);
+        layer->tensors [WEIGHT_TENSOR] = aspen_tensor_init (layer->params, weight_dim_order, 4, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [WEIGHT_TENSOR]);
 
         LAYER_PARAMS bias_dim_order[] = {OUT_C};
-        layer->tensors [BIAS_TENSOR] = init_aspen_tensor (layer->params, bias_dim_order, 1, layer->dnn->element_size);
+        layer->tensors [BIAS_TENSOR] = aspen_tensor_init (layer->params, bias_dim_order, 1, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [BIAS_TENSOR]);
     }
     else if (layer->type == FC_LAYER)
     {
         LAYER_PARAMS weight_dim_order[] = {OUT_C, IN_C, IN_H, IN_W};
-        layer->tensors [WEIGHT_TENSOR] = init_aspen_tensor (layer->params, weight_dim_order, 4, layer->dnn->element_size);
+        layer->tensors [WEIGHT_TENSOR] = aspen_tensor_init (layer->params, weight_dim_order, 4, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [WEIGHT_TENSOR]);
 
         LAYER_PARAMS bias_dim_order[] = {OUT_C};
-        layer->tensors [BIAS_TENSOR] = init_aspen_tensor (layer->params, bias_dim_order, 1, layer->dnn->element_size);
+        layer->tensors [BIAS_TENSOR] = aspen_tensor_init (layer->params, bias_dim_order, 1, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [BIAS_TENSOR]);
     }
     else if (layer->type == MATMUL_LAYER)
     {
         LAYER_PARAMS weight_dim_order[] = {MAT_M, MAT_K};
-        layer->tensors [WEIGHT_TENSOR] = init_aspen_tensor (layer->params, weight_dim_order, 2, layer->dnn->element_size);
+        layer->tensors [WEIGHT_TENSOR] = aspen_tensor_init (layer->params, weight_dim_order, 2, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [WEIGHT_TENSOR]);
 
         LAYER_PARAMS bias_dim_order[] = {MAT_M};
-        layer->tensors [BIAS_TENSOR] = init_aspen_tensor (layer->params, bias_dim_order, 1, layer->dnn->element_size);
+        layer->tensors [BIAS_TENSOR] = aspen_tensor_init (layer->params, bias_dim_order, 1, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [BIAS_TENSOR]);
     }
     else if (layer->type == LAYERNORM_LAYER)
     {
         LAYER_PARAMS weight_dim_order[] = {MAT_M};
-        layer->tensors [WEIGHT_TENSOR] = init_aspen_tensor (layer->params, weight_dim_order, 1, layer->dnn->element_size);
+        layer->tensors [WEIGHT_TENSOR] = aspen_tensor_init (layer->params, weight_dim_order, 1, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [WEIGHT_TENSOR]);
 
         LAYER_PARAMS bias_dim_order[] = {MAT_M};
-        layer->tensors [BIAS_TENSOR] = init_aspen_tensor (layer->params, bias_dim_order, 1, layer->dnn->element_size);
+        layer->tensors [BIAS_TENSOR] = aspen_tensor_init (layer->params, bias_dim_order, 1, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [BIAS_TENSOR]);
     }
     else if (layer->type == INPUT_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER || layer->type == SOFTMAX_LAYER || layer->type == YOLO_LAYER || layer->type == APPEND_LAYER
@@ -430,33 +430,33 @@ void create_layer_output_tensor (aspen_layer_t *layer)
         if (MAT_M != 0)
         {
             LAYER_PARAMS dim_order[] = {BATCH, OUT_H, OUT_W, OUT_C};
-            layer->tensors [OUTPUT_TENSOR] = init_aspen_tensor (layer->params, dim_order, 4, layer->dnn->element_size);
+            layer->tensors [OUTPUT_TENSOR] = aspen_tensor_init (layer->params, dim_order, 4, layer->dnn->element_size);
             calloc_aspen_tensor (layer->tensors [OUTPUT_TENSOR]);
         }
         else
         {
             LAYER_PARAMS dim_order[] = {BATCH, MAT_N, MAT_M};
-            layer->tensors [OUTPUT_TENSOR] = init_aspen_tensor (layer->params, dim_order, 3, layer->dnn->element_size);
+            layer->tensors [OUTPUT_TENSOR] = aspen_tensor_init (layer->params, dim_order, 3, layer->dnn->element_size);
             calloc_aspen_tensor (layer->tensors [OUTPUT_TENSOR]);
         }
     }
     else if (layer->type == FC_LAYER || layer->type == SOFTMAX_LAYER)
     {
         LAYER_PARAMS dim_order[] = {BATCH, OUT_C};
-        layer->tensors [OUTPUT_TENSOR] = init_aspen_tensor (layer->params, dim_order, 2, layer->dnn->element_size);
+        layer->tensors [OUTPUT_TENSOR] = aspen_tensor_init (layer->params, dim_order, 2, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [OUTPUT_TENSOR]);
     }
     else if (layer->type == LAYERNORM_LAYER
         || layer->type == V_ATTENTION_LAYER || layer->type == MATMUL_LAYER)
     {
         LAYER_PARAMS dim_order[] = {BATCH, MAT_N, MAT_M};
-        layer->tensors [OUTPUT_TENSOR] = init_aspen_tensor (layer->params, dim_order, 3, layer->dnn->element_size);
+        layer->tensors [OUTPUT_TENSOR] = aspen_tensor_init (layer->params, dim_order, 3, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [OUTPUT_TENSOR]);
     }
     else if (layer->type == K_ATTENTION_LAYER)
     {
         LAYER_PARAMS dim_order[] = {BATCH, NUM_HEAD, MAT_N, MAT_M};
-        layer->tensors [OUTPUT_TENSOR] = init_aspen_tensor (layer->params, dim_order, 4, layer->dnn->element_size);
+        layer->tensors [OUTPUT_TENSOR] = aspen_tensor_init (layer->params, dim_order, 4, layer->dnn->element_size);
         calloc_aspen_tensor (layer->tensors [OUTPUT_TENSOR]);
     }
     else
@@ -513,7 +513,7 @@ void create_layer_col_idx_tensor (aspen_layer_t *layer)
     if (layer->type == CONV_LAYER || layer->type == MAXPOOL_LAYER || layer->type == AVGPOOL_LAYER)
     {
         LAYER_PARAMS dim_order[] = {BATCH, OUT_H, OUT_W, WEIGHT_H, WEIGHT_W};
-        layer->tensors [COL_IDX_TENSOR] = init_aspen_tensor (layer->params, dim_order, 5, sizeof(int));
+        layer->tensors [COL_IDX_TENSOR] = aspen_tensor_init (layer->params, dim_order, 5, sizeof(int));
         calloc_aspen_tensor (layer->tensors [COL_IDX_TENSOR]);
         layer_find_input_pos_idx (layer);
     }

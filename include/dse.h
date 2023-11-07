@@ -18,7 +18,7 @@ struct dse_group_t
     unsigned int num_dses;
     dse_t *dse_arr;
 
-    aspen_peer_t *my_peer_data;
+    aspen_peer_t *my_peer_data; // Prioritized over dse_t->my_peer_data
 
     size_t num_profiles;
     size_t max_num_profiles;
@@ -27,6 +27,7 @@ struct dse_group_t
 
 struct dse_t
 {
+    dse_group_t *dse_group;
     _Atomic int run;
     _Atomic int kill;
     unsigned int thread_id;
@@ -37,6 +38,7 @@ struct dse_t
     ninst_t *target;
     rpool_queue_t *ninst_cache;
     rpool_t *rpool;
+    aspen_peer_t *my_peer_data;
 };
 
 struct runtime_profile_t
@@ -50,6 +52,9 @@ void dse_destroy (dse_t *dse);
 
 void dse_run (dse_t *dse);
 void dse_stop (dse_t *dse);
+
+int dse_check_compute (dse_t *dse, ninst_t *ninst);
+int dse_check_send (dse_t *dse, ninst_t *ninst);
 
 void dse_execute (dse_t *dse, ninst_t *ninst);
 void dse_schedule (dse_t *dse);

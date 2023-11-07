@@ -457,7 +457,7 @@ void ninst_find_parent (ninst_t *ninst)
     ninst_find_input_pos_idx (ninst);
 }
 
-void init_ninst (nasm_ldata_t *ldata, ninst_t *ninst_ptr, int ninst_idx)
+void ninst_init (nasm_ldata_t *ldata, ninst_t *ninst_ptr, int ninst_idx)
 {
     ninst_ptr->ldata = ldata;
     ninst_ptr->state = NINST_NOT_READY;
@@ -524,8 +524,7 @@ nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigne
     new_nasm->tr_seq_len = transformer_seq_len;
     new_nasm->flop_per_ninst = flop_per_ninst > 0? flop_per_ninst : 1;
     new_nasm->batch_size = batch_size > 0? batch_size : 1;
-    size_t unique_val = getpid() + get_time_usec();
-    new_nasm->nasm_hash = get_hash (&unique_val, sizeof (size_t));
+    new_nasm->nasm_hash = get_unique_hash ();
     new_nasm->type_hash = get_nasm_type_hash (new_nasm);
     new_nasm->min_ninst_per_ldata = min_ninst_per_ldata;
     atomic_store (&new_nasm->completed, 0);
@@ -537,7 +536,7 @@ nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigne
     nasm_ldata_t *ldata_ptr = new_nasm->ldata_arr;
     for (int i = 0; i < dnn->num_layers; i++)
     {
-        init_nasm_ldata(new_nasm, ldata_ptr, &dnn->layers[i]);
+        nasm_ldata_init(new_nasm, ldata_ptr, &dnn->layers[i]);
         ldata_ptr += get_nasm_ldata_num_per_layer(&dnn->layers[i]);
     }
     unsigned int total_ninst = 0;
@@ -555,7 +554,7 @@ nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigne
         ninst_ptr += new_nasm->ldata_arr[i].num_ninst;
         for (int j = 0; j < new_nasm->ldata_arr[i].num_ninst; j++)
         {
-            init_ninst(&new_nasm->ldata_arr[i], &new_nasm->ldata_arr[i].ninst_arr_start[j], total_ninst + j);
+            ninst_init(&new_nasm->ldata_arr[i], &new_nasm->ldata_arr[i].ninst_arr_start[j], total_ninst + j);
         }
         total_ninst += new_nasm->ldata_arr[i].num_ninst;
     }
@@ -817,21 +816,23 @@ void set_nasm_to_finished (nasm_t *nasm)
         }
     }
 }
-aspen_peer_t *init_peer ()
+aspen_peer_t *peer_init ()
 {
     aspen_peer_t *peer = calloc (1, sizeof(aspen_peer_t));
     pthread_mutex_init (&peer->peer_mutex, NULL);
-    peer->peer_hash = 0;
-    memset (peer->ip, 0, MAX_STRING_LEN);
+    peer->peer_hash = get_unique_hash ();
+    peer->ip = calloc (MAX_STRING_LEN, sizeof(char));
     peer->listen_port = 0;
     peer->sock = 0;
     peer->isUDP = -1;
     peer->latency_usec = -1;
     peer->bandwidth_bps = -1;
+    peer->tx_queue = calloc (1, sizeof(rpool_t));
+    rpool_init_queue (peer->tx_queue);
     return peer;
 
 }
-aspen_peer_t *copy_peer (aspen_peer_t *new_peer, aspen_peer_t *peer)
+aspen_peer_t *peer_copy (aspen_peer_t *new_peer, aspen_peer_t *peer)
 {
     if (new_peer == NULL || peer == NULL)
     {
@@ -846,6 +847,16 @@ aspen_peer_t *copy_peer (aspen_peer_t *new_peer, aspen_peer_t *peer)
     new_peer->latency_usec = peer->latency_usec;
     new_peer->bandwidth_bps = peer->bandwidth_bps;
     return new_peer;
+}
+void destroy_peer (aspen_peer_t *peer)
+{
+    if (peer == NULL)
+        return;
+    pthread_mutex_destroy (&peer->peer_mutex);
+    rpool_destroy_queue (peer->tx_queue);
+    if (peer->ip != NULL)
+        free (peer->ip);
+    free (peer);
 }
 void set_ninst_compute_peer_idx (ninst_t *ninst, int peer_idx)
 {
@@ -875,8 +886,9 @@ void set_ninst_send_peer_idx (ninst_t *ninst, int peer_idx)
     }
     ninst->peer_flag[peer_idx] |= PEER_FLAG_SEND;
 }
-int check_ninst_compute_peer_idx (ninst_t *ninst, int peer_idx)
+int check_ninst_compute_using_peer_idx (ninst_t *ninst, int peer_idx)
 {
+    #ifdef DEBUG
     if (ninst == NULL)
     {
         ERROR_PRTF ("ERROR: ninst is NULL.");
@@ -887,11 +899,13 @@ int check_ninst_compute_peer_idx (ninst_t *ninst, int peer_idx)
         ERROR_PRTF ("ERROR: peer_idx %d is out of range [0, %d].", peer_idx, ninst->ldata->nasm->num_peers);
         assert(0);
     }
+    #endif
     return ninst->peer_flag[peer_idx] & PEER_FLAG_COMPUTE;
 
 }
-int check_ninst_send_peer_idx (ninst_t *ninst, int peer_idx)
+int check_ninst_send_using_peer_idx (ninst_t *ninst, int peer_idx)
 {
+    #ifdef DEBUG
     if (ninst == NULL)
     {
         ERROR_PRTF ("ERROR: ninst is NULL.");
@@ -902,15 +916,18 @@ int check_ninst_send_peer_idx (ninst_t *ninst, int peer_idx)
         ERROR_PRTF ("ERROR: peer_idx %d is out of range [0, %d].", peer_idx, ninst->ldata->nasm->num_peers);
         assert(0);
     }
+    #endif
     return ninst->peer_flag[peer_idx] & PEER_FLAG_SEND;
 }
 int get_peer_idx (nasm_t *nasm, HASH_t peer_hash)
 {
+    #ifdef DEBUG
     if (nasm == NULL)
     {
         ERROR_PRTF ("ERROR: nasm is NULL.");
         assert(0);
     }
+    #endif
     for (int i = 0; i < nasm->num_peers; i++)
     {
         if (nasm->peer_map[i].peer_hash == peer_hash)
@@ -920,6 +937,7 @@ int get_peer_idx (nasm_t *nasm, HASH_t peer_hash)
 }
 aspen_peer_t *get_peer (nasm_t *nasm, int peer_idx)
 {
+    #ifdef DEBUG
     if (nasm == NULL)
     {
         ERROR_PRTF ("ERROR: nasm is NULL.");
@@ -930,6 +948,7 @@ aspen_peer_t *get_peer (nasm_t *nasm, int peer_idx)
         ERROR_PRTF ("ERROR: peer_idx %d is out of range [0, %d].", peer_idx, nasm->num_peers);
         assert(0);
     }
+    #endif
     return nasm->peer_map + peer_idx;
 }
 
@@ -948,7 +967,7 @@ nasm_t *apu_copy_nasm (nasm_t *nasm)
     new_nasm->num_peers = nasm->num_peers;
     new_nasm->peer_map = calloc (new_nasm->num_peers, sizeof(HASH_t));
     for (int i = 0; i < new_nasm->num_peers; i++)
-        copy_peer (new_nasm->peer_map + i, nasm->peer_map + i);
+        peer_copy (new_nasm->peer_map + i, nasm->peer_map + i);
     for (int i = 0; i < nasm->num_ninst; i++)
     {
         copy_ninst (new_nasm->ninst_arr + i, nasm->ninst_arr + i);
@@ -1138,6 +1157,14 @@ void apu_destroy_nasm (nasm_t *nasm)
         free(nasm->ninst_arr);
     if (nasm->data != NULL)
         aspen_free (nasm->data);
+    if (nasm->peer_map != NULL)
+    {
+        for (int i = 0; i < nasm->num_peers; i++)
+            destroy_peer (nasm->peer_map + i);
+        free (nasm->peer_map);
+    }
+    pthread_mutex_destroy (&nasm->nasm_mutex);
+    pthread_cond_destroy (&nasm->nasm_cond);
     nasm->dnn->ref_nasms--;
     free(nasm);
 }
@@ -1255,7 +1282,7 @@ void get_ninst_tile_dims (nasm_ldata_t *ldata)
     }
 }
 
-void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata_ptr, aspen_layer_t *layer)
+void nasm_ldata_init (nasm_t *nasm, nasm_ldata_t *ldata_ptr, aspen_layer_t *layer)
 {
     ldata_ptr->nasm = nasm;
     ldata_ptr->layer = layer;

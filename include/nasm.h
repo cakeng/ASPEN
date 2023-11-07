@@ -2,20 +2,22 @@
 #define _NASM_H_
 
 #include "aspen.h"
+#include "rpool.h"
 
 #define PEER_FLAG_SEND 0b01
 #define PEER_FLAG_COMPUTE 0b10
 
 struct aspen_peer_t
 {
-    pthread_mutex_t peer_mutex;
     HASH_t peer_hash;
-    char ip[MAX_STRING_LEN];
-    int listen_port;
     int sock;  
     int isUDP;
     ssize_t latency_usec;
     ssize_t bandwidth_bps;
+    int listen_port;
+    char *ip;
+    pthread_mutex_t peer_mutex;
+    rpool_queue_t *tx_queue;
 };
 
 struct nasm_t
@@ -65,6 +67,17 @@ struct nasm_ldata_t
     _Atomic unsigned int num_ninst_completed;
 };
 
+struct ninst_log_t
+{
+    HASH_t compute_peer;
+    size_t compute_start_usec;
+    size_t compute_end_usec;
+
+    HASH_t send_peer;
+    size_t send_start_usec;
+    size_t send_end_usec;
+};
+
 struct ninst_t 
 {
     nasm_ldata_t *ldata;
@@ -90,20 +103,21 @@ nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigne
 
 double test_nasm_time_sec (nasm_t *nasm, unsigned int num_iter);
 
-void init_nasm_ldata (nasm_t *nasm, nasm_ldata_t *ldata, aspen_layer_t *layer);
+void nasm_ldata_init (nasm_t *nasm, nasm_ldata_t *ldata, aspen_layer_t *layer);
 void destroy_nasm_ldata_arr (nasm_ldata_t *ldata_arr, int num_ldata);
 void set_nasm_to_finished (nasm_t *nasm);
 
-void init_ninst (nasm_ldata_t *ldata, ninst_t *ninst_ptr, int ninst_idx);
+void ninst_init (nasm_ldata_t *ldata, ninst_t *ninst_ptr, int ninst_idx);
 HASH_t get_ninst_hash (ninst_t *ninst);
 void destroy_ninst (ninst_t *ninst);
 
-aspen_peer_t *init_peer ();
-aspen_peer_t *copy_peer (aspen_peer_t *new_peer, aspen_peer_t *peer);
+aspen_peer_t *peer_init ();
+aspen_peer_t *peer_copy (aspen_peer_t *new_peer, aspen_peer_t *peer);
+void destroy_peer (aspen_peer_t *peer);
 void set_ninst_compute_peer_idx (ninst_t *ninst, int peer_idx);
 void set_ninst_send_peer_idx (ninst_t *ninst, int peer_idx);
-int check_ninst_compute_peer_idx (ninst_t *ninst, int peer_idx);
-int check_ninst_send_peer_idx (ninst_t *ninst, int peer_idx);
+int check_ninst_compute_using_peer_idx (ninst_t *ninst, int peer_idx);
+int check_ninst_send_using_peer_idx (ninst_t *ninst, int peer_idx);
 int get_peer_idx (nasm_t *nasm, HASH_t peer_hash);
 aspen_peer_t *get_peer (nasm_t *nasm, int peer_idx);
 

@@ -17,6 +17,63 @@ void *dse_thread_runtime (void* thread_info)
     return NULL;
 }
 
+int dse_check_compute (dse_t *dse, ninst_t *ninst)
+{
+    #ifdef DEBUG
+    if (dse == NULL || ninst == NULL)
+    {
+        ERROR_PRTF ("Error: Invalid arguments to dse_check_compute()");
+        assert (0);
+    }
+    if (ninst->state != NINST_READY)
+    {
+        ERROR_PRTF ("Error: ninst->state != NINST_READY in dse_check_compute() - State: %s", 
+            ninst_state_str[ninst->state]);
+        assert (0);
+    }
+    #endif
+    if (ninst->ldata->nasm->num_peers < 2)
+        return 1;
+    HASH_t group_hash = dse->dse_group->my_peer_data->peer_hash;
+    if (check_ninst_compute_using_peer_idx (ninst, get_peer_idx(ninst->ldata->nasm, group_hash)))
+        return 1;
+    HASH_t dse_hash = dse->my_peer_data->peer_hash;
+    if (check_ninst_compute_using_peer_idx (ninst, get_peer_idx(ninst->ldata->nasm, dse_hash)))
+        return 1;
+    return 0;
+}
+
+void dse_push_to_tx (dse_t *dse, ninst_t *ninst)
+{
+    #ifdef DEBUG
+    if (dse == NULL || ninst == NULL)
+    {
+        ERROR_PRTF ("Error: Invalid arguments to dse_check_send()");
+        assert (0);
+    }
+    if (ninst->state != NINST_COMPLETED)
+    {
+        ERROR_PRTF ("Error: ninst->state != NINST_COMPLETED in dse_check_send() - State: %s", 
+            ninst_state_str[ninst->state]);
+        assert (0);
+    }
+    #endif
+    if (ninst->ldata->nasm->num_peers < 2)
+        return;
+    for (int i = 0; i < ninst->ldata->nasm->num_peers; i++)
+    {
+        if (i == get_peer_idx(ninst->ldata->nasm, dse->my_peer_data->peer_hash))
+            continue;
+        if (check_ninst_send_using_peer_idx (ninst, i))
+        {
+            aspen_peer_t *peer = ninst->ldata->nasm->peer_map + i;
+            pthread_mutex_lock (&peer->tx_queue->occupied_mutex);
+            push_ninsts_to_queue (peer->tx_queue, &ninst, 1);
+            pthread_mutex_unlock (&peer->tx_queue->occupied_mutex);
+        }
+    }
+}
+
 void dse_execute (dse_t *dse, ninst_t *ninst)
 {
     switch (ninst->ldata->layer->type)
@@ -81,7 +138,8 @@ void dse_schedule (dse_t *dse)
         assert (0);
     }
     #endif
-    dse_execute (dse, ninst);
+    if (dse_check_compute(dse, ninst))
+        dse_execute (dse, ninst);
     ninst->state = NINST_COMPLETED;
     unsigned int num_ninst_completed = atomic_fetch_add (&ninst->ldata->num_ninst_completed, 1);
     if (num_ninst_completed == ninst->ldata->num_ninst - 1)
@@ -110,6 +168,7 @@ void dse_schedule (dse_t *dse)
         }
     }
     update_children_but_prioritize_dse_target (dse->rpool, ninst, dse);
+    dse_push_to_tx (dse, ninst);
 }
 
 runtime_profile_t *dse_profile_init (HASH_t ninst_hash, size_t runtime_usec)
@@ -292,10 +351,14 @@ void dse_group_save_profile_data (dse_group_t *dse_group, char *filename)
 dse_group_t *dse_group_init (unsigned int num_dse)
 {
     dse_group_t *dse_group = (dse_group_t *) calloc (1, sizeof (dse_group_t));
+    dse_group->my_peer_data = peer_init ();
     dse_group->num_dses = num_dse;
     dse_group->dse_arr = (dse_t *) calloc (num_dse, sizeof (dse_t));
     for (int i = 0; i < num_dse; i++)
+    {
         dse_init (&dse_group->dse_arr[i]);
+        dse_group->dse_arr[i].dse_group = dse_group;
+    }
     dse_group->max_num_profiles = 32;
     dse_group->num_profiles = 0;
     dse_group->profile_arr = (runtime_profile_t **) calloc (dse_group->max_num_profiles, sizeof (runtime_profile_t *));
@@ -332,6 +395,7 @@ void dse_group_destroy (dse_group_t *dse_group)
         dse_destroy (&dse_group->dse_arr[i]);
     }
     free (dse_group->dse_arr);
+    destroy_peer (dse_group->my_peer_data);
     for (int i = 0 ; i < dse_group->max_num_profiles; i++)
         dse_profile_destroy (dse_group->profile_arr[i]);
     free (dse_group->profile_arr);
@@ -345,6 +409,7 @@ void dse_init (dse_t *dse)
         ERROR_PRTF ("ERROR: dse_init: dse is NULL");
         assert (0);
     }
+    dse->dse_group = NULL;
     dse->thread_id = atomic_fetch_add (&dse_thread_id_counter, 1);
     dse->rpool = NULL;
     dse->scratchpad = aspen_calloc (DSE_SCRATCHPAD_SIZE, 1);
@@ -356,9 +421,10 @@ void dse_init (dse_t *dse)
     dse->thread_mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
     dse->thread_cond = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
     dse->ninst_cache = calloc (1, sizeof (rpool_queue_t));
+    rpool_init_queue (dse->ninst_cache);
     atomic_store (&dse->run, -1);
     atomic_store (&dse->kill, 0);
-    rpool_init_queue (dse->ninst_cache);
+    dse->my_peer_data = peer_init ();
     pthread_create (&dse->thread, NULL, dse_thread_runtime, (void*)dse);
 }
 
@@ -379,6 +445,7 @@ void dse_destroy (dse_t *dse)
     if (dse->scratchpad != NULL)
         aspen_free (dse->scratchpad);
     rpool_destroy_queue (dse->ninst_cache);
+    destroy_peer (dse->my_peer_data);
     free (dse->ninst_cache);
 }
 

@@ -42,18 +42,18 @@ struct aspen_layer_t
     aspen_tensor_t *tensors [NUM_TENSORS];
 };
 
-aspen_dnn_t *init_aspen_dnn (unsigned int num_layers, char* name);
+aspen_dnn_t *aspen_dnn_init (unsigned int num_layers, char* name);
 void apu_load_dnn_data_from_file (aspen_dnn_t *dnn, char *input_path);
 void *aspen_load_input_NHWC(char *input_filename, unsigned int *input_dims, unsigned int element_size);
 void *aspen_load_input(char *input_filename, unsigned int *input_dims, unsigned int element_size);
 
-void init_aspen_layer (aspen_layer_t *layer, unsigned int layer_num, aspen_dnn_t *dnn);
+void aspen_layer_init (aspen_layer_t *layer, unsigned int layer_num, aspen_dnn_t *dnn);
 void create_layer_tensors (aspen_layer_t *layer);
 void create_layer_output_tensor (aspen_layer_t *layer);
 void create_layer_col_idx_tensor (aspen_layer_t *layer);
 void destroy_aspen_layers (aspen_layer_t* layers, unsigned int num_layers);
 
-aspen_tensor_t *init_aspen_tensor (unsigned int *params_arr, LAYER_PARAMS *order, int num_dims, unsigned int element_size);
+aspen_tensor_t *aspen_tensor_init (unsigned int *params_arr, LAYER_PARAMS *order, int num_dims, unsigned int element_size);
 void calloc_aspen_tensor (aspen_tensor_t *tensor);
 void copy_buffer_to_aspen_tensor  (aspen_tensor_t *tensor, void *buffer);
 void copy_aspen_tensor_to_buffer  (aspen_tensor_t *tensor, void *buffer);

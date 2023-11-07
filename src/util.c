@@ -267,6 +267,13 @@ HASH_t get_hash (void* data, size_t len)
     return hash;
 }
 
+HASH_t get_unique_hash ()
+{
+    size_t unique_val = getpid() + get_time_usec() + rand();
+    return get_hash (&unique_val, sizeof (size_t));
+}
+
+
 size_t get_smallest_dividable (size_t num, size_t divider)
 {
     return (num + divider - 1) / divider * divider;

@@ -17,6 +17,7 @@ void *aspen_dynamic_calloc (size_t num, size_t size);
 void *aspen_dynamic_malloc (size_t num, size_t size);
 void aspen_dynamic_free (void *ptr, size_t num, size_t size);
 
+HASH_t get_unique_hash ();
 HASH_t get_hash (void* data, size_t len);
 size_t get_smallest_dividable (size_t num, size_t divider);
 
