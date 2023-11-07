@@ -13,12 +13,12 @@ main_scheduling
 *.gz
 baselines
 logs
-.out
+*.out
 .vscode/*
 main_mu
 data
 obj
 subcmdline.c
 subcmdline.h
-.outputs
-.csv
+*.outputs
+*.csv
