@@ -72,7 +72,9 @@ void get_prob_results (char *class_data_path, float* probabilities, unsigned int
 
 int main (int argc, char **argv)
 {
+    #ifndef SUPPRESS_OUTPUT
     print_aspen_build_info();
+    #endif
     
     char dnn[256] = {0};
     int batch_size = 4;
@@ -154,7 +156,7 @@ int main (int argc, char **argv)
 
     unsigned int num_last_layer_ninst = target_nasm->ldata_arr[fl_split_layer_idx].num_ninst;
 
-    printf("FL: last layer of fl path has %d ninsts\n", num_last_layer_ninst);
+    PRTF ("FL: last layer of fl path has %d ninsts\n", num_last_layer_ninst);
 
     fl_init(target_nasm);
     
@@ -202,7 +204,7 @@ int main (int argc, char **argv)
 
     rpool_add_nasm (rpool, target_nasm, "data/batched_input_128.bin");
 
-    printf ("Running %d iterations\n", number_of_iterations);
+    PRTF ("Running %d iterations\n", number_of_iterations);
     start_time = get_sec();
     for (int i = 0; i < number_of_iterations; i++)
     {
@@ -231,7 +233,12 @@ int main (int argc, char **argv)
 
     }
     end_time = get_sec();
+
+    #ifndef SUPRESS_OUTPUT
     printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);
+    #else
+    printf ("%lf\n", (end_time - start_time)/number_of_iterations);
+    #endif
 
     if (strcmp(dnn, "bert_base") != 0)
     {
@@ -241,7 +248,9 @@ int main (int argc, char **argv)
         softmax (layer_output, softmax_output, batch_size, 1000);
         for (int i = 0; i < batch_size; i++)
         {
+            #ifndef SUPPRESS_OUTPUT
             get_prob_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
+            #endif
         }
         free (layer_output);
         free (softmax_output);

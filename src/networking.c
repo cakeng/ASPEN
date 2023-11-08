@@ -312,7 +312,7 @@ void receive(networking_engine *net_engine)
     {
         if (payload_size <= 0)
         {
-            printf("Networking: RX Command %d received - ", payload_size);
+            PRTF("Networking: RX Command %d received - ", payload_size);
             if (payload_size == RX_STOP_SIGNAL)
             {
                 PRTF("RX stop signal received.\n");
@@ -536,7 +536,7 @@ void receive_fl(networking_engine *net_engine)
     {
         if (payload_size <= 0)
         {
-            printf("Networking: RX Command %d received - ", payload_size);
+            PRTF("Networking: RX Command %d received - ", payload_size);
             if (payload_size == RX_STOP_SIGNAL)
             {
                 PRTF("RX stop signal received.\n");

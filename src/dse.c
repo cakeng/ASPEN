@@ -239,7 +239,7 @@ void dse_schedule (dse_t *dse)
                 atomic_fetch_add (&nasm->num_ldata_completed, 1);
                 if (ninst->ldata == &nasm->ldata_arr[nasm->num_ldata - 1])
                 {
-                    printf ("\t\tSignaling nasm completion...\n");
+                    PRTF ("\t\tSignaling nasm completion...\n");
                     // All layers of the nasm is completed.
                     atomic_store (&nasm->completed, 1);
                     rpool_queue_group_t *rpool_queue_group;
