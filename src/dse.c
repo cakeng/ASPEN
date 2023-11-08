@@ -353,7 +353,7 @@ void dse_schedule_fl (dse_t *dse) {
         fl_path_t *now_path = atomic_load(&dse_now_path);
         unsigned int nplc = atomic_load(&now_path->num_path_layers_completed);
         
-        if (nplc != now_path->num_path_layers && nplc < now_path->num_path_layers) {
+        if (nplc < now_path->num_path_layers) {
             rpool_fetch_ninsts_from_group (dse->rpool, &dse->target, 1, nplc + 1);
             #ifdef DEBUG
             if (dse->target != NULL)

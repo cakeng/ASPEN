@@ -482,6 +482,7 @@ void transmission_fl(networking_engine *net_engine)
         unsigned int data_size = target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float);
         *(unsigned int*)buffer_ptr = data_size;
         buffer_ptr += sizeof(unsigned int);
+        if (!target_ninst->network_buf) target_ninst->network_buf = calloc(target_ninst->tile_dims[OUT_W] * target_ninst->tile_dims[OUT_H], sizeof(float));
         memcpy(buffer_ptr, target_ninst->network_buf, data_size);
         free (target_ninst->network_buf);
         target_ninst->network_buf = NULL;
