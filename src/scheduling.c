@@ -1126,6 +1126,13 @@ void fl_reset_path(fl_path_t *path) {
     
 }
 
+void fl_reset_nasm_path(nasm_t *nasm) {
+    unsigned int num_paths = nasm->num_paths;
+    for (int i=0; i<num_paths; i++) {
+        fl_reset_path(nasm->path_ptr_arr[i]);
+    }
+}
+
 void fl_destroy_path(fl_path_t *path) {
     for (int i=0; i<path->num_path_layers; i++) {
         fl_path_layer_t *path_layer = &path->path_layers_arr[i];
@@ -1133,6 +1140,13 @@ void fl_destroy_path(fl_path_t *path) {
     }
     free(path->path_layers_arr);
     free(path);
+}
+
+void fl_destroy_nasm_path(nasm_t *nasm) {
+    unsigned int num_paths = nasm->num_paths;
+    for (int i=0; i<num_paths; i++) {
+        fl_destroy_path(nasm->path_ptr_arr[i]);
+    }
 }
 
 int fl_is_ninst_in_path_layer(fl_path_layer_t *path_layer, ninst_t *ninst) {
