@@ -50,7 +50,7 @@ do
 
     for ((i1=0; i1<${fl_last_layer}; i1++))
     do
-        for ((i2=0; i2<=${fl_last_layer}; i2++))
+        for ((i2=0; i2<${fl_last_layer}; i2++))
         do
             FL_PATH_OFFLOAD_IDX="$i1 $i2"
 
@@ -70,9 +70,9 @@ do
 
     for ((i1=0; i1<${fl_last_layer}; i1++))
     do
-        for ((i2=0; i2<=${fl_last_layer}; i2++))
+        for ((i2=0; i2<${fl_last_layer}; i2++))
         do
-            for ((i3=0; i3<=${fl_last_layer}; i3++))
+            for ((i3=0; i3<${fl_last_layer}; i3++))
             do
                 FL_PATH_OFFLOAD_IDX="$i1 $i2 $i3"
 
@@ -93,11 +93,11 @@ do
 
     for ((i1=0; i1<${fl_last_layer}; i1++))
     do
-        for ((i2=0; i2<=${fl_last_layer}; i2++))
+        for ((i2=0; i2<${fl_last_layer}; i2++))
         do
-            for ((i3=0; i3<=${fl_last_layer}; i3++))
+            for ((i3=0; i3<${fl_last_layer}; i3++))
             do
-                for ((i4=0; i4<=${fl_last_layer}; i4++))
+                for ((i4=0; i4<${fl_last_layer}; i4++))
                 do
                     FL_PATH_OFFLOAD_IDX="$i1 $i2 $i3 $i4"
 
@@ -119,13 +119,13 @@ do
 
     for ((i1=0; i1<${fl_last_layer}; i1++))
     do
-        for ((i2=0; i2<=${fl_last_layer}; i2++))
+        for ((i2=0; i2<${fl_last_layer}; i2++))
         do
-            for ((i3=0; i3<=${fl_last_layer}; i3++))
+            for ((i3=0; i3<${fl_last_layer}; i3++))
             do
-                for ((i4=0; i4<=${fl_last_layer}; i4++))
+                for ((i4=0; i4<${fl_last_layer}; i4++))
                 do
-                    for ((i5=0; i5<=${fl_last_layer}; i5++))
+                    for ((i5=0; i5<${fl_last_layer}; i5++))
                     do
                         FL_PATH_OFFLOAD_IDX="$i1 $i2 $i3 $i4 $i5"
 
@@ -148,15 +148,15 @@ do
 
     for ((i1=0; i1<${fl_last_layer}; i1++))
     do
-        for ((i2=0; i2<=${fl_last_layer}; i2++))
+        for ((i2=0; i2<${fl_last_layer}; i2++))
         do
-            for ((i3=0; i3<=${fl_last_layer}; i3++))
+            for ((i3=0; i3<${fl_last_layer}; i3++))
             do
-                for ((i4=0; i4<=${fl_last_layer}; i4++))
+                for ((i4=0; i4<${fl_last_layer}; i4++))
                 do
-                    for ((i5=0; i5<=${fl_last_layer}; i5++))
+                    for ((i5=0; i5<${fl_last_layer}; i5++))
                     do
-                        for ((i6=0; i6<=${fl_last_layer}; i6++))
+                        for ((i6=0; i6<${fl_last_layer}; i6++))
                         do
                             FL_PATH_OFFLOAD_IDX="$i1 $i2 $i3 $i4 $i5 $i6"
 
