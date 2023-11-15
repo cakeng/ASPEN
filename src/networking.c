@@ -661,6 +661,9 @@ void net_queue_reset (networking_queue_t *networking_queue)
 void net_engine_reset (networking_engine *net_engine)
 {
     net_queue_reset(net_engine->tx_queue);
+
+    atomic_store(&net_engine->fl_path_queue_start, 0);
+    atomic_store(&net_engine->fl_path_queue_end, 0);
 }
 
 void net_engine_run (networking_engine *net_engine)

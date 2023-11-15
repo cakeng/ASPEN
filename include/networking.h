@@ -72,7 +72,7 @@ struct networking_engine
 
     // for fl offloading
     int is_fl_offloading;
-    unsigned int fl_path_idx_queue[256];
+    unsigned int fl_path_idx_queue[512];
     _Atomic int fl_path_queue_start;
     _Atomic int fl_path_queue_end;
 };
