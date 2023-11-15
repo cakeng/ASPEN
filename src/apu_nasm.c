@@ -537,6 +537,10 @@ void init_ninst (nasm_ldata_t *ldata, ninst_t *ninst_ptr, int ninst_idx)
         ldata->out_mat_dims[OUT_W] - ninst_ptr->out_mat_pos[OUT_W]: ldata->ninst_tile_dims[OUT_W];
     ninst_ptr->tile_dims[OUT_H] = ninst_ptr->out_mat_pos[OUT_H] + ldata->ninst_tile_dims[OUT_H] > ldata->out_mat_dims[OUT_H]? 
         ldata->out_mat_dims[OUT_H] - ninst_ptr->out_mat_pos[OUT_H]: ldata->ninst_tile_dims[OUT_H];
+    
+    // default
+    ninst_core_allow_all(ninst_ptr);
+    ninst_ptr->compute_option = NINST_COMPUTE_YES;
 }
 
 void destroy_ninst (ninst_t *ninst)
@@ -571,6 +575,7 @@ nasm_t *apu_create_nasm_without_finding_ninst_parents (aspen_dnn_t *dnn, unsigne
     new_nasm->min_ninst_per_ldata = min_ninst_per_ldata;
     new_nasm->gpu_idx = -1;
     atomic_store (&new_nasm->completed, 0);
+    new_nasm->operating_mode = OPER_MODE_DEFAULT;
     nasm_num++;
     for (int i = 0; i < dnn->num_layers; i++)
     {
@@ -836,6 +841,7 @@ void apu_reset_nasm (nasm_t *nasm)
 {
     atomic_store (&nasm->num_ldata_completed, 0);
     atomic_store (&nasm->completed, 0);
+    atomic_store (&nasm->path_now_idx, 0);
     for (int i = 0; i < nasm->num_ldata; i++)
     {
         nasm_ldata_t *ldata = &nasm->ldata_arr[i];
@@ -862,7 +868,15 @@ void apu_reset_nasm (nasm_t *nasm)
                 free (ninst->network_buf);
                 ninst->network_buf = NULL;
             }
+            ninst->compute_option = NINST_COMPUTE_YES;
         }
+    }
+}
+
+void apu_set_nasm_num_cores (nasm_t *nasm, unsigned int num_cores) {
+    nasm->num_cores = num_cores;
+    for (int i=0; i<nasm->num_ninst; i++) {
+        nasm->ninst_arr[i].num_cores = num_cores;
     }
 }
 
@@ -964,6 +978,25 @@ void copy_buffer_to_ninst_data (ninst_t *ninst, void *buffer)
     }
 }
 
+void copy_buffer_to_ninst_dummy_data (ninst_t *ninst, void *buffer)
+{
+    #ifdef DEBUG
+    if (ninst == NULL || buffer == NULL)
+    {
+        PRTF ("ERROR: ninst or buffer is NULL.\n");
+        assert(0);
+    }
+    #endif
+    char* out_mat = get_ninst_out_mem_dummy (ninst);
+    const unsigned int W = ninst->tile_dims[OUT_W];
+    const unsigned int H = ninst->tile_dims[OUT_H];
+    const unsigned int stride = ninst->ldata->out_mat_stride;
+    for(int w = 0; w < W; w++) 
+    {
+        memcpy(out_mat + w * stride * sizeof(float), buffer + w * H * sizeof(float), H * sizeof(float));
+    }
+}
+
 void alloc_ldata_out_mat (nasm_ldata_t *ldata)
 {
     pthread_mutex_lock (&ldata->out_mat_mutex);
@@ -974,6 +1007,7 @@ void alloc_ldata_out_mat (nasm_ldata_t *ldata)
     }
     // printf ("allocating %ld KiB of memory for ldata %d\n", ldata->out_mat_mem_size/1024, ldata->layer->layer_idx);
     ldata->out_mat = aspen_dynamic_malloc (1, ldata->out_mat_mem_size);
+    ldata->out_mat_dummy = aspen_dynamic_malloc (1, ldata->out_mat_mem_size);
     pthread_mutex_unlock (&ldata->out_mat_mutex);
 }
 
@@ -983,6 +1017,7 @@ void free_ldata_out_mat (nasm_ldata_t *ldata)
     {
         // printf ("freeing %ld KiB of memory for ldata %d\n", ldata->out_mat_mem_size/1024, ldata->layer->layer_idx);
         aspen_dynamic_free (ldata->out_mat, 1, ldata->out_mat_mem_size);
+        aspen_dynamic_free (ldata->out_mat_dummy, 1, ldata->out_mat_mem_size);
         ldata->out_mat = NULL;
     }
 }
@@ -995,6 +1030,18 @@ void *get_ninst_out_mem (ninst_t *ninst)
         alloc_ldata_out_mat (ninst->ldata);
     }
     return (char*)ninst->ldata->out_mat
+        + (ninst->out_mat_pos[OUT_W]*ninst->ldata->out_mat_stride + ninst->out_mat_pos[OUT_H])
+            *ninst->ldata->nasm->dnn->element_size;
+}
+
+void *get_ninst_out_mem_dummy (ninst_t *ninst)
+{
+    if (ninst->ldata->out_mat == NULL)
+    {
+        // BLUE_PRTF ("APU: Allocating output memory for ldata %d\n", ninst->ldata->layer->layer_idx);
+        alloc_ldata_out_mat (ninst->ldata);
+    }
+    return (char*)ninst->ldata->out_mat_dummy
         + (ninst->out_mat_pos[OUT_W]*ninst->ldata->out_mat_stride + ninst->out_mat_pos[OUT_H])
             *ninst->ldata->nasm->dnn->element_size;
 }

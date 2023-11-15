@@ -6,12 +6,15 @@
 #define PROFILE_LONG_MESSAGE_SIZE   (1024 * 256)
 #define SCHEDULE_MAX_DEVICES        9
 
+#define SCHEDULE_MAX_CORE           64
+
 #include "nasm.h"
 #include "profiling.h"
 #include "aspen.h"
 
 #include <float.h>
 #include <limits.h>
+#include <stdatomic.h>
 
 
 typedef enum {
@@ -85,13 +88,43 @@ struct spinn_scheduler_t{
 
 };
 
+struct fl_path_layer_t {
+    fl_path_t *fl_path;
+
+    nasm_ldata_t *ldata;
+
+    ninst_t **ninst_ptr_arr;
+    unsigned int num_ninsts;
+    atomic_uint num_ninsts_completed;
+
+};
+
+struct fl_path_t {
+    unsigned int path_idx;
+
+    unsigned int num_path_layers;
+    atomic_uint num_path_layers_completed;
+    fl_path_layer_t *path_layers_arr;
+
+    unsigned int edge_final_layer_idx;
+};
+
 int is_offloaded(ninst_t *ninst);
 int is_dev_compute(ninst_t *ninst, int device_idx);
+int is_core_compute(ninst_t *ninst, int core_idx);
 void ninst_clear_compute_device(ninst_t *ninst);
 void ninst_set_compute_device(ninst_t *ninst, int device_idx);
 void ninst_set_send_target_device(ninst_t *ninst, int device_idx);
 void ninst_clear_send_target_device(ninst_t *ninst);
 void ninst_copy_compute_device(ninst_t* target_ninst, ninst_t* ninst);
+
+void ninst_core_allow_all(ninst_t *ninst);
+void ninst_core_disallow_all(ninst_t *ninst);
+void ninst_core_allow(ninst_t *ninst, int core_idx, int allow);
+void ninst_core_allow_rand(ninst_t *ninst, int num_core);
+int get_allowed_core_idx(ninst_t *ninst);
+
+void core_init_random(nasm_t *nasm, int num_core);
 
 dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, DEVICE_MODE device_mode, int device_idx, int num_edge_devices);
 spinn_scheduler_t* init_spinn_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, nasm_t** nasms, DEVICE_MODE device_mode, int device_idx, int num_edge_devices);
@@ -100,6 +133,7 @@ void spinn_update_profile(spinn_scheduler_t* spinn_scheduler, float rtt, float a
 void spinn_model_splitter(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int device_idx);
 int spinn_schedule_layer(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int device_idx);
 
+void init_allow_all(nasm_t *nasm, int num_dev);
 void init_full_local(nasm_t *nasm, int dev_idx);
 void init_full_offload(nasm_t *nasm, int edge_id, int server_id);
 void init_partial_offload(nasm_t *nasm, int split_layer, float compute_ratio, int edge_id, int server_id);
@@ -136,5 +170,17 @@ void save_schedule(sched_processor_t *sched_processor_arr, int num_device, char 
 sched_processor_t *load_schedule(char *file_path);
 void share_schedule(sched_processor_t **sched_processor_arr, int num_device, DEVICE_MODE device_mode, int server_sock, int client_sock);
 void apply_schedule_to_nasm(nasm_t *nasm, sched_processor_t *sched_processor, int num_device, DEVICE_MODE device_mode);
+
+void fl_init(nasm_t *nasm);
+fl_path_t *fl_create_path(nasm_t *nasm, ninst_t **last_layer_ninsts, unsigned int num_last_layer_ninsts);
+void fl_reset_path(fl_path_t *path);
+int fl_is_ninst_in_path_layer(fl_path_layer_t *path_layer, ninst_t *ninst);
+void fl_push_path_ninsts(rpool_t *rpool, fl_path_t *path);
+void fl_push_path_ninsts_edge(rpool_t *rpool, fl_path_t *path);
+void fl_push_path_ninsts_server(rpool_t *rpool, fl_path_t *path);
+void fl_push_path_ninsts_until(rpool_t *rpool, fl_path_t *path, unsigned int last_layer_idx);
+void fl_push_ninsts_after(rpool_t *rpool, nasm_t *nasm, unsigned int last_layer_idx, unsigned int to_group);
+void fl_push_ninsts_only(rpool_t *rpool, nasm_t *nasm, unsigned int layer_idx, unsigned int to_group);
+void fl_set_dev_compute(nasm_t *nasm, fl_path_t *path, DEVICE_MODE dev_mode);
 
 #endif

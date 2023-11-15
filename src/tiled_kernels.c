@@ -179,6 +179,9 @@ void tiled_conv2d (ninst_t *ninst, dse_t *dse)
     const void *A = (float*)layer->tensors[WEIGHT_TENSOR]->data + ninst->out_mat_pos[OUT_H] * lda;
     void *B = (char *) scratchpad;
     void *C = get_ninst_out_mem (ninst);
+    if (ninst->compute_option == NINST_COMPUTE_DUMMY) {
+        C = get_ninst_out_mem_dummy (ninst);
+    }
     const unsigned int rem_n = N % _TILE_SIZE_N;
     const unsigned int rem_m = M % _TILE_SIZE_M;
     const unsigned int rem_k = K % _TILE_SIZE_K;
@@ -477,6 +480,9 @@ void tiled_maxpool2d (ninst_t *ninst, dse_t *dse)
     const unsigned int N = ninst->tile_dims[OUT_W];
     const unsigned int ldc = ldata->out_mat_stride;
     void *C = get_ninst_out_mem (ninst);
+    if (ninst->compute_option == NINST_COMPUTE_DUMMY) {
+        C = get_ninst_out_mem_dummy (ninst);
+    }
     if (dse->gpu_idx < 0)
     {
         for (int n = 0; n < N; n++)

@@ -20,3 +20,5 @@ subcmdline.c
 subcmdline.h
 .outputs
 .csv
+main_local_fl
+main_fl

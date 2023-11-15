@@ -74,6 +74,9 @@ extern int aspen_num_gpus;
 extern cudaStream_t aspen_CUDA_streams[MAX_NUM_GPUS][GPU_MEM_STREAM_HOST_TO_GPU+1];
 #endif
 
+#define OPER_MODE_DEFAULT   0
+#define OPER_MODE_FL_PATH   1
+
 typedef enum {NINST_NOT_READY, NINST_READY, NINST_COMPLETED, NUM_NINST_STATES} NINST_STATE;
 typedef enum {NO_LAYER_TYPE, INPUT_LAYER, CONV_LAYER, FC_LAYER,
  RESIDUAL_LAYER, BATCHNORM_LAYER, YOLO_LAYER, APPEND_LAYER, ACTIVATION_LAYER, MAXPOOL_LAYER, AVGPOOL_LAYER,
@@ -127,6 +130,8 @@ typedef struct sched_task_t sched_task_t;
 typedef struct sched_processor_t sched_processor_t;
 typedef struct dynamic_scheduler_t dynamic_scheduler_t;
 typedef struct spinn_scheduler_t spinn_scheduler_t;
+typedef struct fl_path_layer_t fl_path_layer_t;
+typedef struct fl_path_t fl_path_t;
 
 aspen_dnn_t *apu_create_dnn(char *input_path, char *data_path);
 void apu_destroy_dnn(aspen_dnn_t *dnn);
@@ -141,8 +146,10 @@ void apu_destroy_nasm(nasm_t *nasm);
 nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn);
 void apu_save_nasm_to_file(nasm_t *nasm, char *filename);
 void apu_reset_nasm (nasm_t *nasm);
+void apu_set_nasm_num_cores (nasm_t *nasm, unsigned int num_cores);
 
 rpool_t *rpool_init (int gpu_idx);
+rpool_t *rpool_init_multigroup (int gpu_idx, int needed_groups);
 void rpool_destroy (rpool_t *rpool);
 void rpool_add_nasm_raw_input (rpool_t *rpool, nasm_t* nasm, void* input_data);
 void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, char *input_filename);
