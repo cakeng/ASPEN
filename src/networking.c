@@ -313,7 +313,7 @@ void receive(networking_engine *net_engine)
     {
         if (payload_size <= 0)
         {
-            printf("Networking: RX Command %d received - ", payload_size);
+            PRTF("Networking: RX Command %d received - ", payload_size);
             if (payload_size == RX_STOP_SIGNAL)
             {
                 PRTF("RX stop signal received.\n");
@@ -483,6 +483,7 @@ void transmission_fl(networking_engine *net_engine)
         unsigned int data_size = target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float);
         *(unsigned int*)buffer_ptr = data_size;
         buffer_ptr += sizeof(unsigned int);
+        if (!target_ninst->network_buf) target_ninst->network_buf = calloc(target_ninst->tile_dims[OUT_W] * target_ninst->tile_dims[OUT_H], sizeof(float));
         memcpy(buffer_ptr, target_ninst->network_buf, data_size);
         free (target_ninst->network_buf);
         target_ninst->network_buf = NULL;
@@ -537,7 +538,7 @@ void receive_fl(networking_engine *net_engine)
     {
         if (payload_size <= 0)
         {
-            printf("Networking: RX Command %d received - ", payload_size);
+            PRTF("Networking: RX Command %d received - ", payload_size);
             if (payload_size == RX_STOP_SIGNAL)
             {
                 PRTF("RX stop signal received.\n");
@@ -585,7 +586,7 @@ void receive_fl(networking_engine *net_engine)
             fl_path_t *target_path = net_engine->nasm->path_ptr_arr[path_idx];
             if (atomic_exchange (&target_ninst->state, NINST_COMPLETED) == NINST_COMPLETED) 
             {
-                unsigned int path_num_ninsts_completed = atomic_fetch_add(&target_path->path_layers_arr[target_path->edge_final_layer_idx - 1].num_ninsts_completed, 1) + 1;
+                unsigned int path_num_ninsts_completed = atomic_fetch_add(&target_path->path_layers_arr[target_path->edge_final_layer_idx].num_ninsts_completed, 1) + 1;
 
                 copy_buffer_to_ninst_dummy_data (target_ninst, buffer_ptr);
                 #ifdef DEBUG
@@ -594,7 +595,7 @@ void receive_fl(networking_engine *net_engine)
                     target_ninst->ldata->layer->layer_idx, 
                     path_idx,
                     path_num_ninsts_completed,
-                    target_path->path_layers_arr[target_path->edge_final_layer_idx - 1].num_ninsts
+                    target_path->path_layers_arr[target_path->edge_final_layer_idx].num_ninsts
                 );    
                 #endif
                 buffer_ptr += data_size;
@@ -612,18 +613,18 @@ void receive_fl(networking_engine *net_engine)
             atomic_store(&target_ninst->state, NINST_COMPLETED);
             target_ninst->received_time = get_time_secs_offset ();
             
-            unsigned int path_num_ninsts_completed = atomic_fetch_add(&target_path->path_layers_arr[target_path->edge_final_layer_idx - 1].num_ninsts_completed, 1) + 1;
+            unsigned int path_num_ninsts_completed = atomic_fetch_add(&target_path->path_layers_arr[target_path->edge_final_layer_idx].num_ninsts_completed, 1) + 1;
             #ifdef DEBUG
             printf("receive_fl: (N %d, L %d, P %d). Received Ninsts %d/%d\n",
                 target_ninst->ninst_idx, 
                 target_ninst->ldata->layer->layer_idx, 
                 path_idx,
                 path_num_ninsts_completed,
-                target_path->path_layers_arr[target_path->edge_final_layer_idx - 1].num_ninsts
+                target_path->path_layers_arr[target_path->edge_final_layer_idx].num_ninsts
             );
             #endif
             
-            if (target_path->path_idx == 0 && path_num_ninsts_completed == target_path->path_layers_arr[target_path->edge_final_layer_idx - 1].num_ninsts) {
+            if (target_path->path_idx == 0 && path_num_ninsts_completed == target_path->path_layers_arr[target_path->edge_final_layer_idx].num_ninsts) {
                 #ifdef DEBUG
                 printf("PATH %d READY!\n", path_idx);
                 #endif

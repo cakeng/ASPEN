@@ -172,8 +172,11 @@ void share_schedule(sched_processor_t **sched_processor_arr, int num_device, DEV
 void apply_schedule_to_nasm(nasm_t *nasm, sched_processor_t *sched_processor, int num_device, DEVICE_MODE device_mode);
 
 void fl_init(nasm_t *nasm);
-fl_path_t *fl_create_path(nasm_t *nasm, ninst_t **last_layer_ninsts, unsigned int num_last_layer_ninsts);
+fl_path_t *fl_create_path(nasm_t *nasm, ninst_t **last_layer_ninsts, unsigned int num_last_layer_ninsts, unsigned int edge_final_layer_idx);
 void fl_reset_path(fl_path_t *path);
+void fl_reset_nasm_path(nasm_t *nasm);
+void fl_destroy_path(fl_path_t *path);
+void fl_destroy_nasm_path(nasm_t *nasm);
 int fl_is_ninst_in_path_layer(fl_path_layer_t *path_layer, ninst_t *ninst);
 void fl_push_path_ninsts(rpool_t *rpool, fl_path_t *path);
 void fl_push_path_ninsts_edge(rpool_t *rpool, fl_path_t *path);
