@@ -245,9 +245,11 @@ void transmission(networking_engine *net_engine)
         unsigned int data_size = target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float);
         *(unsigned int*)buffer_ptr = data_size;
         buffer_ptr += sizeof(unsigned int);
+        int lock; while (lock = atomic_exchange(&target_ninst->lock_network_buf, 1)) {}
         memcpy(buffer_ptr, target_ninst->network_buf, data_size);
         free (target_ninst->network_buf);
         target_ninst->network_buf = NULL;
+        atomic_store(&target_ninst->lock_network_buf, 0);
         target_ninst->sent_time = time_sent;
         buffer_ptr += data_size;
         // PRTF("Networking: Ninst%d(idx %d), Sending %d bytes, W%d, H%d, data size %d\n", i, target_ninst->ninst_idx, data_size + 3*sizeof(int), 
@@ -482,10 +484,12 @@ void transmission_fl(networking_engine *net_engine)
         unsigned int data_size = target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float);
         *(unsigned int*)buffer_ptr = data_size;
         buffer_ptr += sizeof(unsigned int);
+        int lock; while (lock = atomic_exchange(&target_ninst->lock_network_buf, 1)) {}
         if (!target_ninst->network_buf) target_ninst->network_buf = calloc(target_ninst->tile_dims[OUT_W] * target_ninst->tile_dims[OUT_H], sizeof(float));
         memcpy(buffer_ptr, target_ninst->network_buf, data_size);
         free (target_ninst->network_buf);
         target_ninst->network_buf = NULL;
+        atomic_store(&target_ninst->lock_network_buf, 0);
         target_ninst->sent_time = time_sent;
         buffer_ptr += data_size;
 
@@ -832,10 +836,14 @@ void create_network_buffer_for_ninst (ninst_t *target_ninst)
 {
     const unsigned int W = target_ninst->tile_dims[OUT_W];
     const unsigned int H = target_ninst->tile_dims[OUT_H];
-    if (target_ninst->network_buf)
+    int lock; while (lock = atomic_exchange(&target_ninst->lock_network_buf, 1)) {}
+    if (target_ninst->network_buf) {
         free (target_ninst->network_buf);
+        target_ninst->network_buf = NULL;
+    }
     target_ninst->network_buf = calloc (W * H, sizeof (float));
     copy_ninst_data_to_buffer (target_ninst, target_ninst->network_buf);
+    atomic_store(&target_ninst->lock_network_buf, 0);
 }
 
 void check_and_update_net_queue_size (networking_queue_t *networking_queue, unsigned int num_to_add)
