@@ -109,16 +109,21 @@ int main (int argc, char **argv)
 
     // aspen_dnn_t *target_dnn = apu_create_dnn(target_cfg, target_data);
     // apu_save_dnn_to_file (target_dnn, target_aspen);
-    // nasm_t *target_nasm = apu_create_nasm (target_dnn, num_tiles, batch_size);
-    // apu_save_nasm_to_file (target_nasm, nasm_file_name);
-
     aspen_dnn_t *target_dnn = apu_load_dnn_from_file (target_aspen);
+    nasm_t *target_nasm;
+    if (strcmp(dnn, "bert_base") == 0)
+        target_nasm = apu_create_transformer_nasm (target_dnn, num_tiles, batch_size, 128);
+    else
+        target_nasm = apu_create_nasm (target_dnn, num_tiles, batch_size);
+    apu_save_nasm_to_file (target_nasm, nasm_file_name);
+
+    
     if (target_dnn == NULL)
     {
         printf ("Unable to load dnn file\n");
         exit (0);
     }
-    nasm_t *target_nasm = apu_load_nasm_from_file (nasm_file_name, target_dnn);
+    // nasm_t *target_nasm = apu_load_nasm_from_file (nasm_file_name, target_dnn);
     if (target_nasm == NULL)
     {
         printf ("Unable to load nasm file\n");
