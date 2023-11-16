@@ -99,6 +99,7 @@ struct ninst_t
     void **input_pos_ptr_arr_gpu;
     unsigned int num_input_pos;
     void *network_buf;
+    _Atomic unsigned int lock_network_buf;
     rpool_t *affinity_pool;
 
     //For logging
