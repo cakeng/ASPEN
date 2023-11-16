@@ -42,8 +42,8 @@ void dse_schedule (dse_t *dse)
     {
         int min_value = 0;
         int max_value = dse->num_edge_devices - 1;
-        // target_device = rand() % (max_value - min_value + 1) + min_value;
-        target_device = DEV_EDGE;
+        target_device = rand() % (max_value - min_value + 1) + min_value;
+        // target_device = DEV_EDGE;
         dse->target_device = target_device;
     }
     if (dse->target == NULL && (dse->run != 0 && dse->kill == 0))
@@ -142,14 +142,14 @@ void dse_schedule (dse_t *dse)
         //                                                                                     ninst->ninst_idx, 
         //                                                                                     ninst->dev_to_compute[dse->num_edge_devices],
         //                                                                                     ninst->dev_to_compute[dse->device_idx]);
-        if (dse->rpool->is_core_exclusive && !is_core_compute(ninst, dse->thread_id)) {
-            printf("UNALLOWED NINST!!! ninst %d (allowed: %d %d) to dse %d\n", ninst->ninst_idx, ninst->core_allowed[0], ninst->core_allowed[1], dse->thread_id);
-        }
+        // if (dse->rpool->is_core_exclusive && !is_core_compute(ninst, dse->thread_id)) {
+        //     printf("UNALLOWED NINST!!! ninst %d (allowed: %d %d) to dse %d\n", ninst->ninst_idx, ninst->core_allowed[0], ninst->core_allowed[1], dse->thread_id);
+        // }
 
-        if (!is_dev_compute(ninst, dse->device_idx) && !dse->profile_compute) {    // It's mine, so compute
-            printf("UNALLOWED NINST!!! ninst %d (allowed: %d %d) to dse %d\n", ninst->ninst_idx, ninst->core_allowed[0], ninst->core_allowed[1], dse->thread_id);
-        }
-        else {
+        if (is_dev_compute(ninst, dse->device_idx) || dse->profile_compute)  {    // It's mine, so compute
+        //     printf("UNALLOWED NINST!!! ninst %d (allowed: %d %d) to dse %d\n", ninst->ninst_idx, ninst->core_allowed[0], ninst->core_allowed[1], dse->thread_id);
+        // }
+        // else {
             // printf("\t[Device %d] Compute ninst (N%d L%d)\n", target_device, ninst->ninst_idx, ninst->ldata->layer->layer_idx);
             if (dse->profile_compute) ninst->compute_start = get_time_secs_offset ();
             switch (ninst->ldata->layer->type)
@@ -277,7 +277,8 @@ void dse_schedule (dse_t *dse)
                     networking_engine *net_engine = dse->net_engine;
                     create_network_buffer_for_ninst (ninst);
                     pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
-                    push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);                            
+                    // push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);            
+                    push_ninsts_to_priority_net_queue(net_engine->tx_queue, &ninst, 1);                
                     pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
                 }
             }
@@ -472,7 +473,8 @@ void dse_schedule_fl (dse_t *dse) {
             
             create_network_buffer_for_ninst (ninst);
             pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
-            push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
+            // push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
+            push_ninsts_to_priority_net_queue(net_engine->tx_queue, &ninst, 1);
             push_path_idx_to_path_queue(net_engine, path->path_idx);
             pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
         }

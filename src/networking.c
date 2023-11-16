@@ -190,10 +190,17 @@ networking_engine* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE de
     sprintf (info_str, "%s_%s_%d", nasm->dnn->name, "nasm", nasm->nasm_id);
     // float queue_per_layer = rpool->ref_dses * NUM_LAYERQUEUE_PER_DSE * NUM_QUEUE_PER_LAYER;
     // unsigned int num_queues = nasm->dnn->num_layers*queue_per_layer;
-    // if (num_queues < 1)
-    //     num_queues = 1;
-    // nasm->gpu_idx = rpool->gpu_idx;
+    unsigned int num_queues = rpool->ref_dses * NUM_LAYERQUEUE_PER_DSE * 150 *  NUM_QUEUE_PER_LAYER;
+    if (num_queues < 1)
+        num_queues = 1;
+    nasm->gpu_idx = rpool->gpu_idx;
     // rpool_add_queue_group (rpool, info_str, num_queues, NULL, whitelist);
+
+    for (int i = 0; i < rpool->needed_groups; i++) {
+        char groupinfo[16] = {0};
+        sprintf(groupinfo, "core%d", i);
+        rpool_add_queue_group (rpool, groupinfo, num_queues, NULL, NULL);
+    }
 
     net_engine->rx_thread_cond = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
     net_engine->rx_thread_mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
@@ -374,13 +381,13 @@ void receive(networking_engine *net_engine)
             #endif
             if (!is_inference_whitelist(net_engine, inference_id) && !net_engine->is_fl_offloading)
             {
-                printf("not whitelist.\n");
+                // printf("not whitelist.\n");
                 buffer_ptr += data_size;
                 continue;
             }
             if (atomic_exchange (&target_ninst->state, NINST_COMPLETED) == NINST_COMPLETED) 
             {
-                printf("already complete.\n");
+                // printf("already complete.\n");
                 buffer_ptr += data_size;
                 continue;
             }
@@ -466,7 +473,8 @@ void transmission_fl(networking_engine *net_engine)
     }
 
     pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
-    num_ninsts = pop_ninsts_from_net_queue(net_engine->tx_queue, target_ninst_list, 1);
+    // num_ninsts = pop_ninsts_from_net_queue(net_engine->tx_queue, target_ninst_list, 1);
+    num_ninsts = pop_ninsts_from_priority_net_queue(net_engine->tx_queue, target_ninst_list, 1);
     pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
     if (num_ninsts == 0)
         return;

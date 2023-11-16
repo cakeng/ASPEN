@@ -85,7 +85,7 @@ int main (int argc, char **argv)
     int dev_mode = -1;
     int fl_split_layer_idx = -1;
     int fl_num_path = -1;
-    int fl_path_offloading_idx[256];
+    int fl_path_offloading_idx[2048];
 
     if (argc > 9)
     {
@@ -194,7 +194,7 @@ int main (int argc, char **argv)
     // Networking
     if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
     {
-        net_engine = init_networking(target_nasm, rpool, dev_mode, "192.168.1.175", 3786, 0, 1);
+        net_engine = init_networking(target_nasm, rpool, dev_mode, "147.46.130.51", 62000, 0, 1);
         net_engine->is_fl_offloading = 1;
         dse_group_set_net_engine(dse_group, net_engine);
         dse_group_set_device(dse_group, dev_mode);

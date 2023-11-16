@@ -52,7 +52,7 @@ struct nasm_t
 
     unsigned int num_paths;
     atomic_uint path_now_idx;
-    fl_path_t *path_ptr_arr[64];
+    fl_path_t *path_ptr_arr[2048];
 
     int operating_mode;
 };

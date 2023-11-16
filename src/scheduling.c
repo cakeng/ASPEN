@@ -1090,8 +1090,8 @@ fl_path_t *fl_create_path(nasm_t *nasm, ninst_t **last_layer_ninsts, unsigned in
     unsigned int num_buffer_parent;
     unsigned int num_buffer;
     
-    ninst_t *buffer_parent[256];
-    ninst_t *buffer[256];
+    ninst_t *buffer_parent[2048];
+    ninst_t *buffer[2048];
 
     num_buffer = num_last_layer_ninsts;
     for (int i=0; i<num_buffer; i++) buffer[i] = last_layer_ninsts[i];
