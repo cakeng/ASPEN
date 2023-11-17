@@ -1257,3 +1257,20 @@ void fl_set_dev_compute(nasm_t *nasm, fl_path_t *path, DEVICE_MODE dev_mode) {
         }
     }
 }
+
+float fl_simulate_completion(
+    nasm_t *nasm, float *elapsed_times, network_profile_t *network_profile,
+    unsigned int last_layer_idx, unsigned int num_paths, unsigned int *path_offloading_idx
+) {
+    
+}
+
+void fl_schedule_bruteforce(nasm_t *nasm, float *elapsed_times, network_profile_t *network_profile) {
+    unsigned int last_layer_idx, num_paths;
+    unsigned int path_offloading_idx[64];
+
+    for (int i=0; i<nasm->num_ldata; i++) {
+
+    }
+
+}

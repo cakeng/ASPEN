@@ -79,6 +79,7 @@ void save_ninst_log(FILE* log_fp, nasm_t* nasm);
 ssize_t read_n(int fd, void *buf, size_t n);
 ssize_t write_n(int fd, void *buf, size_t n);
 
+void create_connection(DEVICE_MODE dev_mode, char *server_ip, int server_port, int *server_sock, int *client_sock);
 int create_server_sock(char *server_ip, int server_port);
 int accept_client_sock(int server_sock);
 int connect_server_sock(char *server_ip, int server_port);

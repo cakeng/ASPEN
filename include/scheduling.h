@@ -185,5 +185,6 @@ void fl_push_path_ninsts_until(rpool_t *rpool, fl_path_t *path, unsigned int las
 void fl_push_ninsts_after(rpool_t *rpool, nasm_t *nasm, unsigned int last_layer_idx, unsigned int to_group);
 void fl_push_ninsts_only(rpool_t *rpool, nasm_t *nasm, unsigned int layer_idx, unsigned int to_group);
 void fl_set_dev_compute(nasm_t *nasm, fl_path_t *path, DEVICE_MODE dev_mode);
+void fl_schedule_bruteforce(nasm_t *nasm, float *elapsed_times, network_profile_t *network_profile);
 
 #endif

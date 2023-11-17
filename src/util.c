@@ -921,7 +921,7 @@ void save_ninst_log(FILE* log_fp, nasm_t* nasm)
 }
 
 ssize_t read_n(int fd, void *buf, size_t n) {
-    size_t bytes_read = 0;
+        size_t bytes_read = 0;
     while(bytes_read < n) {
         bytes_read += read(fd, buf + bytes_read, n - bytes_read);
     }
@@ -930,12 +930,34 @@ ssize_t read_n(int fd, void *buf, size_t n) {
 }
 
 ssize_t write_n(int fd, void *buf, size_t n) {
-    size_t bytes_written = 0;
+        size_t bytes_written = 0;
     while(bytes_written < n) {
         bytes_written += write(fd, buf + bytes_written, n - bytes_written);
     }
 
     return n;
+}
+
+void create_connection(DEVICE_MODE dev_mode, char *server_ip, int control_port, int *server_sock, int *client_sock) {
+    char connection_key[64];
+
+    if (dev_mode == DEV_SERVER) {
+        strcpy(connection_key, "hello world!");
+
+        *server_sock = create_server_sock(server_ip, control_port);
+        printf("\tcreated server sock: %d\n", *server_sock);
+        *client_sock = accept_client_sock(*server_sock);
+        printf("\taccepted client sock: %d\n", *client_sock);
+        write_n(*client_sock, connection_key, sizeof(char)*64);
+        printf("\twrote connection key: %s\n", connection_key);
+    }
+    else if (dev_mode == DEV_EDGE) {
+        // CREATE CONNECTION TO SERVER
+        *server_sock = connect_server_sock(server_ip, control_port);
+        printf("\tconnected server sock: %d\n", *server_sock);
+        read_n(*server_sock, &connection_key, sizeof(char)*64);
+        printf("\tread connection key: %s\n", connection_key);
+    }
 }
 
 int create_server_sock(char *server_ip, int server_port) {

@@ -87,6 +87,9 @@ int main (int argc, char **argv)
     int fl_num_path = -1;
     int fl_path_offloading_idx[2048];
 
+    const int server_port = 3786;
+    const char* server_ip = "127.0.0.1";
+
     if (argc > 9)
     {
         strcpy (dnn, argv[1]);
@@ -123,7 +126,7 @@ int main (int argc, char **argv)
     // apu_save_dnn_to_file (target_dnn, target_aspen);
     // nasm_t *target_nasm = apu_create_nasm (target_dnn, num_tiles, batch_size);
     // apu_save_nasm_to_file (target_nasm, nasm_file_name);
-    
+
     double start_time, end_time;
     
     /* BASIC MODULES */
@@ -151,6 +154,38 @@ int main (int argc, char **argv)
         printf ("Unable to load nasm file\n");
         exit (0);
     }
+
+    /* PROFILING */
+    printf("STAGE START: PROFILING\n");
+
+    int server_sock = -1, client_sock = -1;
+    int control_port = server_port + 1;
+    
+    create_connection(dev_mode, server_ip, control_port, &server_sock, &client_sock);
+
+    float *server_elapsed_times = (float *)calloc(target_nasm->num_ninst, sizeof(float));
+    float *edge_elapsed_times = (float *)calloc(target_nasm->num_ninst, sizeof(float));
+    network_profile_t **network_profile = (network_profile_t **)calloc(1, sizeof(network_profile_t *));
+    profile_comp_and_net(
+        target_nasm, num_cores, dev_mode, server_sock, client_sock,
+        server_elapsed_times, edge_elapsed_times, network_profile
+    );
+
+    for(int i=0; i<target_nasm->num_ninst; i++) {
+        printf("NINST %d: server %f (sec), edge %f (sec)\n", i, server_elapsed_times[i], edge_elapsed_times[i]);
+    }
+
+    print_network_profile(*network_profile);
+
+    if (server_sock != -1) close(server_sock);
+    if (client_sock != -1) close(client_sock);
+
+    free(server_elapsed_times);
+    free(edge_elapsed_times);
+    free(*network_profile);
+    free(network_profile);
+
+    return;
 
     /* FL PATH CREATION */
 
@@ -194,7 +229,7 @@ int main (int argc, char **argv)
     // Networking
     if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
     {
-        net_engine = init_networking(target_nasm, rpool, dev_mode, "147.46.130.51", 62000, 0, 1);
+        net_engine = init_networking(target_nasm, rpool, dev_mode, server_ip, server_port, 0, 1);
         net_engine->is_fl_offloading = 1;
         dse_group_set_net_engine(dse_group, net_engine);
         dse_group_set_device(dse_group, dev_mode);

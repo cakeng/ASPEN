@@ -26,10 +26,11 @@ struct network_profile_t {
     float transmit_rate;
 };
 
-
+void profile_comp_and_net(nasm_t *target_nasm, int dse_num, DEVICE_MODE device_mode, int server_sock, int client_sock, float *server_elapsed_times, float *edge_elapsed_times, network_profile_t **network_profile);
 avg_ninst_profile_t *profile_computation(nasm_t *target_nasm, int dse_num, int device_idx, char *target_input, DEVICE_MODE device_mode, int gpu, int num_repeat);
 network_profile_t *profile_network(DEVICE_MODE device_mode, int edge_device_idx, int server_sock, int client_sock);
 float profile_network_sync(DEVICE_MODE device_mode, int server_sock, int client_sock);
+void print_network_profile(network_profile_t *network_profile);
 
 void communicate_profiles_server(int client_sock, network_profile_t *network_profile, avg_ninst_profile_t *ninst_profile);
 void communicate_profiles_edge(int server_sock, network_profile_t *network_profile, avg_ninst_profile_t *ninst_profile);
