@@ -105,6 +105,8 @@ int main (int argc, char **argv)
 
 
     /* PROFILING */
+profiling:
+
     printf("STAGE: PROFILING\n");
 
     nasm_t *test_nasm = apu_load_nasm_from_file (nasm_file_name, target_dnn);
@@ -161,12 +163,10 @@ int main (int argc, char **argv)
 
     printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta);
     for (int i=0; i<fl_num_path; i++) {
-        printf("FL params: path %d: ", i);
-        for (int j=0; j<fl_split_layer_idx; j++) {
-            printf("%d ", fl_path_offloading_idx[i*fl_split_layer_idx + j]);
-        }
-        printf("\n");
+        printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
     }
+
+    if (min_eta < 0) goto profiling;
 
 
     /* FL PATH CREATION */
