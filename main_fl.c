@@ -3,73 +3,6 @@
 #include "nasm.h"
 #include "dse.h"
 
-double get_sec()
-{
-    struct timeval now;
-    gettimeofday (&now, NULL);
-    return now.tv_sec + now.tv_usec*1e-6;
-}
-
-void softmax (float *input, float *output, unsigned int num_batch, unsigned int num_elements)
-{
-    for (int i = 0; i < num_batch; i++)
-    {
-        float max = input[i * num_elements];
-        for (int j = 1; j < num_elements; j++)
-        {
-            if (input[i * num_elements + j] > max)
-                max = input[i * num_elements + j];
-        }
-        float sum = 0;
-        for (int j = 0; j < num_elements; j++)
-        {
-            output[i * num_elements + j] = expf (input[i * num_elements + j] - max);
-            sum += output[i * num_elements + j];
-        }
-        for (int j = 0; j < num_elements; j++)
-            output[i * num_elements + j] /= sum;
-    }
-}
-
-void get_prob_results (char *class_data_path, float* probabilities, unsigned int num)
-{
-    int buffer_length = 256;
-    char buffer[num][buffer_length];
-    FILE *fptr = fopen(class_data_path, "r");
-    if (fptr == NULL)
-        assert (0);
-    for (int i = 0; i < num; i++)
-    {
-        void *tmp = fgets(buffer[i], buffer_length, fptr);
-        if (tmp == NULL)
-            assert (0);
-        for (char *ptr = buffer[i]; *ptr != '\0'; ptr++)
-        {
-            if (*ptr == '\n')
-            {
-                *ptr = '\0';
-            }
-        }
-    }
-    fclose(fptr);
-    printf ("Results:\n");
-    for (int i = 0; i < 5; i++)
-    {
-        float max_val = -INFINITY;
-        int max_idx = 0;
-        for (int j = 0; j < num; j++)
-        {
-            if (max_val < *(probabilities + j))
-            {
-                max_val = *(probabilities + j);
-                max_idx = j;
-            }
-        }
-        printf ("%d: %s - %2.2f%%\n", i+1, buffer[max_idx], max_val*100);
-        *(probabilities + max_idx) = -INFINITY;
-    }
-}
-
 int main (int argc, char **argv)
 {
     #ifndef SUPPRESS_OUTPUT
@@ -128,6 +61,7 @@ int main (int argc, char **argv)
     // apu_save_nasm_to_file (target_nasm, nasm_file_name);
 
     double start_time, end_time;
+
     
     /* BASIC MODULES */
 
@@ -140,6 +74,7 @@ int main (int argc, char **argv)
     dse_group_set_num_edge_devices (dse_group, 2);
     networking_engine* net_engine = NULL;
 
+    
     /* NASM PREPARATION */
 
     aspen_dnn_t *target_dnn = apu_load_dnn_from_file (target_aspen);
@@ -155,23 +90,28 @@ int main (int argc, char **argv)
         exit (0);
     }
 
+    rpool_add_nasm (rpool, target_nasm, "data/batched_input_128.bin");
+
+
     /* PROFILING */
     printf("STAGE START: PROFILING\n");
+
+    nasm_t *test_nasm = apu_load_nasm_from_file (nasm_file_name, target_dnn);
 
     int server_sock = -1, client_sock = -1;
     int control_port = server_port + 1;
     
     create_connection(dev_mode, server_ip, control_port, &server_sock, &client_sock);
 
-    float *server_elapsed_times = (float *)calloc(target_nasm->num_ninst, sizeof(float));
-    float *edge_elapsed_times = (float *)calloc(target_nasm->num_ninst, sizeof(float));
+    float *server_elapsed_times = (float *)calloc(test_nasm->num_ninst, sizeof(float));
+    float *edge_elapsed_times = (float *)calloc(test_nasm->num_ninst, sizeof(float));
     network_profile_t **network_profile = (network_profile_t **)calloc(1, sizeof(network_profile_t *));
     profile_comp_and_net(
-        target_nasm, num_cores, dev_mode, server_sock, client_sock,
+        test_nasm, num_cores, dev_mode, server_sock, client_sock,
         server_elapsed_times, edge_elapsed_times, network_profile
     );
 
-    for(int i=0; i<target_nasm->num_ninst; i++) {
+    for(int i=0; i<test_nasm->num_ninst; i++) {
         printf("NINST %d: server %f (sec), edge %f (sec)\n", i, server_elapsed_times[i], edge_elapsed_times[i]);
     }
 
@@ -184,8 +124,12 @@ int main (int argc, char **argv)
     free(edge_elapsed_times);
     free(*network_profile);
     free(network_profile);
+    apu_destroy_nasm(test_nasm);
 
-    return;
+    
+    /* FL SCHEDULE */
+    // UNDER CONSTURCTION
+
 
     /* FL PATH CREATION */
 
@@ -237,8 +181,6 @@ int main (int argc, char **argv)
         net_engine_set_operating_mode(net_engine, OPER_MODE_FL_PATH);
     }
 
-    rpool_add_nasm (rpool, target_nasm, "data/batched_input_128.bin");
-
     PRTF ("Running %d iterations\n", number_of_iterations);
     start_time = get_sec();
     for (int i = 0; i < number_of_iterations; i++)
@@ -283,9 +225,9 @@ int main (int argc, char **argv)
         softmax (layer_output, softmax_output, batch_size, 1000);
         for (int i = 0; i < batch_size; i++)
         {
-            #ifndef SUPPRESS_OUTPUT
+            // #ifndef SUPPRESS_OUTPUT
             get_prob_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
-            #endif
+            // #endif
         }
         free (layer_output);
         free (softmax_output);

@@ -1122,3 +1122,70 @@ float get_min_computed_time(nasm_t* nasm)
     }
     return min_computed_time;
 }
+
+double get_sec()
+{
+    struct timeval now;
+    gettimeofday (&now, NULL);
+    return now.tv_sec + now.tv_usec*1e-6;
+}
+
+void softmax (float *input, float *output, unsigned int num_batch, unsigned int num_elements)
+{
+    for (int i = 0; i < num_batch; i++)
+    {
+        float max = input[i * num_elements];
+        for (int j = 1; j < num_elements; j++)
+        {
+            if (input[i * num_elements + j] > max)
+                max = input[i * num_elements + j];
+        }
+        float sum = 0;
+        for (int j = 0; j < num_elements; j++)
+        {
+            output[i * num_elements + j] = expf (input[i * num_elements + j] - max);
+            sum += output[i * num_elements + j];
+        }
+        for (int j = 0; j < num_elements; j++)
+            output[i * num_elements + j] /= sum;
+    }
+}
+
+void get_prob_results (char *class_data_path, float* probabilities, unsigned int num)
+{
+    int buffer_length = 256;
+    char buffer[num][buffer_length];
+    FILE *fptr = fopen(class_data_path, "r");
+    if (fptr == NULL)
+        assert (0);
+    for (int i = 0; i < num; i++)
+    {
+        void *tmp = fgets(buffer[i], buffer_length, fptr);
+        if (tmp == NULL)
+            assert (0);
+        for (char *ptr = buffer[i]; *ptr != '\0'; ptr++)
+        {
+            if (*ptr == '\n')
+            {
+                *ptr = '\0';
+            }
+        }
+    }
+    fclose(fptr);
+    printf ("Results:\n");
+    for (int i = 0; i < 5; i++)
+    {
+        float max_val = -INFINITY;
+        int max_idx = 0;
+        for (int j = 0; j < num; j++)
+        {
+            if (max_val < *(probabilities + j))
+            {
+                max_val = *(probabilities + j);
+                max_idx = j;
+            }
+        }
+        printf ("%d: %s - %2.2f%%\n", i+1, buffer[max_idx], max_val*100);
+        *(probabilities + max_idx) = -INFINITY;
+    }
+}

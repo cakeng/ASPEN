@@ -83,4 +83,9 @@ void create_connection(DEVICE_MODE dev_mode, char *server_ip, int server_port, i
 int create_server_sock(char *server_ip, int server_port);
 int accept_client_sock(int server_sock);
 int connect_server_sock(char *server_ip, int server_port);
+
+double get_sec();
+void softmax (float *input, float *output, unsigned int num_batch, unsigned int num_elements);
+void get_prob_results (char *class_data_path, float* probabilities, unsigned int num);
+
 #endif /* _UTIL_H_ */

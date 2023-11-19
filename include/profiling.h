@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include "util.h"
 #include "aspen.h"
+#include "rpool.h"
 
 struct avg_ninst_profile_t {
     int num_ninsts;
