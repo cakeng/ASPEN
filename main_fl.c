@@ -23,7 +23,17 @@ int main (int argc, char **argv)
     const int server_port = 3786;
     const char* server_ip = "127.0.0.1";
 
-    if (argc > 9)
+    if (argc == 7) {
+        strcpy (dnn, argv[1]);
+        batch_size = atoi (argv[2]);
+        num_tiles = atoi (argv[3]);
+        number_of_iterations = atoi (argv[4]);
+        num_cores = atoi (argv[5]);
+        dev_mode = atoi (argv[6]);
+
+        printf("Find FL params automatically\n");
+    }
+    else if (argc > 9)
     {
         strcpy (dnn, argv[1]);
         batch_size = atoi (argv[2]);
@@ -66,7 +76,7 @@ int main (int argc, char **argv)
     /* BASIC MODULES */
 
     // rpool_t *rpool = rpool_init (gpu_idx);
-    rpool_t *rpool = rpool_init_multigroup (gpu_idx, fl_split_layer_idx + 2);
+    rpool_t *rpool = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
     dse_group_t *dse_group = dse_group_init (num_cores, gpu_idx);
     dse_group_set_rpool (dse_group, rpool);
     dse_group_set_device_mode (dse_group, dev_mode);
@@ -90,11 +100,12 @@ int main (int argc, char **argv)
         exit (0);
     }
 
-    rpool_add_nasm (rpool, target_nasm, "data/batched_input_128.bin");
+    // rpool_add_nasm (rpool, target_nasm, "data/batched_input_128.bin");
+    rpool_add_nasm (rpool, target_nasm, NULL);
 
 
     /* PROFILING */
-    printf("STAGE START: PROFILING\n");
+    printf("STAGE: PROFILING\n");
 
     nasm_t *test_nasm = apu_load_nasm_from_file (nasm_file_name, target_dnn);
 
@@ -111,14 +122,33 @@ int main (int argc, char **argv)
         server_elapsed_times, edge_elapsed_times, network_profile
     );
 
-    for(int i=0; i<test_nasm->num_ninst; i++) {
-        printf("NINST %d: server %f (sec), edge %f (sec)\n", i, server_elapsed_times[i], edge_elapsed_times[i]);
+    // print_network_profile(*network_profile);
+
+    
+    /* FL SCHEDULE */
+    printf("STAGE: FL SCHEDULE\n");
+
+    float min_eta;
+    if (dev_mode == DEV_SERVER) {
+        min_eta = fl_schedule_bruteforce(
+            target_nasm, server_elapsed_times, edge_elapsed_times, *network_profile,
+            &fl_split_layer_idx, &fl_num_path, fl_path_offloading_idx
+        );
     }
 
-    print_network_profile(*network_profile);
-
-    if (server_sock != -1) close(server_sock);
-    if (client_sock != -1) close(client_sock);
+    // Synchronize FL params
+    if (dev_mode == DEV_SERVER) {
+        write_n(client_sock, &fl_split_layer_idx, sizeof(int));
+        write_n(client_sock, &fl_num_path, sizeof(int));
+        write_n(client_sock, fl_path_offloading_idx, sizeof(int) * fl_num_path);
+        write_n(client_sock, &min_eta, sizeof(float));
+    }
+    else if (dev_mode == DEV_EDGE) {
+        read_n(server_sock, &fl_split_layer_idx, sizeof(int));
+        read_n(server_sock, &fl_num_path, sizeof(int));
+        read_n(server_sock, fl_path_offloading_idx, sizeof(int) * fl_num_path);
+        read_n(server_sock, &min_eta, sizeof(float));
+    }
 
     free(server_elapsed_times);
     free(edge_elapsed_times);
@@ -126,9 +156,17 @@ int main (int argc, char **argv)
     free(network_profile);
     apu_destroy_nasm(test_nasm);
 
-    
-    /* FL SCHEDULE */
-    // UNDER CONSTURCTION
+    if (server_sock != -1) close(server_sock);
+    if (client_sock != -1) close(client_sock);
+
+    printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta);
+    for (int i=0; i<fl_num_path; i++) {
+        printf("FL params: path %d: ", i);
+        for (int j=0; j<fl_split_layer_idx; j++) {
+            printf("%d ", fl_path_offloading_idx[i*fl_split_layer_idx + j]);
+        }
+        printf("\n");
+    }
 
 
     /* FL PATH CREATION */
@@ -154,6 +192,8 @@ int main (int argc, char **argv)
         if (i == 0) dse_set_starting_path(new_path);
 
         fl_set_dev_compute(target_nasm, new_path, dev_mode);
+
+        free(path_last_ninsts);
     }
 
     for (int i=0; i<num_cores; i++) dse_group->dse_arr[i].is_fl_offloading = 1;

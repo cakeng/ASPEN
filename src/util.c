@@ -945,18 +945,18 @@ void create_connection(DEVICE_MODE dev_mode, char *server_ip, int control_port, 
         strcpy(connection_key, "hello world!");
 
         *server_sock = create_server_sock(server_ip, control_port);
-        printf("\tcreated server sock: %d\n", *server_sock);
+        PRTF ("\tcreated server sock: %d\n", *server_sock);
         *client_sock = accept_client_sock(*server_sock);
-        printf("\taccepted client sock: %d\n", *client_sock);
+        PRTF ("\taccepted client sock: %d\n", *client_sock);
         write_n(*client_sock, connection_key, sizeof(char)*64);
-        printf("\twrote connection key: %s\n", connection_key);
+        PRTF ("\twrote connection key: %s\n", connection_key);
     }
     else if (dev_mode == DEV_EDGE) {
         // CREATE CONNECTION TO SERVER
         *server_sock = connect_server_sock(server_ip, control_port);
-        printf("\tconnected server sock: %d\n", *server_sock);
+        PRTF ("\tconnected server sock: %d\n", *server_sock);
         read_n(*server_sock, &connection_key, sizeof(char)*64);
-        printf("\tread connection key: %s\n", connection_key);
+        PRTF ("\tread connection key: %s\n", connection_key);
     }
 }
 

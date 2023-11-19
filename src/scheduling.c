@@ -1106,7 +1106,44 @@ fl_path_t *fl_create_path(nasm_t *nasm, ninst_t **last_layer_ninsts, unsigned in
         atomic_store(&path_layer_now->num_ninsts_completed, 0);
         path_layer_now->ninst_ptr_arr = (ninst_t **)malloc(sizeof(ninst_t *) * num_buffer);
         memcpy(path_layer_now->ninst_ptr_arr, buffer, sizeof(ninst_t *) * num_buffer);
-        
+    
+        num_buffer_parent = ninst_find_parents(buffer, num_buffer, buffer_parent);
+
+        num_buffer = num_buffer_parent;
+        memcpy(buffer, buffer_parent, sizeof(ninst_t *) * num_buffer);
+    }
+
+    return path;
+}
+
+fl_path_t *fl_create_dry_path(nasm_t *nasm, ninst_t **last_layer_ninsts, unsigned int num_last_layer_ninsts, unsigned int edge_final_layer_idx) {
+    fl_path_t *path = (fl_path_t *)malloc(sizeof(fl_path_t));
+
+    path->num_path_layers = last_layer_ninsts[0]->ldata->layer->layer_idx + 1;
+    atomic_store(&path->num_path_layers_completed, 0);
+    path->path_layers_arr = (fl_path_layer_t *)malloc(sizeof(fl_path_layer_t) * (path->num_path_layers));
+    path->edge_final_layer_idx = edge_final_layer_idx;
+
+    unsigned int num_buffer_parent;
+    unsigned int num_buffer;
+    
+    ninst_t *buffer_parent[2048];
+    ninst_t *buffer[2048];
+
+    num_buffer = num_last_layer_ninsts;
+    for (int i=0; i<num_buffer; i++) buffer[i] = last_layer_ninsts[i];
+
+    for (int l=path->num_path_layers-1; l>=0; l--) {
+        fl_path_layer_t *path_layer_now = &path->path_layers_arr[l];
+
+        path_layer_now->fl_path = path;
+        path_layer_now->ldata = &nasm->ldata_arr[l];
+
+        path_layer_now->num_ninsts = num_buffer;
+        atomic_store(&path_layer_now->num_ninsts_completed, 0);
+        path_layer_now->ninst_ptr_arr = (ninst_t **)malloc(sizeof(ninst_t *) * num_buffer);
+        memcpy(path_layer_now->ninst_ptr_arr, buffer, sizeof(ninst_t *) * num_buffer);
+    
         num_buffer_parent = ninst_find_parents(buffer, num_buffer, buffer_parent);
 
         num_buffer = num_buffer_parent;
@@ -1259,18 +1296,168 @@ void fl_set_dev_compute(nasm_t *nasm, fl_path_t *path, DEVICE_MODE dev_mode) {
 }
 
 float fl_simulate_completion(
-    nasm_t *nasm, float *elapsed_times, network_profile_t *network_profile,
+    nasm_t *nasm, float *server_elapsed_times, float *edge_elapsed_times, network_profile_t *network_profile,
     unsigned int last_layer_idx, unsigned int num_paths, unsigned int *path_offloading_idx
 ) {
-    
+    #if SUPPRESS_OUTPUT != 1
+    printf("FL simulate: last_layer_idx %d, num_paths %d\n", last_layer_idx, num_paths);
+    // printf("\tpath_offloading_idx");
+    // for (int i=0; i<num_paths; i++) {
+    //     printf(" %d", path_offloading_idx[i]);
+    // }
+    // printf("\n");
+    #endif
+
+    fl_path_t *path_arr[64];
+    unsigned int num_last_layer_ninst = nasm->ldata_arr[last_layer_idx].num_ninst;
+
+    // create paths
+    for (int i=0; i<num_paths; i++) {
+        unsigned int intercept_start = num_last_layer_ninst * i / num_paths;
+        unsigned int intercept_end = num_last_layer_ninst * (i+1) / num_paths;
+
+        ninst_t **path_last_ninsts = (ninst_t **)malloc(sizeof(ninst_t *) * (intercept_end - intercept_start));
+
+        for (int j=0; j<(intercept_end - intercept_start); j++) {
+            path_last_ninsts[j] = &nasm->ldata_arr[last_layer_idx].ninst_arr_start[intercept_start + j];
+        }
+
+        path_arr[i] = fl_create_dry_path(nasm, path_last_ninsts, intercept_end - intercept_start, path_offloading_idx[i]);
+
+        free(path_last_ninsts);
+    }
+
+    // calculate elapsed time
+    float edge_start_comp = 0;
+    float edge_end_comp = 0;
+    float edge_start_net = 0;
+    float edge_end_net = 0;
+
+    float server_start_comp = 0;
+    float server_end_comp = 0;
+
+    for (int path = 0; path < num_paths; path++) {
+        fl_path_t *now_path = path_arr[path];
+
+        float now_elapsed_edge = 0;
+        float now_elapsed_server = 0;
+        float now_elapsed_net = 0;
+
+        // calculate edge elapsed time
+        for (int layer = 0; layer <= path_offloading_idx[path]; layer++) {
+            fl_path_layer_t *now_path_layer = &now_path->path_layers_arr[layer];
+            for (int ninst = 0; ninst < now_path_layer->num_ninsts; ninst++) {
+                ninst_t *now_ninst = now_path_layer->ninst_ptr_arr[ninst];
+                now_elapsed_edge += edge_elapsed_times[now_ninst->ninst_idx];
+            }
+        }
+
+        // calculate server elapsed time
+        for (int layer = path_offloading_idx[path] + 1; layer < now_path->num_path_layers; layer++) {
+            fl_path_layer_t *now_path_layer = &now_path->path_layers_arr[layer];
+            for (int ninst = 0; ninst < now_path_layer->num_ninsts; ninst++) {
+                ninst_t *now_ninst = now_path_layer->ninst_ptr_arr[ninst];
+                now_elapsed_server += server_elapsed_times[now_ninst->ninst_idx];
+            }
+        }
+
+        // calculate network elapsed time
+        fl_path_layer_t *networking_layer = &now_path->path_layers_arr[path_offloading_idx[path]];
+        for (int ninst = 0; ninst < networking_layer->num_ninsts; ninst++) {
+            ninst_t *now_ninst = networking_layer->ninst_ptr_arr[ninst];
+            int data_size_to_send = now_ninst->tile_dims[OUT_W] * now_ninst->tile_dims[OUT_H] * sizeof(float);
+            now_elapsed_net += (float)data_size_to_send / network_profile->transmit_rate;
+        }
+
+        // update edge_start_comp, edge_end_comp, edge_start_net, edge_end_net
+        edge_start_comp = edge_end_comp;
+        edge_end_comp = edge_start_comp + now_elapsed_edge;
+
+        if (edge_end_comp > edge_end_net) {
+            edge_start_net = edge_end_comp;
+            edge_end_net = edge_start_net + now_elapsed_net;
+        }
+        else {
+            edge_start_net = edge_end_net;
+            edge_end_net = edge_start_net + now_elapsed_net;
+        }
+
+        // update server_start_comp, server_end_comp
+        server_start_comp = edge_end_net + network_profile->rtt/2;
+        server_end_comp = server_start_comp + now_elapsed_server;
+
+        // DEBUG
+        if (edge_end_comp < 0) {
+            printf("sth wrong!\n");
+            assert(0);
+        }
+
+        // print timestamps
+        #if SUPPRESS_OUTPUT != 1
+        printf("\tPath %d: %f, %f, %f, %f, %f, %f\n", 
+            path, edge_start_comp, edge_end_comp, edge_start_net, edge_end_net, server_start_comp, server_end_comp);
+        #endif
+    }
+
+    return server_end_comp;
 }
 
-void fl_schedule_bruteforce(nasm_t *nasm, float *elapsed_times, network_profile_t *network_profile) {
+float fl_schedule_bruteforce(
+    nasm_t *nasm, float *server_elapsed_times, float *edge_elapsed_times, network_profile_t *network_profile,
+    int *fl_split_layer_idx, int *fl_num_path, int *fl_path_offloading_idx
+) {
     unsigned int last_layer_idx, num_paths;
     unsigned int path_offloading_idx[64];
 
-    for (int i=0; i<nasm->num_ldata; i++) {
+    float min_elapsed_time = FLT_MAX;
+    *fl_split_layer_idx = 1;
+    *fl_num_path = 1;
+    fl_path_offloading_idx[0] = 0;
 
+    for (int i=1; i<=FL_LIMIT_SPLIT_LAYER_IDX; i++) {
+        int now_split_layer_idx = i;
+
+        for (int j=1; j<FL_LIMIT_NUM_PATH; j++) {
+            int now_num_path = j;
+
+            for (int k=0; k<now_num_path; k++) {
+                path_offloading_idx[k] = 0;
+            }
+
+            while (1) {
+                // run
+                float elapsed_time = fl_simulate_completion(
+                    nasm, server_elapsed_times, edge_elapsed_times, network_profile,
+                    now_split_layer_idx, now_num_path, path_offloading_idx
+                );
+
+                // check if min
+                if (elapsed_time < min_elapsed_time) {
+                    min_elapsed_time = elapsed_time;
+                    *fl_split_layer_idx = now_split_layer_idx;
+                    *fl_num_path = now_num_path;
+                    for (int k=0; k<now_num_path; k++) {
+                        fl_path_offloading_idx[k] = path_offloading_idx[k];
+                    }
+                }
+
+                // next path_offloading_idx
+                path_offloading_idx[0]++;
+
+                for (int l=0; l<now_num_path-1; l++) {
+                    if (path_offloading_idx[l] == now_split_layer_idx) {
+                        path_offloading_idx[l] = 0;
+                        path_offloading_idx[l+1]++;
+                    }
+                }
+
+                if (path_offloading_idx[now_num_path-1] == now_split_layer_idx) {
+                    break;
+                }
+            }
+
+        }
     }
 
+    return min_elapsed_time;
 }
