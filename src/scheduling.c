@@ -1299,14 +1299,6 @@ float fl_simulate_completion(
     nasm_t *nasm, float *server_elapsed_times, float *edge_elapsed_times, network_profile_t *network_profile,
     unsigned int last_layer_idx, unsigned int num_paths, unsigned int *path_offloading_idx
 ) {
-    #if SUPPRESS_OUTPUT != 1
-    printf("FL simulate: last_layer_idx %d, num_paths %d\n", last_layer_idx, num_paths);
-    // printf("\tpath_offloading_idx");
-    // for (int i=0; i<num_paths; i++) {
-    //     printf(" %d", path_offloading_idx[i]);
-    // }
-    // printf("\n");
-    #endif
 
     fl_path_t *path_arr[64];
     unsigned int num_last_layer_ninst = nasm->ldata_arr[last_layer_idx].num_ninst;
@@ -1391,12 +1383,6 @@ float fl_simulate_completion(
             printf("sth wrong!\n");
             assert(0);
         }
-
-        // print timestamps
-        #if SUPPRESS_OUTPUT != 1
-        printf("\tPath %d: %f, %f, %f, %f, %f, %f\n", 
-            path, edge_start_comp, edge_end_comp, edge_start_net, edge_end_net, server_start_comp, server_end_comp);
-        #endif
     }
 
     return server_end_comp;

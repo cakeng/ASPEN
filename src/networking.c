@@ -611,6 +611,13 @@ void receive_fl(networking_engine *net_engine)
                 );    
                 #endif
                 buffer_ptr += data_size;
+
+                if (target_path->path_idx == 0 && path_num_ninsts_completed == target_path->path_layers_arr[target_path->edge_final_layer_idx].num_ninsts) {
+                    #ifdef DEBUG
+                    printf("PATH %d READY!\n", path_idx);
+                    #endif
+                    fl_push_path_ninsts_server(net_engine->rpool, target_path);
+                }
                 continue;
             }
             #ifdef DEBUG
