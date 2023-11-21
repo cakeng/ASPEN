@@ -1,8 +1,14 @@
 ## NeurIPS'23 release of ASPEN: Breaking Operator Barriers for Efficient Parallelization of Deep Neural Networks
 
-This is the proof-of-concept CPU implementation of ASPEN used for the NeurIPS'23 paper [ASPEN: Breaking Operator Barriers for Efficient Parallelization of Deep Neural Networks](https://neurips.cc/virtual/2023/poster/70957).
+This is the proof-of-concept CPU implementation of ASPEN used for the NeurIPS'23 paper **"ASPEN: Breaking Operator Barriers for Efficient Parallelization of Deep Neural Networks"**.  [[OpenReview Link](https://openreview.net/forum?id=eTp4RetK74)] 
 
-We also included three simple usage examples of the ASPEN system, which were provided in the supplementary material of the NeurIPS'23 submission.
+Below is a poster description of our work. You can find a more detailed presentation slide deck and the full paper in the following link. [[NeurIPS 2023 Link](https://neurips.cc/virtual/2023/poster/70957)]
+
+![NeurIPS23_ASPEN_Poster_Small.png](./NeurIPS23_ASPEN_Poster_Small.png)
+
+---
+
+In this repository, we included three simple usage examples of the ASPEN system, which were provided in the supplementary material of the NeurIPS'23 submission.
 
 The "src" directory includes the source code of ASPEN. 
 
@@ -22,10 +28,8 @@ Run "make" to compile the libaspen.a library. The examples are built separately,
 
 The Makefile is configured to compile the ASPEN library with an AVX2 backend.
 
----
-
 Weights, pre-generated ASPEN graphs, and other files used in our paper are stored in [this Google Drive](https://drive.google.com/drive/folders/1pH19a9sadbV10_RxHcKnWIqvgX4zQpmh?usp=sharing). 
 
-
-
 ASPEN has a dependency on OpenMP. The examples of this supplementary material have dependencies on PyTorch, TorchVision, and GCC.
+
+Please contatct cakeng at snu dot ac dot kr if you have any questions!
