@@ -32,4 +32,4 @@ Weights, pre-generated ASPEN graphs, and other files used in our paper are store
 
 ASPEN has a dependency on OpenMP. The examples of this supplementary material have dependencies on PyTorch, TorchVision, and GCC.
 
-Please contatct cakeng at snu dot ac dot kr if you have any questions!
+Please reach out to me at "cakeng at snu dot ac dot kr" if you have any questions!
