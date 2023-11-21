@@ -3,73 +3,6 @@
 #include "nasm.h"
 #include "dse.h"
 
-double get_sec()
-{
-    struct timeval now;
-    gettimeofday (&now, NULL);
-    return now.tv_sec + now.tv_usec*1e-6;
-}
-
-void softmax (float *input, float *output, unsigned int num_batch, unsigned int num_elements)
-{
-    for (int i = 0; i < num_batch; i++)
-    {
-        float max = input[i * num_elements];
-        for (int j = 1; j < num_elements; j++)
-        {
-            if (input[i * num_elements + j] > max)
-                max = input[i * num_elements + j];
-        }
-        float sum = 0;
-        for (int j = 0; j < num_elements; j++)
-        {
-            output[i * num_elements + j] = expf (input[i * num_elements + j] - max);
-            sum += output[i * num_elements + j];
-        }
-        for (int j = 0; j < num_elements; j++)
-            output[i * num_elements + j] /= sum;
-    }
-}
-
-void get_prob_results (char *class_data_path, float* probabilities, unsigned int num)
-{
-    int buffer_length = 256;
-    char buffer[num][buffer_length];
-    FILE *fptr = fopen(class_data_path, "r");
-    if (fptr == NULL)
-        assert (0);
-    for (int i = 0; i < num; i++)
-    {
-        void *tmp = fgets(buffer[i], buffer_length, fptr);
-        if (tmp == NULL)
-            assert (0);
-        for (char *ptr = buffer[i]; *ptr != '\0'; ptr++)
-        {
-            if (*ptr == '\n')
-            {
-                *ptr = '\0';
-            }
-        }
-    }
-    fclose(fptr);
-    printf ("Results:\n");
-    for (int i = 0; i < 5; i++)
-    {
-        float max_val = -INFINITY;
-        int max_idx = 0;
-        for (int j = 0; j < num; j++)
-        {
-            if (max_val < *(probabilities + j))
-            {
-                max_val = *(probabilities + j);
-                max_idx = j;
-            }
-        }
-        printf ("%d: %s - %2.2f%%\n", i+1, buffer[max_idx], max_val*100);
-        *(probabilities + max_idx) = -INFINITY;
-    }
-}
-
 int main (int argc, char **argv)
 {
     print_aspen_build_info();
@@ -139,26 +72,6 @@ int main (int argc, char **argv)
     dse_group_set_device (dse_group, 0);
     init_full_local (target_nasm, 0);
 
-    // core allocation
-    core_init_random (target_nasm, num_cores);
-
-    // fl_path allocation
-    unsigned int num_last_layer_ninst = target_nasm->ldata_arr[4].num_ninst;
-
-    ninst_t **path_last_ninsts1 = (ninst_t **)malloc(sizeof(ninst_t *) * num_last_layer_ninst / 2);
-    ninst_t **path_last_ninsts2 = (ninst_t **)malloc(sizeof(ninst_t *) * num_last_layer_ninst / 2);
-
-    for (int i=0; i<num_last_layer_ninst / 2; i++) {
-        path_last_ninsts1[i] = target_nasm->ldata_arr[4].ninst_arr_start + i;
-        path_last_ninsts2[i] = target_nasm->ldata_arr[4].ninst_arr_start + i + num_last_layer_ninst / 2;
-    }
-
-    fl_init(target_nasm);
-    fl_path_t *path1 = fl_create_path(target_nasm, path_last_ninsts1, num_last_layer_ninst / 2);
-    fl_path_t *path2 = fl_create_path(target_nasm, path_last_ninsts2, num_last_layer_ninst / 2);
-
-    dse_group_set_operating_mode(dse_group, OPER_MODE_FL_PATH);
-
     rpool_add_nasm (rpool, target_nasm, "data/batched_input_128.bin");
 
     printf ("Running %d iterations\n", number_of_iterations);
@@ -166,8 +79,7 @@ int main (int argc, char **argv)
     for (int i = 0; i < number_of_iterations; i++)
     {
         rpool_reset_queue (rpool);
-        // rpool_reset_nasm (rpool, target_nasm);
-        fl_push_path_ninsts(rpool, path1);
+        rpool_reset_nasm (rpool, target_nasm);
         dse_group_run (dse_group);
         dse_wait_for_nasm_completion (target_nasm);
         dse_group_stop (dse_group);
@@ -176,7 +88,7 @@ int main (int argc, char **argv)
     printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);
     aspen_flush_dynamic_memory ();
 
-    if (strcmp(dnn, "bert_base") != 0)
+    if (strcmp(dnn, "bert_base") != 0 && strcmp(dnn, "yolov3") != 0)
     {
         LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
         float *layer_output = dse_get_nasm_result (target_nasm, output_order);
@@ -189,6 +101,13 @@ int main (int argc, char **argv)
         free (layer_output);
         free (softmax_output);
     }
+    else if (strcmp(dnn, "yolov3") == 0)
+    {
+        int last_ldata_intsum = get_ldata_intsum(&target_nasm->ldata_arr[target_nasm->num_ldata - 1]);
+        printf("last layer intsum: %d\n", last_ldata_intsum);
+    }
+
+
     dse_group_destroy (dse_group);
     rpool_destroy (rpool);
     apu_destroy_nasm (target_nasm);

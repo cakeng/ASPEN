@@ -383,9 +383,9 @@ void dse_schedule_fl (dse_t *dse) {
         // Good! it's mine
 
         // Check the timing to compute
-        nasm_t *nasm;
-        unsigned int path_now_idx;
-        fl_path_t *path;
+        nasm_t *nasm = NULL;
+        unsigned int path_now_idx = -1;
+        fl_path_t *path = NULL;
         unsigned int ninst_layer_idx;
         unsigned int pnplc;
         fl_path_layer_t *path_layer;
@@ -492,7 +492,7 @@ void dse_schedule_fl (dse_t *dse) {
             #ifdef DEBUG
             printf("PATH_LAYER %d COMPLETE!\n", path_layer->ldata->layer->layer_idx);
             #endif
-            unsigned int num_path_layers_completed = atomic_fetch_add(&path->num_path_layers_completed, 1) + 1;
+            atomic_fetch_add(&path->num_path_layers_completed, 1);
             // atomic_fetch_add(&dse_now_path_layer_idx, 1);
             
             int change_path = 0;

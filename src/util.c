@@ -1189,3 +1189,45 @@ void get_prob_results (char *class_data_path, float* probabilities, unsigned int
         *(probabilities + max_idx) = -INFINITY;
     }
 }
+
+int get_ldata_intsum (nasm_ldata_t *ldata) {
+    int sum = 0;
+
+    size_t size = ldata->out_mat_mem_size;
+    int *buffer = (int *)calloc (size, 1);
+
+    copy_ldata_out_mat_to_buffer(ldata, buffer);
+
+    for (int i = 0; i < size/sizeof(int); i++) {
+        sum += buffer[i];
+    }
+
+    free(buffer);
+
+    return sum;
+
+}
+
+void print_progress_bar(char *prefix, int total, int now) {
+    const char bar = '=';
+	const char blank = ' ';
+	const int len = 20;
+    const int progress = len * now / total;
+	
+	float percent = (float)now / total * 100;
+	
+    printf("\r%s %d/%d [", prefix, now, total);
+    
+    for (int i=0; i<len; i++) {
+        if(progress > i) {
+            printf("%c", bar);
+        } else {
+            printf("%c", blank);
+        }
+    }
+    printf("] %0.2f%%", percent);
+    fflush(stdout);
+
+    if (total == now) printf("\n");
+
+}

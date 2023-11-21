@@ -21,7 +21,7 @@ int main (int argc, char **argv)
     int fl_path_offloading_idx[2048];
 
     const int server_port = 3786;
-    const char* server_ip = "127.0.0.1";
+    char* server_ip = "127.0.0.1";
 
     if (argc == 7) {
         strcpy (dnn, argv[1]);
@@ -31,7 +31,7 @@ int main (int argc, char **argv)
         num_cores = atoi (argv[5]);
         dev_mode = atoi (argv[6]);
 
-        printf("Find FL params automatically\n");
+        PRTF("Find FL params automatically\n");
     }
     else if (argc > 9)
     {
@@ -73,18 +73,6 @@ int main (int argc, char **argv)
     double start_time, end_time;
 
     
-    /* BASIC MODULES */
-
-    // rpool_t *rpool = rpool_init (gpu_idx);
-    rpool_t *rpool = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
-    dse_group_t *dse_group = dse_group_init (num_cores, gpu_idx);
-    dse_group_set_rpool (dse_group, rpool);
-    dse_group_set_device_mode (dse_group, dev_mode);
-    dse_group_set_device (dse_group, 0);
-    dse_group_set_num_edge_devices (dse_group, 2);
-    networking_engine* net_engine = NULL;
-
-    
     /* NASM PREPARATION */
 
     aspen_dnn_t *target_dnn = apu_load_dnn_from_file (target_aspen);
@@ -100,14 +88,10 @@ int main (int argc, char **argv)
         exit (0);
     }
 
-    // rpool_add_nasm (rpool, target_nasm, "data/batched_input_128.bin");
-    rpool_add_nasm (rpool, target_nasm, NULL);
-
-
     /* PROFILING */
 profiling:
 
-    printf("STAGE: PROFILING\n");
+    PRTF("STAGE: PROFILING\n");
 
     nasm_t *test_nasm = apu_load_nasm_from_file (nasm_file_name, target_dnn);
 
@@ -128,12 +112,27 @@ profiling:
 
     
     /* FL SCHEDULE */
-    printf("STAGE: FL SCHEDULE\n");
+    PRTF("STAGE: FL SCHEDULE\n");
+
+    // Synchronize pipelining params
+    int server_num_dse = 0, edge_num_dse = 0;
+    if (dev_mode == DEV_SERVER) {
+        write_n(client_sock, &num_cores, sizeof(int));
+        read_n(client_sock, &edge_num_dse, sizeof(int));
+        server_num_dse = num_cores;
+    }
+    else if (dev_mode == DEV_EDGE) {
+        read_n(server_sock, &server_num_dse, sizeof(int));
+        write_n(server_sock, &num_cores, sizeof(int));
+        edge_num_dse = num_cores;
+    }
+
+    // Schedule FL
 
     float min_eta;
     if (dev_mode == DEV_SERVER) {
         min_eta = fl_schedule_bruteforce(
-            target_nasm, server_elapsed_times, edge_elapsed_times, *network_profile,
+            target_nasm, server_num_dse, server_elapsed_times, edge_num_dse, edge_elapsed_times, *network_profile,
             &fl_split_layer_idx, &fl_num_path, fl_path_offloading_idx
         );
     }
@@ -161,12 +160,27 @@ profiling:
     if (server_sock != -1) close(server_sock);
     if (client_sock != -1) close(client_sock);
 
+    #ifdef DEBUG
     printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta);
     for (int i=0; i<fl_num_path; i++) {
         printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
     }
+    #endif
 
     if (min_eta < 0) goto profiling;
+
+    /* BASIC MODULES */
+
+    // rpool_t *rpool = rpool_init (gpu_idx);
+    rpool_t *rpool = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
+    dse_group_t *dse_group = dse_group_init (num_cores, gpu_idx);
+    dse_group_set_rpool (dse_group, rpool);
+    dse_group_set_device_mode (dse_group, dev_mode);
+    dse_group_set_device (dse_group, 0);
+    dse_group_set_num_edge_devices (dse_group, 2);
+    networking_engine* net_engine = NULL;
+
+    rpool_add_nasm (rpool, target_nasm, "data/batched_input_128.bin");
 
 
     /* FL PATH CREATION */
@@ -257,7 +271,7 @@ profiling:
     printf ("%lf\n", (end_time - start_time)/number_of_iterations);
     #endif
 
-    if (strcmp(dnn, "bert_base") != 0)
+    if (strcmp(dnn, "bert_base") != 0 && strcmp(dnn, "yolov3") != 0)
     {
         LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
         float *layer_output = dse_get_nasm_result (target_nasm, output_order);
@@ -265,12 +279,19 @@ profiling:
         softmax (layer_output, softmax_output, batch_size, 1000);
         for (int i = 0; i < batch_size; i++)
         {
-            // #ifndef SUPPRESS_OUTPUT
+            #ifndef SUPPRESS_OUTPUT
             get_prob_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
-            // #endif
+            #endif
         }
         free (layer_output);
         free (softmax_output);
+    }
+    else if (strcmp(dnn, "yolov3") == 0)
+    {
+        int last_ldata_intsum = get_ldata_intsum(&target_nasm->ldata_arr[target_nasm->num_ldata - 1]);
+        #ifndef SUPPRESS_OUTPUT
+        printf("last layer intsum: %d\n", last_ldata_intsum);
+        #endif
     }
 
     /* WRAP UP */

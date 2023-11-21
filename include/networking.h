@@ -105,6 +105,7 @@ void push_ninsts_to_net_queue (networking_queue_t *networking_queue, ninst_t **n
 void push_path_idx_to_path_queue (networking_engine *net_engine, unsigned int path_idx);
 unsigned int pop_path_idx_from_path_queue (networking_engine *net_engine);
 void push_ninsts_to_priority_net_queue (networking_queue_t *networking_queue, ninst_t **ninst_ptr_list, unsigned int num_ninsts);
+void enqueue_ninst (networking_queue_t *networking_queue, ninst_t *ninst);
 void net_engine_add_input_rpool (networking_engine *net_engine, nasm_t* nasm, char *input_filename);
 void net_engine_add_input_rpool_reverse (networking_engine *net_engine, nasm_t* nasm, char *input_filename);
 void net_engine_destroy(networking_engine* net_engine);

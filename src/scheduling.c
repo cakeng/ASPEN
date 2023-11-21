@@ -1296,7 +1296,8 @@ void fl_set_dev_compute(nasm_t *nasm, fl_path_t *path, DEVICE_MODE dev_mode) {
 }
 
 float fl_simulate_completion(
-    nasm_t *nasm, float *server_elapsed_times, float *edge_elapsed_times, network_profile_t *network_profile,
+    nasm_t *nasm, int server_num_dse, float *server_elapsed_times, 
+    int edge_num_dse, float *edge_elapsed_times, network_profile_t *network_profile,
     unsigned int last_layer_idx, unsigned int num_paths, unsigned int *path_offloading_idx
 ) {
 
@@ -1344,6 +1345,8 @@ float fl_simulate_completion(
             }
         }
 
+        now_elapsed_edge /= edge_num_dse;
+
         // calculate server elapsed time
         for (int layer = path_offloading_idx[path] + 1; layer < now_path->num_path_layers; layer++) {
             fl_path_layer_t *now_path_layer = &now_path->path_layers_arr[layer];
@@ -1352,6 +1355,8 @@ float fl_simulate_completion(
                 now_elapsed_server += server_elapsed_times[now_ninst->ninst_idx];
             }
         }
+
+        now_elapsed_server /= server_num_dse;
 
         // calculate network elapsed time
         fl_path_layer_t *networking_layer = &now_path->path_layers_arr[path_offloading_idx[path]];
@@ -1380,25 +1385,32 @@ float fl_simulate_completion(
 
         // DEBUG
         if (edge_end_comp < 0) {
-            printf("sth wrong!\n");
-            assert(0);
+            return -1;
         }
+    }
+
+    for (int i=0; i<num_paths; i++) {
+        fl_destroy_path(path_arr[i]);
     }
 
     return server_end_comp;
 }
 
 float fl_schedule_bruteforce(
-    nasm_t *nasm, float *server_elapsed_times, float *edge_elapsed_times, network_profile_t *network_profile,
+    nasm_t *nasm, int server_num_dse, float *server_elapsed_times, 
+    int edge_num_dse, float *edge_elapsed_times, network_profile_t *network_profile,
     int *fl_split_layer_idx, int *fl_num_path, int *fl_path_offloading_idx
 ) {
-    unsigned int last_layer_idx, num_paths;
     unsigned int path_offloading_idx[64];
 
     float min_elapsed_time = FLT_MAX;
     *fl_split_layer_idx = 1;
     *fl_num_path = 1;
     fl_path_offloading_idx[0] = 0;
+
+    #if SUPPRESS_OUTPUT == 0
+    print_progress_bar("brute force", FL_LIMIT_SPLIT_LAYER_IDX * (FL_LIMIT_NUM_PATH - 1), 0);
+    #endif
 
     for (int i=1; i<=FL_LIMIT_SPLIT_LAYER_IDX; i++) {
         int now_split_layer_idx = i;
@@ -1413,9 +1425,11 @@ float fl_schedule_bruteforce(
             while (1) {
                 // run
                 float elapsed_time = fl_simulate_completion(
-                    nasm, server_elapsed_times, edge_elapsed_times, network_profile,
+                    nasm, server_num_dse, server_elapsed_times, edge_num_dse, edge_elapsed_times, network_profile,
                     now_split_layer_idx, now_num_path, path_offloading_idx
                 );
+
+                if (elapsed_time == -1) return -1;
 
                 // check if min
                 if (elapsed_time < min_elapsed_time) {
@@ -1441,6 +1455,10 @@ float fl_schedule_bruteforce(
                     break;
                 }
             }
+
+            #if SUPPRESS_OUTPUT == 0
+            print_progress_bar("brute force", FL_LIMIT_SPLIT_LAYER_IDX * (FL_LIMIT_NUM_PATH - 1), (i-1) * FL_LIMIT_NUM_PATH + (j-1));
+            #endif
 
         }
     }

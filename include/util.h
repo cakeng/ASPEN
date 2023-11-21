@@ -87,5 +87,7 @@ int connect_server_sock(char *server_ip, int server_port);
 double get_sec();
 void softmax (float *input, float *output, unsigned int num_batch, unsigned int num_elements);
 void get_prob_results (char *class_data_path, float* probabilities, unsigned int num);
+int get_ldata_intsum (nasm_ldata_t *ldata);
+void print_progress_bar(char *prefix, int total, int now);
 
 #endif /* _UTIL_H_ */
