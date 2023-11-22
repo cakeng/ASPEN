@@ -1050,9 +1050,24 @@ void max_heapify(networking_queue_t* networking_queue, int i)
     int left = 2*i;
     int right = 2*i + 1;
 
-    if (left <= networking_queue->num_stored && networking_queue->ninst_ptr_arr[left]->ldata->layer->layer_idx > networking_queue->ninst_ptr_arr[i]->ldata->layer->layer_idx)
+    int left_p = -1;
+    int right_p = -1;
+
+    if (left <= networking_queue->num_stored) left_p = networking_queue->ninst_ptr_arr[left]->ldata->layer->layer_idx;
+    if (right <= networking_queue->num_stored) right_p = networking_queue->ninst_ptr_arr[right]->ldata->layer->layer_idx;
+    int i_p = networking_queue->ninst_ptr_arr[i]->ldata->layer->layer_idx;
+
+    if (left_p == 0) left_p = networking_queue->ninst_ptr_arr[i]->ldata->nasm->num_ldata;
+    if (right_p == 0) right_p = networking_queue->ninst_ptr_arr[i]->ldata->nasm->num_ldata;
+    if (i_p == 0) i_p = networking_queue->ninst_ptr_arr[i]->ldata->nasm->num_ldata;
+
+    if (left <= networking_queue->num_stored && left_p > i_p)
         largest = left;
-    if (right <= networking_queue->num_stored && networking_queue->ninst_ptr_arr[right]->ldata->layer->layer_idx > networking_queue->ninst_ptr_arr[largest]->ldata->layer->layer_idx)
+
+    int largest_p = networking_queue->ninst_ptr_arr[largest]->ldata->layer->layer_idx;
+    if (largest_p == 0) largest_p = networking_queue->ninst_ptr_arr[i]->ldata->nasm->num_ldata;
+    
+    if (right <= networking_queue->num_stored && right_p > largest_p)
         largest = right;
 
     if (largest != i) {
@@ -1129,10 +1144,24 @@ void enqueue_ninst (networking_queue_t *networking_queue, ninst_t *ninst)
 
     i = networking_queue->num_stored;
     *(networking_queue->ninst_ptr_arr + i) = ninst;
-    // printf("enqueue_ninst: %d, %d, %d\n", ninst->ninst_idx, i, networking_queue->ninst_ptr_arr[i]->ldata->layer->layer_idx);
 
-    while(i > 1 && networking_queue->ninst_ptr_arr[i/2]->ldata->layer->layer_idx < networking_queue->ninst_ptr_arr[i]->ldata->layer->layer_idx)
+    int p1 = 0;
+    int p2 = 0;
+    if (i > 1) {
+        p1 = networking_queue->ninst_ptr_arr[i/2]->ldata->layer->layer_idx;
+        p2 = networking_queue->ninst_ptr_arr[i]->ldata->layer->layer_idx;
+        if(p1 == 0) p1 = ninst->ldata->nasm->num_ldata;
+        if(p2 == 0) p2 = ninst->ldata->nasm->num_ldata;
+    }
+    
+    while(i > 1 && p1 < p2)
     {
+        p1 = networking_queue->ninst_ptr_arr[i/2]->ldata->layer->layer_idx;
+        p2 = networking_queue->ninst_ptr_arr[i]->ldata->layer->layer_idx;
+
+        if(p1 == 0) p1 = ninst->ldata->nasm->num_ldata;
+        if(p2 == 0) p2 = ninst->ldata->nasm->num_ldata;
+
         ninst_t *temp = *(networking_queue->ninst_ptr_arr + i/2);
         *(networking_queue->ninst_ptr_arr + i/2) = *(networking_queue->ninst_ptr_arr + i);
         *(networking_queue->ninst_ptr_arr + i) = temp;

@@ -163,8 +163,8 @@ void heft_push_task(sched_processor_t *sched_processor, sched_task_t *sched_task
 
 int compare_by_rank_upward(const void *ninst_1, const void *ninst_2);
 
-float get_eft_edge(dynamic_scheduler_t* dynamic_scheduler, rpool_t* rpool, int device_idx, int num_dse, int num_parent_ninsts);
-float get_eft_server(dynamic_scheduler_t* dynamic_scheduler, networking_engine* net_engine, int device_idx, int net_tx_queue_bytes);
+float get_eft_server(dynamic_scheduler_t* dynamic_scheduler, nasm_t* nasm, ninst_t* target_ninst, int device_idx);
+float get_eft_offloaded(dynamic_scheduler_t* dynamic_scheduler, networking_engine* net_engine, int device_idx, int net_tx_queue_bytes);
 
 void save_schedule(sched_processor_t *sched_processor_arr, int num_device, char *file_path);
 sched_processor_t *load_schedule(char *file_path);

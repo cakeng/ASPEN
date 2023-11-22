@@ -431,6 +431,9 @@ int main(int argc, char **argv)
 
         double end_time = get_time_secs();
         PRTF ("Time taken: %lf seconds\n", (end_time - start_time)/inference_repeat_num);
+        #ifdef SUPPRESS_OUTPUT
+        printf("%lf\n", (end_time - start_time)/inference_repeat_num);
+        #endif
     }
     else
     {
@@ -480,6 +483,7 @@ int main(int argc, char **argv)
             double min_computed_time = 0.0;
             double inf_latency = 0.0;
             double start_time = 0.0;
+            int total_received = 0;
 
             if(device_mode == DEV_SERVER)
             {
@@ -658,28 +662,24 @@ int main(int argc, char **argv)
                 }
             }
 
-            #ifdef SUPPRESS_OUTPUT
-            printf("%f,%f,%f,%f,%f,%f\n", max_recv_time, min_recv_time, max_sent_time, min_sent_time, max_computed_time, min_computed_time);
-            #endif
-
             // Get results and save logs
             for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
             {
                 if(device_mode == DEV_SERVER || device_idx == edge_id)
                 {
-                    PRTF("---------------------[Edge %d] Inference result---------------------\n", edge_id);   
-                    LAYER_PARAMS output_order_cnn[] = {BATCH, OUT_H, OUT_W, OUT_C};  // for CNN
-                    LAYER_PARAMS output_order_transformer[] = {BATCH, MAT_N, MAT_M};    // for Transformer
-                    LAYER_PARAMS *output_order_param = !strcmp(output_order, "cnn") ? output_order_cnn : output_order_transformer;
-                    float *layer_output = dse_get_nasm_result (target_nasm[edge_id], output_order_param);
-                    float *softmax_output = calloc (1000*target_nasm[edge_id]->batch_size, sizeof(float));
-                    naive_softmax (layer_output, softmax_output, target_nasm[edge_id]->batch_size, 1000);
-                    for (int i = 0; i < target_nasm[edge_id]->batch_size; i++)
-                    {
-                        get_probability_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);   
-                    }
-                    free (layer_output);
-                    free (softmax_output);
+                    // PRTF("---------------------[Edge %d] Inference result---------------------\n", edge_id);   
+                    // LAYER_PARAMS output_order_cnn[] = {BATCH, OUT_H, OUT_W, OUT_C};  // for CNN
+                    // LAYER_PARAMS output_order_transformer[] = {BATCH, MAT_N, MAT_M};    // for Transformer
+                    // LAYER_PARAMS *output_order_param = !strcmp(output_order, "cnn") ? output_order_cnn : output_order_transformer;
+                    // float *layer_output = dse_get_nasm_result (target_nasm[edge_id], output_order_param);
+                    // float *softmax_output = calloc (1000*target_nasm[edge_id]->batch_size, sizeof(float));
+                    // naive_softmax (layer_output, softmax_output, target_nasm[edge_id]->batch_size, 1000);
+                    // for (int i = 0; i < target_nasm[edge_id]->batch_size; i++)
+                    // {
+                    //     get_probability_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);   
+                    // }
+                    // free (layer_output);
+                    // free (softmax_output);
                 
                     // For logging
                     char file_name[1024], dir_path[1024], dir_edge_path[1024];
@@ -695,15 +695,20 @@ int main(int argc, char **argv)
                     FILE *log_fp = fopen(file_name, "w");
                     save_ninst_log(log_fp, target_nasm[edge_id]);
 
-                    int total_received = 0;
+                    total_received = 0;
                     for(int j = 0; j < target_nasm[edge_id]->num_ninst; j++)
                     {
                         if(target_nasm[edge_id]->ninst_arr[j].received_time != 0)
                             total_received++;
                     }
                     PRTF("\t[Edge %d] Total received : (%d/%d)\n", edge_id, total_received, target_nasm[edge_id]->num_ninst);
+                    PRTF("\t[Edge %d] Transmission latency : %fms\n", edge_id, (max_recv_time - min_sent_time)*1000);
                 }
             }
+
+            #ifdef SUPPRESS_OUTPUT
+            printf("%f,%f,%f,%f,%f,%f,%d\n", max_recv_time, min_recv_time, max_sent_time, min_sent_time, max_computed_time, min_computed_time,total_received);
+            #endif
         }
     }
 }
