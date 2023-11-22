@@ -921,7 +921,7 @@ void save_ninst_log(FILE* log_fp, nasm_t* nasm)
 }
 
 ssize_t read_n(int fd, void *buf, size_t n) {
-    size_t bytes_read = 0;
+        size_t bytes_read = 0;
     while(bytes_read < n) {
         bytes_read += read(fd, buf + bytes_read, n - bytes_read);
     }
@@ -930,12 +930,34 @@ ssize_t read_n(int fd, void *buf, size_t n) {
 }
 
 ssize_t write_n(int fd, void *buf, size_t n) {
-    size_t bytes_written = 0;
+        size_t bytes_written = 0;
     while(bytes_written < n) {
         bytes_written += write(fd, buf + bytes_written, n - bytes_written);
     }
 
     return n;
+}
+
+void create_connection(DEVICE_MODE dev_mode, char *server_ip, int control_port, int *server_sock, int *client_sock) {
+    char connection_key[64];
+
+    if (dev_mode == DEV_SERVER) {
+        strcpy(connection_key, "hello world!");
+
+        *server_sock = create_server_sock(server_ip, control_port);
+        PRTF ("\tcreated server sock: %d\n", *server_sock);
+        *client_sock = accept_client_sock(*server_sock);
+        PRTF ("\taccepted client sock: %d\n", *client_sock);
+        write_n(*client_sock, connection_key, sizeof(char)*64);
+        PRTF ("\twrote connection key: %s\n", connection_key);
+    }
+    else if (dev_mode == DEV_EDGE) {
+        // CREATE CONNECTION TO SERVER
+        *server_sock = connect_server_sock(server_ip, control_port);
+        PRTF ("\tconnected server sock: %d\n", *server_sock);
+        read_n(*server_sock, &connection_key, sizeof(char)*64);
+        PRTF ("\tread connection key: %s\n", connection_key);
+    }
 }
 
 int create_server_sock(char *server_ip, int server_port) {
@@ -1099,4 +1121,113 @@ float get_min_computed_time(nasm_t* nasm)
         }
     }
     return min_computed_time;
+}
+
+double get_sec()
+{
+    struct timeval now;
+    gettimeofday (&now, NULL);
+    return now.tv_sec + now.tv_usec*1e-6;
+}
+
+void softmax (float *input, float *output, unsigned int num_batch, unsigned int num_elements)
+{
+    for (int i = 0; i < num_batch; i++)
+    {
+        float max = input[i * num_elements];
+        for (int j = 1; j < num_elements; j++)
+        {
+            if (input[i * num_elements + j] > max)
+                max = input[i * num_elements + j];
+        }
+        float sum = 0;
+        for (int j = 0; j < num_elements; j++)
+        {
+            output[i * num_elements + j] = expf (input[i * num_elements + j] - max);
+            sum += output[i * num_elements + j];
+        }
+        for (int j = 0; j < num_elements; j++)
+            output[i * num_elements + j] /= sum;
+    }
+}
+
+void get_prob_results (char *class_data_path, float* probabilities, unsigned int num)
+{
+    int buffer_length = 256;
+    char buffer[num][buffer_length];
+    FILE *fptr = fopen(class_data_path, "r");
+    if (fptr == NULL)
+        assert (0);
+    for (int i = 0; i < num; i++)
+    {
+        void *tmp = fgets(buffer[i], buffer_length, fptr);
+        if (tmp == NULL)
+            assert (0);
+        for (char *ptr = buffer[i]; *ptr != '\0'; ptr++)
+        {
+            if (*ptr == '\n')
+            {
+                *ptr = '\0';
+            }
+        }
+    }
+    fclose(fptr);
+    printf ("Results:\n");
+    for (int i = 0; i < 5; i++)
+    {
+        float max_val = -INFINITY;
+        int max_idx = 0;
+        for (int j = 0; j < num; j++)
+        {
+            if (max_val < *(probabilities + j))
+            {
+                max_val = *(probabilities + j);
+                max_idx = j;
+            }
+        }
+        printf ("%d: %s - %2.2f%%\n", i+1, buffer[max_idx], max_val*100);
+        *(probabilities + max_idx) = -INFINITY;
+    }
+}
+
+int get_ldata_intsum (nasm_ldata_t *ldata) {
+    int sum = 0;
+
+    size_t size = ldata->out_mat_mem_size;
+    int *buffer = (int *)calloc (size, 1);
+
+    copy_ldata_out_mat_to_buffer(ldata, buffer);
+
+    for (int i = 0; i < size/sizeof(int); i++) {
+        sum += buffer[i];
+    }
+
+    free(buffer);
+
+    return sum;
+
+}
+
+void print_progress_bar(char *prefix, int total, int now) {
+    const char bar = '=';
+	const char blank = ' ';
+	const int len = 20;
+    const int progress = len * now / total;
+	
+	float percent = (float)now / total * 100;
+	
+    printf("\r%s %d/%d [", prefix, now, total);
+    
+    for (int i=0; i<len; i++) {
+        if(progress > i) {
+            printf("%c", bar);
+        } else {
+            printf("%c", blank);
+        }
+    }
+    printf("] %0.2f%%", percent);
+    fflush(stdout);
+
+    if (total == now) printf("\n");
+
 }

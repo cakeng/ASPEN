@@ -1,5 +1,88 @@
 #include "profiling.h"
 
+static void profile_comp_and_net_server(nasm_t *target_nasm, int dse_num, int server_sock, int client_sock, float *elapsed_times, network_profile_t **network_profile) {    
+    // PROFILE COMPUTATION
+    profile_computation_exact(target_nasm, dse_num, 0, NULL, DEV_SERVER, -1, elapsed_times);
+
+    // PROFILE NETWORK
+    *network_profile = profile_network(DEV_SERVER, 0, server_sock, client_sock);
+
+}
+
+static void profile_comp_and_net_edge(nasm_t *target_nasm, int dse_num, int server_sock, int client_sock, float *elapsed_times, network_profile_t **network_profile) {    
+    // PROFILE COMPUTATION
+    profile_computation_exact(target_nasm, dse_num, 0, NULL, DEV_SERVER, -1, elapsed_times);
+
+    // PROFILE NETWORK
+    *network_profile = profile_network(DEV_EDGE, 0, server_sock, -1);
+}
+
+void profile_comp_and_net(nasm_t *target_nasm, int dse_num, DEVICE_MODE device_mode, int server_sock, int client_sock, float *server_elapsed_times, float *edge_elapsed_times, network_profile_t **network_profile) {
+    int repeat = 256;
+    if (device_mode == DEV_SERVER) {
+        PRTF("\tprofiling as SERVER...\n");
+        profile_comp_and_net_server(target_nasm, dse_num, server_sock, client_sock, server_elapsed_times, network_profile);
+
+        // share computation profile
+        PRTF("\tsharing computation profile...\n");
+        for (int i=0; i<repeat; i++) {
+            write_n(client_sock, server_elapsed_times, sizeof(float) * target_nasm->num_ninst);
+            read_n(client_sock, edge_elapsed_times, sizeof(float) * target_nasm->num_ninst);
+        }
+
+        // share network profile
+        PRTF("\tsharing network profile...\n");
+        read_n(client_sock, *network_profile, sizeof(network_profile_t));
+    }
+    else if (device_mode == DEV_EDGE) {
+
+        PRTF("\tprofiling as EDGE...\n");
+        profile_comp_and_net_edge(target_nasm, dse_num, server_sock, client_sock, edge_elapsed_times, network_profile);
+        
+        // share computation profile
+        PRTF("\tsharing computation profile...\n");
+        
+        float start_time = get_time_secs();
+        for (int i=0; i<repeat; i++) {
+            read_n(server_sock, server_elapsed_times, sizeof(float) * target_nasm->num_ninst);
+            write_n(server_sock, edge_elapsed_times, sizeof(float) * target_nasm->num_ninst);
+        }
+        float end_time = get_time_secs();
+
+        (*network_profile)->transmit_rate = 2 * sizeof(float) * target_nasm->num_ninst * repeat / (end_time - start_time);
+
+        // share network profile
+        PRTF("\tsharing network profile...\n");
+        write_n(server_sock, *network_profile, sizeof(network_profile_t));
+    }
+}
+
+void profile_computation_exact(nasm_t *target_nasm, int dse_num, int device_idx, char *target_input, DEVICE_MODE device_mode, int gpu, float *elapsed_times) {
+    rpool_t *rpool = rpool_init (gpu);
+    dse_group_t *dse_group = dse_group_init (dse_num, gpu);
+    dse_group_set_rpool (dse_group, rpool);
+    dse_group_add_rpool_arr (dse_group, rpool, device_idx);
+    dse_group_set_profile (dse_group, 1);
+    dse_group_set_multiuser (dse_group, 0);
+
+    init_sequential_offload (target_nasm, 0, device_idx, device_idx);
+    
+    rpool_add_nasm (rpool, target_nasm, target_input); 
+    
+    dse_group_run (dse_group);
+    dse_wait_for_nasm_completion (target_nasm);
+    dse_group_stop (dse_group);
+
+    for (int i=0; i<target_nasm->num_ninst; i++) {
+        ninst_t *target_ninst = &(target_nasm->ninst_arr[i]);
+        elapsed_times[i] = (target_ninst->compute_end - target_ninst->compute_start);
+    }
+
+    dse_group_destroy (dse_group);
+    rpool_reset_nasm (rpool, target_nasm);
+    rpool_destroy (rpool);
+}
+
 avg_ninst_profile_t *profile_computation(nasm_t *target_nasm, int dse_num, int device_idx, char *target_input, DEVICE_MODE device_mode, int gpu, int num_repeat) 
 {
     float avg_computation_time = 0.0;
@@ -125,7 +208,6 @@ float profile_network_sync(DEVICE_MODE device_mode, int server_sock, int client_
 
     if (device_mode == DEV_SERVER) 
     {
-        PRTF("\tprofiling as SERVER...\n");
         read_n(client_sock, &t0, sizeof(float));
         t1 = get_time_secs();
         write_n(client_sock, &t1, sizeof(float));
@@ -135,7 +217,6 @@ float profile_network_sync(DEVICE_MODE device_mode, int server_sock, int client_
     }
     else 
     {
-        PRTF("\tprofiling as EDGE...\n");
         t0 = get_time_secs();
         write_n(server_sock, &t0, sizeof(float));
         read_n(server_sock, &t1, sizeof(float));
@@ -146,6 +227,13 @@ float profile_network_sync(DEVICE_MODE device_mode, int server_sock, int client_
     // rtt = (t3 - t0) - (t2 - t1);
     time_offset = ((t1 - t0) + (t2 - t3))/2;
     return time_offset;
+}
+
+void print_network_profile(network_profile_t *network_profile) {
+    printf("### NET PROFILE ###\n");
+    printf("\tRTT: %f\n", network_profile->rtt);
+    printf("\tSync: %f\n", network_profile->sync);
+    printf("\tTransmit Rate: %f\n", network_profile->transmit_rate);
 }
 
 void communicate_profiles_server(int client_sock, network_profile_t *network_profile, avg_ninst_profile_t *ninst_profile)
