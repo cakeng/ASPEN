@@ -59,6 +59,8 @@ struct dynamic_scheduler_t{
     int server_num_dse[SCHEDULE_MAX_DEVICES];
 
     float scheduling_latency[SCHEDULE_MAX_DEVICES]; // obtained by scheduling policy in cloud
+    int total_input_data_size[SCHEDULE_MAX_DEVICES];
+    int *total_ninst_until_target_ninst[SCHEDULE_MAX_DEVICES];
 };
 
 struct spinn_scheduler_t{
@@ -129,7 +131,7 @@ int get_allowed_core_idx(ninst_t *ninst);
 
 void core_init_random(nasm_t *nasm, int num_core);
 
-dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, DEVICE_MODE device_mode, int device_idx, int num_edge_devices);
+dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, nasm_t** nasms, DEVICE_MODE device_mode, int device_idx, int num_edge_devices);
 spinn_scheduler_t* init_spinn_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, nasm_t** nasms, DEVICE_MODE device_mode, int device_idx, int num_edge_devices);
 
 void spinn_update_profile(spinn_scheduler_t* spinn_scheduler, float rtt, float avg_bandwidth, float avg_edge_latency, float avg_server_latency, int device_idx);

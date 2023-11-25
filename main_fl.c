@@ -20,8 +20,8 @@ int main (int argc, char **argv)
     int fl_num_path = -1;
     int fl_path_offloading_idx[2048];
 
-    const int server_port = 3786;
-    char* server_ip = "127.0.0.1";
+    const int server_port = 62000;
+    char* server_ip = "147.46.130.51";
 
     if (argc == 7) {
         strcpy (dnn, argv[1]);
@@ -236,15 +236,31 @@ profiling:
     }
 
     PRTF ("Running %d iterations\n", number_of_iterations);
-    start_time = get_sec();
+    
+
+    float prev_edge_latency = 0.0;
+    float prev_server_latency = 0.0;
+    float prev_bandwidth = 0.0;
+
     for (int i = 0; i < number_of_iterations; i++)
     {
+        double max_recv_time = 0.0;
+        double max_sent_time = 0.0;
+        double min_recv_time = 0.0;
+        double min_sent_time = 0.0;
+        double max_computed_time = 0.0;
+        double min_computed_time = 0.0;
+        double inf_latency = 0.0;
+        double start_time = 0.0;
+
         net_engine_run(net_engine);
         rpool_reset_queue (rpool);
         apu_reset_nasm(target_nasm);
         dse_group_set_operating_mode(dse_group, OPER_MODE_FL_PATH);
         if (dev_mode == DEV_EDGE) fl_push_path_ninsts_edge(rpool, target_nasm->path_ptr_arr[0]);
         else if (dev_mode == DEV_LOCAL) fl_push_path_ninsts(rpool, target_nasm->path_ptr_arr[0]);
+        // start_time = get_sec();
+        set_elapsed_time_start ();
         dse_group_run (dse_group);
         dse_wait_for_nasm_completion (target_nasm);
 
@@ -257,42 +273,79 @@ profiling:
         }
         dse_group_stop (dse_group);
         if (dev_mode != DEV_LOCAL) net_engine_stop (net_engine);
-
+        // end_time = get_sec();
+        get_elapsed_time ("run_aspen");
         fl_reset_nasm_path(target_nasm);
 
         dse_set_starting_path (target_nasm->path_ptr_arr[0]);
 
-    }
-    end_time = get_sec();
-
-    #ifndef SUPRESS_OUTPUT
-    printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);
-    #else
-    printf ("%lf\n", (end_time - start_time)/number_of_iterations);
-    #endif
-
-    if (strcmp(dnn, "bert_base") != 0 && strcmp(dnn, "yolov3") != 0)
-    {
-        LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
-        float *layer_output = dse_get_nasm_result (target_nasm, output_order);
-        float *softmax_output = calloc (1000*batch_size, sizeof(float));
-        softmax (layer_output, softmax_output, batch_size, 1000);
-        for (int i = 0; i < batch_size; i++)
+        // Communicate profiles
+        // PRTF("\t[Communicate profiles]\n");
+        max_computed_time = get_max_computed_time(target_nasm);
+        min_computed_time = get_min_computed_time(target_nasm);
+        
+        min_recv_time = get_min_recv_time(target_nasm);
+        max_sent_time = get_max_sent_time(target_nasm);
+        
+        if(dev_mode == DEV_SERVER)
         {
-            #ifndef SUPPRESS_OUTPUT
-            get_prob_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
-            #endif
+            max_recv_time = get_max_recv_time(target_nasm);
+            if((max_computed_time - min_computed_time) > 0)
+                prev_server_latency = max_computed_time - min_computed_time;
+
+            write_n(client_sock, &prev_server_latency, sizeof(float));
+            write_n(client_sock, &max_recv_time, sizeof(double));
+            read_n(client_sock, &min_sent_time, sizeof(double));
         }
-        free (layer_output);
-        free (softmax_output);
+        else if (dev_mode == DEV_EDGE)
+        {
+            min_sent_time = get_min_sent_time(target_nasm);
+            if((max_computed_time - min_computed_time) > 0)
+                prev_edge_latency = max_computed_time - min_computed_time;
+            
+            read_n(server_sock, &prev_server_latency, sizeof(float));
+            read_n(server_sock, &max_recv_time, sizeof(double));
+            write_n(server_sock, &min_sent_time, sizeof(double));
+        }
+        int total_received = 0;
+        for(int j = 0; j < target_nasm->num_ninst; j++)
+        {
+            if(target_nasm->ninst_arr[j].received_time != 0)
+                total_received++;
+        }
+        PRTF("\t[Edge %d] Total received : (%d/%d)\n", 0, total_received, target_nasm->num_ninst);
+        PRTF("\tTransmission latency : %fms\n", (max_recv_time - min_sent_time)*1000);
     }
-    else if (strcmp(dnn, "yolov3") == 0)
-    {
-        int last_ldata_intsum = get_ldata_intsum(&target_nasm->ldata_arr[target_nasm->num_ldata - 1]);
-        #ifndef SUPPRESS_OUTPUT
-        printf("last layer intsum: %d\n", last_ldata_intsum);
-        #endif
-    }
+    
+
+    // #ifndef SUPRESS_OUTPUT
+    // printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);
+    // #else
+    // printf ("%lf\n", (end_time - start_time)/number_of_iterations);
+    // #endif
+
+    // if (strcmp(dnn, "bert_base") != 0 && strcmp(dnn, "yolov3") != 0)
+    // {
+    //     LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
+    //     float *layer_output = dse_get_nasm_result (target_nasm, output_order);
+    //     float *softmax_output = calloc (1000*batch_size, sizeof(float));
+    //     softmax (layer_output, softmax_output, batch_size, 1000);
+    //     for (int i = 0; i < batch_size; i++)
+    //     {
+    //         #ifndef SUPPRESS_OUTPUT
+    //         get_prob_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
+    //         #endif
+    //     }
+    //     free (layer_output);
+    //     free (softmax_output);
+    // }
+    // else if (strcmp(dnn, "yolov3") == 0)
+    // {
+    //     int last_ldata_intsum = get_ldata_intsum(&target_nasm->ldata_arr[target_nasm->num_ldata - 1]);
+    //     #ifndef SUPPRESS_OUTPUT
+    //     printf("last layer intsum: %d\n", last_ldata_intsum);
+    //     #endif
+    // }
 
     /* WRAP UP */
     fl_destroy_nasm_path(target_nasm);

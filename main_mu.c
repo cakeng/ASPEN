@@ -377,7 +377,7 @@ int main(int argc, char **argv)
                 init_dynamic_offload(target_nasm[i], device_mode, i, num_edge_devices);
         }
             
-        dynamic_scheduler = init_dynamic_scheduler(ninst_profile, network_profile, device_mode, device_idx, num_edge_devices);
+        dynamic_scheduler = init_dynamic_scheduler(ninst_profile, network_profile, target_nasm, device_mode, device_idx, num_edge_devices);
         dse_group_set_dynamic_scheduler(dse_group, dynamic_scheduler);
         
         
@@ -606,6 +606,8 @@ int main(int argc, char **argv)
                 if(device_mode == DEV_SERVER || device_idx == edge_id)
                     dse_wait_for_nasm_completion (target_nasm[edge_id]);
             }
+
+            dse_group_stop (dse_group);
             
             #ifdef SUPPRESS_OUTPUT
             inf_latency = get_elapsed_time_only_return();
@@ -623,7 +625,7 @@ int main(int argc, char **argv)
                 }
             }
 
-            dse_group_stop (dse_group);
+            
 
             // Communicate profiles
             PRTF("\t[Communicate profiles]\n");
@@ -703,6 +705,10 @@ int main(int argc, char **argv)
                     }
                     PRTF("\t[Edge %d] Total received : (%d/%d)\n", edge_id, total_received, target_nasm[edge_id]->num_ninst);
                     PRTF("\t[Edge %d] Transmission latency : %fms\n", edge_id, (max_recv_time - min_sent_time)*1000);
+                    PRTF("\t[Edge %d] Dynamic overhead : %fms\n", edge_id, target_nasm[edge_id]->dynamic_overhead/dse_num);
+                    PRTF("\t[Edge %d] Queueing overhead: %fms\n", edge_id, target_nasm[edge_id]->queueing_overhead/dse_num);
+                    target_nasm[edge_id]->dynamic_overhead = 0;
+                    target_nasm[edge_id]->queueing_overhead = 0;
                 }
             }
 

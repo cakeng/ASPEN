@@ -206,8 +206,11 @@ void dse_schedule (dse_t *dse)
                 // For edge side offloading decision
                 if(dse->device_mode == DEV_EDGE)
                 {
+                    double s = get_time_secs();
                     float eft_server = get_eft_server(dse->dynamic_scheduler, dse->net_engine_arr[target_device]->nasm, ninst, dse->device_idx);
                     float eft_offloaded = get_eft_offloaded(dse->dynamic_scheduler, dse->net_engine_arr[target_device], dse->device_idx, ninst->tile_dims[OUT_H] * ninst->tile_dims[OUT_W] * sizeof(float));
+                    double e = get_time_secs();
+                    dse->net_engine_arr[dse->device_idx]->nasm->dynamic_overhead += (e-s) * 1000.0;
                     
                     ninst->eft_offloaded = eft_offloaded;
                     ninst->eft_server = eft_server;
@@ -296,8 +299,11 @@ void dse_schedule (dse_t *dse)
                         else continue;
                         create_network_buffer_for_ninst (ninst);
                         pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
-                        // push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);       
+                        // push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
+                        double s = get_time_secs();
                         push_ninsts_to_priority_net_queue(net_engine->tx_queue, &ninst, 1);
+                        double e = get_time_secs();
+                        dse->net_engine_arr[dse->device_idx]->nasm->queueing_overhead += (e-s) * 1000.0;
                         pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
                     }
                 }

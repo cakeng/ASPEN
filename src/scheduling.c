@@ -150,7 +150,7 @@ void core_init_random(nasm_t *nasm, int num_core) {
     }
 }
 
-dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, DEVICE_MODE device_mode, int device_idx, int num_edge_devices)
+dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, nasm_t** nasms, DEVICE_MODE device_mode, int device_idx, int num_edge_devices)
 {
     dynamic_scheduler_t *dynamic_scheduler = calloc(1, sizeof(dynamic_scheduler_t));
 
@@ -166,6 +166,19 @@ dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile,
             dynamic_scheduler->server_num_dse[i] = ninst_profile[i]->server_num_dse;
             // ** TODO : Implement PF scheduler **
             dynamic_scheduler->scheduling_latency[i] = 0.0;
+            dynamic_scheduler->total_input_data_size[i] = 0;
+            dynamic_scheduler->total_ninst_until_target_ninst[i] = malloc(sizeof(int) * nasms[i]->num_ldata);
+
+            for (int j = 0; j < nasms[i]->ldata_arr[0].num_ninst; j++)
+            {
+                dynamic_scheduler->total_input_data_size[j] += nasms[i]->ldata_arr[0].ninst_arr_start[j].tile_dims[OUT_W] * nasms[i]->ldata_arr[0].ninst_arr_start[j].tile_dims[OUT_H] * sizeof(float);
+            }
+
+            for (int j = 0; j < nasms[i]->num_ldata; j++)
+            {
+                for(int k = 0; k < j; k++)
+                    dynamic_scheduler->total_ninst_until_target_ninst[i][j] += nasms[i]->num_ldata;
+            }
         }
     }
     
@@ -374,7 +387,13 @@ float get_eft_server(dynamic_scheduler_t* dynamic_scheduler, nasm_t* nasm, ninst
     // unsigned int rpool_num_stored = atomic_load(&rpool->num_stored);
     // unsigned int net_tx_queue_num_stored = atomic_load(&net_engine->tx_queue->num_stored);
     // float eft_offloaded = (float)(rpool_num_stored + num_child_ninsts) * dynamic_scheduler->avg_edge_ninst_compute_time[device_idx] / num_dse;
-    double eft_server = get_min_sent_time(nasm) * 1000.0 + dynamic_scheduler->avg_server_ninst_compute_time[device_idx] * 1000 * 2000 / dynamic_scheduler->server_num_dse[device_idx];
+    int total_input_data_size = dynamic_scheduler->total_input_data_size[device_idx];
+    int total_ninst_until_target_ninst = dynamic_scheduler->total_ninst_until_target_ninst[device_idx][target_ninst->ldata->layer->layer_idx] + target_ninst->ninst_idx - target_ninst->ldata->ninst_arr_start[0].ninst_idx;
+
+    double eft_server = get_min_sent_time(nasm) * 1000.0 
+                                + total_input_data_size * 8 / dynamic_scheduler->avg_bandwidth[device_idx] / 1000000 + dynamic_scheduler->rtt[device_idx]
+                                + dynamic_scheduler->avg_server_ninst_compute_time[device_idx] * 1000 * total_ninst_until_target_ninst / dynamic_scheduler->server_num_dse[device_idx]
+                                + dynamic_scheduler->scheduling_latency[device_idx];
     return eft_server;
 }
 
@@ -591,15 +610,15 @@ int countAncestors(nasm_t* nasm, int target_ninst_idx) {
 
 void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode, int edge_id, int server_id) 
 {
-    for(int i = 0; i < nasm->num_ninst; i++)
-    {
-        nasm->ninst_arr[i].visited = 0;
-    }
+    // for(int i = 0; i < nasm->num_ninst; i++)
+    // {
+    //     nasm->ninst_arr[i].visited = 0;
+    // }
 
-    for(int i = 0; i < nasm->num_ninst; i++)
-    {
-        // nasm->ninst_arr[i].num_ancestor_ninsts = countAncestorsDFS(&(nasm->ninst_arr[i]));
-    }
+    // for(int i = 0; i < nasm->num_ninst; i++)
+    // {
+    //     // nasm->ninst_arr[i].num_ancestor_ninsts = countAncestorsDFS(&(nasm->ninst_arr[i]));
+    // }
 
     for (int i = 0; i < nasm->num_ldata; i++) 
     {

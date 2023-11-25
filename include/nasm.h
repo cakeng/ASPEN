@@ -55,6 +55,9 @@ struct nasm_t
     fl_path_t *path_ptr_arr[2048];
 
     int operating_mode;
+
+    double dynamic_overhead;
+    double queueing_overhead;
 };
 
 struct nasm_ldata_t
