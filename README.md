@@ -6,7 +6,7 @@ Below is a poster description of our work. You can find a more detailed presenta
 
 ![NeurIPS23_ASPEN_Poster_Small.png](./NeurIPS23_ASPEN_Poster_Small.png)
 
-You can downloade additional materials (Posters, Presentation Slides, Graphics) used in this project from my [homepage](https://www.cakeng.info/home).
+You can download additional materials (Posters, Presentation Slides, Graphics) used in this project from my [[Homepage](https://www.cakeng.info/home)].
 
 ---
 
@@ -40,6 +40,6 @@ Please reach out to me at "cakeng at snu dot ac dot kr" if you have any question
 
 ## Additional Links
 
-Weights, pre-generated ASPEN graphs, and other files used in our paper are stored in [this Google Drive](https://drive.google.com/drive/folders/1pH19a9sadbV10_RxHcKnWIqvgX4zQpmh?usp=sharing). 
+Weights, pre-generated ASPEN graphs, and other files used in our paper are stored in [[this Google Drive](https://drive.google.com/drive/folders/1pH19a9sadbV10_RxHcKnWIqvgX4zQpmh?usp=sharing)]. 
 
-Some of the code used are from [the Darknet Framework](https://github.com/pjreddie/darknet).
+Some of the code used is from [[the Darknet Framework](https://github.com/pjreddie/darknet)].
