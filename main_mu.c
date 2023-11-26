@@ -631,15 +631,14 @@ int main(int argc, char **argv)
             PRTF("\t[Communicate profiles]\n");
             for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
             {
-                max_computed_time = get_max_computed_time(target_nasm[edge_id]);
-                min_computed_time = get_min_computed_time(target_nasm[edge_id]);
-                
-                min_recv_time = get_min_recv_time(target_nasm[edge_id]);
-                max_sent_time = get_max_sent_time(target_nasm[edge_id]);
-                
                 if(device_mode == DEV_SERVER)
                 {
-                    max_recv_time = get_max_recv_time(target_nasm[edge_id]);
+                    max_computed_time = get_max_computed_time(target_nasm[edge_id]);
+                    min_computed_time = get_min_computed_time(target_nasm[edge_id]);
+                    
+                    min_recv_time = get_min_recv_time(target_nasm[edge_id]);
+                    max_sent_time = get_max_sent_time(target_nasm[edge_id]);
+
                     if((max_computed_time - min_computed_time) > 0)
                         prev_server_latency = max_computed_time - min_computed_time;
 
@@ -647,8 +646,12 @@ int main(int argc, char **argv)
                     write_n(client_sock_arr[edge_id], &max_recv_time, sizeof(double));
                 }
                 else if (device_mode == DEV_EDGE && device_idx == edge_id)
-                {
-                    min_sent_time = get_min_sent_time(target_nasm[edge_id]);
+                {   
+                    max_computed_time = get_max_computed_time(target_nasm[edge_id]);
+                    min_computed_time = get_min_computed_time(target_nasm[edge_id]);
+                    
+                    min_sent_time = get_min_sent_time(target_nasm[edge_id]);                    
+                    
                     if((max_computed_time - min_computed_time) > 0)
                         prev_edge_latency = max_computed_time - min_computed_time;
                     
