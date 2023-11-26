@@ -9,7 +9,7 @@ NEON=0
 GPU=0
 ANDROID=0
 DEBUG=0
-SUPPRESS_OUTPUT=1
+SUPPRESS_OUTPUT=0
 
 CC=gcc
 NVCC=nvcc
@@ -60,6 +60,7 @@ OPTS=-Ofast -funroll-loops -DNEON
 LDFLAGS=-lm -fopenmp -pthread -landroid -llog --sysroot=$(TOOLCHAIN)/sysroot
 CFLAGS=-Wall -fPIC -fopenmp -static-openmp
 BUILD_INFO_GCC = $(shell $(CC) --version | tr '\n' ' ' | grep -Eio "Android .+ posix")
+OPTS+=-DANDROID
 endif
 
 ifeq ($(SUPPRESS_OUTPUT), 1) 

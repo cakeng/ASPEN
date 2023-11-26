@@ -151,7 +151,7 @@ void dse_schedule (dse_t *dse)
         // }
         // else {
             // printf("\t[Device %d] Compute ninst (N%d L%d)\n", target_device, ninst->ninst_idx, ninst->ldata->layer->layer_idx);
-            if (dse->profile_compute) ninst->compute_start = get_time_secs_offset ();
+            if (dse->profile_compute) ninst->compute_start = get_time_secs_offset (dse->target_device);
             switch (ninst->ldata->layer->type)
             {
                 case CONV_LAYER:
@@ -196,7 +196,7 @@ void dse_schedule (dse_t *dse)
             }
 
             //For logging
-            ninst->computed_time = get_time_secs_offset ();
+            ninst->computed_time = get_time_secs_offset (dse->target_device);
             if (dse->profile_compute) ninst->compute_end = ninst->computed_time;
             ninst->dse_idx = dse->thread_id;
 
@@ -325,7 +325,12 @@ void dse_schedule (dse_t *dse)
 }
 
 void dse_set_starting_path (fl_path_t *path) {
+    //android
+    #ifdef ANDROID
+    atomic_store(dse_now_path, *path);
+    #else
     atomic_store(&dse_now_path, path);
+    #endif
 }
 
 void dse_schedule_fl (dse_t *dse) {
@@ -353,10 +358,19 @@ void dse_schedule_fl (dse_t *dse) {
 
     /* SET TARGET NINST */
     if (dse->target == NULL && (dse->run != 0 && dse->kill == 0)) {
+        //android
+        #ifdef ANDROID
+        fl_path_t now_path = atomic_load(dse_now_path);
+        unsigned int nplc = atomic_load(&now_path.num_path_layers_completed);
+        #else
         fl_path_t *now_path = atomic_load(&dse_now_path);
         unsigned int nplc = atomic_load(&now_path->num_path_layers_completed);
-        
+        #endif
+        #ifdef ANDROID
+        if (nplc < now_path.num_path_layers) {
+        #else
         if (nplc < now_path->num_path_layers) {
+        #endif
             rpool_fetch_ninsts_from_group (dse->rpool, &dse->target, 1, nplc + 1);
             #ifdef DEBUG
             if (dse->target != NULL)
@@ -414,7 +428,7 @@ void dse_schedule_fl (dse_t *dse) {
         printf("\tCompute ninst (N %d, L %d)\n", ninst->ninst_idx, ninst->ldata->layer->layer_idx);
         #endif
 
-        if (dse->profile_compute) ninst->compute_start = get_time_secs_offset ();
+        if (dse->profile_compute) ninst->compute_start = get_time_secs_offset (dse->target_device);
         if (atomic_exchange(&ninst->state, NINST_COMPLETED) == NINST_COMPLETED) ninst->compute_option = NINST_COMPUTE_DUMMY;
 
         switch (ninst->ldata->layer->type)
@@ -461,7 +475,7 @@ void dse_schedule_fl (dse_t *dse) {
         }
 
         // For logging
-        ninst->computed_time = get_time_secs_offset ();
+        ninst->computed_time = get_time_secs_offset (dse->target_device);
         if (dse->profile_compute) ninst->compute_end = ninst->computed_time;
         ninst->dse_idx = dse->thread_id;
 
@@ -558,7 +572,12 @@ void dse_schedule_fl (dse_t *dse) {
                     }
                     return;
                 }
+                //android
+                #ifdef ANDROID
+                atomic_store(dse_now_path, *nasm->path_ptr_arr[next_path_idx]);
+                #else
                 atomic_store(&dse_now_path, nasm->path_ptr_arr[next_path_idx]);
+                #endif
 
                 // Push new ninsts into rpool
                 if (dse->device_mode == DEV_EDGE) fl_push_path_ninsts_edge(dse->rpool, next_path);

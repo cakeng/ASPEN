@@ -744,7 +744,7 @@ void get_probability_results (char *class_data_path, float* probabilities, unsig
 }
 
 double get_time_last = -1;
-double time_offset = 0.0;
+double time_offset[SCHEDULE_MAX_DEVICES] = {0.0, };
 
 double get_time_secs ()
 {
@@ -762,16 +762,16 @@ double get_time_secs ()
     return sec + usec*1e-6;
 }
 
-double get_time_secs_offset ()
+double get_time_secs_offset (int edge_id)
 {
-    return get_time_secs() + time_offset;
+    return get_time_secs() + time_offset[edge_id];
 }
 
-void set_time_offset(double offset, DEVICE_MODE device_mode)
+void set_time_offset(double offset, DEVICE_MODE device_mode, int edge_id)
 {
     if(device_mode == DEV_SERVER)
     {
-        time_offset = -offset;
+        time_offset[edge_id] = -offset;
     }
     // if(device_mode == DEV_EDGE)
     // {

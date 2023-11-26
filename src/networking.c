@@ -242,7 +242,7 @@ void transmission(networking_engine *net_engine)
     pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
     if (num_ninsts == 0)
         return;
-    double time_sent = get_time_secs_offset();
+    double time_sent = get_time_secs_offset(net_engine->device_idx);
     for (int i = 0; i < num_ninsts; i++)
     {
         ninst_t* target_ninst = target_ninst_list[i];
@@ -401,7 +401,7 @@ void receive(networking_engine *net_engine)
             copy_buffer_to_ninst_data (target_ninst, buffer_ptr);
             buffer_ptr += data_size;
             atomic_store(&target_ninst->state, NINST_COMPLETED);
-            target_ninst->received_time = get_time_secs_offset ();
+            target_ninst->received_time = get_time_secs_offset (net_engine->device_idx);
             #ifdef DEBUG
             printf("\t[Device %d] (N%d L%d I%d %ldB) state: %d\n",
                 net_engine->device_idx,
@@ -479,7 +479,7 @@ void transmission_fl(networking_engine *net_engine)
     if (num_ninsts == 0)
         return;
     
-    double time_sent = get_time_secs_offset();
+    double time_sent = get_time_secs_offset(net_engine->device_idx);
     for (int i = 0; i < num_ninsts; i++)
     {
         ninst_t* target_ninst = target_ninst_list[i];
@@ -630,7 +630,7 @@ void receive_fl(networking_engine *net_engine)
             copy_buffer_to_ninst_data (target_ninst, buffer_ptr);
             buffer_ptr += data_size;
             atomic_store(&target_ninst->state, NINST_COMPLETED);
-            target_ninst->received_time = get_time_secs_offset ();
+            target_ninst->received_time = get_time_secs_offset (net_engine->device_idx);
             
             unsigned int path_num_ninsts_completed = atomic_fetch_add(&target_path->path_layers_arr[target_path->edge_final_layer_idx].num_ninsts_completed, 1) + 1;
             #ifdef DEBUG

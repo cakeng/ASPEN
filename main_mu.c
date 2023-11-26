@@ -264,7 +264,7 @@ int main(int argc, char **argv)
         for(int i = 0; i < num_edge_devices; i++)
         { 
             float time_offset = profile_network_sync(device_mode, server_sock, client_sock_arr[i]);
-            set_time_offset(time_offset, device_mode);
+            set_time_offset(time_offset, device_mode, i);
             connection_key = 12534;
             write_n(client_sock_arr[i], &connection_key, sizeof(int));
             PRTF("\t[Edge Device %d]connection key: %d\n", i, connection_key);
@@ -276,7 +276,7 @@ int main(int argc, char **argv)
     else if (device_mode == DEV_EDGE) 
     {
         float time_offset = profile_network_sync(device_mode, server_sock, 0);
-        set_time_offset(time_offset, device_mode);
+        set_time_offset(time_offset, device_mode, device_idx);
         connection_key = -1;
         read_n(server_sock, &connection_key, sizeof(int));
         PRTF("\t[Edge Device %d]connection key: %d\n", device_idx, connection_key);
@@ -490,7 +490,7 @@ int main(int argc, char **argv)
                         if(sync_edge_device[edge_id] == 0)
                         {
                             float time_offset = profile_network_sync(device_mode, server_sock, client_sock_arr[edge_id]);
-                            set_time_offset(time_offset, device_mode);
+                            set_time_offset(time_offset, device_mode, edge_id);
                             read_n(client_sock_arr[edge_id], &connection_key, sizeof(int));
                             PRTF("\t[Edge Device %d]connection key: %d\n", edge_id, connection_key);
                             PRTF("\t[Edge Device %d]time_offset: %f\n", edge_id, time_offset);
@@ -509,7 +509,7 @@ int main(int argc, char **argv)
                 {
                     connection_key = 12534 + inf_num;
                     float time_offset = profile_network_sync(device_mode, server_sock, 0);
-                    set_time_offset(time_offset, device_mode);
+                    set_time_offset(time_offset, device_mode, device_idx);
                     write_n(server_sock, &connection_key, sizeof(int));
                     
                     PRTF("\t[Edge Device %d]connection key: %d\n", device_idx, connection_key);
@@ -602,6 +602,8 @@ int main(int argc, char **argv)
                 if(device_mode == DEV_SERVER || device_idx == edge_id)
                     dse_wait_for_nasm_completion (target_nasm[edge_id]);
             }
+
+            dse_group_stop (dse_group);
             
             #ifdef SUPPRESS_OUTPUT
             inf_latency = get_elapsed_time_only_return();
@@ -619,21 +621,19 @@ int main(int argc, char **argv)
                 }
             }
 
-            dse_group_stop (dse_group);
-
             // Communicate profiles
             PRTF("\t[Communicate profiles]\n");
             for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
             {
-                max_computed_time = get_max_computed_time(target_nasm[edge_id]);
-                min_computed_time = get_min_computed_time(target_nasm[edge_id]);
-                
-                min_recv_time = get_min_recv_time(target_nasm[edge_id]);
-                max_sent_time = get_max_sent_time(target_nasm[edge_id]);
                 
                 if(device_mode == DEV_SERVER)
                 {
+                    max_computed_time = get_max_computed_time(target_nasm[edge_id]);
+                    min_computed_time = get_min_computed_time(target_nasm[edge_id]);
+                    min_recv_time = get_min_recv_time(target_nasm[edge_id]);
+                    max_sent_time = get_max_sent_time(target_nasm[edge_id]);
                     max_recv_time = get_max_recv_time(target_nasm[edge_id]);
+                    
                     if((max_computed_time - min_computed_time) > 0)
                         prev_server_latency = max_computed_time - min_computed_time;
 
@@ -642,7 +642,11 @@ int main(int argc, char **argv)
                 }
                 else if (device_mode == DEV_EDGE && device_idx == edge_id)
                 {
-                    min_sent_time = get_min_sent_time(target_nasm[edge_id]);
+                    max_computed_time = get_max_computed_time(target_nasm[edge_id]);
+                    min_computed_time = get_min_computed_time(target_nasm[edge_id]);
+                    min_recv_time = get_min_recv_time(target_nasm[edge_id]);
+                    max_sent_time = get_max_sent_time(target_nasm[edge_id]);
+
                     if((max_computed_time - min_computed_time) > 0)
                         prev_edge_latency = max_computed_time - min_computed_time;
                     
@@ -667,19 +671,19 @@ int main(int argc, char **argv)
             {
                 if(device_mode == DEV_SERVER || device_idx == edge_id)
                 {
-                    PRTF("---------------------[Edge %d] Inference result---------------------\n", edge_id);   
-                    LAYER_PARAMS output_order_cnn[] = {BATCH, OUT_H, OUT_W, OUT_C};  // for CNN
-                    LAYER_PARAMS output_order_transformer[] = {BATCH, MAT_N, MAT_M};    // for Transformer
-                    LAYER_PARAMS *output_order_param = !strcmp(output_order, "cnn") ? output_order_cnn : output_order_transformer;
-                    float *layer_output = dse_get_nasm_result (target_nasm[edge_id], output_order_param);
-                    float *softmax_output = calloc (1000*target_nasm[edge_id]->batch_size, sizeof(float));
-                    naive_softmax (layer_output, softmax_output, target_nasm[edge_id]->batch_size, 1000);
-                    for (int i = 0; i < target_nasm[edge_id]->batch_size; i++)
-                    {
-                        get_probability_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);   
-                    }
-                    free (layer_output);
-                    free (softmax_output);
+                    // PRTF("---------------------[Edge %d] Inference result---------------------\n", edge_id);   
+                    // LAYER_PARAMS output_order_cnn[] = {BATCH, OUT_H, OUT_W, OUT_C};  // for CNN
+                    // LAYER_PARAMS output_order_transformer[] = {BATCH, MAT_N, MAT_M};    // for Transformer
+                    // LAYER_PARAMS *output_order_param = !strcmp(output_order, "cnn") ? output_order_cnn : output_order_transformer;
+                    // float *layer_output = dse_get_nasm_result (target_nasm[edge_id], output_order_param);
+                    // float *softmax_output = calloc (1000*target_nasm[edge_id]->batch_size, sizeof(float));
+                    // naive_softmax (layer_output, softmax_output, target_nasm[edge_id]->batch_size, 1000);
+                    // for (int i = 0; i < target_nasm[edge_id]->batch_size; i++)
+                    // {
+                    //     get_probability_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);   
+                    // }
+                    // free (layer_output);
+                    // free (softmax_output);
                 
                     // For logging
                     char file_name[1024], dir_path[1024], dir_edge_path[1024];
@@ -702,6 +706,7 @@ int main(int argc, char **argv)
                             total_received++;
                     }
                     PRTF("\t[Edge %d] Total received : (%d/%d)\n", edge_id, total_received, target_nasm[edge_id]->num_ninst);
+                    PRTF("\t[Edge %d] Transmission latency : %fms\n", edge_id, (max_recv_time - min_sent_time)*1000);
                 }
             }
         }
