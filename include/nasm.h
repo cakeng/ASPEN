@@ -58,6 +58,7 @@ struct nasm_t
 
     double dynamic_overhead;
     double queueing_overhead;
+    double start_time;
 };
 
 struct nasm_ldata_t

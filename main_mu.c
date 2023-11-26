@@ -264,7 +264,7 @@ int main(int argc, char **argv)
         for(int i = 0; i < num_edge_devices; i++)
         { 
             float time_offset = profile_network_sync(device_mode, server_sock, client_sock_arr[i]);
-            set_time_offset(time_offset, device_mode);
+            set_time_offset(time_offset, device_mode, i);
             connection_key = 12534;
             write_n(client_sock_arr[i], &connection_key, sizeof(int));
             PRTF("\t[Edge Device %d]connection key: %d\n", i, connection_key);
@@ -276,7 +276,7 @@ int main(int argc, char **argv)
     else if (device_mode == DEV_EDGE) 
     {
         float time_offset = profile_network_sync(device_mode, server_sock, 0);
-        set_time_offset(time_offset, device_mode);
+        set_time_offset(time_offset, device_mode, device_idx);
         connection_key = -1;
         read_n(server_sock, &connection_key, sizeof(int));
         PRTF("\t[Edge Device %d]connection key: %d\n", device_idx, connection_key);
@@ -494,7 +494,7 @@ int main(int argc, char **argv)
                         if(sync_edge_device[edge_id] == 0)
                         {
                             float time_offset = profile_network_sync(device_mode, server_sock, client_sock_arr[edge_id]);
-                            set_time_offset(time_offset, device_mode);
+                            set_time_offset(time_offset, device_mode, edge_id);
                             read_n(client_sock_arr[edge_id], &connection_key, sizeof(int));
                             PRTF("\t[Edge Device %d]connection key: %d\n", edge_id, connection_key);
                             PRTF("\t[Edge Device %d]time_offset: %f\n", edge_id, time_offset);
@@ -513,7 +513,7 @@ int main(int argc, char **argv)
                 {
                     connection_key = 12534 + inf_num;
                     float time_offset = profile_network_sync(device_mode, server_sock, 0);
-                    set_time_offset(time_offset, device_mode);
+                    set_time_offset(time_offset, device_mode, device_idx);
                     write_n(server_sock, &connection_key, sizeof(int));
                     
                     PRTF("\t[Edge Device %d]connection key: %d\n", device_idx, connection_key);
@@ -592,7 +592,10 @@ int main(int argc, char **argv)
             for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
             {
                 if(device_mode == DEV_SERVER || device_idx == edge_id)
+                {
+                    target_nasm[edge_id]->start_time = get_time_secs_offset(edge_id);
                     net_engine_run (net_engine_arr[edge_id]);
+                }
             }
 
             if (!(device_mode == DEV_SERVER && is_conventional)) 
@@ -606,8 +609,6 @@ int main(int argc, char **argv)
                 if(device_mode == DEV_SERVER || device_idx == edge_id)
                     dse_wait_for_nasm_completion (target_nasm[edge_id]);
             }
-
-            dse_group_stop (dse_group);
             
             #ifdef SUPPRESS_OUTPUT
             inf_latency = get_elapsed_time_only_return();
@@ -625,20 +626,19 @@ int main(int argc, char **argv)
                 }
             }
 
-            
+            dse_group_stop (dse_group);
 
             // Communicate profiles
             PRTF("\t[Communicate profiles]\n");
             for(int edge_id = 0; edge_id < num_edge_devices; edge_id++)
             {
+                
                 if(device_mode == DEV_SERVER)
                 {
                     max_computed_time = get_max_computed_time(target_nasm[edge_id]);
                     min_computed_time = get_min_computed_time(target_nasm[edge_id]);
+                    max_recv_time = get_max_recv_time(target_nasm[edge_id]);
                     
-                    min_recv_time = get_min_recv_time(target_nasm[edge_id]);
-                    max_sent_time = get_max_sent_time(target_nasm[edge_id]);
-
                     if((max_computed_time - min_computed_time) > 0)
                         prev_server_latency = max_computed_time - min_computed_time;
 
@@ -646,7 +646,7 @@ int main(int argc, char **argv)
                     write_n(client_sock_arr[edge_id], &max_recv_time, sizeof(double));
                 }
                 else if (device_mode == DEV_EDGE && device_idx == edge_id)
-                {   
+                {
                     max_computed_time = get_max_computed_time(target_nasm[edge_id]);
                     min_computed_time = get_min_computed_time(target_nasm[edge_id]);
                     
@@ -706,12 +706,12 @@ int main(int argc, char **argv)
                         if(target_nasm[edge_id]->ninst_arr[j].received_time != 0)
                             total_received++;
                     }
+                    
                     PRTF("\t[Edge %d] Total received : (%d/%d)\n", edge_id, total_received, target_nasm[edge_id]->num_ninst);
-                    PRTF("\t[Edge %d] Transmission latency : %fms\n", edge_id, (max_recv_time - min_sent_time)*1000);
-                    PRTF("\t[Edge %d] Dynamic overhead : %fms\n", edge_id, target_nasm[edge_id]->dynamic_overhead/dse_num);
-                    PRTF("\t[Edge %d] Queueing overhead: %fms\n", edge_id, target_nasm[edge_id]->queueing_overhead/dse_num);
-                    target_nasm[edge_id]->dynamic_overhead = 0;
-                    target_nasm[edge_id]->queueing_overhead = 0;
+                    PRTF("\t[Edge %d] Transmission latency : %f\n", edge_id, (max_recv_time - min_sent_time)*1000.0);
+                    PRTF("\t[Edge %d] Dynamic overhead : %f\n", edge_id, target_nasm[edge_id]->dynamic_overhead/dse_num);
+                    PRTF("\t[Edge %d] Computation time : %fms\n", edge_id, (max_computed_time - min_computed_time) *1000.0);
+                    target_nasm[edge_id]->dynamic_overhead = 0.0;
                 }
             }
 

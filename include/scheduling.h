@@ -60,7 +60,7 @@ struct dynamic_scheduler_t{
 
     float scheduling_latency[SCHEDULE_MAX_DEVICES]; // obtained by scheduling policy in cloud
     int total_input_data_size[SCHEDULE_MAX_DEVICES];
-    int *total_ninst_until_target_ninst[SCHEDULE_MAX_DEVICES];
+    int total_ninst_until_target_ninst[SCHEDULE_MAX_DEVICES][2048];
 };
 
 struct spinn_scheduler_t{

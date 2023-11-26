@@ -58,7 +58,7 @@ unsigned int get_cpu_count();
 
 void get_probability_results (char *class_data_path, float* probabilities, unsigned int num);
 double get_time_secs();
-double get_time_secs_offset();
+double get_time_secs_offset (int edge_id);
 void get_elapsed_time (char *name);
 void get_elapsed_time_only();
 double get_elapsed_time_only_return();

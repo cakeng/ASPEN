@@ -151,7 +151,7 @@ void dse_schedule (dse_t *dse)
         // }
         // else {
             // printf("\t[Device %d] Compute ninst (N%d L%d)\n", target_device, ninst->ninst_idx, ninst->ldata->layer->layer_idx);
-            if (dse->profile_compute) ninst->compute_start = get_time_secs_offset ();
+            if (dse->profile_compute) ninst->compute_start = get_time_secs_offset (dse->target_device);
             switch (ninst->ldata->layer->type)
             {
                 case CONV_LAYER:
@@ -196,7 +196,7 @@ void dse_schedule (dse_t *dse)
             }
 
             //For logging
-            ninst->computed_time = get_time_secs_offset ();
+            ninst->computed_time = get_time_secs_offset (dse->target_device);
             if (dse->profile_compute) ninst->compute_end = ninst->computed_time;
             ninst->dse_idx = dse->thread_id;
 
@@ -207,10 +207,19 @@ void dse_schedule (dse_t *dse)
                 if(dse->device_mode == DEV_EDGE)
                 {
                     double s = get_time_secs();
-                    float eft_server = get_eft_server(dse->dynamic_scheduler, dse->net_engine_arr[target_device]->nasm, ninst, dse->device_idx);
-                    float eft_offloaded = get_eft_offloaded(dse->dynamic_scheduler, dse->net_engine_arr[target_device], dse->device_idx, ninst->tile_dims[OUT_H] * ninst->tile_dims[OUT_W] * sizeof(float));
+                    // float eft_server = get_eft_server(dse->dynamic_scheduler, dse->net_engine_arr[target_device]->nasm, ninst, dse->target_device);
+                    int total_input_data_size = dse->dynamic_scheduler->total_input_data_size[dse->target_device];
+                    int total_ninst_until_target_ninst = dse->dynamic_scheduler->total_ninst_until_target_ninst[dse->target_device][ninst->ldata->layer->layer_idx] + ninst->ninst_idx - ninst->ldata->ninst_arr_start[0].ninst_idx;
+                    
+                    // double eft_server = get_min_sent_time(dse->net_engine_arr[dse->target_device]->nasm) * 1000.0 
+                    double eft_server = dse->net_engine_arr[dse->target_device]->nasm->start_time * 1000.0 
+                                                + total_input_data_size * 8 / dse->dynamic_scheduler->avg_bandwidth[dse->target_device] / 1000000 + dse->dynamic_scheduler->rtt[dse->target_device]
+                                                + dse->dynamic_scheduler->avg_server_ninst_compute_time[dse->target_device] * 1000 * total_ninst_until_target_ninst / dse->dynamic_scheduler->server_num_dse[dse->target_device]
+                                                + dse->dynamic_scheduler->scheduling_latency[dse->target_device];
+                    
+                    float eft_offloaded = get_eft_offloaded(dse->dynamic_scheduler, dse->net_engine_arr[target_device], dse->target_device, ninst->tile_dims[OUT_H] * ninst->tile_dims[OUT_W] * sizeof(float));
                     double e = get_time_secs();
-                    dse->net_engine_arr[dse->device_idx]->nasm->dynamic_overhead += (e-s) * 1000.0;
+                    dse->net_engine_arr[dse->target_device]->nasm->dynamic_overhead += (e-s) * 1000.0;
                     
                     ninst->eft_offloaded = eft_offloaded;
                     ninst->eft_server = eft_server;
@@ -332,7 +341,12 @@ void dse_schedule (dse_t *dse)
 }
 
 void dse_set_starting_path (fl_path_t *path) {
+    //android
+    #ifdef ANDROID
+    atomic_store(dse_now_path, *path);
+    #else
     atomic_store(&dse_now_path, path);
+    #endif
 }
 
 void dse_schedule_fl (dse_t *dse) {
@@ -360,10 +374,19 @@ void dse_schedule_fl (dse_t *dse) {
 
     /* SET TARGET NINST */
     if (dse->target == NULL && (dse->run != 0 && dse->kill == 0)) {
+        //android
+        #ifdef ANDROID
+        fl_path_t now_path = atomic_load(dse_now_path);
+        unsigned int nplc = atomic_load(&now_path.num_path_layers_completed);
+        #else
         fl_path_t *now_path = atomic_load(&dse_now_path);
         unsigned int nplc = atomic_load(&now_path->num_path_layers_completed);
-        
+        #endif
+        #ifdef ANDROID
+        if (nplc < now_path.num_path_layers) {
+        #else
         if (nplc < now_path->num_path_layers) {
+        #endif
             rpool_fetch_ninsts_from_group (dse->rpool, &dse->target, 1, nplc + 1);
             #ifdef DEBUG
             if (dse->target != NULL)
@@ -421,7 +444,7 @@ void dse_schedule_fl (dse_t *dse) {
         printf("\tCompute ninst (N %d, L %d)\n", ninst->ninst_idx, ninst->ldata->layer->layer_idx);
         #endif
 
-        if (dse->profile_compute) ninst->compute_start = get_time_secs_offset ();
+        if (dse->profile_compute) ninst->compute_start = get_time_secs_offset (dse->target_device);
         if (atomic_exchange(&ninst->state, NINST_COMPLETED) == NINST_COMPLETED) ninst->compute_option = NINST_COMPUTE_DUMMY;
 
         switch (ninst->ldata->layer->type)
@@ -468,7 +491,7 @@ void dse_schedule_fl (dse_t *dse) {
         }
 
         // For logging
-        ninst->computed_time = get_time_secs_offset ();
+        ninst->computed_time = get_time_secs_offset (dse->target_device);
         if (dse->profile_compute) ninst->compute_end = ninst->computed_time;
         ninst->dse_idx = dse->thread_id;
 
@@ -565,7 +588,12 @@ void dse_schedule_fl (dse_t *dse) {
                     }
                     return;
                 }
+                //android
+                #ifdef ANDROID
+                atomic_store(dse_now_path, *nasm->path_ptr_arr[next_path_idx]);
+                #else
                 atomic_store(&dse_now_path, nasm->path_ptr_arr[next_path_idx]);
+                #endif
 
                 // Push new ninsts into rpool
                 if (dse->device_mode == DEV_EDGE) fl_push_path_ninsts_edge(dse->rpool, next_path);

@@ -60,6 +60,7 @@ OPTS=-Ofast -funroll-loops -DNEON
 LDFLAGS=-lm -fopenmp -pthread -landroid -llog --sysroot=$(TOOLCHAIN)/sysroot
 CFLAGS=-Wall -fPIC -fopenmp -static-openmp
 BUILD_INFO_GCC = $(shell $(CC) --version | tr '\n' ' ' | grep -Eio "Android .+ posix")
+OPTS+=-DANDROID
 endif
 
 ifeq ($(SUPPRESS_OUTPUT), 1) 

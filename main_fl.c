@@ -20,8 +20,8 @@ int main (int argc, char **argv)
     int fl_num_path = -1;
     int fl_path_offloading_idx[2048];
 
-    const int server_port = 62000;
-    char* server_ip = "147.46.130.51";
+    const int server_port = 3786;
+    char* server_ip = "127.0.0.1";
 
     if (argc == 7) {
         strcpy (dnn, argv[1]);
@@ -279,50 +279,14 @@ profiling:
 
         dse_set_starting_path (target_nasm->path_ptr_arr[0]);
 
-        // Communicate profiles
-        // PRTF("\t[Communicate profiles]\n");
-        max_computed_time = get_max_computed_time(target_nasm);
-        min_computed_time = get_min_computed_time(target_nasm);
-        
-        min_recv_time = get_min_recv_time(target_nasm);
-        max_sent_time = get_max_sent_time(target_nasm);
-        
-        if(dev_mode == DEV_SERVER)
-        {
-            max_recv_time = get_max_recv_time(target_nasm);
-            if((max_computed_time - min_computed_time) > 0)
-                prev_server_latency = max_computed_time - min_computed_time;
-
-            write_n(client_sock, &prev_server_latency, sizeof(float));
-            write_n(client_sock, &max_recv_time, sizeof(double));
-            read_n(client_sock, &min_sent_time, sizeof(double));
-        }
-        else if (dev_mode == DEV_EDGE)
-        {
-            min_sent_time = get_min_sent_time(target_nasm);
-            if((max_computed_time - min_computed_time) > 0)
-                prev_edge_latency = max_computed_time - min_computed_time;
-            
-            read_n(server_sock, &prev_server_latency, sizeof(float));
-            read_n(server_sock, &max_recv_time, sizeof(double));
-            write_n(server_sock, &min_sent_time, sizeof(double));
-        }
-        int total_received = 0;
-        for(int j = 0; j < target_nasm->num_ninst; j++)
-        {
-            if(target_nasm->ninst_arr[j].received_time != 0)
-                total_received++;
-        }
-        PRTF("\t[Edge %d] Total received : (%d/%d)\n", 0, total_received, target_nasm->num_ninst);
-        PRTF("\tTransmission latency : %fms\n", (max_recv_time - min_sent_time)*1000);
     }
-    
+    end_time = get_sec();
 
-    // #ifndef SUPRESS_OUTPUT
-    // printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);
-    // #else
-    // printf ("%lf\n", (end_time - start_time)/number_of_iterations);
-    // #endif
+    #ifndef SUPRESS_OUTPUT
+    printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);
+    #else
+    printf ("%lf\n", (end_time - start_time)/number_of_iterations);
+    #endif
 
     // if (strcmp(dnn, "bert_base") != 0 && strcmp(dnn, "yolov3") != 0)
     // {

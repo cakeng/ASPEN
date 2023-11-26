@@ -167,7 +167,7 @@ dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile,
             // ** TODO : Implement PF scheduler **
             dynamic_scheduler->scheduling_latency[i] = 0.0;
             dynamic_scheduler->total_input_data_size[i] = 0;
-            dynamic_scheduler->total_ninst_until_target_ninst[i] = malloc(sizeof(int) * nasms[i]->num_ldata);
+            // dynamic_scheduler->total_ninst_until_target_ninst[i] = calloc(nasms[i]->num_ldata, sizeof(int));
 
             for (int j = 0; j < nasms[i]->ldata_arr[0].num_ninst; j++)
             {
@@ -177,7 +177,8 @@ dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile,
             for (int j = 0; j < nasms[i]->num_ldata; j++)
             {
                 for(int k = 0; k < j; k++)
-                    dynamic_scheduler->total_ninst_until_target_ninst[i][j] += nasms[i]->num_ldata;
+                    dynamic_scheduler->total_ninst_until_target_ninst[i][j] += nasms[i]->ldata_arr[k].num_ninst;
+                    
             }
         }
     }
@@ -401,7 +402,7 @@ float get_eft_offloaded(dynamic_scheduler_t* dynamic_scheduler, networking_engin
 {
     unsigned int net_tx_queue_num_stored = atomic_load(&net_engine->tx_queue->num_stored);
 
-    float eft_offloaded = get_time_secs_offset () * 1000.0 +
+    float eft_offloaded = get_time_secs_offset (device_idx) * 1000.0 +
                     dynamic_scheduler->rtt[device_idx] + // RTT
                     (net_tx_queue_num_stored) * net_tx_queue_bytes * 8 / dynamic_scheduler->avg_bandwidth[device_idx] / 1000000; // Transmission latency
     return eft_offloaded;
