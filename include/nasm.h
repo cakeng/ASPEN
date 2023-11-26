@@ -55,6 +55,9 @@ struct nasm_t
     fl_path_t *path_ptr_arr[2048];
 
     int operating_mode;
+
+    double dynamic_overhead;
+    double queueing_overhead;
 };
 
 struct nasm_ldata_t
@@ -95,6 +98,9 @@ struct ninst_t
     ninst_t **child_ninst_arr;
     _Atomic unsigned int num_child_ninsts;
     
+    unsigned int num_ancestor_ninsts;
+    int visited;
+
     int *input_pos_idx_arr;
     void **input_pos_ptr_arr_gpu;
     unsigned int num_input_pos;
@@ -106,7 +112,7 @@ struct ninst_t
     float computed_time;
     float received_time;
     float sent_time;
-    float eft_edge;
+    float eft_offloaded;
     float eft_server;
     int dse_idx;
 

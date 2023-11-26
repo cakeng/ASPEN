@@ -206,15 +206,19 @@ void dse_schedule (dse_t *dse)
                 // For edge side offloading decision
                 if(dse->device_mode == DEV_EDGE)
                 {
+                    double s = get_time_secs();
+                    float eft_server = get_eft_server(dse->dynamic_scheduler, dse->net_engine_arr[target_device]->nasm, ninst, dse->device_idx);
+                    float eft_offloaded = get_eft_offloaded(dse->dynamic_scheduler, dse->net_engine_arr[target_device], dse->device_idx, ninst->tile_dims[OUT_H] * ninst->tile_dims[OUT_W] * sizeof(float));
+                    double e = get_time_secs();
+                    dse->net_engine_arr[dse->device_idx]->nasm->dynamic_overhead += (e-s) * 1000.0;
                     
-                    float eft_edge = get_eft_edge(dse->dynamic_scheduler, dse->rpool_arr[target_device], dse->device_idx, dse->net_engine_arr[target_device]->dse_group->num_dess, ninst->num_child_ninsts);
-                    float eft_server = get_eft_server(dse->dynamic_scheduler, dse->net_engine_arr[target_device], dse->device_idx, ninst->tile_dims[OUT_H] * ninst->tile_dims[OUT_W] * sizeof(float));
-                    
-                    ninst->eft_edge = eft_edge;
+                    ninst->eft_offloaded = eft_offloaded;
                     ninst->eft_server = eft_server;
 
-                    if(eft_server <= eft_edge)
-                        ninst_set_send_target_device(ninst, dse->num_edge_devices);
+                    if(eft_offloaded <= eft_server){
+                        ninst_set_send_target_device(ninst, dse->num_edge_devices);                        
+                    }
+                        
                 }
             }
             
@@ -295,8 +299,11 @@ void dse_schedule (dse_t *dse)
                         else continue;
                         create_network_buffer_for_ninst (ninst);
                         pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
-                        // push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);       
+                        // push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
+                        double s = get_time_secs();
                         push_ninsts_to_priority_net_queue(net_engine->tx_queue, &ninst, 1);
+                        double e = get_time_secs();
+                        dse->net_engine_arr[dse->device_idx]->nasm->queueing_overhead += (e-s) * 1000.0;
                         pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
                     }
                 }

@@ -150,7 +150,7 @@ void core_init_random(nasm_t *nasm, int num_core) {
     }
 }
 
-dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, DEVICE_MODE device_mode, int device_idx, int num_edge_devices)
+dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, nasm_t** nasms, DEVICE_MODE device_mode, int device_idx, int num_edge_devices)
 {
     dynamic_scheduler_t *dynamic_scheduler = calloc(1, sizeof(dynamic_scheduler_t));
 
@@ -166,6 +166,19 @@ dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile,
             dynamic_scheduler->server_num_dse[i] = ninst_profile[i]->server_num_dse;
             // ** TODO : Implement PF scheduler **
             dynamic_scheduler->scheduling_latency[i] = 0.0;
+            dynamic_scheduler->total_input_data_size[i] = 0;
+            dynamic_scheduler->total_ninst_until_target_ninst[i] = malloc(sizeof(int) * nasms[i]->num_ldata);
+
+            for (int j = 0; j < nasms[i]->ldata_arr[0].num_ninst; j++)
+            {
+                dynamic_scheduler->total_input_data_size[j] += nasms[i]->ldata_arr[0].ninst_arr_start[j].tile_dims[OUT_W] * nasms[i]->ldata_arr[0].ninst_arr_start[j].tile_dims[OUT_H] * sizeof(float);
+            }
+
+            for (int j = 0; j < nasms[i]->num_ldata; j++)
+            {
+                for(int k = 0; k < j; k++)
+                    dynamic_scheduler->total_ninst_until_target_ninst[i][j] += nasms[i]->num_ldata;
+            }
         }
     }
     
@@ -257,8 +270,8 @@ void spinn_update_profile(spinn_scheduler_t* spinn_scheduler, float rtt, float a
     
     spinn_scheduler->edge_real_latency[device_idx][idx] = avg_edge_latency;
     spinn_scheduler->server_real_latency[device_idx][idx] = avg_server_latency;
-    spinn_scheduler->edge_scaling_factors[device_idx] = spinn_scheduler->edge_real_latency[device_idx][idx] / spinn_scheduler->edge_offline_layer_latency[device_idx][idx];
-    spinn_scheduler->server_scaling_factors[device_idx] = spinn_scheduler->server_real_latency[device_idx][idx] / spinn_scheduler->server_offline_layer_latency[device_idx][idx];    
+    // spinn_scheduler->edge_scaling_factors[device_idx] = spinn_scheduler->edge_real_latency[device_idx][idx] / spinn_scheduler->edge_offline_layer_latency[device_idx][idx];
+    // spinn_scheduler->server_scaling_factors[device_idx] = spinn_scheduler->server_real_latency[device_idx][idx] / spinn_scheduler->server_offline_layer_latency[device_idx][idx];    
 }
 
 spinn_scheduler_t* init_spinn_scheduler(avg_ninst_profile_t **ninst_profile, network_profile_t **network_profile, nasm_t** nasms, DEVICE_MODE device_mode, int device_idx, int num_edge_devices)    
@@ -301,7 +314,7 @@ int spinn_schedule_layer(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int d
         //     spinn_scheduler->edge_offline_layer_latency[device_idx][i] * spinn_scheduler->edge_scaling_factors[device_idx] * 1000.0,
         //     spinn_scheduler->server_offline_layer_latency[device_idx][i] * spinn_scheduler->server_scaling_factors[device_idx] * 1000.0,
         //     get_data_transmission_latency(spinn_scheduler, nasm, device_idx, spinn_scheduler->split_candidates[device_idx][i]) * 1000.0
-            // );
+        //     );
         // PRTF("BW: %f\n", spinn_scheduler->avg_bandwidth[device_idx]);
 
         if(latency < min_latency)
@@ -336,23 +349,23 @@ void spinn_model_splitter(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int 
     PRTF("[SPINN Model Splitter]\n");
     PRTF("\tObtained split candidates: ");
     int num_split_candidates = 0;
-    spinn_scheduler->split_candidates[device_idx] = calloc(nasm->num_ldata, sizeof(int));
+    spinn_scheduler->split_candidates[device_idx] = calloc(nasm->num_ldata+1, sizeof(int));
     spinn_scheduler->split_candidates[device_idx][num_split_candidates] = 1;
     PRTF("%d ", spinn_scheduler->split_candidates[device_idx][num_split_candidates]);
     num_split_candidates++;
 
-    for(int i = 2; i < nasm->num_ldata-1; i++)
+    for(int i = 2; i <= nasm->num_ldata; i++)
     {
-        if(nasm->ldata_arr[i].layer->type == CONV_LAYER || nasm->ldata_arr[i].layer->type == MAXPOOL_LAYER || nasm->ldata_arr[i].layer->type == RESIDUAL_LAYER)
-        {
+        // if(nasm->ldata_arr[i].layer->type == CONV_LAYER || nasm->ldata_arr[i].layer->type == MAXPOOL_LAYER || nasm->ldata_arr[i].layer->type == RESIDUAL_LAYER)
+        // {
             spinn_scheduler->split_candidates[device_idx][num_split_candidates] = i;
             PRTF("%d ", spinn_scheduler->split_candidates[device_idx][num_split_candidates]);
             num_split_candidates++;
-        }
+        // }
     }
-    spinn_scheduler->split_candidates[device_idx][num_split_candidates] = nasm->num_ldata-1;
-    PRTF("%d ", spinn_scheduler->split_candidates[device_idx][num_split_candidates]);
-    num_split_candidates++;
+    // spinn_scheduler->split_candidates[device_idx][num_split_candidates] = nasm->num_ldata-1;
+    // PRTF("%d ", spinn_scheduler->split_candidates[device_idx][num_split_candidates]);
+    // num_split_candidates++;
     spinn_scheduler->server_offline_layer_latency[device_idx] = calloc(num_split_candidates, sizeof(float));
     spinn_scheduler->server_real_latency[device_idx] = calloc(num_split_candidates, sizeof(float));
     spinn_scheduler->edge_offline_layer_latency[device_idx] = calloc(num_split_candidates, sizeof(float));
@@ -367,20 +380,31 @@ void spinn_model_splitter(spinn_scheduler_t* spinn_scheduler, nasm_t* nasm, int 
     // PRTF("\tTotal num split candidates: (%d/%d)\n", num_split_candidates, nasm->num_ldata);
 }
 
-float get_eft_edge(dynamic_scheduler_t* dynamic_scheduler, rpool_t* rpool, int device_idx, int num_dse, int num_child_ninsts)
+
+
+float get_eft_server(dynamic_scheduler_t* dynamic_scheduler, nasm_t* nasm, ninst_t* target_ninst, int device_idx)
 {
-    unsigned int rpool_num_stored = atomic_load(&rpool->num_stored);
-    float eft_edge = (float)(rpool_num_stored + num_child_ninsts) * dynamic_scheduler->avg_edge_ninst_compute_time[device_idx] / num_dse;
-    return eft_edge;
+    // unsigned int rpool_num_stored = atomic_load(&rpool->num_stored);
+    // unsigned int net_tx_queue_num_stored = atomic_load(&net_engine->tx_queue->num_stored);
+    // float eft_offloaded = (float)(rpool_num_stored + num_child_ninsts) * dynamic_scheduler->avg_edge_ninst_compute_time[device_idx] / num_dse;
+    int total_input_data_size = dynamic_scheduler->total_input_data_size[device_idx];
+    int total_ninst_until_target_ninst = dynamic_scheduler->total_ninst_until_target_ninst[device_idx][target_ninst->ldata->layer->layer_idx] + target_ninst->ninst_idx - target_ninst->ldata->ninst_arr_start[0].ninst_idx;
+
+    double eft_server = get_min_sent_time(nasm) * 1000.0 
+                                + total_input_data_size * 8 / dynamic_scheduler->avg_bandwidth[device_idx] / 1000000 + dynamic_scheduler->rtt[device_idx]
+                                + dynamic_scheduler->avg_server_ninst_compute_time[device_idx] * 1000 * total_ninst_until_target_ninst / dynamic_scheduler->server_num_dse[device_idx]
+                                + dynamic_scheduler->scheduling_latency[device_idx];
+    return eft_server;
 }
 
-float get_eft_server(dynamic_scheduler_t* dynamic_scheduler, networking_engine* net_engine, int device_idx, int net_tx_queue_bytes)
+float get_eft_offloaded(dynamic_scheduler_t* dynamic_scheduler, networking_engine* net_engine, int device_idx, int net_tx_queue_bytes)
 {
     unsigned int net_tx_queue_num_stored = atomic_load(&net_engine->tx_queue->num_stored);
-    float eft_edge = dynamic_scheduler->rtt[device_idx] + // RTT
-                    (net_tx_queue_num_stored) * net_tx_queue_bytes * 8 / dynamic_scheduler->avg_bandwidth[device_idx] / 1000000 // Transmission latency
-                    + dynamic_scheduler->scheduling_latency[device_idx];
-    return eft_edge;
+
+    float eft_offloaded = get_time_secs_offset (device_idx) * 1000.0 +
+                    dynamic_scheduler->rtt[device_idx] + // RTT
+                    (net_tx_queue_num_stored) * net_tx_queue_bytes * 8 / dynamic_scheduler->avg_bandwidth[device_idx] / 1000000; // Transmission latency
+    return eft_offloaded;
 }
 
 void init_allow_all(nasm_t *nasm, int num_dev) {
@@ -547,8 +571,55 @@ void init_sequential_offload(nasm_t *nasm, int split_layer, int edge_id, int ser
     nasm_set_last_layer_ninst_send_target_device (nasm, edge_id);
 }
 
+// DFS function to count ancestors
+int countAncestorsDFS(ninst_t* ninst) {
+    int ancestorCount = 0;
+
+    // Mark the current node as visited
+    ninst->visited = 1;
+
+    // Check each parent of the current node
+    for (int i = 0; i < ninst->num_parent_ninsts; i++) {
+        // If the parent is not visited, recursively count its ancestors
+        ninst_t* parent = ninst->parent_ninst_idx_arr[i] + ninst->ldata->nasm->ninst_arr;
+        if (!parent->visited) {
+            ancestorCount = ancestorCount + countAncestorsDFS(parent) + 1;
+        }
+    }
+
+    // Unmark the current node after processing
+    ninst->visited = 0;
+
+    return ancestorCount;
+}
+
+// Function to count ancestors of a given node in a DAG
+int countAncestors(nasm_t* nasm, int target_ninst_idx) {
+    int ancestorCount = 0;
+
+    // Iterate through all nodes in the DAG
+    for (int i = 0; i < nasm->num_ninst; i++) {
+        // If the current node is the target node, start counting ancestors
+        if (nasm->ninst_arr[i].ninst_idx == target_ninst_idx) {
+            ancestorCount += countAncestorsDFS(&(nasm->ninst_arr[i]));
+        }
+    }
+
+    return ancestorCount;
+}
+
 void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode, int edge_id, int server_id) 
 {
+    // for(int i = 0; i < nasm->num_ninst; i++)
+    // {
+    //     nasm->ninst_arr[i].visited = 0;
+    // }
+
+    // for(int i = 0; i < nasm->num_ninst; i++)
+    // {
+    //     // nasm->ninst_arr[i].num_ancestor_ninsts = countAncestorsDFS(&(nasm->ninst_arr[i]));
+    // }
+
     for (int i = 0; i < nasm->num_ldata; i++) 
     {
         for (int j = 0; j < nasm->ldata_arr[i].num_ninst; j++) 

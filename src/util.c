@@ -911,11 +911,11 @@ void print_float_tensor (float *input, int n, int c, int h, int w)
 
 void save_ninst_log(FILE* log_fp, nasm_t* nasm)
 {
-    fprintf(log_fp,"idx,thread id,computed time (ms),received time (ms),sent time (ms), eft edge (ms),eft server (ms)\n");
+    fprintf(log_fp,"idx,thread id,computed time (ms),received time (ms),sent time (ms), eft offloaded (ms),eft server (ms)\n");
     for(int i = 0; i < nasm->num_ninst; i++)
     {
         ninst_t* ninst = &nasm->ninst_arr[i];
-        fprintf(log_fp, "%d,%d,%f,%f,%f,%f,%f\n",ninst->ninst_idx, ninst->dse_idx, ninst->computed_time*1000.0, ninst->received_time*1000.0, ninst->sent_time*1000.0, ninst->eft_edge * 1000.0, ninst->eft_server * 1000.0);
+        fprintf(log_fp, "%d,%d,%f,%f,%f,%f,%f,%f\n",ninst->ninst_idx, ninst->dse_idx, ninst->computed_time*1000.0, ninst->received_time*1000.0, ninst->sent_time*1000.0, ninst->eft_offloaded, ninst->eft_server);
     }
     fflush(log_fp);
 }

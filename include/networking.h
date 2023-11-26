@@ -92,6 +92,8 @@ void receive(networking_engine *net_engine);
 void transmission_fl(networking_engine *net_engine);
 void receive_fl(networking_engine *net_engine);
 
+void enqueue_ninst (networking_queue_t *networking_queue, ninst_t *ninst);
+
 void net_queue_reset (networking_queue_t *networking_queue);
 void net_engine_reset (networking_engine *net_engine);
 void net_engine_stop (networking_engine *net_engine);
