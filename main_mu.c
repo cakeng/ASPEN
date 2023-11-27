@@ -408,7 +408,6 @@ int main(int argc, char **argv)
     }
 
     /** STAGE: INFERENCE **/
-
     
     PRTF("STAGE: INFERENCE\n");
     
@@ -710,7 +709,6 @@ int main(int argc, char **argv)
                     PRTF("\t[Edge %d] Total received : (%d/%d)\n", edge_id, total_received, target_nasm[edge_id]->num_ninst);
                     PRTF("\t[Edge %d] Transmission latency : %f\n", edge_id, (max_recv_time - min_sent_time)*1000.0);
                     PRTF("\t[Edge %d] Dynamic overhead : %f\n", edge_id, target_nasm[edge_id]->dynamic_overhead/dse_num);
-                    PRTF("\t[Edge %d] Computation time : %fms\n", edge_id, (max_computed_time - min_computed_time) *1000.0);
                     target_nasm[edge_id]->dynamic_overhead = 0.0;
                 }
             }
