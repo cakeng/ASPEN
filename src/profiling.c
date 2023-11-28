@@ -1,3 +1,19 @@
+/**
+ * WARNING: WARNING: WARNING: WARNING: WARNING: WARNING: WARNING: WARNING: 
+ * WARNING: WARNING: WARNING: WARNING: WARNING: WARNING: WARNING: WARNING: 
+ * WARNING: WARNING: WARNING: WARNING: WARNING: WARNING: WARNING: WARNING: 
+ * WARNING: WARNING: WARNING: WARNING: WARNING: WARNING: WARNING: WARNING: 
+ * 
+ * This branch is only for testing MULTI:USER:FL: case.
+ * Many parts of the code are HARD:CODED: for multi-user FL.
+ * If you are not testing multi-user FL, NEVER:ENTER:OR:USE:THIS:BRANCH:.
+ * 
+ * WARNING: WARNING: WARNING: WARNING: WARNING: WARNING: WARNING: WARNING: 
+ * WARNING: WARNING: WARNING: WARNING: WARNING: WARNING: WARNING: WARNING: 
+ * WARNING: WARNING: WARNING: WARNING: WARNING: WARNING: WARNING: WARNING: 
+ * WARNING: WARNING: WARNING: WARNING: WARNING: WARNING: WARNING: WARNING: 
+**/
+
 #include "profiling.h"
 
 static void profile_comp_and_net_server(nasm_t *target_nasm, int dse_num, int server_sock, int client_sock, float *elapsed_times, network_profile_t **network_profile) {    
