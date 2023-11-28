@@ -408,6 +408,15 @@ int main(int argc, char **argv)
     }
 
     /** STAGE: INFERENCE **/
+
+    // for(int i = 0; i < target_nasm[device_idx]->num_ninst; i++)
+    // {
+    //     double p = 0.0;
+    //     ninst_t* ninst = &target_nasm[device_idx]->ninst_arr[i];
+    //     p = (double)ninst->ldata->layer->layer_idx - (double)ninst->ninst_idx / target_nasm[device_idx]->num_ninst;
+    //     if(ninst->ldata->layer->layer_idx == 0) p = (double)target_nasm[device_idx]->num_ldata - (double)ninst->ninst_idx / target_nasm[device_idx]->num_ninst;
+    //     PRTF("\tNINST %d: %f\n", i, p);
+    // }
     
     PRTF("STAGE: INFERENCE\n");
     
@@ -582,6 +591,8 @@ int main(int argc, char **argv)
                 // print_rpool_info (rpool_arr[device_idx]);
                 net_engine_add_input_rpool_reverse (net_engine_arr[device_idx], target_nasm[device_idx], target_inputs[device_idx]);
             }
+
+            // printf("%d\n", net_engine_arr[device_idx]->tx_queue->ninst_ptr_arr[0]->ninst_idx);
 
             #ifdef SUPPRESS_OUTPUT
             start_time = get_elapsed_time_start();

@@ -180,6 +180,14 @@ dynamic_scheduler_t* init_dynamic_scheduler(avg_ninst_profile_t **ninst_profile,
                     dynamic_scheduler->total_ninst_until_target_ninst[i][j] += nasms[i]->ldata_arr[k].num_ninst;
                     
             }
+
+            for (int j = 0; j < nasms[i]->num_ninst; j++)
+            {
+                ninst_t *ninst = &nasms[i]->ninst_arr[j];
+                double l = (double)ninst->ldata->layer->layer_idx;
+                if (l == 0) l = nasms[i]->num_ldata;
+                ninst->priority = l - (double)ninst->ninst_idx / nasms[i]->num_ninst;
+            }
         }
     }
     
@@ -570,43 +578,6 @@ void init_sequential_offload(nasm_t *nasm, int split_layer, int edge_id, int ser
 
     nasm_set_ninst_send_target_using_child_compute_device (nasm);
     nasm_set_last_layer_ninst_send_target_device (nasm, edge_id);
-}
-
-// DFS function to count ancestors
-int countAncestorsDFS(ninst_t* ninst) {
-    int ancestorCount = 0;
-
-    // Mark the current node as visited
-    ninst->visited = 1;
-
-    // Check each parent of the current node
-    for (int i = 0; i < ninst->num_parent_ninsts; i++) {
-        // If the parent is not visited, recursively count its ancestors
-        ninst_t* parent = ninst->parent_ninst_idx_arr[i] + ninst->ldata->nasm->ninst_arr;
-        if (!parent->visited) {
-            ancestorCount = ancestorCount + countAncestorsDFS(parent) + 1;
-        }
-    }
-
-    // Unmark the current node after processing
-    ninst->visited = 0;
-
-    return ancestorCount;
-}
-
-// Function to count ancestors of a given node in a DAG
-int countAncestors(nasm_t* nasm, int target_ninst_idx) {
-    int ancestorCount = 0;
-
-    // Iterate through all nodes in the DAG
-    for (int i = 0; i < nasm->num_ninst; i++) {
-        // If the current node is the target node, start counting ancestors
-        if (nasm->ninst_arr[i].ninst_idx == target_ninst_idx) {
-            ancestorCount += countAncestorsDFS(&(nasm->ninst_arr[i]));
-        }
-    }
-
-    return ancestorCount;
 }
 
 void init_dynamic_offload(nasm_t *nasm, DEVICE_MODE device_mode, int edge_id, int server_id) 

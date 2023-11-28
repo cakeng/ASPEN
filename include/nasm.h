@@ -100,7 +100,6 @@ struct ninst_t
     _Atomic unsigned int num_child_ninsts;
     
     unsigned int num_ancestor_ninsts;
-    int visited;
 
     int *input_pos_idx_arr;
     void **input_pos_ptr_arr_gpu;
@@ -120,6 +119,7 @@ struct ninst_t
     // For Scheduling
     atomic_int dev_to_compute [SCHEDULE_MAX_DEVICES+1];       // who will compute this ninst?
     atomic_int dev_send_target [SCHEDULE_MAX_DEVICES+1];    // who wants the result of this ninst?
+    double priority;
     
     // For core allocation
     unsigned int num_cores;

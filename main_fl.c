@@ -19,37 +19,41 @@ int main (int argc, char **argv)
     int fl_split_layer_idx = -1;
     int fl_num_path = -1;
     int fl_path_offloading_idx[2048];
+    char nasm_name[256] = {0};
+    char *dirname = "fl";
 
-    const int server_port = 3786;
-    char* server_ip = "127.0.0.1";
+    const int server_port = 62000;
+    char* server_ip = "147.46.130.51";
 
-    if (argc == 7) {
-        strcpy (dnn, argv[1]);
-        batch_size = atoi (argv[2]);
-        num_tiles = atoi (argv[3]);
-        number_of_iterations = atoi (argv[4]);
-        num_cores = atoi (argv[5]);
-        dev_mode = atoi (argv[6]);
+    if (argc == 8) {
+        dirname = argv[1];
+        strcpy (dnn, argv[2]);
+        batch_size = atoi (argv[3]);
+        num_tiles = atoi (argv[4]);
+        number_of_iterations = atoi (argv[5]);
+        num_cores = atoi (argv[6]);
+        dev_mode = atoi (argv[7]);
 
         PRTF("Find FL params automatically\n");
     }
-    else if (argc > 9)
+    else if (argc > 10)
     {
-        strcpy (dnn, argv[1]);
-        batch_size = atoi (argv[2]);
-        num_tiles = atoi (argv[3]);
-        number_of_iterations = atoi (argv[4]);
-        num_cores = atoi (argv[5]);
-        dev_mode = atoi (argv[6]);
-        fl_split_layer_idx = atoi (argv[7]);
-        fl_num_path = atoi (argv[8]);
+        dirname = argv[1];
+        strcpy (dnn, argv[2]);
+        batch_size = atoi (argv[3]);
+        num_tiles = atoi (argv[4]);
+        number_of_iterations = atoi (argv[5]);
+        num_cores = atoi (argv[6]);
+        dev_mode = atoi (argv[7]);
+        fl_split_layer_idx = atoi (argv[8]);
+        fl_num_path = atoi (argv[9]);
         for (int i=0; i<fl_num_path; i++) {
-            fl_path_offloading_idx[i] = atoi (argv[9+i]);
+            fl_path_offloading_idx[i] = atoi (argv[10+i]);
         }
     }
     else
     {
-        printf ("Usage: %s <dnn> <batch_size> <num_tiles> <number_of_iterations> <num_cores> <dev_mode> <fl_last_layer> <fl_num_path> <fl_path_offloading_idx1> ...\n", argv[0]);
+        printf ("Usage: %s <dirname> <dnn> <batch_size> <num_tiles> <number_of_iterations> <num_cores> <dev_mode> <fl_last_layer> <fl_num_path> <fl_path_offloading_idx1> ...\n", argv[0]);
         exit (0);
     }
 
@@ -236,6 +240,22 @@ profiling:
     }
 
     PRTF ("Running %d iterations\n", number_of_iterations);
+
+    // Get only the name of the target nasm file without the path and extension
+    if (nasm_file_name && strlen(nasm_file_name) > 0) 
+    {
+        char *nasm_name_with_ext = strrchr(nasm_file_name, '/');
+        if (nasm_name_with_ext) 
+            nasm_name_with_ext++;
+        else 
+            nasm_name_with_ext = nasm_name;
+        char *nasm_name_ext_end = strrchr(nasm_name_with_ext, '.');
+        if (nasm_name_ext_end) 
+            strncpy(nasm_name, nasm_name_with_ext, nasm_name_ext_end - nasm_name_with_ext);
+        else 
+            strcpy(nasm_name, nasm_name_with_ext);
+        PRTF ("nasm_name: %s\n", nasm_name);
+    }
     
 
     float prev_edge_latency = 0.0;
@@ -275,6 +295,21 @@ profiling:
         if (dev_mode != DEV_LOCAL) net_engine_stop (net_engine);
         // end_time = get_sec();
         get_elapsed_time ("run_aspen");
+
+        // For logging
+        char file_name[1024], dir_path[1024], dir_edge_path[1024];
+        sprintf(dir_path, "./logs/%s", dirname);
+        sprintf(dir_edge_path, "./logs/%s/edge_%d", dirname, 0);
+        struct stat st = {0};
+        if (stat("./logs/", &st) == -1) mkdir("./logs/", 0700);
+        if (stat(dir_path, &st) == -1) mkdir(dir_path, 0700);
+        if (stat(dir_edge_path, &st) == -1) mkdir(dir_edge_path, 0700);
+
+        sprintf(file_name, "./logs/%s/edge_%d/%s_%s_%s_%s_Iter%d.csv", dirname, 0, nasm_name, "fl", dev_mode == DEV_SERVER ? "SERVER" : "EDGE", nasm_name, i);
+    
+        FILE *log_fp = fopen(file_name, "w");
+        save_ninst_log(log_fp, target_nasm);
+
         fl_reset_nasm_path(target_nasm);
 
         dse_set_starting_path (target_nasm->path_ptr_arr[0]);
