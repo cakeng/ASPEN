@@ -110,9 +110,20 @@ int main (int argc, char **argv)
             int server_sock1 = -1, client_sock1 = -1;
             int server_sock2 = -1, client_sock2 = -1;
             int server_sock3 = -1, client_sock3 = -1;
+            
             create_connection(dev_mode, server_ip, control_ports[1], &server_sock1, &client_sock1);
 
             printf("Established CC 1\n");
+
+            
+            create_connection(dev_mode, server_ip, control_ports[2], &server_sock2, &client_sock2);
+
+            printf("Established CC 2\n");
+
+
+            create_connection(dev_mode, server_ip, control_ports[3], &server_sock3, &client_sock3);
+
+            printf("Established CC 3\n");
 
 
             // Networking
@@ -142,6 +153,8 @@ int main (int argc, char **argv)
                 test_nasm1, num_cores, dev_mode, server_sock1, client_sock1,
                 server_elapsed_times1, edge_elapsed_times1, network_profile1
             );
+
+            printf("Profiling 1 done\n");
         
 
             // print_network_profile(*network_profile1);
@@ -195,8 +208,7 @@ int main (int argc, char **argv)
             free(network_profile1);
             apu_destroy_nasm(test_nasm1);
 
-            if (server_sock1 != -1) close(server_sock1);
-            if (client_sock1 != -1) close(client_sock1);
+
         
             #ifdef DEBUG
             printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta1);
@@ -247,7 +259,12 @@ int main (int argc, char **argv)
             }
             else if (dev_mode == DEV_LOCAL) init_allow_all(target_nasm1, 3);
 
+
             /* INFERENCE */
+            int inference_id1 = 0;
+
+            write_n(client_sock1, &inference_id1, sizeof(int));
+
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
             for (int i = 0; i < number_of_iterations; i++)
@@ -323,11 +340,6 @@ int main (int argc, char **argv)
             ////////////////////////////
 
 
-            /* CONTROL SIGNAL */
-            create_connection(dev_mode, server_ip, control_ports[2], &server_sock2, &client_sock2);
-
-            printf("Established CC 2\n");
-
             /* FL PATH CREATION */
 
             unsigned int num_last_layer_ninst2 = target_nasm2->ldata_arr[fl_split_layer_idx].num_ninst;
@@ -383,6 +395,10 @@ int main (int argc, char **argv)
 
 
             /* INFERENCE */
+            int inference_id2 = 0;
+
+            write_n(client_sock2, &inference_id2, sizeof(int));
+
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
             for (int i = 0; i < number_of_iterations; i++)
@@ -441,9 +457,6 @@ int main (int argc, char **argv)
             PRTF("STAGE: PROFILING\n");
             nasm_t *test_nasm3 = apu_load_nasm_from_file (nasm_file_name3, target_dnn3);
             
-            create_connection(dev_mode, server_ip, control_ports[3], &server_sock3, &client_sock3);
-
-            printf("Established CC 3\n");
 
             // Networking
             if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
@@ -466,6 +479,8 @@ int main (int argc, char **argv)
                 test_nasm3, num_cores, dev_mode, server_sock3, client_sock3,
                 server_elapsed_times3, edge_elapsed_times3, network_profile3
             );
+
+            printf("Profiling 3 done\n");
         
 
             // print_network_profile(*network_profile1);
@@ -519,8 +534,6 @@ int main (int argc, char **argv)
             free(network_profile3);
             apu_destroy_nasm(test_nasm3);
 
-            if (server_sock3 != -1) close(server_sock3);
-            if (client_sock3 != -1) close(client_sock3);
         
             #ifdef DEBUG
             printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta3);
@@ -573,6 +586,10 @@ int main (int argc, char **argv)
 
 
             /* INFERENCE */
+            int inference_id3 = 0;
+
+            write_n(client_sock3, &inference_id3, sizeof(int));
+
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
             for (int i = 0; i < number_of_iterations; i++)
@@ -642,6 +659,13 @@ int main (int argc, char **argv)
             rpool_destroy (rpool3);
             apu_destroy_nasm (target_nasm3);
             apu_destroy_dnn (target_dnn3);
+
+            if (server_sock1 != -1) close(server_sock1);
+            if (client_sock1 != -1) close(client_sock1);
+            if (server_sock2 != -1) close(server_sock2);
+            if (client_sock2 != -1) close(client_sock2);
+            if (server_sock3 != -1) close(server_sock3);
+            if (client_sock3 != -1) close(client_sock3);
         }
     }
     else {
@@ -687,6 +711,7 @@ int main (int argc, char **argv)
 
             create_connection(dev_mode, server_ip, control_port1, &server_sock1, &client_sock1);
 
+            
 
             // Networking
             if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
@@ -814,6 +839,11 @@ int main (int argc, char **argv)
             else if (dev_mode == DEV_LOCAL) init_allow_all(target_nasm1, 3);
 
 
+            /* INFERENCE */
+            int inference_id1 = 0;
+
+            read_n(client_sock1, &inference_id1, sizeof(int));
+
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
             for (int i = 0; i < number_of_iterations; i++)
@@ -924,6 +954,8 @@ int main (int argc, char **argv)
             /* CONTROL SINAL */
             create_connection(dev_mode, server_ip, control_port2, &server_sock2, &client_sock2);
 
+            sleep(5);
+
 
             // Networking
             if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
@@ -936,6 +968,11 @@ int main (int argc, char **argv)
             }
 
             init_sequential_offload(target_nasm2, 1, 1, 0);
+
+            /* INFERENCE */
+            int inference_id2 = 0;
+
+            read_n(client_sock2, &inference_id2, sizeof(int));
 
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
@@ -1028,6 +1065,7 @@ int main (int argc, char **argv)
             
             create_connection(dev_mode, server_ip, control_port3, &server_sock3, &client_sock3);
 
+            sleep(10);
 
             // Networking
             if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
@@ -1156,6 +1194,11 @@ int main (int argc, char **argv)
             else if (dev_mode == DEV_LOCAL) init_allow_all(target_nasm3, 3);
 
 
+            /* INFERENCE */
+            int inference_id3 = 0;
+
+            read_n(client_sock3, &inference_id3, sizeof(int));
+            
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
             for (int i = 0; i < number_of_iterations; i++)
