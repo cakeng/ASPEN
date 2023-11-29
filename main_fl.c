@@ -154,24 +154,24 @@ int main (int argc, char **argv)
                     read_n(server_sock1, fl_path_offloading_idx, sizeof(int) * fl_num_path);
                     read_n(server_sock1, &min_eta1, sizeof(float));
                 }
-
-                free(server_elapsed_times1);
-                free(edge_elapsed_times1);
-                free(*network_profile1);
-                free(network_profile1);
-                apu_destroy_nasm(test_nasm1);
-
-                if (server_sock1 != -1) close(server_sock1);
-                if (client_sock1 != -1) close(client_sock1);
-            
-                #ifdef DEBUG
-                printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta1);
-                for (int i=0; i<fl_num_path; i++) {
-                    printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
-                }
-                #endif
-
             }
+
+            free(server_elapsed_times1);
+            free(edge_elapsed_times1);
+            free(*network_profile1);
+            free(network_profile1);
+            apu_destroy_nasm(test_nasm1);
+
+            if (server_sock1 != -1) close(server_sock1);
+            if (client_sock1 != -1) close(client_sock1);
+        
+            #ifdef DEBUG
+            printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta1);
+            for (int i=0; i<fl_num_path; i++) {
+                printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
+            }
+            #endif
+
 
 
             /* BASIC MODULES */
@@ -375,23 +375,24 @@ int main (int argc, char **argv)
                     read_n(server_sock2, &min_eta2, sizeof(float));
                 }
 
-                free(server_elapsed_times2);
-                free(edge_elapsed_times2);
-                free(*network_profile2);
-                free(network_profile2);
-                apu_destroy_nasm(test_nasm2);
-
-                if (server_sock2 != -1) close(server_sock2);
-                if (client_sock2 != -1) close(client_sock2);
-            
-                #ifdef DEBUG
-                printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta2);
-                for (int i=0; i<fl_num_path; i++) {
-                    printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
-                }
-                #endif
-
             }
+
+            free(server_elapsed_times2);
+            free(edge_elapsed_times2);
+            free(*network_profile2);
+            free(network_profile2);
+            apu_destroy_nasm(test_nasm2);
+
+            if (server_sock2 != -1) close(server_sock2);
+            if (client_sock2 != -1) close(client_sock2);
+        
+            #ifdef DEBUG
+            printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta2);
+            for (int i=0; i<fl_num_path; i++) {
+                printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
+            }
+            #endif
+
 
 
             /* BASIC MODULES */
@@ -611,24 +612,24 @@ int main (int argc, char **argv)
                     read_n(server_sock3, fl_path_offloading_idx, sizeof(int) * fl_num_path);
                     read_n(server_sock3, &min_eta3, sizeof(float));
                 }
-
-                free(server_elapsed_times3);
-                free(edge_elapsed_times3);
-                free(*network_profile3);
-                free(network_profile3);
-                apu_destroy_nasm(test_nasm3);
-
-                if (server_sock3 != -1) close(server_sock3);
-                if (client_sock3 != -1) close(client_sock3);
-            
-                #ifdef DEBUG
-                printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta3);
-                for (int i=0; i<fl_num_path; i++) {
-                    printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
-                }
-                #endif
-
             }
+
+            free(server_elapsed_times3);
+            free(edge_elapsed_times3);
+            free(*network_profile3);
+            free(network_profile3);
+            apu_destroy_nasm(test_nasm3);
+
+            if (server_sock3 != -1) close(server_sock3);
+            if (client_sock3 != -1) close(client_sock3);
+        
+            #ifdef DEBUG
+            printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta3);
+            for (int i=0; i<fl_num_path; i++) {
+                printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
+            }
+            #endif
+
 
 
             /* BASIC MODULES */
@@ -850,24 +851,24 @@ int main (int argc, char **argv)
                     read_n(server_sock1, fl_path_offloading_idx, sizeof(int) * fl_num_path);
                     read_n(server_sock1, &min_eta1, sizeof(float));
                 }
-
-                free(server_elapsed_times1);
-                free(edge_elapsed_times1);
-                free(*network_profile1);
-                free(network_profile1);
-                apu_destroy_nasm(test_nasm1);
-
-                if (server_sock1 != -1) close(server_sock1);
-                if (client_sock1 != -1) close(client_sock1);
-            
-                #ifdef DEBUG
-                printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta1);
-                for (int i=0; i<fl_num_path; i++) {
-                    printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
-                }
-                #endif
-
             }
+
+
+            free(server_elapsed_times1);
+            free(edge_elapsed_times1);
+            free(*network_profile1);
+            free(network_profile1);
+            apu_destroy_nasm(test_nasm1);
+
+            if (server_sock1 != -1) close(server_sock1);
+            if (client_sock1 != -1) close(client_sock1);
+        
+            #ifdef DEBUG
+            printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta1);
+            for (int i=0; i<fl_num_path; i++) {
+                printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
+            }
+            #endif
 
 
             /* BASIC MODULES */
@@ -1088,23 +1089,23 @@ int main (int argc, char **argv)
                     read_n(server_sock2, &min_eta2, sizeof(float));
                 }
 
-                free(server_elapsed_times2);
-                free(edge_elapsed_times2);
-                free(*network_profile2);
-                free(network_profile2);
-                apu_destroy_nasm(test_nasm2);
-
-                if (server_sock2 != -1) close(server_sock2);
-                if (client_sock2 != -1) close(client_sock2);
-            
-                #ifdef DEBUG
-                printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta2);
-                for (int i=0; i<fl_num_path; i++) {
-                    printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
-                }
-                #endif
-
             }
+
+            free(server_elapsed_times2);
+            free(edge_elapsed_times2);
+            free(*network_profile2);
+            free(network_profile2);
+            apu_destroy_nasm(test_nasm2);
+
+            if (server_sock2 != -1) close(server_sock2);
+            if (client_sock2 != -1) close(client_sock2);
+        
+            #ifdef DEBUG
+            printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta2);
+            for (int i=0; i<fl_num_path; i++) {
+                printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
+            }
+            #endif
 
 
             /* BASIC MODULES */
@@ -1325,23 +1326,23 @@ int main (int argc, char **argv)
                     read_n(server_sock3, &min_eta3, sizeof(float));
                 }
 
-                free(server_elapsed_times3);
-                free(edge_elapsed_times3);
-                free(*network_profile3);
-                free(network_profile3);
-                apu_destroy_nasm(test_nasm3);
-
-                if (server_sock3 != -1) close(server_sock3);
-                if (client_sock3 != -1) close(client_sock3);
-            
-                #ifdef DEBUG
-                printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta3);
-                for (int i=0; i<fl_num_path; i++) {
-                    printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
-                }
-                #endif
-
             }
+
+            free(server_elapsed_times3);
+            free(edge_elapsed_times3);
+            free(*network_profile3);
+            free(network_profile3);
+            apu_destroy_nasm(test_nasm3);
+
+            if (server_sock3 != -1) close(server_sock3);
+            if (client_sock3 != -1) close(client_sock3);
+        
+            #ifdef DEBUG
+            printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta3);
+            for (int i=0; i<fl_num_path; i++) {
+                printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
+            }
+            #endif
 
 
             /* BASIC MODULES */
