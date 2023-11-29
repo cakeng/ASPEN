@@ -15,9 +15,23 @@
 #define DSE_NINST_CACHE_DIFF 0
 #define DSE_SCRATCHPAD_SIZE 1024*1024*2 // 2 MiB
 
+struct thread_t
+{
+    unsigned int thread_id;
+    unsigned int num_dses;
+    dse_t **dse_arr;
+
+    _Atomic int run;
+
+    pthread_t _thread;
+    pthread_mutex_t thread_mutex;
+    pthread_cond_t thread_cond;
+};
+
+
 struct dse_group_t
 {
-    unsigned int num_dess;
+    unsigned int num_dses;
     dse_t *dse_arr;
     int gpu_idx;
 };
@@ -30,9 +44,9 @@ struct dse_t
     unsigned int thread_id;
     void *scratchpad;
     void *gpu_scratchpad;
-    pthread_t thread;
-    pthread_mutex_t thread_mutex;
-    pthread_cond_t thread_cond;
+    // pthread_t thread;
+    // pthread_mutex_t thread_mutex;
+    // pthread_cond_t thread_cond;
     ninst_t *target;
     rpool_queue_t *ninst_cache;
     rpool_t *rpool;

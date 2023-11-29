@@ -71,7 +71,7 @@ void rpool_set_nasm_weight (rpool_t *rpool, nasm_t* nasm, float weight);
 
 void set_queue_group_weight (rpool_t *rpool, rpool_queue_group_t *rpool_queue_group, float weight);
 void queue_group_add_queues (rpool_queue_group_t *rpool_queue_group, unsigned int num_queues);
-void add_ref_dses (rpool_t *rpool, unsigned int num_dess);
+void add_ref_dses (rpool_t *rpool, unsigned int num_dses);
 unsigned int check_blacklist_cond (void **blacklist, void **input_cond);
 unsigned int check_whitelist_cond (void **whitelist, void **input_cond);
 

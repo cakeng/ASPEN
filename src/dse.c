@@ -16,6 +16,7 @@
 
 #include "dse.h"
 
+static _Atomic unsigned int thread_id_counter = 0;
 static _Atomic unsigned int dse_thread_id_counter = 0;
 static _Atomic fl_path_t *dse_now_path = NULL;
 static unsigned int fl_post_group_idx;
@@ -25,19 +26,50 @@ void dse_set_ref_nasm (nasm_t *_ref_nasm) {
     ref_nasm = _ref_nasm;
 }
 
-void *dse_thread_runtime (void* thread_info)
+void *thread_runtime (void* thread_info)
 {
-    dse_t *dse = (dse_t*) thread_info;
-    pthread_mutex_lock(&dse->thread_mutex);
-    atomic_store (&dse->run, 0);
-    pthread_cond_wait(&dse->thread_cond, &dse->thread_mutex); 
-    while (dse->kill == 0 || dse->target != NULL)
+    thread_t *thread = (thread_t*) thread_info;
+    pthread_mutex_lock(&thread->thread_mutex);
+    atomic_store (&thread->run, 0);
+    pthread_cond_wait(&thread->thread_cond, &thread->thread_mutex); 
+    // printf ("RUNNING THREAD %d 1\n", thread->thread_id);
+    while (1)
     {
-        dse_schedule (dse);
-        if (dse->run == 0 && dse->target == NULL)
-            pthread_cond_wait(&dse->thread_cond, &dse->thread_mutex); 
+        int kill_count = 0;
+        for (int i = 0; i < thread->num_dses; i++)
+        {
+            if (thread->dse_arr[i]->kill == 1)
+                kill_count++;
+            else
+            {
+                // printf ("THREAD %d executing DSE %d\n", thread->thread_id, i);
+                dse_thread_runtime (thread->dse_arr[i]);
+            }
+        }
+        if(!thread->run) 
+        {
+            // printf ("STOPPING THREAD %d\n", thread->thread_id);
+            pthread_cond_wait (&thread->thread_cond, &thread->thread_mutex);
+        }
+        if (kill_count == thread->num_dses)
+            break;
     }
+    // printf ("KILLING THREAD %d..\n", thread->thread_id);
+    pthread_mutex_destroy (&thread->thread_mutex);
+    pthread_cond_destroy (&thread->thread_cond);
+    free (thread->dse_arr);
     return NULL;
+}
+
+void dse_thread_runtime (dse_t *dse)
+{
+    // printf ("DSE %d RUN %d, KILL %d, TARGET %p\n", dse->device_idx,
+    //         dse->run, dse->kill, dse->target);
+    if (dse->run == 1 && (dse->kill == 0 || dse->target != NULL))
+    {
+        // printf ("DSE %d RUNNING\n", dse->device_idx);
+        dse_schedule (dse);
+    }
 }
 
 void dse_schedule (dse_t *dse)
@@ -624,7 +656,7 @@ void dse_schedule_fl (dse_t *dse) {
     }
 }
 
-dse_group_t *dse_group_init (unsigned int num_des, int gpu_idx)
+dse_group_t *dse_group_init (unsigned int num_dses, int gpu_idx)
 {
     if (gpu_idx >= 0 && gpu_idx >= aspen_num_gpus)
     {
@@ -633,16 +665,16 @@ dse_group_t *dse_group_init (unsigned int num_des, int gpu_idx)
     }
     else if (gpu_idx >= 0 && gpu_idx < aspen_num_gpus)
     {
-        num_des = num_des > GPU_RUN_STREAM_NUM ? GPU_RUN_STREAM_NUM : num_des;
+        num_dses = num_dses > GPU_RUN_STREAM_NUM ? GPU_RUN_STREAM_NUM : num_dses;
     }
     dse_group_t *dse_group = (dse_group_t *) calloc (1, sizeof (dse_group_t));
-    dse_group->num_dess = num_des;
+    dse_group->num_dses = num_dses;
     if (gpu_idx < 0)
         dse_group->gpu_idx = -1;
     else
         dse_group->gpu_idx = gpu_idx;
-    dse_group->dse_arr = (dse_t *) calloc (num_des, sizeof (dse_t));
-    for (int i = 0; i < num_des; i++)
+    dse_group->dse_arr = (dse_t *) calloc (num_dses, sizeof (dse_t));
+    for (int i = 0; i < num_dses; i++)
     {
         dse_init (dse_group, &dse_group->dse_arr[i], dse_group->gpu_idx);
     }
@@ -666,11 +698,11 @@ void dse_group_set_rpool (dse_group_t *dse_group, rpool_t *rpool)
         ERROR_PRTF ("ERROR: dse_group_set_rpool: dse_group->gpu_idx %d != rpool->gpu_idx %d\n", dse_group->gpu_idx, rpool->gpu_idx);
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_dess; i++)
+    for (int i = 0; i < dse_group->num_dses; i++)
     {
         dse_group->dse_arr[i].rpool = rpool;
     }
-    add_ref_dses (rpool, dse_group->num_dess);
+    add_ref_dses (rpool, dse_group->num_dses);
 }
 
 void dse_group_set_net_engine (dse_group_t *dse_group, networking_engine *net_engine)
@@ -685,7 +717,7 @@ void dse_group_set_net_engine (dse_group_t *dse_group, networking_engine *net_en
         ERROR_PRTF ("ERROR: dse_group_set_net_engine: net_engine is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_dess; i++)
+    for (int i = 0; i < dse_group->num_dses; i++)
     {
         dse_group->dse_arr[i].net_engine = net_engine;
     }
@@ -698,7 +730,7 @@ void dse_group_set_device_mode (dse_group_t *dse_group, DEVICE_MODE device_mode)
         ERROR_PRTF ("ERROR: dse_group_set_device_mode: dse_group is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_dess; i++)
+    for (int i = 0; i < dse_group->num_dses; i++)
     {
         dse_group->dse_arr[i].device_mode = device_mode;
     }
@@ -711,7 +743,7 @@ void dse_group_set_device (dse_group_t *dse_group, int device_idx)
         ERROR_PRTF ("ERROR: dse_group_set_device: dse_group is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_dess; i++)
+    for (int i = 0; i < dse_group->num_dses; i++)
     {
         dse_group->dse_arr[i].device_idx = device_idx;
     }
@@ -723,7 +755,7 @@ void dse_group_set_operating_mode (dse_group_t *dse_group, int operating_mode) {
         ERROR_PRTF ("ERROR: dse_group_set_device: dse_group is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_dess; i++)
+    for (int i = 0; i < dse_group->num_dses; i++)
     {
         dse_group->dse_arr[i].operating_mode = operating_mode;
     }
@@ -736,7 +768,7 @@ void dse_group_set_num_edge_devices (dse_group_t *dse_group, int num_edge_device
         ERROR_PRTF ("ERROR: dse_group_set_num_edge_devices: dse_group is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_dess; i++)
+    for (int i = 0; i < dse_group->num_dses; i++)
     {
         dse_group->dse_arr[i].num_edge_devices = num_edge_devices;
     }
@@ -749,7 +781,7 @@ void dse_group_set_profile (dse_group_t *dse_group, int profile_compute)
         ERROR_PRTF ("ERROR: dse_group_set_device: dse_group is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_dess; i++)
+    for (int i = 0; i < dse_group->num_dses; i++)
     {
         dse_group->dse_arr[i].profile_compute = profile_compute;
     }
@@ -762,7 +794,7 @@ void dse_group_set_dynamic_scheduler (dse_group_t *dse_group, dynamic_scheduler_
         ERROR_PRTF ("ERROR: dse_group_set_scheduler: dse_group is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_dess; i++)
+    for (int i = 0; i < dse_group->num_dses; i++)
     {
         dse_group->dse_arr[i].dynamic_scheduler = dynamic_scheduler;
         dse_group->dse_arr[i].is_dynamic_scheduling = 1;
@@ -775,14 +807,14 @@ void dse_group_set_multiuser (dse_group_t *dse_group, int is_multiuser_case) {
         ERROR_PRTF ("ERROR: dse_group_set_multiuser: dse_group is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_dess; i++)
+    for (int i = 0; i < dse_group->num_dses; i++)
     {
         dse_group->dse_arr[i].is_multiuser_case = is_multiuser_case;
     }
 }
 
 void dse_group_add_prioritize_rpool (dse_group_t *dse_group, int device_idx) {
-    for (int i=0; i<dse_group->num_dess; i++) {
+    for (int i=0; i<dse_group->num_dses; i++) {
         for (int j=0; j<SCHEDULE_MAX_DEVICES; j++) {
             if (dse_group->dse_arr[i].prioritize_rpool[j] == -1)
                 dse_group->dse_arr[i].prioritize_rpool[j] = device_idx;
@@ -791,14 +823,14 @@ void dse_group_add_prioritize_rpool (dse_group_t *dse_group, int device_idx) {
 }
 
 void dse_group_init_enable_device(dse_group_t *dse_group, int num_edge_devices) {
-    for (int i = 0; i < dse_group->num_dess; i++) {
+    for (int i = 0; i < dse_group->num_dses; i++) {
         for (int j = 1; j <= num_edge_devices; j++)
         dse_group->dse_arr[i].enabled_device[j] = 0;
     }
 }
 
 void dse_group_set_enable_device(dse_group_t *dse_group, int device_idx, int enable) {
-    for (int i = 0; i < dse_group->num_dess; i++) {
+    for (int i = 0; i < dse_group->num_dses; i++) {
         dse_group->dse_arr[i].enabled_device[device_idx] = enable;
     }
 }
@@ -809,7 +841,7 @@ void dse_group_add_rpool_arr(dse_group_t *dse_group, rpool_t *rpool, int device_
         ERROR_PRTF ("ERROR: dse_group_add_rpool_arr: rpool is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_dess; i++) {
+    for (int i = 0; i < dse_group->num_dses; i++) {
         dse_group->dse_arr[i].rpool_arr[device_idx] = rpool;
     }
 }
@@ -820,7 +852,7 @@ void dse_group_init_netengine_arr (dse_group_t *dse_group) {
         ERROR_PRTF ("ERROR: dse_group_init_netengine_arr: dse_group is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_dess; i++) {
+    for (int i = 0; i < dse_group->num_dses; i++) {
         for (int j=0; j<SCHEDULE_MAX_DEVICES; j++) {
             dse_group->dse_arr[i].net_engine_arr[j] = NULL;
         }
@@ -833,7 +865,7 @@ void dse_group_add_netengine_arr (dse_group_t *dse_group, networking_engine *net
         ERROR_PRTF ("ERROR: dse_group_add_netengine_arr: dse_group is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_dess; i++) {
+    for (int i = 0; i < dse_group->num_dses; i++) {
         dse_group->dse_arr[i].net_engine_arr[device_idx] = net_engine;
         dse_group->dse_arr[i].rpool_arr[device_idx] = net_engine->rpool;
     }
@@ -843,7 +875,7 @@ void dse_group_destroy (dse_group_t *dse_group)
 {
     if (dse_group == NULL)
         return;
-    for (int i = 0; i < dse_group->num_dess; i++)
+    for (int i = 0; i < dse_group->num_dses; i++)
     {
         if (dse_group->dse_arr[i].rpool != NULL)
             atomic_fetch_sub (&dse_group->dse_arr[i].rpool->ref_dses, 1);
@@ -851,6 +883,58 @@ void dse_group_destroy (dse_group_t *dse_group)
     }
     free (dse_group->dse_arr);
     free (dse_group);
+}
+
+void thread_init (thread_t *thread)
+{
+    thread->thread_id = atomic_fetch_add (&thread_id_counter, 1);
+    thread->num_dses = 0;
+    thread->dse_arr = NULL;
+    thread->thread_mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
+    thread->thread_cond = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
+    atomic_store (&thread->run, -1);
+    pthread_attr_t attr;
+    if( pthread_attr_init(&attr) != 0 )
+    {
+        ERROR_PRTF ("ERROR: thread_init: pthread_attr_init failed\n");
+        assert (0);
+    }
+    if( pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) != 0 )
+    {
+        ERROR_PRTF ("ERROR: thread_init: pthread_attr_setdetachstate failed\n");
+        assert (0);
+    }
+    if(pthread_create (&thread->_thread, &attr, thread_runtime, (void*)thread))
+    {
+        ERROR_PRTF ("ERROR: thread_init: pthread_create failed\n");
+        assert (0);
+    }
+    if( pthread_attr_destroy(&attr) != 0 )
+    {
+        ERROR_PRTF ("ERROR: thread_init: pthread_attr_destroy failed\n");
+        assert (0);
+    }
+}
+
+void add_dse_to_thread (thread_t* thread, dse_t *dse)
+{
+    if (thread == NULL)
+    {
+        ERROR_PRTF ("ERROR: add_dse_to_thread: thread is NULL\n");
+        assert (0);
+    }
+    if (dse == NULL)
+    {
+        ERROR_PRTF ("ERROR: add_dse_to_thread: dse is NULL\n");
+        assert (0);
+    }
+    if (thread->num_dses == 0)
+        thread->dse_arr = (dse_t *) calloc (1, sizeof (dse_t));
+    else
+        realloc (thread->dse_arr, sizeof (dse_t) * (thread->num_dses + 1));
+
+    thread->dse_arr[thread->num_dses] = dse;
+    thread->num_dses++;
 }
 
 void dse_init (dse_group_t *dse_group, dse_t *dse, int gpu_idx)
@@ -872,14 +956,14 @@ void dse_init (dse_group_t *dse_group, dse_t *dse, int gpu_idx)
     dse->scratchpad = aspen_calloc (DSE_SCRATCHPAD_SIZE, 1);
     if (gpu_idx >= 0)
         dse->gpu_scratchpad = aspen_gpu_calloc (DSE_SCRATCHPAD_SIZE, 1, gpu_idx);
-    dse->thread_mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
-    dse->thread_cond = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
+    // dse->thread_mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
+    // dse->thread_cond = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
     dse->ninst_cache = calloc (1, sizeof (rpool_queue_t));
     for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) dse->prioritize_rpool[i] = -1;
-    atomic_store (&dse->run, -1);
+    atomic_store (&dse->run, 0);
     atomic_store (&dse->kill, 0);
     rpool_init_queue (dse->ninst_cache);
-    pthread_create (&dse->thread, NULL, dse_thread_runtime, (void*)dse);
+    // pthread_create (&dse->thread, NULL, dse_thread_runtime, (void*)dse);
     dse->operating_mode = OPER_MODE_DEFAULT;
     dse->is_fl_offloading = 0;
 }
@@ -895,15 +979,55 @@ void dse_destroy (dse_t *dse)
     atomic_store (&dse->kill, 1);
     if (atomic_load (&dse->run) != 1)
         dse_run (dse);
-    pthread_join (dse->thread, NULL);
-    pthread_mutex_destroy (&dse->thread_mutex);
-    pthread_cond_destroy (&dse->thread_cond);
     if (dse->scratchpad != NULL)
         aspen_free (dse->scratchpad);
     if (dse->gpu_scratchpad != NULL)
         aspen_gpu_free (dse->gpu_scratchpad, dse->gpu_idx);
     rpool_destroy_queue (dse->ninst_cache);
     free (dse->ninst_cache);
+}
+
+void thread_run (thread_t *thread)
+{
+    if (thread == NULL)
+    {
+        ERROR_PRTF ("ERROR: thread_run: thread is NULL\n");
+        return;
+    }
+    int state = atomic_load (&thread->run);
+    while (state == -1)
+        state = atomic_load (&thread->run);
+    // printf ("RUNNING THREAD %d\n", thread->thread_id);
+    if (state == 1)
+    {
+        return;
+    }
+    else 
+    {
+        pthread_mutex_lock (&thread->thread_mutex);
+        atomic_store (&thread->run, 1);
+        pthread_cond_signal (&thread->thread_cond);
+        pthread_mutex_unlock (&thread->thread_mutex);
+    }
+}
+
+void thread_stop (thread_t *thread)
+{
+    if (thread == NULL)
+    {
+        ERROR_PRTF ("ERROR: thread_stop: thread is NULL\n");
+        return;
+    }
+    unsigned int state = atomic_exchange (&thread->run, 0);
+    if (state == 0)
+    {
+        return;
+    }
+    else 
+    {
+        pthread_mutex_lock (&thread->thread_mutex);
+        pthread_mutex_unlock (&thread->thread_mutex);
+    }
 }
 
 void dse_run (dse_t *dse)
@@ -922,10 +1046,7 @@ void dse_run (dse_t *dse)
     }
     else 
     {
-        pthread_mutex_lock (&dse->thread_mutex);
         atomic_store (&dse->run, 1);
-        pthread_cond_signal (&dse->thread_cond);
-        pthread_mutex_unlock (&dse->thread_mutex);
     }
 }
 
@@ -941,11 +1062,6 @@ void dse_stop (dse_t *dse)
     {
         return;
     }
-    else 
-    {
-        pthread_mutex_lock (&dse->thread_mutex);
-        pthread_mutex_unlock (&dse->thread_mutex);
-    }
 }
 
 void dse_group_run (dse_group_t *dse_group)
@@ -955,7 +1071,7 @@ void dse_group_run (dse_group_t *dse_group)
         ERROR_PRTF ("ERROR: dse_group_run: dse_group is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_dess; i++)
+    for (int i = 0; i < dse_group->num_dses; i++)
     {
         dse_run (&dse_group->dse_arr[i]);
     }
@@ -968,7 +1084,7 @@ void dse_group_stop (dse_group_t *dse_group)
         ERROR_PRTF ("ERROR: dse_group_stop: dse_group is NULL\n");
         assert (0);
     }
-    for (int i = 0; i < dse_group->num_dess; i++)
+    for (int i = 0; i < dse_group->num_dses; i++)
     {
         dse_stop (&dse_group->dse_arr[i]);
     }
@@ -1327,8 +1443,8 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
         }
         ninst->state = NINST_COMPLETED;
         atomic_fetch_add (&ninst->ldata->num_ninst_completed , 1);
-        // int num_des = rpool->ref_dses > 0 ? rpool->ref_dses : 1;
-        // update_children (rpool, ninst, i/(1 + ldata->num_ninst/num_des));
+        // int num_dses = rpool->ref_dses > 0 ? rpool->ref_dses : 1;
+        // update_children (rpool, ninst, i/(1 + ldata->num_ninst/num_dses));
         update_children (rpool, ninst);
     }
     atomic_fetch_add (&nasm->num_ldata_completed, 1);

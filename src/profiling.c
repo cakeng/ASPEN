@@ -75,19 +75,31 @@ void profile_comp_and_net(nasm_t *target_nasm, int dse_num, DEVICE_MODE device_m
 
 void profile_computation_exact(nasm_t *target_nasm, int dse_num, int device_idx, char *target_input, DEVICE_MODE device_mode, int gpu, float *elapsed_times) {
     rpool_t *rpool = rpool_init (gpu);
+
+    thread_t *thread_arr = (thread_t *)malloc(sizeof(thread_t) * dse_num);
+    for (int i = 0; i < dse_num; i++) 
+        thread_init(&thread_arr[i]);
+
     dse_group_t *dse_group = dse_group_init (dse_num, gpu);
     dse_group_set_rpool (dse_group, rpool);
     dse_group_add_rpool_arr (dse_group, rpool, device_idx);
     dse_group_set_profile (dse_group, 1);
     dse_group_set_multiuser (dse_group, 0);
 
+    for (int i = 0; i < dse_num; i++) 
+        add_dse_to_thread (&thread_arr[i], &dse_group->dse_arr[i]);
+    
     init_sequential_offload (target_nasm, 0, device_idx, device_idx);
     
     rpool_add_nasm (rpool, target_nasm, target_input); 
-    
+
+    for (int i = 0; i < dse_num; i++) 
+        thread_run (&thread_arr[i]);
     dse_group_run (dse_group);
     dse_wait_for_nasm_completion (target_nasm);
     dse_group_stop (dse_group);
+    for (int i = 0; i < dse_num; i++) 
+        thread_stop (&thread_arr[i]);
 
     for (int i=0; i<target_nasm->num_ninst; i++) {
         ninst_t *target_ninst = &(target_nasm->ninst_arr[i]);
@@ -95,6 +107,7 @@ void profile_computation_exact(nasm_t *target_nasm, int dse_num, int device_idx,
     }
 
     dse_group_destroy (dse_group);
+    // printf ("DSE_GROUP DESTROYED1\n");
     rpool_reset_nasm (rpool, target_nasm);
     rpool_destroy (rpool);
 }
@@ -105,6 +118,10 @@ avg_ninst_profile_t *profile_computation(nasm_t *target_nasm, int dse_num, int d
     int total = 0;
 
     for (int i = 0; i < num_repeat; i++) {
+        thread_t *thread_arr = (thread_t *)malloc(sizeof(thread_t) * dse_num);
+        for (int i = 0; i < dse_num; i++) 
+            thread_init(&thread_arr[i]);
+
         rpool_t *rpool = rpool_init (gpu);
         dse_group_t *dse_group = dse_group_init (dse_num, gpu);
         dse_group_set_rpool (dse_group, rpool);
@@ -112,18 +129,26 @@ avg_ninst_profile_t *profile_computation(nasm_t *target_nasm, int dse_num, int d
         dse_group_set_profile (dse_group, 1);
         dse_group_set_multiuser (dse_group, 0);
 
+        for (int i = 0; i < dse_num; i++) 
+            add_dse_to_thread (&thread_arr[i], &dse_group->dse_arr[i]);
+
         init_sequential_offload (target_nasm, 0, device_idx, device_idx);
         
         rpool_add_nasm (rpool, target_nasm, target_input); 
-        
+
+        for (int i = 0; i < dse_num; i++) 
+            thread_run (&thread_arr[i]);
         dse_group_run (dse_group);
         dse_wait_for_nasm_completion (target_nasm);
         dse_group_stop (dse_group);
+        for (int i = 0; i < dse_num; i++) 
+            thread_stop (&thread_arr[i]);
         
         total = target_nasm->num_ninst;
         avg_computation_time += extract_profile_from_ninsts(target_nasm);
 
         dse_group_destroy (dse_group);
+        // printf ("DSE_GROUP DESTROYED2\n");
         rpool_reset_nasm (rpool, target_nasm);
         rpool_destroy (rpool);
     }

@@ -39,7 +39,7 @@ int main (int argc, char **argv)
     char *dirname = "fl";
 
     const int server_port = 62000;
-    char* server_ip = "147.46.130.51";
+    char* server_ip = "127.0.0.1";
 
     if (argc == 8) {
         dirname = argv[1];
@@ -151,10 +151,12 @@ profiling:
 
     float min_eta;
     if (dev_mode == DEV_SERVER) {
+        printf ("FL: server profile start\n");
         min_eta = fl_schedule_bruteforce(
             target_nasm, server_num_dse, server_elapsed_times, edge_num_dse, edge_elapsed_times, *network_profile,
             &fl_split_layer_idx, &fl_num_path, fl_path_offloading_idx
         );
+        printf ("FL: server profile end\n");
     }
 
     // Synchronize FL params
@@ -191,6 +193,10 @@ profiling:
 
     /* BASIC MODULES */
 
+    thread_t *thread_arr = (thread_t *)malloc(sizeof(thread_t) * num_cores);
+    for (int i = 0; i < num_cores; i++) 
+        thread_init(&thread_arr[i]);
+
     // rpool_t *rpool = rpool_init (gpu_idx);
     rpool_t *rpool = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
     dse_group_t *dse_group = dse_group_init (num_cores, gpu_idx);
@@ -199,6 +205,9 @@ profiling:
     dse_group_set_device (dse_group, 0);
     dse_group_set_num_edge_devices (dse_group, 2);
     networking_engine* net_engine = NULL;
+    
+    for (int i = 0; i < num_cores; i++) 
+        add_dse_to_thread (&thread_arr[i], &dse_group->dse_arr[i]);
 
     rpool_add_nasm (rpool, target_nasm, "data/batched_input_128.bin");
 
@@ -297,6 +306,9 @@ profiling:
         else if (dev_mode == DEV_LOCAL) fl_push_path_ninsts(rpool, target_nasm->path_ptr_arr[0]);
         // start_time = get_sec();
         set_elapsed_time_start ();
+
+        for (int i = 0; i < num_cores; i++) 
+            thread_run (&thread_arr[i]);
         dse_group_run (dse_group);
         dse_wait_for_nasm_completion (target_nasm);
 
@@ -308,6 +320,8 @@ profiling:
             net_engine_set_operating_mode(net_engine, OPER_MODE_FL_PATH);
         }
         dse_group_stop (dse_group);
+        for (int i = 0; i < num_cores; i++) 
+            thread_stop (&thread_arr[i]);
         if (dev_mode != DEV_LOCAL) net_engine_stop (net_engine);
         // end_time = get_sec();
         get_elapsed_time ("run_aspen");

@@ -212,14 +212,14 @@ void queue_group_add_queues (rpool_queue_group_t *rpool_queue_group, unsigned in
     atomic_fetch_add (&rpool_queue_group->num_queues, num_queues);
 }
 
-void add_ref_dses (rpool_t *rpool, unsigned int num_dess)
+void add_ref_dses (rpool_t *rpool, unsigned int num_dses)
 {
     if (rpool == NULL)
     {
         ERROR_PRTF ("ERROR: add_ref_dses: rpool is NULL.\n");
         return;
     }
-    atomic_fetch_add (&rpool->ref_dses, num_dess);
+    atomic_fetch_add (&rpool->ref_dses, num_dses);
     for (int i = 0; i < rpool->num_groups; i++)
     {
         // if (rpool->queue_group_arr[i].whitelist_conds[RPOOL_NASM] != NULL)
@@ -707,8 +707,8 @@ rpool_queue_t *get_queue_for_fetching (rpool_t *rpool, void **input_cond, unsign
     // }
     // atomic_fetch_add (&rpool_queue_group->num_fetched, 1);
     unsigned int num_queues = atomic_load (&rpool_queue_group->num_queues);
-    unsigned int num_des = rpool->ref_dses > 0 ? rpool->ref_dses : 1;
-    unsigned int queue_idx = num_queues * dse_idx / num_des;
+    unsigned int num_dses = rpool->ref_dses > 0 ? rpool->ref_dses : 1;
+    unsigned int queue_idx = num_queues * dse_idx / num_dses;
     for (int i = 0; i < num_queues; i++)
     {
         rpool_queue_t *rpool_queue = &rpool_queue_group->queue_arr[queue_idx];
@@ -741,8 +741,8 @@ rpool_queue_t *get_queue_for_fetching_from_group (rpool_t *rpool, void **input_c
     rpool_queue_group_t *rpool_queue_group = &rpool->queue_group_arr[dse_idx];
     
     unsigned int num_queues = atomic_load (&rpool_queue_group->num_queues);
-    unsigned int num_des = rpool->ref_dses > 0 ? rpool->ref_dses : 1;
-    unsigned int queue_idx = num_queues * dse_idx / num_des;
+    unsigned int num_dses = rpool->ref_dses > 0 ? rpool->ref_dses : 1;
+    unsigned int queue_idx = num_queues * dse_idx / num_dses;
     if (queue_idx >= num_queues)
         queue_idx = queue_idx % num_queues;
     for (int i = 0; i < num_queues; i++)

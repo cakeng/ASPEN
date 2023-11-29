@@ -118,6 +118,7 @@ typedef struct rpool_queue_group_t rpool_queue_group_t;
 
 typedef struct dse_t dse_t;     // Distributed scheduling engine
 typedef struct dse_group_t dse_group_t;
+typedef struct thread_t thread_t;
 
 typedef struct networking_engine networking_engine; // Offloading
 typedef struct networking_queue_t networking_queue_t; 
@@ -156,7 +157,7 @@ void rpool_add_nasm (rpool_t *rpool, nasm_t* nasm, char *input_filename);
 void rpool_reset_queue (rpool_t *rpool);
 void rpool_reset_nasm (rpool_t *rpool, nasm_t *nasm);
 
-dse_group_t *dse_group_init (unsigned int num_des, int gpu_idx);
+dse_group_t *dse_group_init (unsigned int num_dses, int gpu_idx);
 void dse_group_set_rpool (dse_group_t *dse_group, rpool_t *rpool);
 void dse_group_destroy (dse_group_t *dse_group);
 void dse_group_run (dse_group_t *dse_group);
@@ -168,6 +169,13 @@ void *dse_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS *
 void *dse_get_nasm_result (nasm_t *nasm, LAYER_PARAMS *order);
 size_t dse_get_ldata_size (nasm_t *nasm, unsigned int ldata_idx);
 size_t dse_get_nasm_result_size (nasm_t *nasm);
+
+void *thread_runtime (void* thread_info);
+void dse_thread_runtime (dse_t *dse);
+void thread_init (thread_t *thread);
+void add_dse_to_thread (thread_t* thread, dse_t *dse);
+void thread_run (thread_t *thread);
+void thread_stop (thread_t *thread);
 
 void print_aspen_build_info(void);
 void print_dnn_info (aspen_dnn_t *dnn, int print_data);
