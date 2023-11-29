@@ -120,21 +120,21 @@ int main (int argc, char **argv)
 
     // 3-1. Generate the ASPEN graph (nasm)
 
-    nasm_t *target_nasm = NULL;
-    if (num_seq == -1)
-        target_nasm = apu_create_nasm (target_dnn, 20, batch_size);
-    else
-        target_nasm = apu_create_transformer_nasm (target_dnn, 50, batch_size, num_seq);
-    apu_save_nasm_to_file (target_nasm, nasm_file_name);
+    // nasm_t *target_nasm = NULL;
+    // if (num_seq == -1)
+    //     target_nasm = apu_create_nasm (target_dnn, 20, batch_size);
+    // else
+    //     target_nasm = apu_create_transformer_nasm (target_dnn, 50, batch_size, num_seq);
+    // apu_save_nasm_to_file (target_nasm, nasm_file_name);
 
     // 3-2. Load the ASPEN graph (nasm)
 
-    // nasm_t *target_nasm = apu_load_nasm_from_file (nasm_file_name, target_dnn);
-    // if (target_nasm == NULL)
-    // {
-    //     printf ("Unable to load ASPEN graph file %s\n", nasm_file_name);
-    //     exit (1);
-    // }
+    nasm_t *target_nasm = apu_load_nasm_from_file (nasm_file_name, target_dnn);
+    if (target_nasm == NULL)
+    {
+        printf ("Unable to load ASPEN graph file %s\n", nasm_file_name);
+        exit (1);
+    }
   
     // 3. Initialize the ASPEN DSEs and Ready Pool
 

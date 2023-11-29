@@ -390,7 +390,7 @@ void dse_group_nasm_export_heft_data (dse_group_t *dse_group, nasm_t *nasm, char
                 {
                     printed = 0;
                     fprintf (fp, "%ld ", ninst->tile_dims[OUT_H] * ninst->tile_dims[OUT_W] * sizeof(float) 
-                        /7  + 5000);
+                        /12  + 800);
                     break;
                 }
             }
