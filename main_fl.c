@@ -42,12 +42,15 @@ int main (int argc, char **argv)
     int control_ports[4] = {NULL, 24003, 24004, 24005};
 
     char target_aspen1[] = "data/resnet50_base.aspen";
-    char target_aspen2[] = "data/vgg16_base.aspen";
+    char target_aspen2[] = "data/bert_base.aspen";
     char target_aspen3[] = "data/vgg16_base.aspen";
 
     char nasm_file_name1[] = "data/resnet50_B1_T200.nasm";
-    char nasm_file_name2[] = "data/vgg16_B1_T200.nasm";
+    char nasm_file_name2[] = "data/bert_base_B1_T20.nasm";
     char nasm_file_name3[] = "data/vgg16_B1_T200.nasm";
+
+    nasm_t *target_nasm1, *target_nasm2, *target_nasm3;
+    rpool_t *rpool1, *rpool2, *rpool3;
 
     char* server_ip = "127.0.0.1";
 
@@ -82,9 +85,9 @@ int main (int argc, char **argv)
             aspen_dnn_t *target_dnn1 = apu_load_dnn_from_file (target_aspen1);
             aspen_dnn_t *target_dnn2 = apu_load_dnn_from_file (target_aspen2);
             aspen_dnn_t *target_dnn3 = apu_load_dnn_from_file (target_aspen3);
-            nasm_t *target_nasm1 = apu_load_nasm_from_file (nasm_file_name1, target_dnn1);
-            nasm_t *target_nasm2 = apu_load_nasm_from_file (nasm_file_name2, target_dnn2);
-            nasm_t *target_nasm3 = apu_load_nasm_from_file (nasm_file_name3, target_dnn3);
+            target_nasm1 = apu_load_nasm_from_file (nasm_file_name1, target_dnn1);
+            target_nasm2 = apu_load_nasm_from_file (nasm_file_name2, target_dnn2);
+            target_nasm3 = apu_load_nasm_from_file (nasm_file_name3, target_dnn3);
             if (target_dnn1 == NULL || target_dnn2 == NULL || target_dnn3 == NULL)
             {
                 printf ("Unable to load dnn file\n");
@@ -180,7 +183,7 @@ int main (int argc, char **argv)
 
             /* BASIC MODULES */
 
-            rpool_t *rpool1 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
+            rpool1 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
             dse_group_t *dse_group1 = dse_group_init (num_cores, gpu_idx);
             dse_group_set_rpool (dse_group1, rpool1);
             dse_group_set_device_mode (dse_group1, dev_mode);
@@ -329,7 +332,7 @@ int main (int argc, char **argv)
 
             /* BASIC MODULES */
 
-            rpool_t *rpool2 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
+            rpool2 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
             dse_group_t *dse_group2 = dse_group_init (num_cores, gpu_idx);
             dse_group_set_rpool (dse_group2, rpool2);
             dse_group_set_device_mode (dse_group2, dev_mode);
@@ -385,11 +388,10 @@ int main (int argc, char **argv)
             if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
             {
                 net_engine2 = init_networking(target_nasm2, rpool2, dev_mode, server_ip, server_port2, 0, 1);
-                net_engine2->is_fl_offloading = 1;
                 dse_group_set_net_engine(dse_group2, net_engine2);
                 dse_group_set_device(dse_group2, dev_mode);
                 net_engine2->dse_group = dse_group2;
-                net_engine_set_operating_mode(net_engine2, OPER_MODE_FL_PATH);
+                net_engine_set_operating_mode(net_engine2, OPER_MODE_DEFAULT);
             }
 
             PRTF ("Running %d iterations\n", number_of_iterations);
@@ -399,9 +401,7 @@ int main (int argc, char **argv)
                 net_engine_run(net_engine2);
                 rpool_reset_queue (rpool2);
                 apu_reset_nasm(target_nasm2);
-                dse_group_set_operating_mode(dse_group2, OPER_MODE_FL_PATH);
-                if (dev_mode == DEV_EDGE) fl_push_path_ninsts_edge(rpool2, target_nasm2->path_ptr_arr[0]);
-                else if (dev_mode == DEV_LOCAL) fl_push_path_ninsts(rpool2, target_nasm2->path_ptr_arr[0]);
+                dse_group_set_operating_mode(dse_group2, OPER_MODE_DEFAULT);
                 dse_group_run (dse_group2);
                 dse_wait_for_nasm_completion (target_nasm2);
 
@@ -410,7 +410,7 @@ int main (int argc, char **argv)
                     while (tx_remaining > 0) tx_remaining = atomic_load(&net_engine2->rpool->num_stored);
                     net_engine_wait_for_tx_queue_completion(net_engine2);
                     net_engine_reset(net_engine2);
-                    net_engine_set_operating_mode(net_engine2, OPER_MODE_FL_PATH);
+                    net_engine_set_operating_mode(net_engine2, OPER_MODE_DEFAULT);
                 }
                 dse_group_stop (dse_group2);
                 if (dev_mode != DEV_LOCAL) net_engine_stop (net_engine2);
@@ -428,28 +428,6 @@ int main (int argc, char **argv)
             printf ("%lf\n", (end_time - start_time)/number_of_iterations);
             #endif
 
-            if (strcmp(dnn, "bert_base") != 0 && strcmp(dnn, "yolov3") != 0)
-            {
-                LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
-                float *layer_output = dse_get_nasm_result (target_nasm2, output_order);
-                float *softmax_output = calloc (1000*batch_size, sizeof(float));
-                softmax (layer_output, softmax_output, batch_size, 1000);
-                for (int i = 0; i < batch_size; i++)
-                {
-                    #ifndef SUPPRESS_OUTPUT
-                    get_prob_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
-                    #endif
-                }
-                free (layer_output);
-                free (softmax_output);
-            }
-            else if (strcmp(dnn, "yolov3") == 0)
-            {
-                int last_ldata_intsum = get_ldata_intsum(&target_nasm2->ldata_arr[target_nasm2->num_ldata - 1]);
-                #ifndef SUPPRESS_OUTPUT
-                printf("last layer intsum: %d\n", last_ldata_intsum);
-                #endif
-            }
 
             /* WRAP UP */
             fl_destroy_nasm_path(target_nasm2);
@@ -551,7 +529,7 @@ int main (int argc, char **argv)
 
             /* BASIC MODULES */
 
-            rpool_t *rpool3 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
+            rpool3 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
             dse_group_t *dse_group3 = dse_group_init (num_cores, gpu_idx);
             dse_group_set_rpool (dse_group3, rpool3);
             dse_group_set_device_mode (dse_group3, dev_mode);
@@ -700,7 +678,7 @@ int main (int argc, char **argv)
                 printf ("Unable to load dnn file\n");
                 exit (0);
             }
-            nasm_t *target_nasm1 = apu_load_nasm_from_file (nasm_file_name1, target_dnn1);
+            target_nasm1 = apu_load_nasm_from_file (nasm_file_name1, target_dnn1);
             if (target_nasm1 == NULL)
             {
                 printf ("Unable to load nasm file\n");
@@ -790,7 +768,7 @@ int main (int argc, char **argv)
 
             /* BASIC MODULES */
 
-            rpool_t *rpool1 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
+            rpool1 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
             dse_group_t *dse_group1 = dse_group_init (num_cores, gpu_idx);
             dse_group_set_rpool (dse_group1, rpool1);
             dse_group_set_device_mode (dse_group1, dev_mode);
@@ -938,7 +916,7 @@ int main (int argc, char **argv)
                 printf ("Unable to load dnn file\n");
                 exit (0);
             }
-            nasm_t *target_nasm2 = apu_load_nasm_from_file (nasm_file_name2, target_dnn2);
+            target_nasm2 = apu_load_nasm_from_file (nasm_file_name2, target_dnn2);
             if (target_nasm2 == NULL)
             {
                 printf ("Unable to load nasm file\n");
@@ -954,7 +932,7 @@ int main (int argc, char **argv)
 
             /* BASIC MODULES */
 
-            rpool_t *rpool2 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
+            rpool2 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
             dse_group_t *dse_group2 = dse_group_init (num_cores, gpu_idx);
             dse_group_set_rpool (dse_group2, rpool2);
             dse_group_set_device_mode (dse_group2, dev_mode);
@@ -1010,12 +988,13 @@ int main (int argc, char **argv)
             if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
             {
                 net_engine2 = init_networking(target_nasm2, rpool2, dev_mode, server_ip, server_port2, 0, 1);
-                net_engine2->is_fl_offloading = 1;
                 dse_group_set_net_engine(dse_group2, net_engine2);
                 dse_group_set_device(dse_group2, dev_mode);
                 net_engine2->dse_group = dse_group2;
-                net_engine_set_operating_mode(net_engine2, OPER_MODE_FL_PATH);
+                net_engine_set_operating_mode(net_engine2, OPER_MODE_DEFAULT);
             }
+
+            init_sequential_offload(target_nasm2, 1, 1, 0);
 
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
@@ -1024,9 +1003,9 @@ int main (int argc, char **argv)
                 net_engine_run(net_engine2);
                 rpool_reset_queue (rpool2);
                 apu_reset_nasm(target_nasm2);
-                dse_group_set_operating_mode(dse_group2, OPER_MODE_FL_PATH);
-                if (dev_mode == DEV_EDGE) fl_push_path_ninsts_edge(rpool2, target_nasm2->path_ptr_arr[0]);
-                else if (dev_mode == DEV_LOCAL) fl_push_path_ninsts(rpool2, target_nasm2->path_ptr_arr[0]);
+
+                push_first_layer_to_net_queue(net_engine2, target_nasm2, NULL);
+                dse_group_set_operating_mode(dse_group2, OPER_MODE_DEFAULT);
                 dse_group_run (dse_group2);
                 dse_wait_for_nasm_completion (target_nasm2);
 
@@ -1035,7 +1014,7 @@ int main (int argc, char **argv)
                     while (tx_remaining > 0) tx_remaining = atomic_load(&net_engine2->rpool->num_stored);
                     net_engine_wait_for_tx_queue_completion(net_engine2);
                     net_engine_reset(net_engine2);
-                    net_engine_set_operating_mode(net_engine2, OPER_MODE_FL_PATH);
+                    net_engine_set_operating_mode(net_engine2, OPER_MODE_DEFAULT);
                 }
                 dse_group_stop (dse_group2);
                 if (dev_mode != DEV_LOCAL) net_engine_stop (net_engine2);
@@ -1052,29 +1031,6 @@ int main (int argc, char **argv)
             #else
             printf ("%lf\n", (end_time - start_time)/number_of_iterations);
             #endif
-
-            if (strcmp(dnn, "bert_base") != 0 && strcmp(dnn, "yolov3") != 0)
-            {
-                LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
-                float *layer_output = dse_get_nasm_result (target_nasm2, output_order);
-                float *softmax_output = calloc (1000*batch_size, sizeof(float));
-                softmax (layer_output, softmax_output, batch_size, 1000);
-                for (int i = 0; i < batch_size; i++)
-                {
-                    #ifndef SUPPRESS_OUTPUT
-                    get_prob_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
-                    #endif
-                }
-                free (layer_output);
-                free (softmax_output);
-            }
-            else if (strcmp(dnn, "yolov3") == 0)
-            {
-                int last_ldata_intsum = get_ldata_intsum(&target_nasm2->ldata_arr[target_nasm2->num_ldata - 1]);
-                #ifndef SUPPRESS_OUTPUT
-                printf("last layer intsum: %d\n", last_ldata_intsum);
-                #endif
-            }
 
             /* WRAP UP */
             fl_destroy_nasm_path(target_nasm2);
@@ -1103,7 +1059,7 @@ int main (int argc, char **argv)
                 printf ("Unable to load dnn file\n");
                 exit (0);
             }
-            nasm_t *target_nasm3 = apu_load_nasm_from_file (nasm_file_name3, target_dnn3);
+            target_nasm3 = apu_load_nasm_from_file (nasm_file_name3, target_dnn3);
             if (target_nasm3 == NULL)
             {
                 printf ("Unable to load nasm file\n");
@@ -1191,7 +1147,7 @@ int main (int argc, char **argv)
 
             /* BASIC MODULES */
 
-            rpool_t *rpool3 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
+            rpool3 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
             dse_group_t *dse_group3 = dse_group_init (num_cores, gpu_idx);
             dse_group_set_rpool (dse_group3, rpool3);
             dse_group_set_device_mode (dse_group3, dev_mode);

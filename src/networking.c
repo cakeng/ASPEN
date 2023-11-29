@@ -395,18 +395,18 @@ void receive(networking_engine *net_engine)
             #ifdef DEBUG
             printf("receive: target ninst is N %d\n", target_ninst->ninst_idx);
             #endif
-            if (!is_inference_whitelist(net_engine, inference_id) && !net_engine->is_fl_offloading)
-            {
-                // printf("not whitelist.\n");
-                buffer_ptr += data_size;
-                continue;
-            }
-            if (atomic_exchange (&target_ninst->state, NINST_COMPLETED) == NINST_COMPLETED) 
-            {
-                // printf("already complete.\n");
-                buffer_ptr += data_size;
-                continue;
-            }
+            // if (!is_inference_whitelist(net_engine, inference_id) && !net_engine->is_fl_offloading)
+            // {
+            //     printf("not whitelist.\n");
+            //     buffer_ptr += data_size;
+            //     continue;
+            // }
+            // if (atomic_exchange (&target_ninst->state, NINST_COMPLETED) == NINST_COMPLETED) 
+            // {
+            //     printf("already complete.\n");
+            //     buffer_ptr += data_size;
+            //     continue;
+            // }
             #ifdef DEBUG
             if (data_size != target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float))
             {
@@ -1262,9 +1262,9 @@ void net_engine_add_input_rpool_reverse (networking_engine *net_engine, nasm_t* 
             if (i == net_engine->device_idx) continue;
             if (ninst->dev_send_target[i]) 
             {
-                printf ("\tninst idx %d (L%d), target device: %d, current device: %d, desired device %d\n", 
-                ninst->ninst_idx, ninst->ldata->layer->layer_idx, i, net_engine->device_idx,
-                ninst->dev_send_target[i]);
+                // printf ("\tninst idx %d (L%d), target device: %d, current device: %d, desired device %d\n", 
+                // ninst->ninst_idx, ninst->ldata->layer->layer_idx, i, net_engine->device_idx,
+                // ninst->dev_send_target[i]);
                 create_network_buffer_for_ninst (ninst);
                 pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
                 // push_ninsts_to_net_queue(net_engine->tx_queue, &ninst, 1);
@@ -1278,4 +1278,28 @@ void net_engine_add_input_rpool_reverse (networking_engine *net_engine, nasm_t* 
 
 void net_engine_set_operating_mode(networking_engine *net_engine, int operating_mode) {
     net_engine->operating_mode = operating_mode;
+}
+
+void push_first_layer_to_net_queue (networking_engine *net_engine, nasm_t *nasm, void *input_data) {
+    nasm_ldata_t *ldata = &nasm->ldata_arr[0];
+    alloc_ldata_out_mat (ldata);
+    if (input_data != NULL)
+        copy_buffer_to_ldata_out_mat (ldata, input_data);
+    for (int i = 0; i < ldata->num_ninst; i++)
+    {
+        ninst_t *ninst = &ldata->ninst_arr_start[i];
+        if (ninst->state != NINST_NOT_READY)
+        {
+            ERROR_PRTF ("Error: ninst->state != NINST_NOT_READY in dse_push_first_layer_to_rpool()\n");
+            assert (0);
+        }
+        ninst->state = NINST_COMPLETED;
+        atomic_fetch_add (&ninst->ldata->num_ninst_completed , 1);
+        
+        create_network_buffer_for_ninst (ninst);
+        pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
+        push_ninsts_to_priority_net_queue(net_engine->tx_queue, &ninst, 1);                
+        pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
+    }
+    atomic_fetch_add (&nasm->num_ldata_completed, 1);
 }
