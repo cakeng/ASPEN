@@ -8,7 +8,7 @@ source ./scripts/param_fl.sh
 
 if [ ${1} -eq 0 ] ; then
     NUM_CORES=${NUM_CORES_SERVER}
-elif [ ${1} -eq 1 ] ; then
+elif [ ${1} -gt 0 ] ; then
     NUM_CORES=${NUM_CORES_EDGE}
 fi
 

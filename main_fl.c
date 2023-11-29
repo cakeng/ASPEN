@@ -74,13 +74,6 @@ int main (int argc, char **argv)
     if (dev_mode == DEV_SERVER) {
 
         {
-            const int server_port1 = server_ports[1];
-            const int control_port1 = control_ports[1];
-            const int server_port2 = server_ports[2];
-            const int control_port2 = control_ports[2];
-            const int server_port3 = server_ports[3];
-            const int control_port3 = control_ports[3];
-
             /* NASM PREPARATION */
             aspen_dnn_t *target_dnn1 = apu_load_dnn_from_file (target_aspen1);
             aspen_dnn_t *target_dnn2 = apu_load_dnn_from_file (target_aspen2);
@@ -107,11 +100,12 @@ int main (int argc, char **argv)
             nasm_t *test_nasm1 = apu_load_nasm_from_file (nasm_file_name1, target_dnn1);
 
             
-            create_connection(dev_mode, server_ip, control_port1, &server_sock1, &client_sock1);
+            create_connection(dev_mode, server_ip, control_ports[1], &server_sock1, &client_sock1);
 
             float *server_elapsed_times1 = (float *)calloc(test_nasm1->num_ninst, sizeof(float));
             float *edge_elapsed_times1 = (float *)calloc(test_nasm1->num_ninst, sizeof(float));
             network_profile_t **network_profile1 = (network_profile_t **)calloc(1, sizeof(network_profile_t *));
+
             profile_comp_and_net(
                 test_nasm1, num_cores, dev_mode, server_sock1, client_sock1,
                 server_elapsed_times1, edge_elapsed_times1, network_profile1
@@ -194,6 +188,26 @@ int main (int argc, char **argv)
             rpool_add_nasm (rpool1, target_nasm1, "data/batched_input_128.bin");
 
 
+            rpool2 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
+            dse_group_t *dse_group2 = dse_group_init (num_cores, gpu_idx);
+            dse_group_set_rpool (dse_group2, rpool2);
+            dse_group_set_device_mode (dse_group2, dev_mode);
+            dse_group_set_device (dse_group2, 0);
+            dse_group_set_num_edge_devices (dse_group2, 2);
+            networking_engine* net_engine2 = NULL;
+
+
+            rpool3 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
+            dse_group_t *dse_group3 = dse_group_init (num_cores, gpu_idx);
+            dse_group_set_rpool (dse_group3, rpool3);
+            dse_group_set_device_mode (dse_group3, dev_mode);
+            dse_group_set_device (dse_group3, 0);
+            dse_group_set_num_edge_devices (dse_group3, 2);
+            networking_engine* net_engine3 = NULL;
+
+            rpool_add_nasm (rpool3, target_nasm3, "data/batched_input_128.bin");
+
+
             /* FL PATH CREATION */
 
             unsigned int num_last_layer_ninst1 = target_nasm1->ldata_arr[fl_split_layer_idx].num_ninst;
@@ -238,7 +252,7 @@ int main (int argc, char **argv)
             // Networking
             if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
             {
-                net_engine1 = init_networking(target_nasm1, rpool1, dev_mode, server_ip, server_port1, 0, 1);
+                net_engine1 = init_networking(target_nasm1, rpool1, dev_mode, server_ip, server_ports[1], 0, 1);
                 net_engine1->is_fl_offloading = 1;
                 dse_group_set_net_engine(dse_group1, net_engine1);
                 dse_group_set_device(dse_group1, dev_mode);
@@ -246,6 +260,7 @@ int main (int argc, char **argv)
                 net_engine_set_operating_mode(net_engine1, OPER_MODE_FL_PATH);
             }
 
+            /* INFERENCE */
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
             for (int i = 0; i < number_of_iterations; i++)
@@ -320,26 +335,6 @@ int main (int argc, char **argv)
             //       WORKLOAD 2       //
             ////////////////////////////
 
-
-            /* PROFILING */
-
-            fl_split_layer_idx = 1;
-            fl_num_path = 1;
-            fl_path_offloading_idx[0] = 0;
-            fl_path_offloading_idx[1] = 0;
-
-
-
-            /* BASIC MODULES */
-
-            rpool2 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
-            dse_group_t *dse_group2 = dse_group_init (num_cores, gpu_idx);
-            dse_group_set_rpool (dse_group2, rpool2);
-            dse_group_set_device_mode (dse_group2, dev_mode);
-            dse_group_set_device (dse_group2, 0);
-            dse_group_set_num_edge_devices (dse_group2, 2);
-            networking_engine* net_engine2 = NULL;
-
             rpool_add_nasm (rpool2, target_nasm2, "data/batched_input_128.bin");
 
 
@@ -387,13 +382,15 @@ int main (int argc, char **argv)
             // Networking
             if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
             {
-                net_engine2 = init_networking(target_nasm2, rpool2, dev_mode, server_ip, server_port2, 0, 1);
+                net_engine2 = init_networking(target_nasm2, rpool2, dev_mode, server_ip, server_ports[2], 0, 1);
                 dse_group_set_net_engine(dse_group2, net_engine2);
                 dse_group_set_device(dse_group2, dev_mode);
                 net_engine2->dse_group = dse_group2;
                 net_engine_set_operating_mode(net_engine2, OPER_MODE_DEFAULT);
             }
 
+
+            /* INFERENCE */
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
             for (int i = 0; i < number_of_iterations; i++)
@@ -453,7 +450,7 @@ int main (int argc, char **argv)
             int server_sock3 = -1, client_sock3 = -1;
             nasm_t *test_nasm3 = apu_load_nasm_from_file (nasm_file_name3, target_dnn3);
             
-            create_connection(dev_mode, server_ip, control_port3, &server_sock3, &client_sock3);
+            create_connection(dev_mode, server_ip, control_ports[3], &server_sock3, &client_sock3);
 
             float *server_elapsed_times3 = (float *)calloc(test_nasm3->num_ninst, sizeof(float));
             float *edge_elapsed_times3 = (float *)calloc(test_nasm3->num_ninst, sizeof(float));
@@ -526,20 +523,6 @@ int main (int argc, char **argv)
             #endif
 
 
-
-            /* BASIC MODULES */
-
-            rpool3 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
-            dse_group_t *dse_group3 = dse_group_init (num_cores, gpu_idx);
-            dse_group_set_rpool (dse_group3, rpool3);
-            dse_group_set_device_mode (dse_group3, dev_mode);
-            dse_group_set_device (dse_group3, 0);
-            dse_group_set_num_edge_devices (dse_group3, 2);
-            networking_engine* net_engine3 = NULL;
-
-            rpool_add_nasm (rpool3, target_nasm3, "data/batched_input_128.bin");
-
-
             /* FL PATH CREATION */
 
             unsigned int num_last_layer_ninst3 = target_nasm3->ldata_arr[fl_split_layer_idx].num_ninst;
@@ -584,7 +567,7 @@ int main (int argc, char **argv)
             // Networking
             if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
             {
-                net_engine3 = init_networking(target_nasm3, rpool3, dev_mode, server_ip, server_port3, 0, 1);
+                net_engine3 = init_networking(target_nasm3, rpool3, dev_mode, server_ip, server_ports[3], 0, 1);
                 net_engine3->is_fl_offloading = 1;
                 dse_group_set_net_engine(dse_group3, net_engine3);
                 dse_group_set_device(dse_group3, dev_mode);
@@ -592,6 +575,8 @@ int main (int argc, char **argv)
                 net_engine_set_operating_mode(net_engine3, OPER_MODE_FL_PATH);
             }
 
+
+            /* INFERENCE */
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
             for (int i = 0; i < number_of_iterations; i++)
@@ -667,7 +652,7 @@ int main (int argc, char **argv)
         ////////////////////////////
         //       WORKLOAD 1       //
         ////////////////////////////
-        {
+        if (dev_idx == 1) {
             const int server_port1 = server_ports[1];
             const int control_port1 = control_ports[1];
 
@@ -905,7 +890,7 @@ int main (int argc, char **argv)
         ////////////////////////////
         //       WORKLOAD 2       //
         ////////////////////////////
-        {
+        else if (dev_idx == 2) {
             const int server_port2 = server_ports[2];
             const int control_port2 = control_ports[2];
 
@@ -1048,7 +1033,7 @@ int main (int argc, char **argv)
         ////////////////////////////
         //       WORKLOAD 3       //
         ////////////////////////////
-        {
+        if (dev_idx == 3) {
             const int server_port3 = server_ports[3];
             const int control_port3 = control_ports[3];
 
