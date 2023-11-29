@@ -110,5 +110,6 @@ void net_engine_add_input_rpool (networking_engine *net_engine, nasm_t* nasm, ch
 void net_engine_add_input_rpool_reverse (networking_engine *net_engine, nasm_t* nasm, char *input_filename);
 void net_engine_destroy(networking_engine* net_engine);
 void net_engine_set_operating_mode(networking_engine *net_engine, int operating_mode);
+void push_first_layer_to_net_queue (networking_engine *net_engine, nasm_t *nasm, void *input_data);
 
 #endif /* _NETWORKING_ */
