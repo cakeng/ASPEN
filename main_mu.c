@@ -649,8 +649,8 @@ int main(int argc, char **argv)
                     min_computed_time = get_min_computed_time(target_nasm[edge_id]);
                     max_recv_time = get_max_recv_time(target_nasm[edge_id]);
                     
-                    if((max_computed_time - min_computed_time) > 0)
-                        prev_server_latency = max_computed_time - min_computed_time;
+                    // if((max_computed_time - min_computed_time) > 0)
+                    prev_server_latency = max_computed_time - min_computed_time;
 
                     write_n(client_sock_arr[edge_id], &prev_server_latency, sizeof(float));
                     write_n(client_sock_arr[edge_id], &max_recv_time, sizeof(double));
@@ -662,8 +662,8 @@ int main(int argc, char **argv)
                     
                     min_sent_time = get_min_sent_time(target_nasm[edge_id]);                    
                     
-                    if((max_computed_time - min_computed_time) > 0)
-                        prev_edge_latency = max_computed_time - min_computed_time;
+                    // if((max_computed_time - min_computed_time) > 0)
+                    prev_edge_latency = max_computed_time - min_computed_time;
                     
                     read_n(server_sock, &prev_server_latency, sizeof(float));
                     read_n(server_sock, &max_recv_time, sizeof(double));
