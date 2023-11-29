@@ -8,7 +8,7 @@
 
 #define SCHEDULE_MAX_CORE           64
 
-#define FL_LIMIT_NUM_PATH           16
+#define FL_LIMIT_NUM_PATH           10
 #define FL_LIMIT_SPLIT_LAYER_IDX    2
 
 #include "nasm.h"
