@@ -14,12 +14,10 @@ fi
 
 if [ "$#" -gt 1 ] ; then
     gdb --args ./main_fl \
-        $DNN $BATCH_SIZE $NUM_TILES $NUM_ITER $NUM_CORES $1 \
-        $FL_LAST_LAYER $FL_NUM_PATH $FL_PATH_OFFLOAD_IDX
+        $DNN $NUM_ITER $NUM_CORES $1
 else
     ./main_fl \
-        $DNN $BATCH_SIZE $NUM_TILES $NUM_ITER $NUM_CORES $1 \
-        $FL_LAST_LAYER $FL_NUM_PATH $FL_PATH_OFFLOAD_IDX
+        $DNN $NUM_ITER $NUM_CORES $1
 fi
 
 ./main_fl asd $DNN $BATCH_SIZE $NUM_TILES $NUM_ITER $NUM_CORES $1 $FL_LAST_LAYER $FL_NUM_PATH $FL_PATH_OFFLOAD_IDX

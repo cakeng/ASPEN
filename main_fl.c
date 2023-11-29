@@ -26,12 +26,12 @@ int main (int argc, char **argv)
     #endif
     
     char dnn[256] = {0};
-    int batch_size = 4;
+    int batch_size = 1;
     int number_of_iterations = 1;
     int num_cores = 1;
-    int num_tiles = 50;
     int gpu_idx = -1;
     int dev_mode = -1;
+    int dev_idx = -1;
     int fl_split_layer_idx = -1;
     int fl_num_path = -1;
     int fl_path_offloading_idx[2048];
@@ -51,49 +51,20 @@ int main (int argc, char **argv)
 
     char* server_ip = "127.0.0.1";
 
-    if (argc == 8) {
-        dirname = argv[1];
-        strcpy (dnn, argv[2]);
-        batch_size = atoi (argv[3]);
-        num_tiles = atoi (argv[4]);
-        number_of_iterations = atoi (argv[5]);
-        num_cores = atoi (argv[6]);
-        dev_mode = atoi (argv[7]);
+    if (argc == 5) {
+        strcpy (dnn, argv[1]);
+        number_of_iterations = atoi (argv[2]);
+        num_cores = atoi (argv[3]);
+        dev_idx = atoi (argv[4]);
+        dev_mode = dev_idx < 1 ? DEV_SERVER : DEV_EDGE;
 
         PRTF("Find FL params automatically\n");
     }
-    else if (argc > 10)
-    {
-        dirname = argv[1];
-        strcpy (dnn, argv[2]);
-        batch_size = atoi (argv[3]);
-        num_tiles = atoi (argv[4]);
-        number_of_iterations = atoi (argv[5]);
-        num_cores = atoi (argv[6]);
-        dev_mode = atoi (argv[7]);
-        fl_split_layer_idx = atoi (argv[8]);
-        fl_num_path = atoi (argv[9]);
-        for (int i=0; i<fl_num_path; i++) {
-            fl_path_offloading_idx[i] = atoi (argv[10+i]);
-        }
-    }
     else
     {
-        printf ("Usage: %s <dirname> <dnn> <batch_size> <num_tiles> <number_of_iterations> <num_cores> <dev_mode> <fl_last_layer> <fl_num_path> <fl_path_offloading_idx1> ...\n", argv[0]);
+        printf ("Usage: %s <dnn> <number_of_iterations> <num_cores> <dev_idx>\n", argv[0]);
         exit (0);
     }
-
-    char target_cfg[1024] = {0};
-    if (strcmp(dnn, "bert_base") != 0)
-        sprintf (target_cfg, "data/cfg/%s_aspen.cfg", dnn);
-    else
-        sprintf (target_cfg, "data/cfg/%s_encoder.cfg", dnn);
-    char target_data[1024] = {0};
-    sprintf (target_data, "data/%s_data.bin", dnn);
-    char target_aspen[1024] = {0};
-    sprintf (target_aspen, "data/%s_base.aspen", dnn);
-    char nasm_file_name [1024] = {0};
-    sprintf (nasm_file_name, "data/%s_B%d_T%d.nasm", dnn, batch_size, num_tiles);
 
     double start_time, end_time;
 
@@ -368,61 +339,57 @@ int main (int argc, char **argv)
 
             float min_eta2 = -1;
             while (min_eta2 < 0) {
-
-                while (min_eta2 < 0) {
-                    // Synchronize pipelining params
-                    int server_num_dse2 = 0, edge_num_dse2 = 0;
-                    if (dev_mode == DEV_SERVER) {
-                        write_n(client_sock2, &num_cores, sizeof(int));
-                        read_n(client_sock2, &edge_num_dse2, sizeof(int));
-                        server_num_dse2 = num_cores;
-                    }
-                    else if (dev_mode == DEV_EDGE) {
-                        read_n(server_sock2, &server_num_dse2, sizeof(int));
-                        write_n(server_sock2, &num_cores, sizeof(int));
-                        edge_num_dse2 = num_cores;
-                    }
-
-                    // Schedule FL
-
-                    if (dev_mode == DEV_SERVER) {
-                        min_eta2 = fl_schedule_bruteforce(
-                            target_nasm2, server_num_dse2, server_elapsed_times2, edge_num_dse2, edge_elapsed_times2, *network_profile2,
-                            &fl_split_layer_idx, &fl_num_path, fl_path_offloading_idx
-                        );
-                    }
-
-                    // Synchronize FL params
-                    if (dev_mode == DEV_SERVER) {
-                        write_n(client_sock2, &fl_split_layer_idx, sizeof(int));
-                        write_n(client_sock2, &fl_num_path, sizeof(int));
-                        write_n(client_sock2, fl_path_offloading_idx, sizeof(int) * fl_num_path);
-                        write_n(client_sock2, &min_eta2, sizeof(float));
-                    }
-                    else if (dev_mode == DEV_EDGE) {
-                        read_n(server_sock2, &fl_split_layer_idx, sizeof(int));
-                        read_n(server_sock2, &fl_num_path, sizeof(int));
-                        read_n(server_sock2, fl_path_offloading_idx, sizeof(int) * fl_num_path);
-                        read_n(server_sock2, &min_eta2, sizeof(float));
-                    }
-
-                    free(server_elapsed_times2);
-                    free(edge_elapsed_times2);
-                    free(*network_profile2);
-                    free(network_profile2);
-                    apu_destroy_nasm(test_nasm2);
-
-                    if (server_sock2 != -1) close(server_sock2);
-                    if (client_sock2 != -1) close(client_sock2);
-                
-                    #ifdef DEBUG
-                    printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta2);
-                    for (int i=0; i<fl_num_path; i++) {
-                        printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
-                    }
-                    #endif
-
+                // Synchronize pipelining params
+                int server_num_dse2 = 0, edge_num_dse2 = 0;
+                if (dev_mode == DEV_SERVER) {
+                    write_n(client_sock2, &num_cores, sizeof(int));
+                    read_n(client_sock2, &edge_num_dse2, sizeof(int));
+                    server_num_dse2 = num_cores;
                 }
+                else if (dev_mode == DEV_EDGE) {
+                    read_n(server_sock2, &server_num_dse2, sizeof(int));
+                    write_n(server_sock2, &num_cores, sizeof(int));
+                    edge_num_dse2 = num_cores;
+                }
+
+                // Schedule FL
+
+                if (dev_mode == DEV_SERVER) {
+                    min_eta2 = fl_schedule_bruteforce(
+                        target_nasm2, server_num_dse2, server_elapsed_times2, edge_num_dse2, edge_elapsed_times2, *network_profile2,
+                        &fl_split_layer_idx, &fl_num_path, fl_path_offloading_idx
+                    );
+                }
+
+                // Synchronize FL params
+                if (dev_mode == DEV_SERVER) {
+                    write_n(client_sock2, &fl_split_layer_idx, sizeof(int));
+                    write_n(client_sock2, &fl_num_path, sizeof(int));
+                    write_n(client_sock2, fl_path_offloading_idx, sizeof(int) * fl_num_path);
+                    write_n(client_sock2, &min_eta2, sizeof(float));
+                }
+                else if (dev_mode == DEV_EDGE) {
+                    read_n(server_sock2, &fl_split_layer_idx, sizeof(int));
+                    read_n(server_sock2, &fl_num_path, sizeof(int));
+                    read_n(server_sock2, fl_path_offloading_idx, sizeof(int) * fl_num_path);
+                    read_n(server_sock2, &min_eta2, sizeof(float));
+                }
+
+                free(server_elapsed_times2);
+                free(edge_elapsed_times2);
+                free(*network_profile2);
+                free(network_profile2);
+                apu_destroy_nasm(test_nasm2);
+
+                if (server_sock2 != -1) close(server_sock2);
+                if (client_sock2 != -1) close(client_sock2);
+            
+                #ifdef DEBUG
+                printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta2);
+                for (int i=0; i<fl_num_path; i++) {
+                    printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
+                }
+                #endif
 
             }
 
@@ -609,61 +576,57 @@ int main (int argc, char **argv)
 
             float min_eta3 = -1;
             while (min_eta3 < 0) {
-
-                while (min_eta3 < 0) {
-                    // Synchronize pipelining params
-                    int server_num_dse3 = 0, edge_num_dse3 = 0;
-                    if (dev_mode == DEV_SERVER) {
-                        write_n(client_sock3, &num_cores, sizeof(int));
-                        read_n(client_sock3, &edge_num_dse3, sizeof(int));
-                        server_num_dse3 = num_cores;
-                    }
-                    else if (dev_mode == DEV_EDGE) {
-                        read_n(server_sock3, &server_num_dse3, sizeof(int));
-                        write_n(server_sock3, &num_cores, sizeof(int));
-                        edge_num_dse3 = num_cores;
-                    }
-
-                    // Schedule FL
-
-                    if (dev_mode == DEV_SERVER) {
-                        min_eta3 = fl_schedule_bruteforce(
-                            target_nasm3, server_num_dse3, server_elapsed_times3, edge_num_dse3, edge_elapsed_times3, *network_profile3,
-                            &fl_split_layer_idx, &fl_num_path, fl_path_offloading_idx
-                        );
-                    }
-
-                    // Synchronize FL params
-                    if (dev_mode == DEV_SERVER) {
-                        write_n(client_sock3, &fl_split_layer_idx, sizeof(int));
-                        write_n(client_sock3, &fl_num_path, sizeof(int));
-                        write_n(client_sock3, fl_path_offloading_idx, sizeof(int) * fl_num_path);
-                        write_n(client_sock3, &min_eta3, sizeof(float));
-                    }
-                    else if (dev_mode == DEV_EDGE) {
-                        read_n(server_sock3, &fl_split_layer_idx, sizeof(int));
-                        read_n(server_sock3, &fl_num_path, sizeof(int));
-                        read_n(server_sock3, fl_path_offloading_idx, sizeof(int) * fl_num_path);
-                        read_n(server_sock3, &min_eta3, sizeof(float));
-                    }
-
-                    free(server_elapsed_times3);
-                    free(edge_elapsed_times3);
-                    free(*network_profile3);
-                    free(network_profile3);
-                    apu_destroy_nasm(test_nasm3);
-
-                    if (server_sock3 != -1) close(server_sock3);
-                    if (client_sock3 != -1) close(client_sock3);
-                
-                    #ifdef DEBUG
-                    printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta3);
-                    for (int i=0; i<fl_num_path; i++) {
-                        printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
-                    }
-                    #endif
-
+                // Synchronize pipelining params
+                int server_num_dse3 = 0, edge_num_dse3 = 0;
+                if (dev_mode == DEV_SERVER) {
+                    write_n(client_sock3, &num_cores, sizeof(int));
+                    read_n(client_sock3, &edge_num_dse3, sizeof(int));
+                    server_num_dse3 = num_cores;
                 }
+                else if (dev_mode == DEV_EDGE) {
+                    read_n(server_sock3, &server_num_dse3, sizeof(int));
+                    write_n(server_sock3, &num_cores, sizeof(int));
+                    edge_num_dse3 = num_cores;
+                }
+
+                // Schedule FL
+
+                if (dev_mode == DEV_SERVER) {
+                    min_eta3 = fl_schedule_bruteforce(
+                        target_nasm3, server_num_dse3, server_elapsed_times3, edge_num_dse3, edge_elapsed_times3, *network_profile3,
+                        &fl_split_layer_idx, &fl_num_path, fl_path_offloading_idx
+                    );
+                }
+
+                // Synchronize FL params
+                if (dev_mode == DEV_SERVER) {
+                    write_n(client_sock3, &fl_split_layer_idx, sizeof(int));
+                    write_n(client_sock3, &fl_num_path, sizeof(int));
+                    write_n(client_sock3, fl_path_offloading_idx, sizeof(int) * fl_num_path);
+                    write_n(client_sock3, &min_eta3, sizeof(float));
+                }
+                else if (dev_mode == DEV_EDGE) {
+                    read_n(server_sock3, &fl_split_layer_idx, sizeof(int));
+                    read_n(server_sock3, &fl_num_path, sizeof(int));
+                    read_n(server_sock3, fl_path_offloading_idx, sizeof(int) * fl_num_path);
+                    read_n(server_sock3, &min_eta3, sizeof(float));
+                }
+
+                free(server_elapsed_times3);
+                free(edge_elapsed_times3);
+                free(*network_profile3);
+                free(network_profile3);
+                apu_destroy_nasm(test_nasm3);
+
+                if (server_sock3 != -1) close(server_sock3);
+                if (client_sock3 != -1) close(client_sock3);
+            
+                #ifdef DEBUG
+                printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta3);
+                for (int i=0; i<fl_num_path; i++) {
+                    printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
+                }
+                #endif
 
             }
 
@@ -1089,61 +1052,57 @@ int main (int argc, char **argv)
 
             float min_eta2 = -1;
             while (min_eta2 < 0) {
-
-                while (min_eta2 < 0) {
-                    // Synchronize pipelining params
-                    int server_num_dse2 = 0, edge_num_dse2 = 0;
-                    if (dev_mode == DEV_SERVER) {
-                        write_n(client_sock2, &num_cores, sizeof(int));
-                        read_n(client_sock2, &edge_num_dse2, sizeof(int));
-                        server_num_dse2 = num_cores;
-                    }
-                    else if (dev_mode == DEV_EDGE) {
-                        read_n(server_sock2, &server_num_dse2, sizeof(int));
-                        write_n(server_sock2, &num_cores, sizeof(int));
-                        edge_num_dse2 = num_cores;
-                    }
-
-                    // Schedule FL
-
-                    if (dev_mode == DEV_SERVER) {
-                        min_eta2 = fl_schedule_bruteforce(
-                            target_nasm2, server_num_dse2, server_elapsed_times2, edge_num_dse2, edge_elapsed_times2, *network_profile2,
-                            &fl_split_layer_idx, &fl_num_path, fl_path_offloading_idx
-                        );
-                    }
-
-                    // Synchronize FL params
-                    if (dev_mode == DEV_SERVER) {
-                        write_n(client_sock2, &fl_split_layer_idx, sizeof(int));
-                        write_n(client_sock2, &fl_num_path, sizeof(int));
-                        write_n(client_sock2, fl_path_offloading_idx, sizeof(int) * fl_num_path);
-                        write_n(client_sock2, &min_eta2, sizeof(float));
-                    }
-                    else if (dev_mode == DEV_EDGE) {
-                        read_n(server_sock2, &fl_split_layer_idx, sizeof(int));
-                        read_n(server_sock2, &fl_num_path, sizeof(int));
-                        read_n(server_sock2, fl_path_offloading_idx, sizeof(int) * fl_num_path);
-                        read_n(server_sock2, &min_eta2, sizeof(float));
-                    }
-
-                    free(server_elapsed_times2);
-                    free(edge_elapsed_times2);
-                    free(*network_profile2);
-                    free(network_profile2);
-                    apu_destroy_nasm(test_nasm2);
-
-                    if (server_sock2 != -1) close(server_sock2);
-                    if (client_sock2 != -1) close(client_sock2);
-                
-                    #ifdef DEBUG
-                    printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta2);
-                    for (int i=0; i<fl_num_path; i++) {
-                        printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
-                    }
-                    #endif
-
+                // Synchronize pipelining params
+                int server_num_dse2 = 0, edge_num_dse2 = 0;
+                if (dev_mode == DEV_SERVER) {
+                    write_n(client_sock2, &num_cores, sizeof(int));
+                    read_n(client_sock2, &edge_num_dse2, sizeof(int));
+                    server_num_dse2 = num_cores;
                 }
+                else if (dev_mode == DEV_EDGE) {
+                    read_n(server_sock2, &server_num_dse2, sizeof(int));
+                    write_n(server_sock2, &num_cores, sizeof(int));
+                    edge_num_dse2 = num_cores;
+                }
+
+                // Schedule FL
+
+                if (dev_mode == DEV_SERVER) {
+                    min_eta2 = fl_schedule_bruteforce(
+                        target_nasm2, server_num_dse2, server_elapsed_times2, edge_num_dse2, edge_elapsed_times2, *network_profile2,
+                        &fl_split_layer_idx, &fl_num_path, fl_path_offloading_idx
+                    );
+                }
+
+                // Synchronize FL params
+                if (dev_mode == DEV_SERVER) {
+                    write_n(client_sock2, &fl_split_layer_idx, sizeof(int));
+                    write_n(client_sock2, &fl_num_path, sizeof(int));
+                    write_n(client_sock2, fl_path_offloading_idx, sizeof(int) * fl_num_path);
+                    write_n(client_sock2, &min_eta2, sizeof(float));
+                }
+                else if (dev_mode == DEV_EDGE) {
+                    read_n(server_sock2, &fl_split_layer_idx, sizeof(int));
+                    read_n(server_sock2, &fl_num_path, sizeof(int));
+                    read_n(server_sock2, fl_path_offloading_idx, sizeof(int) * fl_num_path);
+                    read_n(server_sock2, &min_eta2, sizeof(float));
+                }
+
+                free(server_elapsed_times2);
+                free(edge_elapsed_times2);
+                free(*network_profile2);
+                free(network_profile2);
+                apu_destroy_nasm(test_nasm2);
+
+                if (server_sock2 != -1) close(server_sock2);
+                if (client_sock2 != -1) close(client_sock2);
+            
+                #ifdef DEBUG
+                printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta2);
+                for (int i=0; i<fl_num_path; i++) {
+                    printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
+                }
+                #endif
 
             }
 
@@ -1330,61 +1289,57 @@ int main (int argc, char **argv)
 
             float min_eta3 = -1;
             while (min_eta3 < 0) {
-
-                while (min_eta3 < 0) {
-                    // Synchronize pipelining params
-                    int server_num_dse3 = 0, edge_num_dse3 = 0;
-                    if (dev_mode == DEV_SERVER) {
-                        write_n(client_sock3, &num_cores, sizeof(int));
-                        read_n(client_sock3, &edge_num_dse3, sizeof(int));
-                        server_num_dse3 = num_cores;
-                    }
-                    else if (dev_mode == DEV_EDGE) {
-                        read_n(server_sock3, &server_num_dse3, sizeof(int));
-                        write_n(server_sock3, &num_cores, sizeof(int));
-                        edge_num_dse3 = num_cores;
-                    }
-
-                    // Schedule FL
-
-                    if (dev_mode == DEV_SERVER) {
-                        min_eta3 = fl_schedule_bruteforce(
-                            target_nasm3, server_num_dse3, server_elapsed_times3, edge_num_dse3, edge_elapsed_times3, *network_profile3,
-                            &fl_split_layer_idx, &fl_num_path, fl_path_offloading_idx
-                        );
-                    }
-
-                    // Synchronize FL params
-                    if (dev_mode == DEV_SERVER) {
-                        write_n(client_sock3, &fl_split_layer_idx, sizeof(int));
-                        write_n(client_sock3, &fl_num_path, sizeof(int));
-                        write_n(client_sock3, fl_path_offloading_idx, sizeof(int) * fl_num_path);
-                        write_n(client_sock3, &min_eta3, sizeof(float));
-                    }
-                    else if (dev_mode == DEV_EDGE) {
-                        read_n(server_sock3, &fl_split_layer_idx, sizeof(int));
-                        read_n(server_sock3, &fl_num_path, sizeof(int));
-                        read_n(server_sock3, fl_path_offloading_idx, sizeof(int) * fl_num_path);
-                        read_n(server_sock3, &min_eta3, sizeof(float));
-                    }
-
-                    free(server_elapsed_times3);
-                    free(edge_elapsed_times3);
-                    free(*network_profile3);
-                    free(network_profile3);
-                    apu_destroy_nasm(test_nasm3);
-
-                    if (server_sock3 != -1) close(server_sock3);
-                    if (client_sock3 != -1) close(client_sock3);
-                
-                    #ifdef DEBUG
-                    printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta3);
-                    for (int i=0; i<fl_num_path; i++) {
-                        printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
-                    }
-                    #endif
-
+                // Synchronize pipelining params
+                int server_num_dse3 = 0, edge_num_dse3 = 0;
+                if (dev_mode == DEV_SERVER) {
+                    write_n(client_sock3, &num_cores, sizeof(int));
+                    read_n(client_sock3, &edge_num_dse3, sizeof(int));
+                    server_num_dse3 = num_cores;
                 }
+                else if (dev_mode == DEV_EDGE) {
+                    read_n(server_sock3, &server_num_dse3, sizeof(int));
+                    write_n(server_sock3, &num_cores, sizeof(int));
+                    edge_num_dse3 = num_cores;
+                }
+
+                // Schedule FL
+
+                if (dev_mode == DEV_SERVER) {
+                    min_eta3 = fl_schedule_bruteforce(
+                        target_nasm3, server_num_dse3, server_elapsed_times3, edge_num_dse3, edge_elapsed_times3, *network_profile3,
+                        &fl_split_layer_idx, &fl_num_path, fl_path_offloading_idx
+                    );
+                }
+
+                // Synchronize FL params
+                if (dev_mode == DEV_SERVER) {
+                    write_n(client_sock3, &fl_split_layer_idx, sizeof(int));
+                    write_n(client_sock3, &fl_num_path, sizeof(int));
+                    write_n(client_sock3, fl_path_offloading_idx, sizeof(int) * fl_num_path);
+                    write_n(client_sock3, &min_eta3, sizeof(float));
+                }
+                else if (dev_mode == DEV_EDGE) {
+                    read_n(server_sock3, &fl_split_layer_idx, sizeof(int));
+                    read_n(server_sock3, &fl_num_path, sizeof(int));
+                    read_n(server_sock3, fl_path_offloading_idx, sizeof(int) * fl_num_path);
+                    read_n(server_sock3, &min_eta3, sizeof(float));
+                }
+
+                free(server_elapsed_times3);
+                free(edge_elapsed_times3);
+                free(*network_profile3);
+                free(network_profile3);
+                apu_destroy_nasm(test_nasm3);
+
+                if (server_sock3 != -1) close(server_sock3);
+                if (client_sock3 != -1) close(client_sock3);
+            
+                #ifdef DEBUG
+                printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta3);
+                for (int i=0; i<fl_num_path; i++) {
+                    printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
+                }
+                #endif
 
             }
 
