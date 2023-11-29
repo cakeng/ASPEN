@@ -127,6 +127,9 @@ int main (int argc, char **argv)
 
 
             // Networking
+            int ne_start_key = 12354;
+            write_n(client_sock1, &ne_start_key, sizeof(int));
+
             if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
             {
                 net_engine1 = init_networking(target_nasm1, rpool1, dev_mode, server_ip, server_ports[1], 0, 1);
@@ -382,6 +385,9 @@ int main (int argc, char **argv)
             else if (dev_mode == DEV_LOCAL) init_allow_all(target_nasm2, 3);
 
             // Networking
+            
+            write_n(client_sock2, &ne_start_key, sizeof(int));
+
             if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
             {
                 net_engine2 = init_networking(target_nasm2, rpool2, dev_mode, server_ip, server_ports[2], 0, 1);
@@ -459,6 +465,8 @@ int main (int argc, char **argv)
             
 
             // Networking
+            write_n(client_sock3, &ne_start_key, sizeof(int));
+
             if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
             {
                 net_engine3 = init_networking(target_nasm3, rpool3, dev_mode, server_ip, server_ports[3], 0, 1);
@@ -711,9 +719,14 @@ int main (int argc, char **argv)
 
             create_connection(dev_mode, server_ip, control_port1, &server_sock1, &client_sock1);
 
+            printf("Established CC 1\n");
             
 
             // Networking
+            int ne_start_key = 0;
+            read_n(server_sock1, &ne_start_key, sizeof(int));
+            printf("Received NE start key %d\n", ne_start_key);
+
             if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
             {
                 net_engine1 = init_networking(target_nasm1, rpool1, dev_mode, server_ip, server_port1, 0, 1);
@@ -723,6 +736,8 @@ int main (int argc, char **argv)
                 net_engine1->dse_group = dse_group1;
                 net_engine_set_operating_mode(net_engine1, OPER_MODE_FL_PATH);
             }
+
+            printf("Established NE 1\n");
 
 
             float *server_elapsed_times1 = (float *)calloc(test_nasm1->num_ninst, sizeof(float));
@@ -786,8 +801,6 @@ int main (int argc, char **argv)
             free(network_profile1);
             apu_destroy_nasm(test_nasm1);
 
-            if (server_sock1 != -1) close(server_sock1);
-            if (client_sock1 != -1) close(client_sock1);
         
             #ifdef DEBUG
             printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta1);
@@ -842,7 +855,7 @@ int main (int argc, char **argv)
             /* INFERENCE */
             int inference_id1 = 0;
 
-            read_n(client_sock1, &inference_id1, sizeof(int));
+            read_n(server_sock1, &inference_id1, sizeof(int));
 
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
@@ -904,6 +917,9 @@ int main (int argc, char **argv)
             }
 
             /* WRAP UP */
+            if (server_sock1 != -1) close(server_sock1);
+            if (client_sock1 != -1) close(client_sock1);
+
             fl_destroy_nasm_path(target_nasm1);
 
             aspen_flush_dynamic_memory ();
@@ -954,10 +970,14 @@ int main (int argc, char **argv)
             /* CONTROL SINAL */
             create_connection(dev_mode, server_ip, control_port2, &server_sock2, &client_sock2);
 
-            sleep(5);
+            printf("Established CC 2\n");
 
 
             // Networking
+            int ne_start_key = 12354;
+            read_n(server_sock2, &ne_start_key, sizeof(int));
+            printf("Received NE start key %d\n", ne_start_key);
+
             if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
             {
                 net_engine2 = init_networking(target_nasm2, rpool2, dev_mode, server_ip, server_port2, 0, 1);
@@ -967,12 +987,13 @@ int main (int argc, char **argv)
                 net_engine_set_operating_mode(net_engine2, OPER_MODE_DEFAULT);
             }
 
+            printf("Established NE 2\n");
+
             init_sequential_offload(target_nasm2, 1, 1, 0);
 
             /* INFERENCE */
             int inference_id2 = 0;
-
-            read_n(client_sock2, &inference_id2, sizeof(int));
+            read_n(server_sock2, &inference_id2, sizeof(int));
 
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
@@ -1065,9 +1086,14 @@ int main (int argc, char **argv)
             
             create_connection(dev_mode, server_ip, control_port3, &server_sock3, &client_sock3);
 
-            sleep(10);
+            printf("Established CC 3\n");
+
 
             // Networking
+            int ne_start_key = 0;
+            read_n(server_sock3, &ne_start_key, sizeof(int));
+            printf("Received NE start key %d\n", ne_start_key);
+
             if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
             {
                 net_engine3 = init_networking(target_nasm3, rpool3, dev_mode, server_ip, server_port3, 0, 1);
@@ -1077,6 +1103,8 @@ int main (int argc, char **argv)
                 net_engine3->dse_group = dse_group3;
                 net_engine_set_operating_mode(net_engine3, OPER_MODE_FL_PATH);
             }
+
+            printf("Established NE 3\n");
 
 
             float *server_elapsed_times3 = (float *)calloc(test_nasm3->num_ninst, sizeof(float));
@@ -1139,9 +1167,6 @@ int main (int argc, char **argv)
             free(*network_profile3);
             free(network_profile3);
             apu_destroy_nasm(test_nasm3);
-
-            if (server_sock3 != -1) close(server_sock3);
-            if (client_sock3 != -1) close(client_sock3);
         
             #ifdef DEBUG
             printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta3);
@@ -1197,7 +1222,7 @@ int main (int argc, char **argv)
             /* INFERENCE */
             int inference_id3 = 0;
 
-            read_n(client_sock3, &inference_id3, sizeof(int));
+            read_n(server_sock3, &inference_id3, sizeof(int));
             
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
@@ -1259,6 +1284,9 @@ int main (int argc, char **argv)
             }
 
             /* WRAP UP */
+            if (server_sock3 != -1) close(server_sock3);
+            if (client_sock3 != -1) close(client_sock3);
+
             fl_destroy_nasm_path(target_nasm3);
 
             aspen_flush_dynamic_memory ();
