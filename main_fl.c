@@ -57,23 +57,27 @@ int main (int argc, char **argv)
             const int control_port1 = control_ports[1];
             const int server_port2 = server_ports[2];
             const int control_port2 = control_ports[2];
+            const int server_port3 = server_ports[3];
+            const int control_port3 = control_ports[3];
 
             /* NASM PREPARATION */
             aspen_dnn_t *target_dnn1 = apu_load_dnn_from_file (target_aspen1);
             aspen_dnn_t *target_dnn2 = apu_load_dnn_from_file (target_aspen2);
+            aspen_dnn_t *target_dnn3 = apu_load_dnn_from_file (target_aspen3);
             nasm_t *target_nasm1 = apu_load_nasm_from_file (nasm_file_name1, target_dnn1);
             nasm_t *target_nasm2 = apu_load_nasm_from_file (nasm_file_name2, target_dnn2);
-            if (target_dnn1 == NULL || target_dnn2 == NULL)
+            nasm_t *target_nasm3 = apu_load_nasm_from_file (nasm_file_name3, target_dnn3);
+            if (target_dnn1 == NULL || target_dnn2 == NULL || target_dnn3 == NULL)
             {
                 printf ("Unable to load dnn file\n");
                 exit (0);
             }
-            if (target_nasm1 == NULL || target_nasm2 == NULL)
+            if (target_nasm1 == NULL || target_nasm2 == NULL || target_nasm3 == NULL)
             {
                 printf ("Unable to load nasm file\n");
                 exit (0);
             }
-
+            
 
             /* PROFILING */
             PRTF("STAGE: PROFILING\n");
@@ -511,29 +515,14 @@ int main (int argc, char **argv)
             rpool_destroy (rpool2);
             apu_destroy_nasm (target_nasm2);
             apu_destroy_dnn (target_dnn2);
-        }
+        
 
         
         ////////////////////////////
         //       WORKLOAD 3       //
         ////////////////////////////
-        {
-            const int server_port3 = server_ports[3];
-            const int control_port3 = control_ports[3];
-
-            /* NASM PREPARATION */
-            aspen_dnn_t *target_dnn3 = apu_load_dnn_from_file (target_aspen3);
-            if (target_dnn3 == NULL)
-            {
-                printf ("Unable to load dnn file\n");
-                exit (0);
-            }
-            nasm_t *target_nasm3 = apu_load_nasm_from_file (nasm_file_name3, target_dnn3);
-            if (target_nasm3 == NULL)
-            {
-                printf ("Unable to load nasm file\n");
-                exit (0);
-            }
+        
+            
 
             /* PROFILING */
             PRTF("STAGE: PROFILING\n");
