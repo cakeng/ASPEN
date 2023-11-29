@@ -91,6 +91,38 @@ int main (int argc, char **argv)
                 printf ("Unable to load nasm file\n");
                 exit (0);
             }
+
+            /* BASIC MODULES */
+
+            rpool1 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
+            dse_group_t *dse_group1 = dse_group_init (num_cores, gpu_idx);
+            dse_group_set_rpool (dse_group1, rpool1);
+            dse_group_set_device_mode (dse_group1, dev_mode);
+            dse_group_set_device (dse_group1, 0);
+            dse_group_set_num_edge_devices (dse_group1, 2);
+            networking_engine* net_engine1 = NULL;
+
+            rpool_add_nasm (rpool1, target_nasm1, "data/batched_input_128.bin");
+
+
+            rpool2 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
+            dse_group_t *dse_group2 = dse_group_init (num_cores, gpu_idx);
+            dse_group_set_rpool (dse_group2, rpool2);
+            dse_group_set_device_mode (dse_group2, dev_mode);
+            dse_group_set_device (dse_group2, 0);
+            dse_group_set_num_edge_devices (dse_group2, 2);
+            networking_engine* net_engine2 = NULL;
+
+
+            rpool3 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
+            dse_group_t *dse_group3 = dse_group_init (num_cores, gpu_idx);
+            dse_group_set_rpool (dse_group3, rpool3);
+            dse_group_set_device_mode (dse_group3, dev_mode);
+            dse_group_set_device (dse_group3, 0);
+            dse_group_set_num_edge_devices (dse_group3, 2);
+            networking_engine* net_engine3 = NULL;
+
+            rpool_add_nasm (rpool3, target_nasm3, "data/batched_input_128.bin");
             
 
             /* PROFILING */
@@ -172,40 +204,6 @@ int main (int argc, char **argv)
                 printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
             }
             #endif
-
-
-
-            /* BASIC MODULES */
-
-            rpool1 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
-            dse_group_t *dse_group1 = dse_group_init (num_cores, gpu_idx);
-            dse_group_set_rpool (dse_group1, rpool1);
-            dse_group_set_device_mode (dse_group1, dev_mode);
-            dse_group_set_device (dse_group1, 0);
-            dse_group_set_num_edge_devices (dse_group1, 2);
-            networking_engine* net_engine1 = NULL;
-
-            rpool_add_nasm (rpool1, target_nasm1, "data/batched_input_128.bin");
-
-
-            rpool2 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
-            dse_group_t *dse_group2 = dse_group_init (num_cores, gpu_idx);
-            dse_group_set_rpool (dse_group2, rpool2);
-            dse_group_set_device_mode (dse_group2, dev_mode);
-            dse_group_set_device (dse_group2, 0);
-            dse_group_set_num_edge_devices (dse_group2, 2);
-            networking_engine* net_engine2 = NULL;
-
-
-            rpool3 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
-            dse_group_t *dse_group3 = dse_group_init (num_cores, gpu_idx);
-            dse_group_set_rpool (dse_group3, rpool3);
-            dse_group_set_device_mode (dse_group3, dev_mode);
-            dse_group_set_device (dse_group3, 0);
-            dse_group_set_num_edge_devices (dse_group3, 2);
-            networking_engine* net_engine3 = NULL;
-
-            rpool_add_nasm (rpool3, target_nasm3, "data/batched_input_128.bin");
 
 
             /* FL PATH CREATION */
