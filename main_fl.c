@@ -325,11 +325,12 @@ int main (int argc, char **argv)
             dse_set_starting_path (dse_group2, target_nasm2->path_ptr_arr[0]);
             dse_set_starting_path (dse_group3, target_nasm3->path_ptr_arr[0]);
 
-            write_n(client_sock1, &inference_id1, sizeof(int));
-            read_n(client_sock1, &inference_id1, sizeof(int));
 
             for (int i = 0; i < number_of_iterations; i++)
             {
+                write_n(client_sock1, &inference_id1, sizeof(int));
+                read_n(client_sock1, &inference_id1, sizeof(int));
+
                 net_engine_run(net_engine1);
                 rpool_reset_queue (rpool1);
                 apu_reset_nasm(target_nasm1);
@@ -353,13 +354,10 @@ int main (int argc, char **argv)
 
                 dse_set_starting_path (dse_group1, target_nasm1->path_ptr_arr[0]);
 
-            }
-            
-            write_n(client_sock2, &inference_id2, sizeof(int));
-            read_n(client_sock2, &inference_id2, sizeof(int));
 
-            for (int i = 0; i < number_of_iterations; i++)
-            {
+                write_n(client_sock2, &inference_id2, sizeof(int));
+                read_n(client_sock2, &inference_id2, sizeof(int));
+
                 net_engine_run(net_engine2);
                 rpool_reset_queue (rpool2);
                 apu_reset_nasm(target_nasm2);
@@ -381,14 +379,10 @@ int main (int argc, char **argv)
 
                 dse_set_starting_path (dse_group2, target_nasm2->path_ptr_arr[0]);
 
-            }
 
-            write_n(client_sock3, &inference_id3, sizeof(int));
-            read_n(client_sock3, &inference_id3, sizeof(int));
+                write_n(client_sock3, &inference_id3, sizeof(int));
+                read_n(client_sock3, &inference_id3, sizeof(int));
 
-            
-            for (int i = 0; i < number_of_iterations; i++)
-            {
                 net_engine_run(net_engine3);
                 rpool_reset_queue (rpool3);
                 apu_reset_nasm(target_nasm3);
@@ -573,15 +567,14 @@ int main (int argc, char **argv)
 
             /* INFERENCE */
             int inference_id1 = 0;
-            read_n(server_sock1, &inference_id1, sizeof(int));
-            printf("Received inference id %d\n", inference_id1);
-            sleep(1);
-            write_n(server_sock1, &inference_id1, sizeof(int));
 
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
             for (int i = 0; i < number_of_iterations; i++)
             {
+                read_n(server_sock1, &inference_id1, sizeof(int));
+                write_n(server_sock1, &inference_id1, sizeof(int));
+
                 net_engine_run(net_engine1);
                 rpool_reset_queue (rpool1);
                 apu_reset_nasm(target_nasm1);
@@ -629,14 +622,7 @@ int main (int argc, char **argv)
                 free (layer_output);
                 free (softmax_output);
             }
-            else if (strcmp(dnn, "yolov3") == 0)
-            {
-                int last_ldata_intsum = get_ldata_intsum(&target_nasm1->ldata_arr[target_nasm1->num_ldata - 1]);
-                #ifndef SUPPRESS_OUTPUT
-                printf("last layer intsum: %d\n", last_ldata_intsum);
-                #endif
-            }
-
+            
             /* WRAP UP */
             if (server_sock1 != -1) close(server_sock1);
             if (client_sock1 != -1) close(client_sock1);
@@ -714,15 +700,14 @@ int main (int argc, char **argv)
 
             /* INFERENCE */
             int inference_id2 = 0;
-            read_n(server_sock2, &inference_id2, sizeof(int));
-            printf("Received inference id %d\n", inference_id2);
-            sleep(1);
-            write_n(server_sock2, &inference_id2, sizeof(int));
 
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
             for (int i = 0; i < number_of_iterations; i++)
             {
+                read_n(server_sock2, &inference_id2, sizeof(int));
+                write_n(server_sock2, &inference_id2, sizeof(int));
+
                 net_engine_run(net_engine2);
                 rpool_reset_queue (rpool2);
                 apu_reset_nasm(target_nasm2);
@@ -875,15 +860,14 @@ int main (int argc, char **argv)
 
             /* INFERENCE */
             int inference_id3 = 0;
-            read_n(server_sock3, &inference_id3, sizeof(int));
-            printf("Received inference id %d\n", inference_id3);
-            sleep(1);
-            write_n(server_sock3, &inference_id3, sizeof(int));
             
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
             for (int i = 0; i < number_of_iterations; i++)
             {
+                read_n(server_sock3, &inference_id3, sizeof(int));
+                write_n(server_sock3, &inference_id3, sizeof(int));
+                
                 net_engine_run(net_engine3);
                 rpool_reset_queue (rpool3);
                 apu_reset_nasm(target_nasm3);
