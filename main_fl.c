@@ -329,18 +329,45 @@ int main (int argc, char **argv)
             for (int i = 0; i < number_of_iterations; i++)
             {
                 printf("Iteration %d\n", i);
-
-                write_n(client_sock1, &inference_id1, sizeof(int));
-                read_n(client_sock1, &inference_id1, sizeof(int));
                 
                 net_engine_run(net_engine1);
                 rpool_reset_queue (rpool1);
                 apu_reset_nasm(target_nasm1);
                 dse_group_set_operating_mode(dse_group1, OPER_MODE_FL_PATH);
+                
+                write_n(client_sock1, &inference_id1, sizeof(int));
+                read_n(client_sock1, &inference_id1, sizeof(int));
 
+                net_engine_run(net_engine2);
+                rpool_reset_queue (rpool2);
+                apu_reset_nasm(target_nasm2);
+                dse_group_set_operating_mode(dse_group2, OPER_MODE_DEFAULT);
+                
+                write_n(client_sock2, &inference_id2, sizeof(int));
+                read_n(client_sock2, &inference_id2, sizeof(int));
+
+                net_engine_run(net_engine3);
+                rpool_reset_queue (rpool3);
+                apu_reset_nasm(target_nasm3);
+                dse_group_set_operating_mode(dse_group3, OPER_MODE_FL_PATH);
+                
+                write_n(client_sock3, &inference_id3, sizeof(int));
+                read_n(client_sock3, &inference_id3, sizeof(int));
+
+
+                int lock_nasm_comp1 = 0;
+                int lock_nasm_comp2 = 0;
+                int lock_nasm_comp3 = 0;
 
                 dse_group_run (dse_group1);
-                dse_wait_for_nasm_completion (target_nasm1);
+                dse_group_run (dse_group2);
+                dse_group_run (dse_group3);
+
+
+                while (!lock_nasm_comp1) lock_nasm_comp1 = atomic_load(&target_nasm1->completed);
+                while (!lock_nasm_comp2) lock_nasm_comp2 = atomic_load(&target_nasm2->completed);
+                while (!lock_nasm_comp3) lock_nasm_comp3 = atomic_load(&target_nasm3->completed);
+
 
                 unsigned int tx_remaining = atomic_load(&net_engine1->rpool->num_stored);
                 while (tx_remaining > 0) tx_remaining = atomic_load(&net_engine1->rpool->num_stored);
@@ -355,18 +382,6 @@ int main (int argc, char **argv)
 
                 dse_set_starting_path (dse_group1, target_nasm1->path_ptr_arr[0]);
 
-
-                write_n(client_sock2, &inference_id2, sizeof(int));
-                read_n(client_sock2, &inference_id2, sizeof(int));
-
-                net_engine_run(net_engine2);
-                rpool_reset_queue (rpool2);
-                apu_reset_nasm(target_nasm2);
-                dse_group_set_operating_mode(dse_group2, OPER_MODE_DEFAULT);
-
-                dse_group_run (dse_group2);
-                dse_wait_for_nasm_completion (target_nasm2);
-
                 
                 tx_remaining = atomic_load(&net_engine2->rpool->num_stored);
                 while (tx_remaining > 0) tx_remaining = atomic_load(&net_engine2->rpool->num_stored);
@@ -375,23 +390,11 @@ int main (int argc, char **argv)
                 net_engine_set_operating_mode(net_engine2, OPER_MODE_DEFAULT);
                 
                 dse_group_stop (dse_group2);
-                if (dev_mode != DEV_LOCAL) net_engine_stop (net_engine2);
+                net_engine_stop (net_engine2);
 
                 fl_reset_nasm_path(target_nasm2);
 
                 dse_set_starting_path (dse_group2, target_nasm2->path_ptr_arr[0]);
-
-
-                write_n(client_sock3, &inference_id3, sizeof(int));
-                read_n(client_sock3, &inference_id3, sizeof(int));
-
-                net_engine_run(net_engine3);
-                rpool_reset_queue (rpool3);
-                apu_reset_nasm(target_nasm3);
-                dse_group_set_operating_mode(dse_group3, OPER_MODE_FL_PATH);
-
-                dse_group_run (dse_group3);
-                dse_wait_for_nasm_completion (target_nasm3);
 
                 
                 tx_remaining = atomic_load(&net_engine3->rpool->num_stored);
@@ -401,7 +404,7 @@ int main (int argc, char **argv)
                 net_engine_set_operating_mode(net_engine3, OPER_MODE_FL_PATH);
                 
                 dse_group_stop (dse_group3);
-                if (dev_mode != DEV_LOCAL) net_engine_stop (net_engine3);
+                net_engine_stop (net_engine3);
 
                 fl_reset_nasm_path(target_nasm3);
 
