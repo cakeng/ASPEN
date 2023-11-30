@@ -144,7 +144,7 @@ int main (int argc, char **argv)
             printf("Established CC 3\n");
 
             
-            // Networking
+            // Networking 1
             int ne_start_key = 12354;
             write_n(client_sock1, &ne_start_key, sizeof(int));
 
@@ -159,37 +159,6 @@ int main (int argc, char **argv)
             }
 
             printf("Established NE 1\n");
-            
-            // Networking
-            
-            write_n(client_sock2, &ne_start_key, sizeof(int));
-
-            if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
-            {
-                net_engine2 = init_networking(target_nasm2, rpool2, dev_mode, server_ip, server_ports[2], 0, 1);
-                dse_group_set_net_engine(dse_group2, net_engine2);
-                dse_group_set_device(dse_group2, dev_mode);
-                net_engine2->dse_group = dse_group2;
-                net_engine_set_operating_mode(net_engine2, OPER_MODE_DEFAULT);
-            }
-
-            printf("Established NE 2\n");
-
-            // Networking
-            write_n(client_sock3, &ne_start_key, sizeof(int));
-
-            if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
-            {
-                net_engine3 = init_networking(target_nasm3, rpool3, dev_mode, server_ip, server_ports[3], 0, 1);
-                net_engine3->is_fl_offloading = 1;
-                dse_group_set_net_engine(dse_group3, net_engine3);
-                dse_group_set_device(dse_group3, dev_mode);
-                net_engine3->dse_group = dse_group3;
-                net_engine_set_operating_mode(net_engine3, OPER_MODE_FL_PATH);
-            }
-
-            printf("Established NE 3\n");
-            
 
             /* PROFILING */
             PRTF("STAGE: PROFILING\n");
@@ -309,6 +278,42 @@ int main (int argc, char **argv)
                 }
             }
             else if (dev_mode == DEV_LOCAL) init_allow_all(target_nasm1, 3);
+
+            printf("FL path 1 created\n");
+            
+            // Networking 2
+            
+            write_n(client_sock2, &ne_start_key, sizeof(int));
+
+            if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
+            {
+                net_engine2 = init_networking(target_nasm2, rpool2, dev_mode, server_ip, server_ports[2], 0, 1);
+                dse_group_set_net_engine(dse_group2, net_engine2);
+                dse_group_set_device(dse_group2, dev_mode);
+                net_engine2->dse_group = dse_group2;
+                net_engine_set_operating_mode(net_engine2, OPER_MODE_DEFAULT);
+            }
+
+            printf("Established NE 2\n");
+ 
+            // Networking 3
+            
+            write_n(client_sock3, &ne_start_key, sizeof(int));
+
+            if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
+            {
+                net_engine3 = init_networking(target_nasm3, rpool3, dev_mode, server_ip, server_ports[3], 0, 1);
+                net_engine3->is_fl_offloading = 1;
+                dse_group_set_net_engine(dse_group3, net_engine3);
+                dse_group_set_device(dse_group3, dev_mode);
+                net_engine3->dse_group = dse_group3;
+                net_engine_set_operating_mode(net_engine3, OPER_MODE_FL_PATH);
+            }
+
+            printf("Established NE 3\n");
+            
+
+            
 
 
             /* INFERENCE */
