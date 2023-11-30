@@ -331,73 +331,6 @@ int main (int argc, char **argv)
             printf("Profiling 3 done\n");
 
             
-
-
-            /* INFERENCE */
-            int inference_id1 = 10000;
-            write_n(client_sock1, &inference_id1, sizeof(int));
-            read_n(client_sock1, &inference_id1, sizeof(int));
-
-            PRTF ("Running %d iterations\n", number_of_iterations);
-            start_time = get_sec();
-            for (int i = 0; i < number_of_iterations; i++)
-            {
-                net_engine_run(net_engine1);
-                rpool_reset_queue (rpool1);
-                apu_reset_nasm(target_nasm1);
-                dse_group_set_operating_mode(dse_group1, OPER_MODE_FL_PATH);
-                if (dev_mode == DEV_EDGE) fl_push_path_ninsts_edge(rpool1, target_nasm1->path_ptr_arr[0]);
-                else if (dev_mode == DEV_LOCAL) fl_push_path_ninsts(rpool1, target_nasm1->path_ptr_arr[0]);
-                dse_group_run (dse_group1);
-                dse_wait_for_nasm_completion (target_nasm1);
-
-                if (dev_mode != DEV_LOCAL) {
-                    unsigned int tx_remaining = atomic_load(&net_engine1->rpool->num_stored);
-                    while (tx_remaining > 0) tx_remaining = atomic_load(&net_engine1->rpool->num_stored);
-                    net_engine_wait_for_tx_queue_completion(net_engine1);
-                    net_engine_reset(net_engine1);
-                    net_engine_set_operating_mode(net_engine1, OPER_MODE_FL_PATH);
-                }
-                dse_group_stop (dse_group1);
-                if (dev_mode != DEV_LOCAL) net_engine_stop (net_engine1);
-
-                fl_reset_nasm_path(target_nasm1);
-
-                dse_set_starting_path (target_nasm1->path_ptr_arr[0]);
-
-            }
-            end_time = get_sec();
-
-            #ifndef SUPRESS_OUTPUT
-            printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);
-            #else
-            printf ("%lf\n", (end_time - start_time)/number_of_iterations);
-            #endif
-
-            if (strcmp(dnn, "bert_base") != 0 && strcmp(dnn, "yolov3") != 0)
-            {
-                LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
-                float *layer_output = dse_get_nasm_result (target_nasm1, output_order);
-                float *softmax_output = calloc (1000*batch_size, sizeof(float));
-                softmax (layer_output, softmax_output, batch_size, 1000);
-                for (int i = 0; i < batch_size; i++)
-                {
-                    #ifndef SUPPRESS_OUTPUT
-                    get_prob_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
-                    #endif
-                }
-                free (layer_output);
-                free (softmax_output);
-            }
-            else if (strcmp(dnn, "yolov3") == 0)
-            {
-                int last_ldata_intsum = get_ldata_intsum(&target_nasm1->ldata_arr[target_nasm1->num_ldata - 1]);
-                #ifndef SUPPRESS_OUTPUT
-                printf("last layer intsum: %d\n", last_ldata_intsum);
-                #endif
-            }
-
-            
         
             ////////////////////////////
             //       WORKLOAD 2       //
@@ -556,6 +489,43 @@ int main (int argc, char **argv)
             }
 
             /* INFERENCE */
+            int inference_id1 = 10000;
+            write_n(client_sock1, &inference_id1, sizeof(int));
+            read_n(client_sock1, &inference_id1, sizeof(int));
+
+            PRTF ("Running %d iterations\n", number_of_iterations);
+            start_time = get_sec();
+            dse_set_starting_path (target_nasm1->path_ptr_arr[0]);
+            for (int i = 0; i < number_of_iterations; i++)
+            {
+                net_engine_run(net_engine1);
+                rpool_reset_queue (rpool1);
+                apu_reset_nasm(target_nasm1);
+                dse_group_set_operating_mode(dse_group1, OPER_MODE_FL_PATH);
+                if (dev_mode == DEV_EDGE) fl_push_path_ninsts_edge(rpool1, target_nasm1->path_ptr_arr[0]);
+                else if (dev_mode == DEV_LOCAL) fl_push_path_ninsts(rpool1, target_nasm1->path_ptr_arr[0]);
+                dse_group_run (dse_group1);
+                dse_wait_for_nasm_completion (target_nasm1);
+
+                if (dev_mode != DEV_LOCAL) {
+                    unsigned int tx_remaining = atomic_load(&net_engine1->rpool->num_stored);
+                    while (tx_remaining > 0) tx_remaining = atomic_load(&net_engine1->rpool->num_stored);
+                    net_engine_wait_for_tx_queue_completion(net_engine1);
+                    net_engine_reset(net_engine1);
+                    net_engine_set_operating_mode(net_engine1, OPER_MODE_FL_PATH);
+                }
+                dse_group_stop (dse_group1);
+                if (dev_mode != DEV_LOCAL) net_engine_stop (net_engine1);
+
+                fl_reset_nasm_path(target_nasm1);
+
+                dse_set_starting_path (target_nasm1->path_ptr_arr[0]);
+
+            }
+            end_time = get_sec();
+
+
+            /* INFERENCE */
             int inference_id2 = 20000;
 
             write_n(client_sock2, &inference_id2, sizeof(int));
@@ -635,34 +605,6 @@ int main (int argc, char **argv)
             }
             end_time = get_sec();
 
-            #ifndef SUPRESS_OUTPUT
-            printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);
-            #else
-            printf ("%lf\n", (end_time - start_time)/number_of_iterations);
-            #endif
-
-            if (strcmp(dnn, "bert_base") != 0 && strcmp(dnn, "yolov3") != 0)
-            {
-                LAYER_PARAMS output_order[] = {BATCH, OUT_C, OUT_H, OUT_W};
-                float *layer_output = dse_get_nasm_result (target_nasm3, output_order);
-                float *softmax_output = calloc (1000*batch_size, sizeof(float));
-                softmax (layer_output, softmax_output, batch_size, 1000);
-                for (int i = 0; i < batch_size; i++)
-                {
-                    #ifndef SUPPRESS_OUTPUT
-                    get_prob_results ("data/imagenet_classes.txt", softmax_output + 1000*i, 1000);
-                    #endif
-                }
-                free (layer_output);
-                free (softmax_output);
-            }
-            else if (strcmp(dnn, "yolov3") == 0)
-            {
-                int last_ldata_intsum = get_ldata_intsum(&target_nasm3->ldata_arr[target_nasm3->num_ldata - 1]);
-                #ifndef SUPPRESS_OUTPUT
-                printf("last layer intsum: %d\n", last_ldata_intsum);
-                #endif
-            }
 
             /* WRAP UP */
             fl_destroy_nasm_path(target_nasm1);
