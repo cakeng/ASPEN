@@ -318,6 +318,7 @@ int main (int argc, char **argv)
             /* INFERENCE */
             int inference_id1 = 10000;
             write_n(client_sock1, &inference_id1, sizeof(int));
+            read_n(client_sock1, &inference_id1, sizeof(int));
 
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
@@ -442,6 +443,7 @@ int main (int argc, char **argv)
             int inference_id2 = 20000;
 
             write_n(client_sock2, &inference_id2, sizeof(int));
+            read_n(client_sock2, &inference_id2, sizeof(int));
 
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
@@ -601,6 +603,7 @@ int main (int argc, char **argv)
             int inference_id3 = 30000;
 
             write_n(client_sock3, &inference_id3, sizeof(int));
+            read_n(client_sock3, &inference_id3, sizeof(int));
 
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
@@ -860,6 +863,8 @@ int main (int argc, char **argv)
             int inference_id1 = 0;
             read_n(server_sock1, &inference_id1, sizeof(int));
             printf("Received inference id %d\n", inference_id1);
+            sleep(1);
+            write_n(server_sock1, &inference_id1, sizeof(int));
 
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
@@ -999,6 +1004,8 @@ int main (int argc, char **argv)
             int inference_id2 = 0;
             read_n(server_sock2, &inference_id2, sizeof(int));
             printf("Received inference id %d\n", inference_id2);
+            sleep(1);
+            write_n(server_sock2, &inference_id2, sizeof(int));
 
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
@@ -1228,6 +1235,8 @@ int main (int argc, char **argv)
             int inference_id3 = 0;
             read_n(server_sock3, &inference_id3, sizeof(int));
             printf("Received inference id %d\n", inference_id3);
+            sleep(1);
+            write_n(server_sock3, &inference_id3, sizeof(int));
             
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
