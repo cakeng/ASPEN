@@ -379,16 +379,7 @@ int main (int argc, char **argv)
                 #endif
             }
 
-            /* WRAP UP */
-            fl_destroy_nasm_path(target_nasm1);
-
-            aspen_flush_dynamic_memory ();
-
-            net_engine_destroy (net_engine1);
-            dse_group_destroy (dse_group1);
-            rpool_destroy (rpool1);
-            apu_destroy_nasm (target_nasm1);
-            apu_destroy_dnn (target_dnn1);
+            
         
             ////////////////////////////
             //       WORKLOAD 2       //
@@ -439,59 +430,7 @@ int main (int argc, char **argv)
 
 
 
-            /* INFERENCE */
-            int inference_id2 = 20000;
-
-            write_n(client_sock2, &inference_id2, sizeof(int));
-            read_n(client_sock2, &inference_id2, sizeof(int));
-
-            PRTF ("Running %d iterations\n", number_of_iterations);
-            start_time = get_sec();
-            for (int i = 0; i < number_of_iterations; i++)
-            {
-                net_engine_run(net_engine2);
-                rpool_reset_queue (rpool2);
-                apu_reset_nasm(target_nasm2);
-                dse_group_set_operating_mode(dse_group2, OPER_MODE_DEFAULT);
-                dse_group_run (dse_group2);
-                dse_wait_for_nasm_completion (target_nasm2);
-
-                if (dev_mode != DEV_LOCAL) {
-                    unsigned int tx_remaining = atomic_load(&net_engine2->rpool->num_stored);
-                    while (tx_remaining > 0) tx_remaining = atomic_load(&net_engine2->rpool->num_stored);
-                    net_engine_wait_for_tx_queue_completion(net_engine2);
-                    net_engine_reset(net_engine2);
-                    net_engine_set_operating_mode(net_engine2, OPER_MODE_DEFAULT);
-                }
-                dse_group_stop (dse_group2);
-                if (dev_mode != DEV_LOCAL) net_engine_stop (net_engine2);
-
-                fl_reset_nasm_path(target_nasm2);
-
-                dse_set_starting_path (target_nasm2->path_ptr_arr[0]);
-
-            }
-            end_time = get_sec();
-
-            #ifndef SUPRESS_OUTPUT
-            printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);
-            #else
-            printf ("%lf\n", (end_time - start_time)/number_of_iterations);
-            #endif
-
-
-            /* WRAP UP */
-            fl_destroy_nasm_path(target_nasm2);
-
-            aspen_flush_dynamic_memory ();
-
-            net_engine_destroy (net_engine2);
-            dse_group_destroy (dse_group2);
-            rpool_destroy (rpool2);
-            apu_destroy_nasm (target_nasm2);
-            apu_destroy_dnn (target_dnn2);
-        
-
+            
         
         ////////////////////////////
         //       WORKLOAD 3       //
@@ -598,6 +537,48 @@ int main (int argc, char **argv)
                 else if (dev_mode == DEV_LOCAL) init_allow_all(target_nasm3, 3);
             }
 
+            /* INFERENCE */
+            int inference_id2 = 20000;
+
+            write_n(client_sock2, &inference_id2, sizeof(int));
+            read_n(client_sock2, &inference_id2, sizeof(int));
+
+            PRTF ("Running %d iterations\n", number_of_iterations);
+            start_time = get_sec();
+            dse_set_starting_path (target_nasm2->path_ptr_arr[0]);
+            for (int i = 0; i < number_of_iterations; i++)
+            {
+                net_engine_run(net_engine2);
+                rpool_reset_queue (rpool2);
+                apu_reset_nasm(target_nasm2);
+                dse_group_set_operating_mode(dse_group2, OPER_MODE_DEFAULT);
+                dse_group_run (dse_group2);
+                dse_wait_for_nasm_completion (target_nasm2);
+
+                if (dev_mode != DEV_LOCAL) {
+                    unsigned int tx_remaining = atomic_load(&net_engine2->rpool->num_stored);
+                    while (tx_remaining > 0) tx_remaining = atomic_load(&net_engine2->rpool->num_stored);
+                    net_engine_wait_for_tx_queue_completion(net_engine2);
+                    net_engine_reset(net_engine2);
+                    net_engine_set_operating_mode(net_engine2, OPER_MODE_DEFAULT);
+                }
+                dse_group_stop (dse_group2);
+                if (dev_mode != DEV_LOCAL) net_engine_stop (net_engine2);
+
+                fl_reset_nasm_path(target_nasm2);
+
+                dse_set_starting_path (target_nasm2->path_ptr_arr[0]);
+
+            }
+            end_time = get_sec();
+
+            #ifndef SUPRESS_OUTPUT
+            printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);
+            #else
+            printf ("%lf\n", (end_time - start_time)/number_of_iterations);
+            #endif
+
+
 
             /* INFERENCE */
             int inference_id3 = 30000;
@@ -607,6 +588,7 @@ int main (int argc, char **argv)
 
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
+            dse_set_starting_path (target_nasm3->path_ptr_arr[0]);
             for (int i = 0; i < number_of_iterations; i++)
             {
                 net_engine_run(net_engine3);
@@ -665,6 +647,26 @@ int main (int argc, char **argv)
             }
 
             /* WRAP UP */
+            fl_destroy_nasm_path(target_nasm1);
+
+            aspen_flush_dynamic_memory ();
+
+            net_engine_destroy (net_engine1);
+            dse_group_destroy (dse_group1);
+            rpool_destroy (rpool1);
+            apu_destroy_nasm (target_nasm1);
+            apu_destroy_dnn (target_dnn1);
+
+            fl_destroy_nasm_path(target_nasm2);
+
+            aspen_flush_dynamic_memory ();
+
+            net_engine_destroy (net_engine2);
+            dse_group_destroy (dse_group2);
+            rpool_destroy (rpool2);
+            apu_destroy_nasm (target_nasm2);
+            apu_destroy_dnn (target_dnn2);
+
             fl_destroy_nasm_path(target_nasm3);
 
             aspen_flush_dynamic_memory ();
