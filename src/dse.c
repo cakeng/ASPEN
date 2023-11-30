@@ -319,6 +319,7 @@ void dse_schedule (dse_t *dse)
                     }
                     pthread_mutex_lock (&nasm->nasm_mutex);
                     pthread_cond_signal (&nasm->nasm_cond);
+                    atomic_store(&nasm->completed, 1);
                     pthread_mutex_unlock (&nasm->nasm_mutex);
                 }
             }

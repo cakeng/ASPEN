@@ -457,6 +457,7 @@ void receive(networking_engine *net_engine)
                     atomic_store(&net_engine->nasm->num_ldata_completed, net_engine->nasm->num_ldata);
                     pthread_mutex_lock (&net_engine->nasm->nasm_mutex);
                     pthread_cond_signal (&net_engine->nasm->nasm_cond);
+                    atomic_store(&net_engine->nasm->completed, 1);
                     pthread_mutex_unlock (&net_engine->nasm->nasm_mutex);
                 }
                 if(!net_engine->pipelined)
@@ -574,6 +575,7 @@ void receive_fl(networking_engine *net_engine)
                 atomic_store (&net_engine->nasm->completed, 1);
                 pthread_mutex_lock (&net_engine->nasm->nasm_mutex);
                 pthread_cond_signal (&net_engine->nasm->nasm_cond);
+                atomic_store(&net_engine->nasm->completed, 1);
                 pthread_mutex_unlock (&net_engine->nasm->nasm_mutex);
                 return;
             }
