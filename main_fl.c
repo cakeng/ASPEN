@@ -142,126 +142,129 @@ int main (int argc, char **argv)
 
             printf("Established NE 1\n");
 
-            /* PROFILING */
-            PRTF("STAGE: PROFILING\n");
+            {
+                /* PROFILING */
+                PRTF("STAGE: PROFILING\n");
 
-            nasm_t *test_nasm1 = apu_load_nasm_from_file (nasm_file_name1, target_dnn1);
+                nasm_t *test_nasm1 = apu_load_nasm_from_file (nasm_file_name1, target_dnn1);
 
-            float *server_elapsed_times1 = (float *)calloc(test_nasm1->num_ninst, sizeof(float));
-            float *edge_elapsed_times1 = (float *)calloc(test_nasm1->num_ninst, sizeof(float));
-            network_profile_t **network_profile1 = (network_profile_t **)calloc(1, sizeof(network_profile_t *));
+                float *server_elapsed_times1 = (float *)calloc(test_nasm1->num_ninst, sizeof(float));
+                float *edge_elapsed_times1 = (float *)calloc(test_nasm1->num_ninst, sizeof(float));
+                network_profile_t **network_profile1 = (network_profile_t **)calloc(1, sizeof(network_profile_t *));
 
-            profile_comp_and_net(
-                test_nasm1, num_cores, dev_mode, server_sock1, client_sock1,
-                server_elapsed_times1, edge_elapsed_times1, network_profile1
-            );
+                profile_comp_and_net(
+                    test_nasm1, num_cores, dev_mode, server_sock1, client_sock1,
+                    server_elapsed_times1, edge_elapsed_times1, network_profile1
+                );
 
-            printf("Profiling 1 done\n");
-        
+                printf("Profiling 1 done\n");
+            
 
-            // print_network_profile(*network_profile1);
+                // print_network_profile(*network_profile1);
+
+                
+                /* FL SCHEDULE */
+                PRTF("STAGE: FL SCHEDULE\n");
+                float min_eta1 = -1;
+
+                while (min_eta1 < 0) {
+                    // Synchronize pipelining params
+                    int server_num_dse1 = 0, edge_num_dse1 = 0;
+                    if (dev_mode == DEV_SERVER) {
+                        write_n(client_sock1, &num_cores, sizeof(int));
+                        read_n(client_sock1, &edge_num_dse1, sizeof(int));
+                        server_num_dse1 = num_cores;
+                    }
+                    else if (dev_mode == DEV_EDGE) {
+                        read_n(server_sock1, &server_num_dse1, sizeof(int));
+                        write_n(server_sock1, &num_cores, sizeof(int));
+                        edge_num_dse1 = num_cores;
+                    }
+
+                    // Schedule FL
+
+                    if (dev_mode == DEV_SERVER) {
+                        min_eta1 = fl_schedule_bruteforce(
+                            target_nasm1, server_num_dse1, server_elapsed_times1, edge_num_dse1, edge_elapsed_times1, *network_profile1,
+                            &fl_split_layer_idx, &fl_num_path, fl_path_offloading_idx
+                        );
+                    }
+
+                    // Synchronize FL params
+                    if (dev_mode == DEV_SERVER) {
+                        write_n(client_sock1, &fl_split_layer_idx, sizeof(int));
+                        write_n(client_sock1, &fl_num_path, sizeof(int));
+                        write_n(client_sock1, fl_path_offloading_idx, sizeof(int) * fl_num_path);
+                        write_n(client_sock1, &min_eta1, sizeof(float));
+                    }
+                    else if (dev_mode == DEV_EDGE) {
+                        read_n(server_sock1, &fl_split_layer_idx, sizeof(int));
+                        read_n(server_sock1, &fl_num_path, sizeof(int));
+                        read_n(server_sock1, fl_path_offloading_idx, sizeof(int) * fl_num_path);
+                        read_n(server_sock1, &min_eta1, sizeof(float));
+                    }
+                }
+
+                free(server_elapsed_times1);
+                free(edge_elapsed_times1);
+                free(*network_profile1);
+                free(network_profile1);
+                apu_destroy_nasm(test_nasm1);
+
 
             
-            /* FL SCHEDULE */
-            PRTF("STAGE: FL SCHEDULE\n");
-            float min_eta1 = -1;
+                #ifdef DEBUG
+                printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta1);
+                for (int i=0; i<fl_num_path; i++) {
+                    printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
+                }
+                #endif
 
-            while (min_eta1 < 0) {
-                // Synchronize pipelining params
-                int server_num_dse1 = 0, edge_num_dse1 = 0;
+
+                /* FL PATH CREATION */
+
+                unsigned int num_last_layer_ninst1 = target_nasm1->ldata_arr[fl_split_layer_idx].num_ninst;
+
+                PRTF ("FL: last layer of fl path has %d ninsts\n", num_last_layer_ninst1);
+
+                fl_init(target_nasm1);
+                
+                for (int i=0; i<fl_num_path; i++) {
+                    unsigned int intercept_start = num_last_layer_ninst1 * i / fl_num_path;
+                    unsigned int intercept_end = num_last_layer_ninst1 * (i+1) / fl_num_path;
+
+                    ninst_t **path_last_ninsts = (ninst_t **)malloc(sizeof(ninst_t *) * (intercept_end - intercept_start));
+
+                    for (int j=0; j<(intercept_end - intercept_start); j++) {
+                        path_last_ninsts[j] = &target_nasm1->ldata_arr[fl_split_layer_idx].ninst_arr_start[intercept_start + j];
+                    }
+
+                    fl_path_t *new_path = fl_create_path(target_nasm1, path_last_ninsts, intercept_end - intercept_start, fl_path_offloading_idx[i]);
+
+                    if (i == 0) dse_set_starting_path(new_path);
+
+                    fl_set_dev_compute(target_nasm1, new_path, dev_mode);
+
+                    free(path_last_ninsts);
+                }
+
+                for (int i=0; i<num_cores; i++) dse_group1->dse_arr[i].is_fl_offloading = 1;
+
                 if (dev_mode == DEV_SERVER) {
-                    write_n(client_sock1, &num_cores, sizeof(int));
-                    read_n(client_sock1, &edge_num_dse1, sizeof(int));
-                    server_num_dse1 = num_cores;
-                }
-                else if (dev_mode == DEV_EDGE) {
-                    read_n(server_sock1, &server_num_dse1, sizeof(int));
-                    write_n(server_sock1, &num_cores, sizeof(int));
-                    edge_num_dse1 = num_cores;
-                }
+                    init_allow_all(target_nasm1, 2);
 
-                // Schedule FL
+                    ninst_t *last_layer_ninst_arr_start = target_nasm1->ldata_arr[target_nasm1->num_ldata - 1].ninst_arr_start;
+                    unsigned int last_layer_num_ninst = target_nasm1->ldata_arr[target_nasm1->num_ldata - 1].num_ninst;
 
-                if (dev_mode == DEV_SERVER) {
-                    min_eta1 = fl_schedule_bruteforce(
-                        target_nasm1, server_num_dse1, server_elapsed_times1, edge_num_dse1, edge_elapsed_times1, *network_profile1,
-                        &fl_split_layer_idx, &fl_num_path, fl_path_offloading_idx
-                    );
+                    for (int i=0; i<last_layer_num_ninst; i++) {
+                        last_layer_ninst_arr_start[i].dev_send_target[DEV_EDGE] = 1;
+                    }
                 }
+                else if (dev_mode == DEV_LOCAL) init_allow_all(target_nasm1, 3);
 
-                // Synchronize FL params
-                if (dev_mode == DEV_SERVER) {
-                    write_n(client_sock1, &fl_split_layer_idx, sizeof(int));
-                    write_n(client_sock1, &fl_num_path, sizeof(int));
-                    write_n(client_sock1, fl_path_offloading_idx, sizeof(int) * fl_num_path);
-                    write_n(client_sock1, &min_eta1, sizeof(float));
-                }
-                else if (dev_mode == DEV_EDGE) {
-                    read_n(server_sock1, &fl_split_layer_idx, sizeof(int));
-                    read_n(server_sock1, &fl_num_path, sizeof(int));
-                    read_n(server_sock1, fl_path_offloading_idx, sizeof(int) * fl_num_path);
-                    read_n(server_sock1, &min_eta1, sizeof(float));
-                }
+                printf("FL path 1 created\n");
             }
 
-            free(server_elapsed_times1);
-            free(edge_elapsed_times1);
-            free(*network_profile1);
-            free(network_profile1);
-            apu_destroy_nasm(test_nasm1);
-
-
-        
-            #ifdef DEBUG
-            printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta1);
-            for (int i=0; i<fl_num_path; i++) {
-                printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
-            }
-            #endif
-
-
-            /* FL PATH CREATION */
-
-            unsigned int num_last_layer_ninst1 = target_nasm1->ldata_arr[fl_split_layer_idx].num_ninst;
-
-            PRTF ("FL: last layer of fl path has %d ninsts\n", num_last_layer_ninst1);
-
-            fl_init(target_nasm1);
-            
-            for (int i=0; i<fl_num_path; i++) {
-                unsigned int intercept_start = num_last_layer_ninst1 * i / fl_num_path;
-                unsigned int intercept_end = num_last_layer_ninst1 * (i+1) / fl_num_path;
-
-                ninst_t **path_last_ninsts = (ninst_t **)malloc(sizeof(ninst_t *) * (intercept_end - intercept_start));
-
-                for (int j=0; j<(intercept_end - intercept_start); j++) {
-                    path_last_ninsts[j] = &target_nasm1->ldata_arr[fl_split_layer_idx].ninst_arr_start[intercept_start + j];
-                }
-
-                fl_path_t *new_path = fl_create_path(target_nasm1, path_last_ninsts, intercept_end - intercept_start, fl_path_offloading_idx[i]);
-
-                if (i == 0) dse_set_starting_path(new_path);
-
-                fl_set_dev_compute(target_nasm1, new_path, dev_mode);
-
-                free(path_last_ninsts);
-            }
-
-            for (int i=0; i<num_cores; i++) dse_group1->dse_arr[i].is_fl_offloading = 1;
-
-            if (dev_mode == DEV_SERVER) {
-                init_allow_all(target_nasm1, 2);
-
-                ninst_t *last_layer_ninst_arr_start = target_nasm1->ldata_arr[target_nasm1->num_ldata - 1].ninst_arr_start;
-                unsigned int last_layer_num_ninst = target_nasm1->ldata_arr[target_nasm1->num_ldata - 1].num_ninst;
-
-                for (int i=0; i<last_layer_num_ninst; i++) {
-                    last_layer_ninst_arr_start[i].dev_send_target[DEV_EDGE] = 1;
-                }
-            }
-            else if (dev_mode == DEV_LOCAL) init_allow_all(target_nasm1, 3);
-
-            printf("FL path 1 created\n");
             
             // Networking 2
             
@@ -294,6 +297,20 @@ int main (int argc, char **argv)
 
             printf("Established NE 3\n");
             
+            /* PROFILING */
+            PRTF("STAGE: PROFILING\n");
+            nasm_t *test_nasm3 = apu_load_nasm_from_file (nasm_file_name3, target_dnn3);
+
+
+            float *server_elapsed_times3 = (float *)calloc(test_nasm3->num_ninst, sizeof(float));
+            float *edge_elapsed_times3 = (float *)calloc(test_nasm3->num_ninst, sizeof(float));
+            network_profile_t **network_profile3 = (network_profile_t **)calloc(1, sizeof(network_profile_t *));
+            profile_comp_and_net(
+                test_nasm3, num_cores, dev_mode, server_sock3, client_sock3,
+                server_elapsed_times3, edge_elapsed_times3, network_profile3
+            );
+
+            printf("Profiling 3 done\n");
 
             
 
@@ -378,45 +395,47 @@ int main (int argc, char **argv)
 
 
             /* FL PATH CREATION */
+            {
+                unsigned int num_last_layer_ninst2 = target_nasm2->ldata_arr[fl_split_layer_idx].num_ninst;
 
-            unsigned int num_last_layer_ninst2 = target_nasm2->ldata_arr[fl_split_layer_idx].num_ninst;
+                PRTF ("FL: last layer of fl path has %d ninsts\n", num_last_layer_ninst2);
 
-            PRTF ("FL: last layer of fl path has %d ninsts\n", num_last_layer_ninst2);
+                fl_init(target_nasm2);
+                
+                for (int i=0; i<fl_num_path; i++) {
+                    unsigned int intercept_start = num_last_layer_ninst2 * i / fl_num_path;
+                    unsigned int intercept_end = num_last_layer_ninst2 * (i+1) / fl_num_path;
 
-            fl_init(target_nasm2);
-            
-            for (int i=0; i<fl_num_path; i++) {
-                unsigned int intercept_start = num_last_layer_ninst2 * i / fl_num_path;
-                unsigned int intercept_end = num_last_layer_ninst2 * (i+1) / fl_num_path;
+                    ninst_t **path_last_ninsts = (ninst_t **)malloc(sizeof(ninst_t *) * (intercept_end - intercept_start));
 
-                ninst_t **path_last_ninsts = (ninst_t **)malloc(sizeof(ninst_t *) * (intercept_end - intercept_start));
+                    for (int j=0; j<(intercept_end - intercept_start); j++) {
+                        path_last_ninsts[j] = &target_nasm2->ldata_arr[fl_split_layer_idx].ninst_arr_start[intercept_start + j];
+                    }
 
-                for (int j=0; j<(intercept_end - intercept_start); j++) {
-                    path_last_ninsts[j] = &target_nasm2->ldata_arr[fl_split_layer_idx].ninst_arr_start[intercept_start + j];
+                    fl_path_t *new_path = fl_create_path(target_nasm2, path_last_ninsts, intercept_end - intercept_start, fl_path_offloading_idx[i]);
+
+                    if (i == 0) dse_set_starting_path(new_path);
+
+                    fl_set_dev_compute(target_nasm2, new_path, dev_mode);
+
+                    free(path_last_ninsts);
                 }
 
-                fl_path_t *new_path = fl_create_path(target_nasm2, path_last_ninsts, intercept_end - intercept_start, fl_path_offloading_idx[i]);
+                for (int i=0; i<num_cores; i++) dse_group2->dse_arr[i].is_fl_offloading = 1;
 
-                if (i == 0) dse_set_starting_path(new_path);
+                if (dev_mode == DEV_SERVER) {
+                    init_allow_all(target_nasm2, 2);
 
-                fl_set_dev_compute(target_nasm2, new_path, dev_mode);
+                    ninst_t *last_layer_ninst_arr_start = target_nasm2->ldata_arr[target_nasm2->num_ldata - 1].ninst_arr_start;
+                    unsigned int last_layer_num_ninst = target_nasm2->ldata_arr[target_nasm2->num_ldata - 1].num_ninst;
 
-                free(path_last_ninsts);
-            }
-
-            for (int i=0; i<num_cores; i++) dse_group2->dse_arr[i].is_fl_offloading = 1;
-
-            if (dev_mode == DEV_SERVER) {
-                init_allow_all(target_nasm2, 2);
-
-                ninst_t *last_layer_ninst_arr_start = target_nasm2->ldata_arr[target_nasm2->num_ldata - 1].ninst_arr_start;
-                unsigned int last_layer_num_ninst = target_nasm2->ldata_arr[target_nasm2->num_ldata - 1].num_ninst;
-
-                for (int i=0; i<last_layer_num_ninst; i++) {
-                    last_layer_ninst_arr_start[i].dev_send_target[DEV_EDGE] = 1;
+                    for (int i=0; i<last_layer_num_ninst; i++) {
+                        last_layer_ninst_arr_start[i].dev_send_target[DEV_EDGE] = 1;
+                    }
                 }
+                else if (dev_mode == DEV_LOCAL) init_allow_all(target_nasm2, 3);
             }
-            else if (dev_mode == DEV_LOCAL) init_allow_all(target_nasm2, 3);
+
 
 
             /* INFERENCE */
@@ -477,123 +496,105 @@ int main (int argc, char **argv)
         ////////////////////////////
         
             
+            {
+                /* FL SCHEDULE */
+                PRTF("STAGE: FL SCHEDULE\n");
 
-            /* PROFILING */
-            PRTF("STAGE: PROFILING\n");
-            nasm_t *test_nasm3 = apu_load_nasm_from_file (nasm_file_name3, target_dnn3);
+                float min_eta3 = -1;
+                while (min_eta3 < 0) {
+                    // Synchronize pipelining params
+                    int server_num_dse3 = 0, edge_num_dse3 = 0;
+                    if (dev_mode == DEV_SERVER) {
+                        write_n(client_sock3, &num_cores, sizeof(int));
+                        read_n(client_sock3, &edge_num_dse3, sizeof(int));
+                        server_num_dse3 = num_cores;
+                    }
+                    else if (dev_mode == DEV_EDGE) {
+                        read_n(server_sock3, &server_num_dse3, sizeof(int));
+                        write_n(server_sock3, &num_cores, sizeof(int));
+                        edge_num_dse3 = num_cores;
+                    }
 
+                    // Schedule FL
 
-            float *server_elapsed_times3 = (float *)calloc(test_nasm3->num_ninst, sizeof(float));
-            float *edge_elapsed_times3 = (float *)calloc(test_nasm3->num_ninst, sizeof(float));
-            network_profile_t **network_profile3 = (network_profile_t **)calloc(1, sizeof(network_profile_t *));
-            profile_comp_and_net(
-                test_nasm3, num_cores, dev_mode, server_sock3, client_sock3,
-                server_elapsed_times3, edge_elapsed_times3, network_profile3
-            );
+                    if (dev_mode == DEV_SERVER) {
+                        min_eta3 = fl_schedule_bruteforce(
+                            target_nasm3, server_num_dse3, server_elapsed_times3, edge_num_dse3, edge_elapsed_times3, *network_profile3,
+                            &fl_split_layer_idx, &fl_num_path, fl_path_offloading_idx
+                        );
+                    }
 
-            printf("Profiling 3 done\n");
-        
+                    // Synchronize FL params
+                    if (dev_mode == DEV_SERVER) {
+                        write_n(client_sock3, &fl_split_layer_idx, sizeof(int));
+                        write_n(client_sock3, &fl_num_path, sizeof(int));
+                        write_n(client_sock3, fl_path_offloading_idx, sizeof(int) * fl_num_path);
+                        write_n(client_sock3, &min_eta3, sizeof(float));
+                    }
+                    else if (dev_mode == DEV_EDGE) {
+                        read_n(server_sock3, &fl_split_layer_idx, sizeof(int));
+                        read_n(server_sock3, &fl_num_path, sizeof(int));
+                        read_n(server_sock3, fl_path_offloading_idx, sizeof(int) * fl_num_path);
+                        read_n(server_sock3, &min_eta3, sizeof(float));
+                    }
+                }
 
-            // print_network_profile(*network_profile1);
+                free(server_elapsed_times3);
+                free(edge_elapsed_times3);
+                free(*network_profile3);
+                free(network_profile3);
+                apu_destroy_nasm(test_nasm3);
 
             
-            /* FL SCHEDULE */
-            PRTF("STAGE: FL SCHEDULE\n");
+                #ifdef DEBUG
+                printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta3);
+                for (int i=0; i<fl_num_path; i++) {
+                    printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
+                }
+                #endif
 
-            float min_eta3 = -1;
-            while (min_eta3 < 0) {
-                // Synchronize pipelining params
-                int server_num_dse3 = 0, edge_num_dse3 = 0;
+
+                /* FL PATH CREATION */
+
+                unsigned int num_last_layer_ninst3 = target_nasm3->ldata_arr[fl_split_layer_idx].num_ninst;
+
+                PRTF ("FL: last layer of fl path has %d ninsts\n", num_last_layer_ninst3);
+
+                fl_init(target_nasm3);
+                
+                for (int i=0; i<fl_num_path; i++) {
+                    unsigned int intercept_start = num_last_layer_ninst3 * i / fl_num_path;
+                    unsigned int intercept_end = num_last_layer_ninst3 * (i+1) / fl_num_path;
+
+                    ninst_t **path_last_ninsts = (ninst_t **)malloc(sizeof(ninst_t *) * (intercept_end - intercept_start));
+
+                    for (int j=0; j<(intercept_end - intercept_start); j++) {
+                        path_last_ninsts[j] = &target_nasm3->ldata_arr[fl_split_layer_idx].ninst_arr_start[intercept_start + j];
+                    }
+
+                    fl_path_t *new_path = fl_create_path(target_nasm3, path_last_ninsts, intercept_end - intercept_start, fl_path_offloading_idx[i]);
+
+                    if (i == 0) dse_set_starting_path(new_path);
+
+                    fl_set_dev_compute(target_nasm3, new_path, dev_mode);
+
+                    free(path_last_ninsts);
+                }
+
+                for (int i=0; i<num_cores; i++) dse_group3->dse_arr[i].is_fl_offloading = 1;
+
                 if (dev_mode == DEV_SERVER) {
-                    write_n(client_sock3, &num_cores, sizeof(int));
-                    read_n(client_sock3, &edge_num_dse3, sizeof(int));
-                    server_num_dse3 = num_cores;
-                }
-                else if (dev_mode == DEV_EDGE) {
-                    read_n(server_sock3, &server_num_dse3, sizeof(int));
-                    write_n(server_sock3, &num_cores, sizeof(int));
-                    edge_num_dse3 = num_cores;
-                }
+                    init_allow_all(target_nasm3, 2);
 
-                // Schedule FL
+                    ninst_t *last_layer_ninst_arr_start = target_nasm3->ldata_arr[target_nasm3->num_ldata - 1].ninst_arr_start;
+                    unsigned int last_layer_num_ninst = target_nasm3->ldata_arr[target_nasm3->num_ldata - 1].num_ninst;
 
-                if (dev_mode == DEV_SERVER) {
-                    min_eta3 = fl_schedule_bruteforce(
-                        target_nasm3, server_num_dse3, server_elapsed_times3, edge_num_dse3, edge_elapsed_times3, *network_profile3,
-                        &fl_split_layer_idx, &fl_num_path, fl_path_offloading_idx
-                    );
+                    for (int i=0; i<last_layer_num_ninst; i++) {
+                        last_layer_ninst_arr_start[i].dev_send_target[DEV_EDGE] = 1;
+                    }
                 }
-
-                // Synchronize FL params
-                if (dev_mode == DEV_SERVER) {
-                    write_n(client_sock3, &fl_split_layer_idx, sizeof(int));
-                    write_n(client_sock3, &fl_num_path, sizeof(int));
-                    write_n(client_sock3, fl_path_offloading_idx, sizeof(int) * fl_num_path);
-                    write_n(client_sock3, &min_eta3, sizeof(float));
-                }
-                else if (dev_mode == DEV_EDGE) {
-                    read_n(server_sock3, &fl_split_layer_idx, sizeof(int));
-                    read_n(server_sock3, &fl_num_path, sizeof(int));
-                    read_n(server_sock3, fl_path_offloading_idx, sizeof(int) * fl_num_path);
-                    read_n(server_sock3, &min_eta3, sizeof(float));
-                }
+                else if (dev_mode == DEV_LOCAL) init_allow_all(target_nasm3, 3);
             }
-
-            free(server_elapsed_times3);
-            free(edge_elapsed_times3);
-            free(*network_profile3);
-            free(network_profile3);
-            apu_destroy_nasm(test_nasm3);
-
-        
-            #ifdef DEBUG
-            printf("FL params: split layer %d, num path %d, expected %f\n", fl_split_layer_idx, fl_num_path, min_eta3);
-            for (int i=0; i<fl_num_path; i++) {
-                printf("FL params: path %d: %d\n", i, fl_path_offloading_idx[i]);
-            }
-            #endif
-
-
-            /* FL PATH CREATION */
-
-            unsigned int num_last_layer_ninst3 = target_nasm3->ldata_arr[fl_split_layer_idx].num_ninst;
-
-            PRTF ("FL: last layer of fl path has %d ninsts\n", num_last_layer_ninst3);
-
-            fl_init(target_nasm3);
-            
-            for (int i=0; i<fl_num_path; i++) {
-                unsigned int intercept_start = num_last_layer_ninst3 * i / fl_num_path;
-                unsigned int intercept_end = num_last_layer_ninst3 * (i+1) / fl_num_path;
-
-                ninst_t **path_last_ninsts = (ninst_t **)malloc(sizeof(ninst_t *) * (intercept_end - intercept_start));
-
-                for (int j=0; j<(intercept_end - intercept_start); j++) {
-                    path_last_ninsts[j] = &target_nasm3->ldata_arr[fl_split_layer_idx].ninst_arr_start[intercept_start + j];
-                }
-
-                fl_path_t *new_path = fl_create_path(target_nasm3, path_last_ninsts, intercept_end - intercept_start, fl_path_offloading_idx[i]);
-
-                if (i == 0) dse_set_starting_path(new_path);
-
-                fl_set_dev_compute(target_nasm3, new_path, dev_mode);
-
-                free(path_last_ninsts);
-            }
-
-            for (int i=0; i<num_cores; i++) dse_group3->dse_arr[i].is_fl_offloading = 1;
-
-            if (dev_mode == DEV_SERVER) {
-                init_allow_all(target_nasm3, 2);
-
-                ninst_t *last_layer_ninst_arr_start = target_nasm3->ldata_arr[target_nasm3->num_ldata - 1].ninst_arr_start;
-                unsigned int last_layer_num_ninst = target_nasm3->ldata_arr[target_nasm3->num_ldata - 1].num_ninst;
-
-                for (int i=0; i<last_layer_num_ninst; i++) {
-                    last_layer_ninst_arr_start[i].dev_send_target[DEV_EDGE] = 1;
-                }
-            }
-            else if (dev_mode == DEV_LOCAL) init_allow_all(target_nasm3, 3);
 
 
             /* INFERENCE */
