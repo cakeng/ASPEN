@@ -442,6 +442,9 @@ void dse_schedule_fl (dse_t *dse) {
             #ifdef DEBUG
             if (dse->target != NULL)
                 printf("Popped (N %d, L %d)\n", dse->target->ninst_idx, dse->target->ldata->layer->layer_idx);
+            else {
+                printf("No ninst at rpool: %d\n", dse->rpool->num_stored);
+            }
             #endif
         }
     }
