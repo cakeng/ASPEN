@@ -26,7 +26,6 @@ int main (int argc, char **argv)
     #endif
     
     char dnn[256] = {0};
-    int batch_size = 1;
     int number_of_iterations = 1;
     int num_cores = 1;
     int gpu_idx = -1;
@@ -44,12 +43,14 @@ int main (int argc, char **argv)
     char target_aspen2[] = "data/bert_base.aspen";
     char target_aspen3[] = "data/vgg16_base.aspen";
 
-    #define BATCH_SIZE 1
+    #define BATCH_SIZE 8
     #if BATCH_SIZE == 1
+    int batch_size = 1;
     char nasm_file_name1[] = "data/resnet50_B1_T200.nasm";
     char nasm_file_name2[] = "data/bert_base_B1_T20.nasm";
     char nasm_file_name3[] = "data/vgg16_B1_T200.nasm";
     #else
+    int batch_size = 8;
     char nasm_file_name1[] = "data/resnet50_B8_T200.nasm";
     char nasm_file_name2[] = "data/bert_base_B8_T200.nasm";
     char nasm_file_name3[] = "data/vgg16_B8_T200.nasm";

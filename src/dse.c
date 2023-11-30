@@ -934,7 +934,7 @@ void add_dse_to_thread (thread_t* thread, dse_t *dse)
     if (thread->num_dses == 0)
         thread->dse_arr = (dse_t *) calloc (1, sizeof (dse_t));
     else
-        realloc (thread->dse_arr, sizeof (dse_t) * (thread->num_dses + 1));
+        thread->dse_arr = realloc (thread->dse_arr, sizeof (dse_t) * (thread->num_dses + 1));
 
     thread->dse_arr[thread->num_dses] = dse;
     thread->num_dses++;
