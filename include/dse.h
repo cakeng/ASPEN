@@ -34,6 +34,7 @@ struct dse_group_t
     unsigned int num_dses;
     dse_t *dse_arr;
     int gpu_idx;
+    _Atomic fl_path_t *dse_now_path;
 };
 
 struct dse_t
@@ -89,7 +90,7 @@ void dse_stop (dse_t *dse);
 
 void dse_schedule (dse_t *dse);
 void dse_schedule_fl (dse_t *dse);
-void dse_set_starting_path (fl_path_t *path);
+void dse_set_starting_path (dse_group_t *dse_group, fl_path_t *path);
 
 void dse_group_set_net_engine (dse_group_t *dse_group, networking_engine *net_engine);
 void dse_group_set_device (dse_group_t *dse_group, int device_idx);

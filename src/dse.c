@@ -18,7 +18,6 @@
 
 static _Atomic unsigned int thread_id_counter = 0;
 static _Atomic unsigned int dse_thread_id_counter = 0;
-static _Atomic fl_path_t *dse_now_path = NULL;
 static unsigned int fl_post_group_idx;
 static nasm_t *ref_nasm = NULL;
 
