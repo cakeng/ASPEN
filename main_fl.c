@@ -44,9 +44,16 @@ int main (int argc, char **argv)
     char target_aspen2[] = "data/bert_base.aspen";
     char target_aspen3[] = "data/vgg16_base.aspen";
 
+    #define BATCH_SIZE 1
+    #if BATCH_SIZE == 1
     char nasm_file_name1[] = "data/resnet50_B1_T200.nasm";
     char nasm_file_name2[] = "data/bert_base_B1_T20.nasm";
     char nasm_file_name3[] = "data/vgg16_B1_T200.nasm";
+    #else
+    char nasm_file_name1[] = "data/resnet50_B8_T200.nasm";
+    char nasm_file_name2[] = "data/bert_base_B8_T200.nasm";
+    char nasm_file_name3[] = "data/vgg16_B8_T200.nasm";
+    #endif
 
     nasm_t *target_nasm1, *target_nasm2, *target_nasm3;
     rpool_t *rpool1, *rpool2, *rpool3;
@@ -616,13 +623,14 @@ int main (int argc, char **argv)
 
             /* INFERENCE */
             int inference_id1 = 0;
+            float total_elapsed = 0.0;
 
             PRTF ("Running %d iterations\n", number_of_iterations);
-            start_time = get_sec();
             for (int i = 0; i < number_of_iterations; i++)
             {
                 read_n(server_sock1, &inference_id1, sizeof(int));
                 write_n(server_sock1, &inference_id1, sizeof(int));
+                start_time = get_sec();
 
                 net_engine_run(net_engine1);
                 rpool_reset_queue (rpool1);
@@ -637,6 +645,8 @@ int main (int argc, char **argv)
 
                 dse_group_run (dse_group1);
                 dse_wait_for_nasm_completion (target_nasm1);
+                end_time = get_sec();
+                total_elapsed += (end_time - start_time);
 
                 if (dev_mode != DEV_LOCAL) {
                     unsigned int tx_remaining = atomic_load(&net_engine1->rpool->num_stored);
@@ -656,12 +666,11 @@ int main (int argc, char **argv)
                 dse_set_starting_path (dse_group1, target_nasm1->path_ptr_arr[0]);
 
             }
-            end_time = get_sec();
 
             #ifndef SUPRESS_OUTPUT
-            printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);
+            printf ("Time taken: %lf seconds\n", total_elapsed/number_of_iterations);
             #else
-            printf ("%lf\n", (end_time - start_time)/number_of_iterations);
+            printf ("%lf\n", total_elapsed/number_of_iterations);
             #endif
 
             if (strcmp(dnn, "bert_base") != 0 && strcmp(dnn, "yolov3") != 0)
@@ -765,13 +774,14 @@ int main (int argc, char **argv)
 
             /* INFERENCE */
             int inference_id2 = 0;
+            float total_elapsed = 0.0;
 
             PRTF ("Running %d iterations\n", number_of_iterations);
-            start_time = get_sec();
             for (int i = 0; i < number_of_iterations; i++)
             {
                 read_n(server_sock2, &inference_id2, sizeof(int));
                 write_n(server_sock2, &inference_id2, sizeof(int));
+                start_time = get_sec();
 
                 net_engine_run(net_engine2);
                 rpool_reset_queue (rpool2);
@@ -786,6 +796,8 @@ int main (int argc, char **argv)
 
                 dse_group_run (dse_group2);
                 dse_wait_for_nasm_completion (target_nasm2);
+                end_time = get_sec();
+                total_elapsed += (end_time - start_time);
 
                 if (dev_mode != DEV_LOCAL) {
                     unsigned int tx_remaining = atomic_load(&net_engine2->rpool->num_stored);
@@ -807,12 +819,11 @@ int main (int argc, char **argv)
                 dse_set_starting_path (dse_group2, target_nasm2->path_ptr_arr[0]);
 
             }
-            end_time = get_sec();
 
             #ifndef SUPRESS_OUTPUT
-            printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);
+            printf ("Time taken: %lf seconds\n", total_elapsed/number_of_iterations);
             #else
-            printf ("%lf\n", (end_time - start_time)/number_of_iterations);
+            printf ("%lf\n", total_elapsed/number_of_iterations);
             #endif
 
             /* WRAP UP */
@@ -942,13 +953,14 @@ int main (int argc, char **argv)
 
             /* INFERENCE */
             int inference_id3 = 0;
+            float total_elapsed = 0.0;
             
             PRTF ("Running %d iterations\n", number_of_iterations);
-            start_time = get_sec();
             for (int i = 0; i < number_of_iterations; i++)
             {
                 read_n(server_sock3, &inference_id3, sizeof(int));
                 write_n(server_sock3, &inference_id3, sizeof(int));
+                start_time = get_sec();
                 
                 net_engine_run(net_engine3);
                 rpool_reset_queue (rpool3);
@@ -963,6 +975,8 @@ int main (int argc, char **argv)
                 
                 dse_group_run (dse_group3);
                 dse_wait_for_nasm_completion (target_nasm3);
+                end_time = get_sec();
+                total_elapsed += (end_time - start_time);
 
                 if (dev_mode != DEV_LOCAL) {
                     unsigned int tx_remaining = atomic_load(&net_engine3->rpool->num_stored);
@@ -987,9 +1001,9 @@ int main (int argc, char **argv)
             end_time = get_sec();
 
             #ifndef SUPRESS_OUTPUT
-            printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);
+            printf ("Time taken: %lf seconds\n", total_elapsed/number_of_iterations);
             #else
-            printf ("%lf\n", (end_time - start_time)/number_of_iterations);
+            printf ("%lf\n", total_elapsed/number_of_iterations);
             #endif
 
             if (strcmp(dnn, "bert_base") != 0 && strcmp(dnn, "yolov3") != 0)
