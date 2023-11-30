@@ -324,7 +324,7 @@ void dse_schedule (dse_t *dse)
 }
 
 void dse_set_starting_path (dse_group_t *dse_group, fl_path_t *path) {
-    atomic_store(dse_group->dse_now_path, path);
+    atomic_store(&dse_group->dse_now_path, path);
 }
 
 void dse_schedule_fl (dse_t *dse) {
@@ -352,7 +352,7 @@ void dse_schedule_fl (dse_t *dse) {
 
     /* SET TARGET NINST */
     if (dse->target == NULL && (dse->run != 0 && dse->kill == 0)) {
-        fl_path_t *now_path = atomic_load(dse->dse_group->dse_now_path);
+        fl_path_t *now_path = atomic_load(&dse->dse_group->dse_now_path);
         unsigned int nplc = atomic_load(&now_path->num_path_layers_completed);
         
         if (nplc < now_path->num_path_layers) {
@@ -560,7 +560,7 @@ void dse_schedule_fl (dse_t *dse) {
                     }
                     return;
                 }
-                atomic_store(dse->dse_group->dse_now_path, nasm->path_ptr_arr[next_path_idx]);
+                atomic_store(&dse->dse_group->dse_now_path, nasm->path_ptr_arr[next_path_idx]);
 
                 // Push new ninsts into rpool
                 if (dse->device_mode == DEV_EDGE) fl_push_path_ninsts_edge(dse->rpool, next_path);

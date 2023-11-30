@@ -692,6 +692,8 @@ int main (int argc, char **argv)
                 test_nasm1, num_cores, dev_mode, server_sock1, client_sock1,
                 server_elapsed_times1, edge_elapsed_times1, network_profile1
             );
+
+            printf("Profiling 1 done\n");
         
 
             // print_network_profile(*network_profile1);
@@ -1064,6 +1066,8 @@ int main (int argc, char **argv)
                 test_nasm3, num_cores, dev_mode, server_sock3, client_sock3,
                 server_elapsed_times3, edge_elapsed_times3, network_profile3
             );
+
+            printf("Profiling 3 done\n");
         
 
             // print_network_profile(*network_profile1);
