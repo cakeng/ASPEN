@@ -93,6 +93,10 @@ int main (int argc, char **argv)
 
             /* BASIC MODULES */
 
+            thread_t *thread_arr = (thread_t *)malloc(sizeof(thread_t) * num_cores);
+            for (int i = 0; i < num_cores; i++) 
+                thread_init(&thread_arr[i]);
+
             rpool1 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
             dse_group_t *dse_group1 = dse_group_init (num_cores, gpu_idx);
             dse_group_set_rpool (dse_group1, rpool1);
@@ -122,6 +126,12 @@ int main (int argc, char **argv)
 
             rpool_add_nasm (rpool3, target_nasm3, "data/batched_input_128.bin");
 
+            for (int i = 0; i < num_cores; i++) {
+                add_dse_to_thread (&thread_arr[i], &dse_group1->dse_arr[i]);
+                add_dse_to_thread (&thread_arr[i], &dse_group2->dse_arr[i]);
+                add_dse_to_thread (&thread_arr[i], &dse_group3->dse_arr[i]);
+            }
+
             networking_engine *net_engine1, *net_engine2, *net_engine3;
 
             int server_sock1 = -1, client_sock1 = -1;
@@ -130,17 +140,17 @@ int main (int argc, char **argv)
             
             create_connection(dev_mode, server_ip, control_ports[1], &server_sock1, &client_sock1);
 
-            printf("Established CC 1\n");
+            // printf("Established CC 1\n");
 
             
             create_connection(dev_mode, server_ip, control_ports[2], &server_sock2, &client_sock2);
 
-            printf("Established CC 2\n");
+            // printf("Established CC 2\n");
 
 
             create_connection(dev_mode, server_ip, control_ports[3], &server_sock3, &client_sock3);
 
-            printf("Established CC 3\n");
+            // printf("Established CC 3\n");
 
             
             // Networking 1
@@ -157,7 +167,7 @@ int main (int argc, char **argv)
                 net_engine_set_operating_mode(net_engine1, OPER_MODE_FL_PATH);
             }
 
-            printf("Established NE 1\n");
+            // printf("Established NE 1\n");
 
             {
                 /* FL PATH CREATION */
@@ -199,7 +209,7 @@ int main (int argc, char **argv)
                 }
                 else if (dev_mode == DEV_LOCAL) init_allow_all(target_nasm1, 3);
 
-                printf("FL path 1 created\n");
+                // printf("FL path 1 created\n");
             }
 
             
@@ -216,7 +226,7 @@ int main (int argc, char **argv)
                 net_engine_set_operating_mode(net_engine2, OPER_MODE_DEFAULT);
             }
 
-            printf("Established NE 2\n");
+            // printf("Established NE 2\n");
  
             // Networking 3
             
@@ -232,7 +242,7 @@ int main (int argc, char **argv)
                 net_engine_set_operating_mode(net_engine3, OPER_MODE_FL_PATH);
             }
 
-            printf("Established NE 3\n");
+            // printf("Established NE 3\n");
 
             
         
@@ -375,14 +385,21 @@ int main (int argc, char **argv)
                 int lock_nasm_comp2 = 0;
                 int lock_nasm_comp3 = 0;
 
+                for (int i=0; i<num_cores; i++) {
+                    thread_run(&thread_arr[i]);
+                }
+
                 dse_group_run (dse_group1);
                 dse_group_run (dse_group2);
                 dse_group_run (dse_group3);
 
 
                 while (!lock_nasm_comp1) lock_nasm_comp1 = atomic_load(&target_nasm1->completed);
+                // printf("Nasm 1 completed\n");
                 while (!lock_nasm_comp2) lock_nasm_comp2 = atomic_load(&target_nasm2->completed);
+                // printf("Nasm 2 completed\n");
                 while (!lock_nasm_comp3) lock_nasm_comp3 = atomic_load(&target_nasm3->completed);
+                // printf("Nasm 3 completed\n");
 
 
                 unsigned int tx_remaining = atomic_load(&net_engine1->rpool->num_stored);
@@ -392,7 +409,7 @@ int main (int argc, char **argv)
                 net_engine_set_operating_mode(net_engine1, OPER_MODE_FL_PATH);
                 
                 dse_group_stop (dse_group1);
-                if (dev_mode != DEV_LOCAL) net_engine_stop (net_engine1);
+                net_engine_stop (net_engine1);
 
                 fl_reset_nasm_path(target_nasm1);
 
@@ -425,6 +442,10 @@ int main (int argc, char **argv)
                 fl_reset_nasm_path(target_nasm3);
 
                 dse_set_starting_path (dse_group3, target_nasm3->path_ptr_arr[0]);
+
+                for (int i=0; i<num_cores; i++) {
+                    thread_stop(&thread_arr[i]);
+                }
 
             }
             
@@ -498,6 +519,10 @@ int main (int argc, char **argv)
 
             /* BASIC MODULES */
 
+            thread_t *thread_arr = (thread_t *)malloc(sizeof(thread_t) * num_cores);
+            for (int i = 0; i < num_cores; i++) 
+                thread_init(&thread_arr[i]);
+
             rpool1 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
             dse_group_t *dse_group1 = dse_group_init (num_cores, gpu_idx);
             dse_group_set_rpool (dse_group1, rpool1);
@@ -507,17 +532,21 @@ int main (int argc, char **argv)
             networking_engine* net_engine1 = NULL;
 
             rpool_add_nasm (rpool1, target_nasm1, "data/batched_input_128.bin");
+
+            for (int i = 0; i < num_cores; i++) {
+                add_dse_to_thread (&thread_arr[i], &dse_group1->dse_arr[i]);
+            }
             
 
             create_connection(dev_mode, server_ip, control_port1, &server_sock1, &client_sock1);
 
-            printf("Established CC 1\n");
+            // printf("Established CC 1\n");
             
 
             // Networking
             int ne_start_key = 0;
             read_n(server_sock1, &ne_start_key, sizeof(int));
-            printf("Received NE start key %d\n", ne_start_key);
+            // printf("Received NE start key %d\n", ne_start_key);
 
             if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
             {
@@ -529,7 +558,7 @@ int main (int argc, char **argv)
                 net_engine_set_operating_mode(net_engine1, OPER_MODE_FL_PATH);
             }
 
-            printf("Established NE 1\n");
+            // printf("Established NE 1\n");
 
         
 
@@ -601,6 +630,11 @@ int main (int argc, char **argv)
                 dse_group_set_operating_mode(dse_group1, OPER_MODE_FL_PATH);
                 if (dev_mode == DEV_EDGE) fl_push_path_ninsts_edge(rpool1, target_nasm1->path_ptr_arr[0]);
                 else if (dev_mode == DEV_LOCAL) fl_push_path_ninsts(rpool1, target_nasm1->path_ptr_arr[0]);
+                
+                for (int i=0; i<num_cores; i++) {
+                    thread_run(&thread_arr[i]);
+                }
+
                 dse_group_run (dse_group1);
                 dse_wait_for_nasm_completion (target_nasm1);
 
@@ -612,6 +646,9 @@ int main (int argc, char **argv)
                     net_engine_set_operating_mode(net_engine1, OPER_MODE_FL_PATH);
                 }
                 dse_group_stop (dse_group1);
+                for (int i=0; i<num_cores; i++) {
+                    thread_stop(&thread_arr[i]);
+                }
                 if (dev_mode != DEV_LOCAL) net_engine_stop (net_engine1);
 
                 fl_reset_nasm_path(target_nasm1);
@@ -683,6 +720,10 @@ int main (int argc, char **argv)
 
             /* BASIC MODULES */
 
+            thread_t *thread_arr = (thread_t *)malloc(sizeof(thread_t) * num_cores);
+            for (int i = 0; i < num_cores; i++) 
+                thread_init(&thread_arr[i]);
+
             rpool2 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
             dse_group_t *dse_group2 = dse_group_init (num_cores, gpu_idx);
             dse_group_set_rpool (dse_group2, rpool2);
@@ -693,17 +734,21 @@ int main (int argc, char **argv)
 
             rpool_add_nasm (rpool2, target_nasm2, "data/batched_input_128.bin");
 
+            for (int i = 0; i < num_cores; i++) {
+                add_dse_to_thread (&thread_arr[i], &dse_group2->dse_arr[i]);
+            }
+
 
             /* CONTROL SINAL */
             create_connection(dev_mode, server_ip, control_port2, &server_sock2, &client_sock2);
 
-            printf("Established CC 2\n");
+            // printf("Established CC 2\n");
 
 
             // Networking
             int ne_start_key = 12354;
             read_n(server_sock2, &ne_start_key, sizeof(int));
-            printf("Received NE start key %d\n", ne_start_key);
+            // printf("Received NE start key %d\n", ne_start_key);
 
             if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
             {
@@ -714,7 +759,7 @@ int main (int argc, char **argv)
                 net_engine_set_operating_mode(net_engine2, OPER_MODE_DEFAULT);
             }
 
-            printf("Established NE 2\n");
+            // printf("Established NE 2\n");
 
             init_sequential_offload(target_nasm2, 1, 1, 0);
 
@@ -734,6 +779,11 @@ int main (int argc, char **argv)
 
                 push_first_layer_to_net_queue(net_engine2, target_nasm2, NULL);
                 dse_group_set_operating_mode(dse_group2, OPER_MODE_DEFAULT);
+                
+                for (int i=0; i<num_cores; i++) {
+                    thread_run(&thread_arr[i]);
+                }
+
                 dse_group_run (dse_group2);
                 dse_wait_for_nasm_completion (target_nasm2);
 
@@ -745,6 +795,11 @@ int main (int argc, char **argv)
                     net_engine_set_operating_mode(net_engine2, OPER_MODE_DEFAULT);
                 }
                 dse_group_stop (dse_group2);
+
+                for (int i=0; i<num_cores; i++) {
+                    thread_stop(&thread_arr[i]);
+                }
+
                 if (dev_mode != DEV_LOCAL) net_engine_stop (net_engine2);
 
                 fl_reset_nasm_path(target_nasm2);
@@ -796,6 +851,9 @@ int main (int argc, char **argv)
             
 
             /* BASIC MODULES */
+            thread_t *thread_arr = (thread_t *)malloc(sizeof(thread_t) * num_cores);
+            for (int i = 0; i < num_cores; i++) 
+                thread_init(&thread_arr[i]);
 
             rpool3 = rpool_init_multigroup (gpu_idx, FL_LIMIT_NUM_PATH + 2);
             dse_group_t *dse_group3 = dse_group_init (num_cores, gpu_idx);
@@ -807,6 +865,10 @@ int main (int argc, char **argv)
 
             rpool_add_nasm (rpool3, target_nasm3, "data/batched_input_128.bin");
 
+            for (int i = 0; i < num_cores; i++) {
+                add_dse_to_thread (&thread_arr[i], &dse_group3->dse_arr[i]);
+            }
+
 
             /* PROFILING */
             PRTF("STAGE: PROFILING\n");
@@ -814,13 +876,13 @@ int main (int argc, char **argv)
             
             create_connection(dev_mode, server_ip, control_port3, &server_sock3, &client_sock3);
 
-            printf("Established CC 3\n");
+            // printf("Established CC 3\n");
 
 
             // Networking
             int ne_start_key = 0;
             read_n(server_sock3, &ne_start_key, sizeof(int));
-            printf("Received NE start key %d\n", ne_start_key);
+            // printf("Received NE start key %d\n", ne_start_key);
 
             if(dev_mode == DEV_SERVER || dev_mode == DEV_EDGE) 
             {
@@ -832,7 +894,7 @@ int main (int argc, char **argv)
                 net_engine_set_operating_mode(net_engine3, OPER_MODE_FL_PATH);
             }
 
-            printf("Established NE 3\n");
+            // printf("Established NE 3\n");
 
 
 
@@ -894,6 +956,11 @@ int main (int argc, char **argv)
                 dse_group_set_operating_mode(dse_group3, OPER_MODE_FL_PATH);
                 if (dev_mode == DEV_EDGE) fl_push_path_ninsts_edge(rpool3, target_nasm3->path_ptr_arr[0]);
                 else if (dev_mode == DEV_LOCAL) fl_push_path_ninsts(rpool3, target_nasm3->path_ptr_arr[0]);
+                
+                for (int i=0; i<num_cores; i++) {
+                    thread_run(&thread_arr[i]);
+                }
+                
                 dse_group_run (dse_group3);
                 dse_wait_for_nasm_completion (target_nasm3);
 
@@ -905,6 +972,11 @@ int main (int argc, char **argv)
                     net_engine_set_operating_mode(net_engine3, OPER_MODE_FL_PATH);
                 }
                 dse_group_stop (dse_group3);
+
+                for (int i=0; i<num_cores; i++) {
+                    thread_stop(&thread_arr[i]);
+                }
+
                 if (dev_mode != DEV_LOCAL) net_engine_stop (net_engine3);
 
                 fl_reset_nasm_path(target_nasm3);

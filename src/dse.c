@@ -391,12 +391,12 @@ void dse_schedule (dse_t *dse)
     // }
 }
 
-void dse_set_starting_path (fl_path_t *path) {
+void dse_set_starting_path (dse_group_t *dse_group, fl_path_t *path) {
     //android
     #ifdef ANDROID
     atomic_store(dse_now_path, *path);
     #else
-    atomic_store(&dse_now_path, path);
+    atomic_store(&dse_group->dse_now_path, path);
     #endif
 }
 
@@ -430,7 +430,7 @@ void dse_schedule_fl (dse_t *dse) {
         fl_path_t now_path = atomic_load(dse_now_path);
         unsigned int nplc = atomic_load(&now_path.num_path_layers_completed);
         #else
-        fl_path_t *now_path = atomic_load(&dse_now_path);
+        fl_path_t *now_path = atomic_load(&dse->dse_group->dse_now_path);
         unsigned int nplc = atomic_load(&now_path->num_path_layers_completed);
         #endif
         #ifdef ANDROID
@@ -646,7 +646,7 @@ void dse_schedule_fl (dse_t *dse) {
                 #ifdef ANDROID
                 atomic_store(dse_now_path, *nasm->path_ptr_arr[next_path_idx]);
                 #else
-                atomic_store(&dse_now_path, nasm->path_ptr_arr[next_path_idx]);
+                atomic_store(&dse->dse_group->dse_now_path, nasm->path_ptr_arr[next_path_idx]);
                 #endif
 
                 // Push new ninsts into rpool
