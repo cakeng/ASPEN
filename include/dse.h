@@ -34,7 +34,7 @@ struct dse_group_t
     unsigned int num_dses;
     dse_t *dse_arr;
     int gpu_idx;
-    _Atomic fl_path_t *dse_now_path;
+    fl_path_t * _Atomic dse_now_path;
 };
 
 struct dse_t
