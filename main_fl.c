@@ -241,8 +241,6 @@ int main (int argc, char **argv)
 
                     fl_path_t *new_path = fl_create_path(target_nasm1, path_last_ninsts, intercept_end - intercept_start, fl_path_offloading_idx[i]);
 
-                    if (i == 0) dse_set_starting_path(new_path);
-
                     fl_set_dev_compute(target_nasm1, new_path, dev_mode);
 
                     free(path_last_ninsts);
@@ -338,8 +336,6 @@ int main (int argc, char **argv)
                     }
 
                     fl_path_t *new_path = fl_create_path(target_nasm2, path_last_ninsts, intercept_end - intercept_start, fl_path_offloading_idx[i]);
-
-                    if (i == 0) dse_set_starting_path(new_path);
 
                     fl_set_dev_compute(target_nasm2, new_path, dev_mode);
 
@@ -448,8 +444,6 @@ int main (int argc, char **argv)
 
                     fl_path_t *new_path = fl_create_path(target_nasm3, path_last_ninsts, intercept_end - intercept_start, fl_path_offloading_idx[i]);
 
-                    if (i == 0) dse_set_starting_path(new_path);
-
                     fl_set_dev_compute(target_nasm3, new_path, dev_mode);
 
                     free(path_last_ninsts);
@@ -477,7 +471,7 @@ int main (int argc, char **argv)
 
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
-            dse_set_starting_path (target_nasm1->path_ptr_arr[0]);
+            dse_set_starting_path (dse_group1, target_nasm1->path_ptr_arr[0]);
             for (int i = 0; i < number_of_iterations; i++)
             {
                 net_engine_run(net_engine1);
@@ -501,7 +495,7 @@ int main (int argc, char **argv)
 
                 fl_reset_nasm_path(target_nasm1);
 
-                dse_set_starting_path (target_nasm1->path_ptr_arr[0]);
+                dse_set_starting_path (dse_group1, target_nasm1->path_ptr_arr[0]);
 
             }
             end_time = get_sec();
@@ -515,7 +509,7 @@ int main (int argc, char **argv)
 
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
-            dse_set_starting_path (target_nasm2->path_ptr_arr[0]);
+            dse_set_starting_path (dse_group2, target_nasm2->path_ptr_arr[0]);
             for (int i = 0; i < number_of_iterations; i++)
             {
                 net_engine_run(net_engine2);
@@ -537,7 +531,7 @@ int main (int argc, char **argv)
 
                 fl_reset_nasm_path(target_nasm2);
 
-                dse_set_starting_path (target_nasm2->path_ptr_arr[0]);
+                dse_set_starting_path (dse_group2, target_nasm2->path_ptr_arr[0]);
 
             }
             end_time = get_sec();
@@ -558,7 +552,7 @@ int main (int argc, char **argv)
 
             PRTF ("Running %d iterations\n", number_of_iterations);
             start_time = get_sec();
-            dse_set_starting_path (target_nasm3->path_ptr_arr[0]);
+            dse_set_starting_path (dse_group3, target_nasm3->path_ptr_arr[0]);
             for (int i = 0; i < number_of_iterations; i++)
             {
                 net_engine_run(net_engine3);
@@ -582,7 +576,7 @@ int main (int argc, char **argv)
 
                 fl_reset_nasm_path(target_nasm3);
 
-                dse_set_starting_path (target_nasm3->path_ptr_arr[0]);
+                dse_set_starting_path (dse_group3, target_nasm3->path_ptr_arr[0]);
 
             }
             end_time = get_sec();
@@ -781,7 +775,7 @@ int main (int argc, char **argv)
 
                 fl_path_t *new_path = fl_create_path(target_nasm1, path_last_ninsts, intercept_end - intercept_start, fl_path_offloading_idx[i]);
 
-                if (i == 0) dse_set_starting_path(new_path);
+                if (i == 0) dse_set_starting_path(dse_group1, new_path);
 
                 fl_set_dev_compute(target_nasm1, new_path, dev_mode);
 
@@ -835,7 +829,7 @@ int main (int argc, char **argv)
 
                 fl_reset_nasm_path(target_nasm1);
 
-                dse_set_starting_path (target_nasm1->path_ptr_arr[0]);
+                dse_set_starting_path (dse_group1, target_nasm1->path_ptr_arr[0]);
 
             }
             end_time = get_sec();
@@ -976,7 +970,7 @@ int main (int argc, char **argv)
 
                 fl_reset_nasm_path(target_nasm2);
 
-                dse_set_starting_path (target_nasm2->path_ptr_arr[0]);
+                dse_set_starting_path (dse_group2, target_nasm2->path_ptr_arr[0]);
 
             }
             end_time = get_sec();
@@ -1153,7 +1147,7 @@ int main (int argc, char **argv)
 
                 fl_path_t *new_path = fl_create_path(target_nasm3, path_last_ninsts, intercept_end - intercept_start, fl_path_offloading_idx[i]);
 
-                if (i == 0) dse_set_starting_path(new_path);
+                if (i == 0) dse_set_starting_path(dse_group3, new_path);
 
                 fl_set_dev_compute(target_nasm3, new_path, dev_mode);
 
@@ -1207,7 +1201,7 @@ int main (int argc, char **argv)
 
                 fl_reset_nasm_path(target_nasm3);
 
-                dse_set_starting_path (target_nasm3->path_ptr_arr[0]);
+                dse_set_starting_path (dse_group3, target_nasm3->path_ptr_arr[0]);
 
             }
             end_time = get_sec();
