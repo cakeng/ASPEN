@@ -826,7 +826,7 @@ nasm_t *apu_copy_nasm (nasm_t *nasm)
         (nasm->dnn, nasm->flop_per_ninst, nasm->batch_size, nasm->min_ninst_per_ldata, nasm->tr_seq_len);
     if (new_nasm->type_hash != nasm->type_hash)
     {
-        ERROR_PRTF ("ERROR: new_nasm type hash %016lx is not equal to nasm type hash %016lx.", new_nasm->type_hash, nasm->type_hash);
+        ERROR_PRTF ("ERROR: new_nasm type hash %08lx is not equal to nasm type hash %08lx.", new_nasm->type_hash, nasm->type_hash);
         assert(0);
     }
     new_nasm->nasm_hash = nasm->nasm_hash;
@@ -854,7 +854,7 @@ void copy_ninst (ninst_t *new_ninst, ninst_t *ninst)
     }
     if (ninst->type_hash != new_ninst->type_hash)
     {
-        ERROR_PRTF ("ERROR: ninst type hash %016lx is not equal to new_ninst type hash %016lx.", ninst->type_hash, new_ninst->type_hash);
+        ERROR_PRTF ("ERROR: ninst type hash %08lx is not equal to new_ninst type hash %08lx.", ninst->type_hash, new_ninst->type_hash);
         assert(0);
     }
     new_ninst->num_parent_ninsts = ninst->num_parent_ninsts;
@@ -1484,7 +1484,7 @@ void print_nasm_info (nasm_t *nasm, int print_ninst, int print_data)
     }
     printf("//////////////////////// Printing NASM Info ////////////////////////\n");
     printf("Original DNN name: %s\n", nasm->dnn->name);
-    printf("Nasm hash: %016lx, Type hash: %016lx\n", nasm->nasm_hash, nasm->type_hash);
+    printf("Nasm hash: %08lx, Type hash: %08lx\n", nasm->nasm_hash, nasm->type_hash);
     printf("Number of ldata: %d\n", nasm->num_ldata);
     printf("Number of batch: %d\n", nasm->batch_size);
     printf("Number of ninst: %d\n", nasm->num_ninst);
@@ -1493,7 +1493,7 @@ void print_nasm_info (nasm_t *nasm, int print_ninst, int print_data)
     printf("Number of peers: %d\n", nasm->num_peers);
     for (int i = 0; i < nasm->num_peers; i++)
     {
-        printf("Peer %d: ", i);
+        printf("Peer %d:\n", i);
         print_peer_info (nasm->peer_map[i]);
     }
     for (int i = 0; i < nasm->num_ldata; i++)
@@ -1582,7 +1582,7 @@ void print_ninst_info (ninst_t *ninst, int print_data)
         printf("Error: ninst is NULL.\n");
         return;
     }
-    printf ("Ninst Idx: %d, State: %s, Type: %016lx, Operator: %s", 
+    printf ("Ninst Idx: %d, State: %s, Type: %08lx, Operator: %s", 
         ninst->ninst_idx, ninst_state_str[ninst->state], ninst->type_hash,
             layer_type_str[ninst->ldata->layer->type]);
     if (get_ninst_out_mem_without_alloc (ninst) != NULL)
@@ -1647,6 +1647,14 @@ void print_ninst_info (ninst_t *ninst, int print_data)
             child_ninst->ninst_idx);
     }
     printf("\n\t\tInput pos indexes (%d): ", ninst->num_input_pos);
+    printf("\n\t\tPeer flags:");
+    for (int i = 0; i < ninst->ldata->nasm->num_peers; i++)
+    {
+        printf("\n\t\t\tPeer %d (%08lx) - COMP %s, SEND %s", i, 
+            ninst->ldata->nasm->peer_map[i]->peer_hash,
+                check_ninst_compute_using_peer_idx (ninst, i)? "Y":"N",
+                    check_ninst_send_using_peer_idx (ninst, i)? "Y":"N");
+    }
     printf ("\n");
     if (print_data)
     {

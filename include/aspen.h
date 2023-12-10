@@ -97,6 +97,9 @@ typedef struct dse_t dse_t;     // Distributed scheduling engine
 typedef struct dse_group_t dse_group_t;
 typedef struct runtime_profile_t runtime_profile_t;
 
+void aspen_server_routine 
+    (dse_group_t *dse_group, rpool_t *rpool, int isUDP, int listen_port);
+
 aspen_dnn_t *apu_create_dnn(char *input_path, char *data_path);
 void apu_destroy_dnn(aspen_dnn_t *dnn);
 void apu_save_dnn_to_file(aspen_dnn_t *dnn, char *filename);
@@ -138,9 +141,6 @@ void dse_group_nasm_export_heft_data (dse_group_t *dse_group, nasm_t *nasm, char
 
 void aspen_flush_dynamic_memory();
 
-void connect_aspen_peer_idx (nasm_t *nasm, int peer_idx, char *ip, int port, int isUDP);
-void serve_aspen_peer (HASH_t *nasm_list, int num_nasms, dse_group_t *dse_group, rpool_t *rpool, int port, int isUDP);
-
 void print_aspen_build_info(void);
 void print_dnn_info (aspen_dnn_t *dnn, int print_data);
 void print_layer_info (aspen_layer_t *layer, int print_data);
@@ -151,5 +151,7 @@ void print_ninst_info (ninst_t *ninst, int print_data);
 void print_rpool_queue_info (rpool_queue_t *rpool_queue);
 void print_rpool_queue_group_info (rpool_queue_group_t *rpool_queue_group);
 void print_rpool_info (rpool_t *rpool);
+void print_dse_info (dse_t *dse);
+void print_dse_group_info (dse_group_t *dse_group);
 
 #endif /* _ASPEN_H_ */

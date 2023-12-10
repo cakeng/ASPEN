@@ -1,5 +1,6 @@
 #include "aspen.h"
 #include "dse.h"
+#include "server.h"
 
 #define RX 0 
 #define TX 1
@@ -83,20 +84,22 @@ int main (int argc, char **argv)
     int rx_port = 12345;
     int mode = RX;
 
-    if (argc == 5)
+    if (argc == 6)
     {
         strcpy (dnn, argv[1]);
         batch_size = atoi (argv[2]);
         number_of_iterations = atoi (argv[3]);
         num_cores = atoi (argv[4]);
+        mode = (strcmp (argv[5], "RX") == 0) ? RX : TX;
     }
-    else if (argc == 6)
+    else if (argc == 7)
     {
         strcpy (dnn, argv[1]);
         batch_size = atoi (argv[2]);
         number_of_iterations = atoi (argv[3]);
         num_cores = atoi (argv[4]);
         num_seq = atoi (argv[5]);
+        mode = (strcmp (argv[6], "RX") == 0) ? RX : TX;
     }
     else
     {
@@ -150,6 +153,8 @@ int main (int argc, char **argv)
     dse_group_set_rpool (dse_group, rpool);
     rpool_add_nasm (rpool, target_nasm, "data/batched_input_64.bin");
 
+    // print_dse_group_info (dse_group);
+
     // 4. Profile the execution
 
     // print_nasm_info (target_nasm, 1, 0);
@@ -169,16 +174,26 @@ int main (int argc, char **argv)
     //     sprintf (heft_file_name, "profiles/%s/%s_S%d_B%d_heft.txt", dnn, dnn, num_seq, batch_size);
     // dse_group_nasm_export_heft_data (dse_group, target_nasm, heft_file_name);
 
-    // 5. Set scheules
+    // 5. Init connection && Set scheules
 
     aspen_peer_t *peer_list[2];
     for (int i = 0; i < 2; i++)
         peer_list[i] = peer_init ();
-    peer_copy (peer_list[0], dse_group->my_peer_data);
-    sched_set_local (target_nasm, peer_list, 1);
-    print_nasm_info (target_nasm, 0, 0);
-    for (int i = 0; i < 2; i++)
-        destroy_peer (peer_list[i]);
+    if (mode == RX)
+    {
+        set_peer_info (peer_list[0], rx_ip, rx_port, 0);
+        peer_copy (peer_list[1], dse_group->my_peer_data);
+        int listen_sock = get_tcp_listen_sock (rx_port);
+        peer_list[0]->sock = accept (listen_sock, NULL, NULL);
+    }
+    else
+    {
+        peer_copy (peer_list[0], dse_group->my_peer_data);
+        set_peer_info (peer_list[1], rx_ip, rx_port, 0);
+        peer_list[1]->sock = connect_tcp_connection (rx_ip, rx_port);
+    }
+    sched_set_input_offload (target_nasm, peer_list, 2);
+    // print_nasm_info (target_nasm, 1, 0);
 
     // 5. Run the ASPEN DSEs
 

@@ -499,6 +499,37 @@ unsigned int get_cpu_count()
     return count;
 }
 
+ssize_t read_bytes (int sock, void *buf, size_t len)
+{
+    size_t total = 0;
+    while (total < len)
+    {
+        ssize_t num = read (sock, (char*)buf + total, len - total);
+        if (num < 0)
+        {
+            ERRNO_PRTF ("Error: Failed to read from socket %d.", sock);
+            return;
+        }
+        total += num;
+    }
+
+}
+ssize_t write_bytes (int sock, void *buf, size_t len)
+{
+    size_t total = 0;
+    while (total < len)
+    {
+        ssize_t num = write (sock, (char*)buf + total, len - total);
+        if (num < 0)
+        {
+            ERRNO_PRTF ("Error: Failed to write to socket %d.", sock);
+            return;
+        }
+        total += num;
+    }
+
+}
+
 void get_probability_results (char *class_data_path, float* probabilities, unsigned int num)
 {
     int buffer_length = 256;

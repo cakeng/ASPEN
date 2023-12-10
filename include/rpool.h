@@ -43,7 +43,7 @@ struct rpool_t
     rpool_queue_t default_queue;
     _Atomic unsigned int ref_dses;
 
-    nasm_t **nasm_arr;
+    nasm_t **nasm_list;
     unsigned int num_nasms;
     unsigned int max_num_nasms;
 };

@@ -7,7 +7,7 @@ aspen_peer_t *peer_init ()
     peer->peer_hash = get_unique_hash ();
     peer->ip = calloc (MAX_STRING_LEN, sizeof(char));
     peer->listen_port = 0;
-    peer->sock = 0;
+    peer->sock = -1;
     peer->isUDP = -1;
     peer->latency_usec = -1;
     peer->bandwidth_bps = -1;
@@ -38,9 +38,38 @@ void destroy_peer (aspen_peer_t *peer)
         return;
     pthread_mutex_destroy (&peer->peer_mutex);
     rpool_destroy_queue (peer->tx_queue);
+    if (peer->sock >= 0)
+        close (peer->sock);
     if (peer->ip != NULL)
         free (peer->ip);
     free (peer);
+}
+
+void set_peer_info (aspen_peer_t *peer, char *ip, int port, int isUDP)
+{
+    if (peer == NULL)
+    {
+        ERROR_PRTF ("ERROR: peer is NULL.");
+        assert(0);
+    }
+    if (ip == NULL)
+    {
+        ERROR_PRTF ("ERROR: ip is NULL.");
+        assert(0);
+    }
+    if (port <= 0)
+    {
+        ERROR_PRTF ("ERROR: port %d is invalid.", port);
+        assert(0);
+    }
+    if (isUDP != 0 && isUDP != 1)
+    {
+        ERROR_PRTF ("ERROR: isUDP %d is invalid.", isUDP);
+        assert(0);
+    }
+    strncpy (peer->ip, ip, MAX_STRING_LEN);
+    peer->listen_port = port;
+    peer->isUDP = isUDP;
 }
 
 void set_ninst_compute_peer_idx (ninst_t *ninst, int peer_idx)
@@ -155,7 +184,7 @@ void print_peer_info (aspen_peer_t *peer)
         assert(0);
     }
     #endif
-    printf ("\tPeer Hash: %016lx:\n", peer->peer_hash);
+    printf ("\tPeer Hash: %08lx\n", peer->peer_hash);
     printf ("\tIP: %s\n", peer->ip);
     printf ("\tPort: %d\n", peer->listen_port);
     printf ("\tSocket: %d\n", peer->sock);
@@ -251,9 +280,9 @@ void sched_set_local (nasm_t *nasm, aspen_peer_t **peer_list, int num_peers)
 
 void sched_set_input_offload (nasm_t *nasm, aspen_peer_t **peer_list, int num_peers)
 {
-    if (num_peers != 1 || peer_list == NULL)
+    if (num_peers != 2 || peer_list == NULL)
     {
-        ERROR_PRTF ("Invalid arguments to sched_set_input_offload: num_peers != 1 || peer_list == NULL");
+        ERROR_PRTF ("Invalid arguments to sched_set_input_offload: num_peers != 2 || peer_list == NULL");
         assert (0);
     }
     sched_nasm_load_peer_list (nasm, peer_list, num_peers);

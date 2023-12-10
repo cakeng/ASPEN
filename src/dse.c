@@ -248,7 +248,7 @@ void dse_group_add_profile (dse_group_t *dse_group, ninst_t *ninst)
         if (free_flag_parent[i])
             free_ldata_out_mat (parent_ninst->ldata);
     }
-    printf ("Profiled Ninst %016lx: Runtime %lu usecs.\n", ninst_hash, runtime_usec);
+    printf ("Profiled Ninst %08lx: Runtime %lu usecs.\n", ninst_hash, runtime_usec);
     print_ninst_info (ninst, 0);
 
 }
@@ -310,7 +310,7 @@ void dse_group_load_profile_data (dse_group_t *dse_group, char *filename)
     {
         HASH_t ninst_hash;
         size_t runtime_usec;
-        int ret = fscanf (fp, "%016lx, %lu\n", &ninst_hash, &runtime_usec);
+        int ret = fscanf (fp, "%08lx, %lu\n", &ninst_hash, &runtime_usec);
         if (ret != 2)
         {
             ERRNO_PRTF ("ERROR: dse_group_load_profile_data: fscanf failed");
@@ -348,7 +348,7 @@ void dse_group_save_profile_data (dse_group_t *dse_group, char *filename)
     for (int i = 0; i < dse_group->num_profiles; i++)
     {
         runtime_profile_t *profile = dse_group->profile_arr[i];
-        fprintf (fp, "%016lx, %lu\n", profile->ninst_hash, profile->runtime_usec);
+        fprintf (fp, "%08lx, %lu\n", profile->ninst_hash, profile->runtime_usec);
     }
     fclose (fp);
 }
@@ -831,4 +831,35 @@ ssize_t dse_get_ldata_result (nasm_t *nasm, unsigned int ldata_idx, LAYER_PARAMS
 ssize_t dse_get_nasm_result (nasm_t *nasm, LAYER_PARAMS *order, void** out_ptr)
 {
     return dse_get_ldata_result (nasm, nasm->num_ldata - 1, order, out_ptr);
+}
+
+void print_dse_info (dse_t *dse)
+{
+    if (dse == NULL)
+    {
+        ERROR_PRTF ("Error: Invalid arguments to print_dse_info()");
+        assert (0);
+    }
+    printf ("    Run: %d\n", atomic_load (&dse->run));
+    printf ("    Kill: %d\n", atomic_load (&dse->kill));
+    printf ("    Target: %p\n", dse->target);
+    printf ("Peer Data:\n");
+    print_peer_info (dse->my_peer_data);
+}
+void print_dse_group_info (dse_group_t *dse_group)
+{
+    if (dse_group == NULL)
+    {
+        ERROR_PRTF ("Error: Invalid arguments to print_dse_group_info()");
+        assert (0);
+    }
+    printf ("//////////////////////// Printing DSE Info //////////////////////////\n");
+    printf ("Peer Data:\n");
+    print_peer_info (dse_group->my_peer_data);
+    printf ("Num DSEs: %d\n", dse_group->num_dses);
+    for (int i = 0; i < dse_group->num_dses; i++)
+    {
+        printf ("DSE %d:\n", i);
+        print_dse_info (&dse_group->dse_arr[i]);
+    }
 }

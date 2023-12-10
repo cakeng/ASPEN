@@ -20,6 +20,7 @@ struct aspen_peer_t
 aspen_peer_t *peer_init ();
 void peer_copy (aspen_peer_t *new_peer, aspen_peer_t *peer);
 void destroy_peer (aspen_peer_t *peer);
+void set_peer_info (aspen_peer_t *peer, char *ip, int port, int isUDP);
 void set_ninst_compute_peer_idx (ninst_t *ninst, int peer_idx);
 void set_ninst_send_peer_idx (ninst_t *ninst, int peer_idx);
 int check_ninst_compute_using_peer_idx (ninst_t *ninst, int peer_idx);
