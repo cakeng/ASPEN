@@ -2,6 +2,7 @@
 #include "apu.h"
 #include "nasm.h"
 #include "input_parser.h"
+#include "scheduling.h"
 
 int get_nasm_ldata_num_per_layer (aspen_layer_t *layer)
 {
@@ -493,6 +494,8 @@ void destroy_ninst (ninst_t *ninst)
         free (ninst->parent_ninst_idx_arr);
     if (ninst->child_ninst_arr != NULL)
         free (ninst->child_ninst_arr);
+    if (ninst->peer_flag != NULL)
+        free (ninst->peer_flag);
 }
 
 HASH_t get_nasm_type_hash (nasm_t *nasm)
@@ -817,143 +820,6 @@ void set_nasm_to_finished (nasm_t *nasm)
         }
     }
 }
-aspen_peer_t *peer_init ()
-{
-    aspen_peer_t *peer = calloc (1, sizeof(aspen_peer_t));
-    pthread_mutex_init (&peer->peer_mutex, NULL);
-    peer->peer_hash = get_unique_hash ();
-    peer->ip = calloc (MAX_STRING_LEN, sizeof(char));
-    peer->listen_port = 0;
-    peer->sock = 0;
-    peer->isUDP = -1;
-    peer->latency_usec = -1;
-    peer->bandwidth_bps = -1;
-    peer->tx_queue = calloc (1, sizeof(rpool_t));
-    rpool_init_queue (peer->tx_queue);
-    return peer;
-
-}
-aspen_peer_t *peer_copy (aspen_peer_t *new_peer, aspen_peer_t *peer)
-{
-    if (new_peer == NULL || peer == NULL)
-    {
-        ERROR_PRTF ("ERROR: new_peer or peer is NULL.");
-        assert(0);
-    }
-    new_peer->peer_hash = peer->peer_hash;
-    strcpy (new_peer->ip, peer->ip);
-    new_peer->listen_port = peer->listen_port;
-    new_peer->sock = peer->sock;
-    new_peer->isUDP = peer->isUDP;
-    new_peer->latency_usec = peer->latency_usec;
-    new_peer->bandwidth_bps = peer->bandwidth_bps;
-    return new_peer;
-}
-void destroy_peer (aspen_peer_t *peer)
-{
-    if (peer == NULL)
-        return;
-    pthread_mutex_destroy (&peer->peer_mutex);
-    rpool_destroy_queue (peer->tx_queue);
-    if (peer->ip != NULL)
-        free (peer->ip);
-    free (peer);
-}
-void set_ninst_compute_peer_idx (ninst_t *ninst, int peer_idx)
-{
-    if (ninst == NULL)
-    {
-        ERROR_PRTF ("ERROR: ninst is NULL.");
-        assert(0);
-    }
-    if (peer_idx < 0 || peer_idx >= ninst->ldata->nasm->num_peers)
-    {
-        ERROR_PRTF ("ERROR: peer_idx %d is out of range [0, %d].", peer_idx, ninst->ldata->nasm->num_peers);
-        assert(0);
-    }
-    ninst->peer_flag[peer_idx] |= PEER_FLAG_COMPUTE;
-}
-void set_ninst_send_peer_idx (ninst_t *ninst, int peer_idx)
-{
-    if (ninst == NULL)
-    {
-        ERROR_PRTF ("ERROR: ninst is NULL.");
-        assert(0);
-    }
-    if (peer_idx < 0 || peer_idx >= ninst->ldata->nasm->num_peers)
-    {
-        ERROR_PRTF ("ERROR: peer_idx %d is out of range [0, %d].", peer_idx, ninst->ldata->nasm->num_peers);
-        assert(0);
-    }
-    ninst->peer_flag[peer_idx] |= PEER_FLAG_SEND;
-}
-int check_ninst_compute_using_peer_idx (ninst_t *ninst, int peer_idx)
-{
-    #ifdef DEBUG
-    if (ninst == NULL)
-    {
-        ERROR_PRTF ("ERROR: ninst is NULL.");
-        assert(0);
-    }
-    if (peer_idx < 0 || peer_idx >= ninst->ldata->nasm->num_peers)
-    {
-        ERROR_PRTF ("ERROR: peer_idx %d is out of range [0, %d].", peer_idx, ninst->ldata->nasm->num_peers);
-        assert(0);
-    }
-    #endif
-    return ninst->peer_flag[peer_idx] & PEER_FLAG_COMPUTE;
-
-}
-int check_ninst_send_using_peer_idx (ninst_t *ninst, int peer_idx)
-{
-    #ifdef DEBUG
-    if (ninst == NULL)
-    {
-        ERROR_PRTF ("ERROR: ninst is NULL.");
-        assert(0);
-    }
-    if (peer_idx < 0 || peer_idx >= ninst->ldata->nasm->num_peers)
-    {
-        ERROR_PRTF ("ERROR: peer_idx %d is out of range [0, %d].", peer_idx, ninst->ldata->nasm->num_peers);
-        assert(0);
-    }
-    #endif
-    return ninst->peer_flag[peer_idx] & PEER_FLAG_SEND;
-}
-int get_peer_idx (nasm_t *nasm, HASH_t peer_hash)
-{
-    #ifdef DEBUG
-    if (nasm == NULL)
-    {
-        ERROR_PRTF ("ERROR: nasm is NULL.");
-        assert(0);
-    }
-    #endif
-    for (int i = 0; i < nasm->num_peers; i++)
-    {
-        if (nasm->peer_map[i].peer_hash == peer_hash)
-            return i;
-    }
-    return -1;
-}
-aspen_peer_t *get_peer (nasm_t *nasm, int peer_idx)
-{
-    #ifdef DEBUG
-    if (nasm == NULL)
-    {
-        ERROR_PRTF ("ERROR: nasm is NULL.");
-        assert(0);
-    }
-    if (peer_idx < 0 || peer_idx >= nasm->num_peers)
-    {
-        ERROR_PRTF ("ERROR: peer_idx %d is out of range [0, %d].", peer_idx, nasm->num_peers);
-        assert(0);
-    }
-    #endif
-    return nasm->peer_map + peer_idx;
-}
-
-
 nasm_t *apu_copy_nasm (nasm_t *nasm)
 {
     nasm_t *new_nasm = apu_create_nasm_without_finding_ninst_parents 
@@ -966,9 +832,12 @@ nasm_t *apu_copy_nasm (nasm_t *nasm)
     new_nasm->nasm_hash = nasm->nasm_hash;
     new_nasm->total_flops = nasm->total_flops;
     new_nasm->num_peers = nasm->num_peers;
-    new_nasm->peer_map = calloc (new_nasm->num_peers, sizeof(HASH_t));
+    new_nasm->peer_map = calloc (new_nasm->num_peers, sizeof(aspen_peer_t*));
     for (int i = 0; i < new_nasm->num_peers; i++)
-        peer_copy (new_nasm->peer_map + i, nasm->peer_map + i);
+    {
+        new_nasm->peer_map[i] = peer_init ();
+        peer_copy (new_nasm->peer_map[i], nasm->peer_map[i]);
+    }    
     for (int i = 0; i < nasm->num_ninst; i++)
     {
         copy_ninst (new_nasm->ninst_arr + i, nasm->ninst_arr + i);
@@ -1161,7 +1030,7 @@ void apu_destroy_nasm (nasm_t *nasm)
     if (nasm->peer_map != NULL)
     {
         for (int i = 0; i < nasm->num_peers; i++)
-            destroy_peer (nasm->peer_map + i);
+            destroy_peer (nasm->peer_map[i]);
         free (nasm->peer_map);
     }
     pthread_mutex_destroy (&nasm->nasm_mutex);
@@ -1621,6 +1490,12 @@ void print_nasm_info (nasm_t *nasm, int print_ninst, int print_data)
     printf("Number of ninst: %d\n", nasm->num_ninst);
     printf("FLOPs per ninst: %d\n", nasm->flop_per_ninst);
     printf("Total FLOPs: %ld\n", nasm->total_flops);
+    printf("Number of peers: %d\n", nasm->num_peers);
+    for (int i = 0; i < nasm->num_peers; i++)
+    {
+        printf("Peer %d: ", i);
+        print_peer_info (nasm->peer_map[i]);
+    }
     for (int i = 0; i < nasm->num_ldata; i++)
     {
         print_ldata_info(&nasm->ldata_arr[i], print_ninst, print_data);

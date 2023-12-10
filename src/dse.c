@@ -60,13 +60,15 @@ void dse_push_to_tx (dse_t *dse, ninst_t *ninst)
     #endif
     if (ninst->ldata->nasm->num_peers < 2)
         return;
+    HASH_t group_hash = dse->dse_group->my_peer_data->peer_hash;
+    HASH_t dse_hash = dse->my_peer_data->peer_hash;
     for (int i = 0; i < ninst->ldata->nasm->num_peers; i++)
     {
-        if (i == get_peer_idx(ninst->ldata->nasm, dse->my_peer_data->peer_hash))
+        if (i == group_hash || i == dse_hash)
             continue;
         if (check_ninst_send_using_peer_idx (ninst, i))
         {
-            aspen_peer_t *peer = ninst->ldata->nasm->peer_map + i;
+            aspen_peer_t *peer = ninst->ldata->nasm->peer_map[i];
             pthread_mutex_lock (&peer->tx_queue->occupied_mutex);
             push_ninsts_to_queue (peer->tx_queue, &ninst, 1);
             pthread_mutex_unlock (&peer->tx_queue->occupied_mutex);

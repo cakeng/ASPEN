@@ -7,17 +7,15 @@
 #define PEER_FLAG_SEND 0b01
 #define PEER_FLAG_COMPUTE 0b10
 
-struct aspen_peer_t
+struct ninst_log_t
 {
-    HASH_t peer_hash;
-    int sock;  
-    int isUDP;
-    ssize_t latency_usec;
-    ssize_t bandwidth_bps;
-    int listen_port;
-    char *ip;
-    pthread_mutex_t peer_mutex;
-    rpool_queue_t *tx_queue;
+    HASH_t compute_peer;
+    size_t compute_start_usec;
+    size_t compute_end_usec;
+
+    HASH_t send_peer;
+    size_t send_start_usec;
+    size_t send_end_usec;
 };
 
 struct nasm_t
@@ -42,7 +40,7 @@ struct nasm_t
     pthread_cond_t nasm_cond;
 
     int num_peers;
-    aspen_peer_t *peer_map;
+    aspen_peer_t **peer_map;
 };
 
 struct nasm_ldata_t
@@ -65,17 +63,6 @@ struct nasm_ldata_t
     
     unsigned int num_ninst;
     _Atomic unsigned int num_ninst_completed;
-};
-
-struct ninst_log_t
-{
-    HASH_t compute_peer;
-    size_t compute_start_usec;
-    size_t compute_end_usec;
-
-    HASH_t send_peer;
-    size_t send_start_usec;
-    size_t send_end_usec;
 };
 
 struct ninst_t 
@@ -111,16 +98,6 @@ void set_nasm_to_finished (nasm_t *nasm);
 void ninst_init (nasm_ldata_t *ldata, ninst_t *ninst_ptr, int ninst_idx);
 HASH_t get_ninst_hash (ninst_t *ninst);
 void destroy_ninst (ninst_t *ninst);
-
-aspen_peer_t *peer_init ();
-aspen_peer_t *peer_copy (aspen_peer_t *new_peer, aspen_peer_t *peer);
-void destroy_peer (aspen_peer_t *peer);
-void set_ninst_compute_peer_idx (ninst_t *ninst, int peer_idx);
-void set_ninst_send_peer_idx (ninst_t *ninst, int peer_idx);
-int check_ninst_compute_using_peer_idx (ninst_t *ninst, int peer_idx);
-int check_ninst_send_using_peer_idx (ninst_t *ninst, int peer_idx);
-int get_peer_idx (nasm_t *nasm, HASH_t peer_hash);
-aspen_peer_t *get_peer (nasm_t *nasm, int peer_idx);
 
 void copy_ninst (ninst_t *new_ninst, ninst_t *ninst);
 void copy_ldata_out_mat_to_buffer (nasm_ldata_t *ldata, void *buffer);

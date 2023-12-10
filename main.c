@@ -1,6 +1,9 @@
 #include "aspen.h"
 #include "dse.h"
 
+#define RX 0 
+#define TX 1
+
 double get_sec()
 {
     struct timeval now;
@@ -76,6 +79,10 @@ int main (int argc, char **argv)
     int num_cores = 32;
     int num_seq = -1;
 
+    char *rx_ip = "127.0.0.1";
+    int rx_port = 12345;
+    int mode = RX;
+
     if (argc == 5)
     {
         strcpy (dnn, argv[1]);
@@ -147,20 +154,31 @@ int main (int argc, char **argv)
 
     // print_nasm_info (target_nasm, 1, 0);
 
-    dse_group_profile_nasm (dse_group, target_nasm);
-    char profile_file_name [1024] = {0};
-    if (num_seq == -1)
-        sprintf (profile_file_name, "profiles/%s/%s_B%d_profile.csv", dnn, dnn, batch_size);
-    else
-        sprintf (profile_file_name, "profiles/%s/%s_S%d_B%d_profile.csv", dnn, dnn, num_seq, batch_size);
-    dse_group_profile_nasm (dse_group, target_nasm);
-    dse_group_save_profile_data (dse_group, profile_file_name);
-    char heft_file_name [1024] = {0};
-    if (num_seq == -1)
-        sprintf (heft_file_name, "profiles/%s/%s_B%d_heft.txt", dnn, dnn, batch_size);
-    else
-        sprintf (heft_file_name, "profiles/%s/%s_S%d_B%d_heft.txt", dnn, dnn, num_seq, batch_size);
-    dse_group_nasm_export_heft_data (dse_group, target_nasm, heft_file_name);
+    // dse_group_profile_nasm (dse_group, target_nasm);
+    // char profile_file_name [1024] = {0};
+    // if (num_seq == -1)
+    //     sprintf (profile_file_name, "profiles/%s/%s_B%d_profile.csv", dnn, dnn, batch_size);
+    // else
+    //     sprintf (profile_file_name, "profiles/%s/%s_S%d_B%d_profile.csv", dnn, dnn, num_seq, batch_size);
+    // dse_group_profile_nasm (dse_group, target_nasm);
+    // dse_group_save_profile_data (dse_group, profile_file_name);
+    // char heft_file_name [1024] = {0};
+    // if (num_seq == -1)
+    //     sprintf (heft_file_name, "profiles/%s/%s_B%d_heft.txt", dnn, dnn, batch_size);
+    // else
+    //     sprintf (heft_file_name, "profiles/%s/%s_S%d_B%d_heft.txt", dnn, dnn, num_seq, batch_size);
+    // dse_group_nasm_export_heft_data (dse_group, target_nasm, heft_file_name);
+
+    // 5. Set scheules
+
+    aspen_peer_t *peer_list[2];
+    for (int i = 0; i < 2; i++)
+        peer_list[i] = peer_init ();
+    peer_copy (peer_list[0], dse_group->my_peer_data);
+    sched_set_local (target_nasm, peer_list, 1);
+    print_nasm_info (target_nasm, 0, 0);
+    for (int i = 0; i < 2; i++)
+        destroy_peer (peer_list[i]);
 
     // 5. Run the ASPEN DSEs
 

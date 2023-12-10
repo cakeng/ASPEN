@@ -7,6 +7,7 @@
 #include "rpool.h"
 #include "util.h"
 #include "kernels.h"
+#include "scheduling.h"
 
 #define DSE_NINST_CACHE_BALLANCE 1
 #define DSE_NINST_CACHE_DIFF 0
