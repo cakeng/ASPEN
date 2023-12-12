@@ -896,9 +896,9 @@ nasm_t *apu_load_nasm_from_file(char *filename, aspen_dnn_t *dnn)
     }
     if (strcmp(ptr, dnn->name) != 0)
     {
-        ERROR_PRTF ("ASPEN DNN file %s parse error: DNN_NAME %s does not match dnn name %s.\n", filename, ptr, dnn->name);
-        fclose (fp);
-        return NULL;
+        // ERROR_PRTF ("ASPEN DNN file %s parse error: DNN_NAME %s does not match dnn name %s.\n", filename, ptr, dnn->name);
+        // fclose (fp);
+        // return NULL;
     }
     if ((ptr = read_check_and_return (fp, line, "NUM_BATCH:", &line_num)) == NULL)
     {

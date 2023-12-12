@@ -54,15 +54,31 @@ int main (int argc, char **argv)
         sprintf (nasm_file_name, "files/%s/%s_S%d_B%d.nasm", dnn, dnn, batch_size, num_seq);
 
 
-    // 2. Load the ASPEN DNN weight file (.aspen file)
+    // 2. Create or load the ASPEN DNN weight file (.aspen file)
 
-    aspen_dnn_t *target_dnn = apu_load_dnn_from_file (target_aspen);
+    // 2-1. Generate the ASPEN weight file (.aspen)
+
+    char dnn_cfg[1024] = {0};
+    sprintf (dnn_cfg, "files/%s/%s_aspen.cfg", dnn, dnn);
+    char weight_bin [1024] = {0};
+    sprintf (weight_bin, "files/%s/%s_weight.bin", dnn, dnn);
+    aspen_dnn_t *target_dnn = NULL;
+    target_dnn = apu_create_dnn (dnn_cfg, weight_bin);
     if (target_dnn == NULL)
     {
         printf ("Unable to load ASPEN DNN weight file %s\n", target_aspen);
         exit (1);
     }
+    apu_save_dnn_to_file (target_dnn, target_aspen);
 
+    // 3-2. Load the ASPEN weight file (.aspen)
+
+    // aspen_dnn_t *target_dnn = apu_load_dnn_from_file (target_aspen);
+    // if (target_dnn == NULL)
+    // {
+    //     printf ("Unable to load ASPEN DNN weight file %s\n", target_aspen);
+    //     exit (1);
+    // }
 
     // 3. Create or load the ASPEN graph (.nasm file)
 
@@ -75,7 +91,7 @@ int main (int argc, char **argv)
     //     target_nasm = apu_generate_transformer_nasm (target_dnn, batch_size, num_seq, 20);
     // apu_save_nasm_to_file (target_nasm, nasm_file_name);
 
-    // 3-2. Load the ASPEN graph (nasm)
+    // 3-2. Load the ASPEN graph file (nasm)
 
     nasm_t *target_nasm = apu_load_nasm_from_file (nasm_file_name, target_dnn);
     if (target_nasm == NULL)
