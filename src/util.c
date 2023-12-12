@@ -508,7 +508,7 @@ ssize_t read_bytes (int sock, void *buf, size_t len)
         if (num < 0)
         {
             ERRNO_PRTF ("Error: Failed to read from socket %d.", sock);
-            return;
+            return -1;
         }
         total += num;
     }
@@ -523,7 +523,7 @@ ssize_t write_bytes (int sock, void *buf, size_t len)
         if (num < 0)
         {
             ERRNO_PRTF ("Error: Failed to write to socket %d.", sock);
-            return;
+            return -1;
         }
         total += num;
     }

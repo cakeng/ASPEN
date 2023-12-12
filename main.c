@@ -151,8 +151,7 @@ int main (int argc, char **argv)
     rpool_t *rpool = rpool_init ();
     dse_group_t *dse_group = dse_group_init (num_cores);
     dse_group_set_rpool (dse_group, rpool);
-    rpool_add_nasm (rpool, target_nasm, "data/batched_input_64.bin");
-
+    
     // print_dse_group_info (dse_group);
 
     // 4. Profile the execution
@@ -191,10 +190,18 @@ int main (int argc, char **argv)
         peer_copy (peer_list[0], dse_group->my_peer_data);
         set_peer_info (peer_list[1], rx_ip, rx_port, 0);
         peer_list[1]->sock = connect_tcp_connection (rx_ip, rx_port);
+        rpool_add_nasm (rpool, target_nasm, "data/batched_input_64.bin");
     }
+    // peer_copy (peer_list[0], dse_group->my_peer_data);
     sched_set_input_offload (target_nasm, peer_list, 2);
     // print_nasm_info (target_nasm, 1, 0);
 
+    networking_engine_t *net_engine = init_net_engine();
+    net_engine_set_rpool (net_engine, rpool);
+    net_engine_add_nasm (net_engine, target_nasm);
+    net_engine_run(net_engine);
+
+    // print_rpool_info (rpool);
     // 5. Run the ASPEN DSEs
 
     printf ("Running %d iterations\n", number_of_iterations);
@@ -202,7 +209,10 @@ int main (int argc, char **argv)
     for (int i = 0; i < number_of_iterations; i++)
     {
         rpool_reset_queue (rpool);
-        rpool_reset_nasm (rpool, target_nasm);
+        if (mode == RX)
+            apu_reset_nasm (target_nasm);    
+        else
+            rpool_reset_nasm (rpool, target_nasm);
         dse_group_run (dse_group);
         dse_wait_for_nasm_completion (target_nasm);
         dse_group_stop (dse_group);
@@ -210,6 +220,9 @@ int main (int argc, char **argv)
     double end_time = get_sec();
     printf ("Time taken: %lf seconds\n", (end_time - start_time)/number_of_iterations);
     aspen_flush_dynamic_memory ();
+
+    nasm_close_all_connections (target_nasm);
+    net_engine_stop(net_engine);
 
     // 6. Print the top-5 results
 
@@ -237,8 +250,11 @@ int main (int argc, char **argv)
     // fclose (output_file);
     // free (layer_output);
 
+    
+
     // 7. Cleanup
 
+    net_engine_destroy(net_engine);
     dse_group_destroy (dse_group);
     rpool_destroy (rpool);
     apu_destroy_nasm (target_nasm);

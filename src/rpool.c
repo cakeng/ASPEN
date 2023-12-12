@@ -52,6 +52,10 @@ rpool_t *rpool_init ()
     rpool->queue_group_weight_sum = 0;
     bzero (rpool->queue_group_weight_arr, sizeof(float)*MAX_QUEUE_GROUPS);
     rpool_init_queue (&rpool->default_queue);
+    unsigned int num_queues = rpool->ref_dses * NUM_LAYERQUEUE_PER_DSE * 150 *  NUM_QUEUE_PER_LAYER;
+    if (num_queues < 1)
+        num_queues = 1;
+    rpool_add_queue_group (rpool, "default", num_queues, NULL, NULL);
     return rpool;
 }
 
@@ -182,13 +186,7 @@ void rpool_add_nasm_raw_input (rpool_t *rpool, nasm_t* nasm, void* input_data)
         ERROR_PRTF ("ERROR: rpool_add_nasm_raw_input: weight must be positive. Cannot add nasm \"%s_nasm_%08lx\".", nasm->dnn->name, nasm->nasm_hash);
         return;
     }
-    if (rpool->num_groups == 0)
-    {
-        unsigned int num_queues = rpool->ref_dses * NUM_LAYERQUEUE_PER_DSE * 150 *  NUM_QUEUE_PER_LAYER;
-        if (num_queues < 1)
-            num_queues = 1;
-        rpool_add_queue_group (rpool, "default", num_queues, NULL, NULL);
-    }
+    
     push_first_layer_to_rpool (rpool, nasm, input_data);
 }
 

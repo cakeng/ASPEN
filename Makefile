@@ -1,8 +1,8 @@
 TARGET=main
 ALIB=libaspen.a
 OBJECTS=build_info.o apu.o apu_nasm.o apu_file_io.o input_parser.o darknet_parser.o util.o 
-OBJECTS+=rpool.o dse.o scheduling.o server.o naive_kernels.o tiled_kernels.o avx2_kernels.o neon_kernels.o
-AVX2=1
+OBJECTS+=rpool.o dse.o scheduling.o networking.o server.o naive_kernels.o tiled_kernels.o avx2_kernels.o neon_kernels.o
+AVX2=0
 NEON=0
 ANDROID=0
 DEBUG=0

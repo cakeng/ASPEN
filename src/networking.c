@@ -4,10 +4,11 @@ void *net_tx_thread_runtime (void* thread_info)
 {
     networking_engine_t *net_engine = (networking_engine_t*) thread_info;
     pthread_mutex_lock (&net_engine->tx_thread_mutex);
+    atomic_store (&net_engine->tx_run, 0);
     pthread_cond_wait (&net_engine->tx_thread_cond, &net_engine->tx_thread_mutex);
     while (!net_engine->tx_kill)
     {
-        transmission(net_engine);
+        net_engine_send(net_engine);
         if(!net_engine->tx_run)
             pthread_cond_wait (&net_engine->tx_thread_cond, &net_engine->tx_thread_mutex);
     }
@@ -18,10 +19,11 @@ void *net_rx_thread_runtime (void* thread_info)
 {
     networking_engine_t *net_engine = (networking_engine_t*) thread_info;
     pthread_mutex_lock (&net_engine->rx_thread_mutex);
+    atomic_store (&net_engine->rx_run, 0);
     pthread_cond_wait (&net_engine->rx_thread_cond, &net_engine->rx_thread_mutex);
     while (!net_engine->rx_kill)
     {
-        receive(net_engine);
+        net_engine_receive(net_engine);
         if(!net_engine->rx_run) 
             pthread_cond_wait (&net_engine->rx_thread_cond, &net_engine->rx_thread_mutex);
     }
@@ -29,53 +31,20 @@ void *net_rx_thread_runtime (void* thread_info)
 }
 
 
-networking_engine_t* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE device_mode, char* ip, int port, int is_UDP, int pipelined) 
+networking_engine_t* init_net_engine () 
 {
     PRTF("Initializing Networking Engine...\n");
     networking_engine_t *net_engine = calloc (1, sizeof(networking_engine_t));
-    networking_queue_t *networking_queue = calloc (1, sizeof(networking_queue_t));
-    init_networking_queue(networking_queue);
 
-    net_engine->tx_queue = networking_queue;
-    atomic_store (&net_engine->tx_run, 0);
-    atomic_store (&net_engine->rx_run, 0);
+    net_engine->nasm_list = NULL;
+    net_engine->rpool = NULL;
+    net_engine->num_nasms = 0;
+    net_engine->buffer = calloc (NETWORK_BUFFER, 1);
+
+    atomic_store (&net_engine->tx_run, -1);
+    atomic_store (&net_engine->rx_run, -1);
     atomic_store (&net_engine->tx_kill, 0);
     atomic_store (&net_engine->rx_kill, 0);
-
-    net_engine->nasm = nasm;
-    net_engine->rpool = rpool;
-    net_engine->pipelined = pipelined;
-    for (int i=0; i<SCHEDULE_MAX_DEVICES; i++) {
-        net_engine->inference_whitelist[i] = -1;
-    }
-
-    switch (device_mode)
-    {
-    case DEV_EDGE:
-        init_edge(net_engine, ip, port, is_UDP);
-        break;
-    case DEV_SERVER:
-        init_server(net_engine, port, is_UDP);
-        break;
-    default:
-        ERROR_PRTF ("Error - Unsupported socket type. Type: %d\n", net_engine->device_mode);
-        assert(0);
-        break;
-    }
-
-    net_engine->tx_buffer = calloc(NETQUEUE_BUFFER_SIZE, sizeof(char));
-    net_engine->rx_buffer = calloc(NETQUEUE_BUFFER_SIZE, sizeof(char));
-
-    char info_str[MAX_STRING_LEN*2];
-    void *whitelist[NUM_RPOOL_CONDS] = {NULL};
-    whitelist [RPOOL_NASM] = nasm;
-    sprintf (info_str, "%s_%s_%d", nasm->dnn->name, "nasm", nasm->nasm_hash);
-    float queue_per_layer = rpool->ref_dses * NUM_LAYERQUEUE_PER_DSE * NUM_QUEUE_PER_LAYER;
-    unsigned int num_queues = nasm->dnn->num_layers*queue_per_layer;
-    if (num_queues < 1)
-        num_queues = 1;
-    nasm->gpu_idx = rpool->gpu_idx;
-    rpool_add_queue_group (rpool, info_str, num_queues, NULL, whitelist);
 
     net_engine->rx_thread_cond = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
     net_engine->rx_thread_mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
@@ -86,226 +55,216 @@ networking_engine_t* init_networking (nasm_t* nasm, rpool_t* rpool, DEVICE_MODE 
     return net_engine;
 }
 
-void send(networking_engine_t *net_engine) 
+void destroy_net_engine (networking_engine_t *net_engine)
 {
-    ninst_t *target_ninst_list[32];
-    unsigned int num_ninsts = 0;
-    int32_t payload_size = 0;
-    char* buffer_ptr = (char*)net_engine->tx_buffer + sizeof(int32_t);
-
-    if(!net_engine->pipelined && net_engine->device_mode == DEV_SERVER)
-    {
-        if(!atomic_load(&net_engine->nasm->completed))
-            return;
-    }
-
-    pthread_mutex_lock(&net_engine->tx_queue->queue_mutex);
-    num_ninsts = pop_ninsts_from_net_queue(net_engine->tx_queue, target_ninst_list, 1);
-    pthread_mutex_unlock(&net_engine->tx_queue->queue_mutex);
-    if (num_ninsts == 0)
+    if (net_engine == NULL)
         return;
-    double time_sent = get_time_secs_offset();
-    for (int i = 0; i < num_ninsts; i++)
-    {
-        ninst_t* target_ninst = target_ninst_list[i];
-        *(unsigned int*)buffer_ptr = target_ninst_list[i]->ninst_idx;
-        buffer_ptr += sizeof(unsigned int);
-        *(int*)buffer_ptr = target_ninst_list[i]->ldata->nasm->inference_id;
-        buffer_ptr += sizeof(int);
-        unsigned int data_size = target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float);
-        *(unsigned int*)buffer_ptr = data_size;
-        buffer_ptr += sizeof(unsigned int);
-        memcpy(buffer_ptr, target_ninst->network_buf, data_size);
-        free (target_ninst->network_buf);
-        target_ninst->network_buf = NULL;
-        target_ninst->sent_time = time_sent;
-        buffer_ptr += data_size;
-        // PRTF("Networking: Ninst%d, Sending %d bytes, W%d, H%d, data size %d\n", i, data_size + 3*sizeof(int), 
-        //     target_ninst_list[i]->tile_dims[OUT_W], target_ninst_list[i]->tile_dims[OUT_H], 
-        //     target_ninst_list[i]->tile_dims[OUT_W]*target_ninst_list[i]->tile_dims[OUT_H]*sizeof(float));
-    }
-    payload_size = buffer_ptr - (char*)net_engine->tx_buffer - sizeof(int32_t);
-    *(int32_t*)net_engine->tx_buffer = payload_size;
-    payload_size += sizeof(int32_t);
-
-    #ifdef DEBUG
-    PRTF("Networking: Sending %d bytes -", payload_size);
-    for (int i = 0; i < num_ninsts; i++)
-    {
-        ninst_t* target_ninst = target_ninst_list[i];
-        PRTF(" (N%d L%d I%d %ldB)", 
-            target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->inference_id, 
-            target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float));
-    }
-    #endif
-    int32_t bytes_sent = 0;
-    while (bytes_sent < payload_size)
-    {
-        int ret = write(net_engine->comm_sock
-            , (char*)net_engine->tx_buffer + bytes_sent, payload_size - bytes_sent);
-        if (ret < 0)
-        {
-            ERROR_PRTF ( "Error: send() failed. ret: %d\n", ret);
-            assert(0);
-        }
-        bytes_sent += ret;
-    }
-    #ifdef DEBUG
-    PRTF(" - Time taken %fs, %d tx queue remains.\n", (get_time_secs() - time_sent), net_engine->tx_queue->num_stored);
-    #endif
+    pthread_join (net_engine->tx_thread, NULL);
+    pthread_join (net_engine->rx_thread, NULL);
+    pthread_cond_destroy (&net_engine->tx_thread_cond);
+    pthread_cond_destroy (&net_engine->rx_thread_cond);
+    pthread_mutex_destroy (&net_engine->tx_thread_mutex);
+    pthread_mutex_destroy (&net_engine->rx_thread_mutex);
+    free (net_engine->buffer);
+    free (net_engine->nasm_list);
+    free (net_engine);
 }
 
-void receive(networking_engine_t *net_engine) 
+void net_engine_set_rpool (networking_engine_t *net_engine, rpool_t *rpool)
 {
-    
-    int32_t payload_size;
-    int ret = read(net_engine->comm_sock, (char*)&payload_size, sizeof(int32_t));
-    if (ret == -1)
+    if (net_engine == NULL)
     {
+        ERROR_PRTF ("ERROR: net_add_rpool: net_engine is NULL\n");
         return;
     }
-    else if (ret < 0)
+    if (rpool == NULL)
     {
-        ERROR_PRTF ( "Error: recv() failed. ret: %d\n", ret);
-        assert(0);
+        ERROR_PRTF ("ERROR: net_add_rpool: rpool is NULL\n");
+        return;
     }
-    else if (ret == 0)
+    net_engine->rpool = rpool;
+}
+
+void net_engine_add_nasm (networking_engine_t *net_engine, nasm_t *nasm)
+{
+    if (net_engine == NULL)
     {
-        ERROR_PRTF ( "Error: RX Connection closed unexpectedly.\n");
-        assert(0);
+        ERROR_PRTF ("ERROR: net_add_nasm: net_engine is NULL\n");
+        return;
     }
-    else
+    if (nasm == NULL)
     {
-        if (payload_size <= 0)
+        ERROR_PRTF ("ERROR: net_add_nasm: nasm is NULL\n");
+        return;
+    }
+    net_engine->nasm_list = realloc (net_engine->nasm_list, sizeof(nasm_t*) * (net_engine->num_nasms + 1));
+    net_engine->nasm_list[net_engine->num_nasms] = nasm;
+    net_engine->num_nasms++;
+}
+
+void net_engine_send(networking_engine_t *net_engine) 
+{
+    #ifdef DEBUG
+    if (net_engine == NULL)
+    {
+        ERROR_PRTF ("ERROR: net_engine_send: net_engine is NULL\n");
+        return;
+    }
+    #endif
+    for (int i = 0; i < net_engine->num_nasms; i++)
+    {
+        
+        nasm_t *nasm = net_engine->nasm_list[i];
+        if (atomic_load(&nasm->num_ldata_completed) == nasm->num_ldata)
+            continue;
+        for (int j = 0; j < nasm->num_peers; j++)
         {
-            // PRTF("Networking: RX Command %d received - ", payload_size);
-            if (payload_size == RX_STOP_SIGNAL)
+            aspen_peer_t *peer = nasm->peer_map[j];
+            if (peer->sock == -1)
+                continue;
+            if (peer->isUDP)
             {
-                PRTF("RX stop signal received.\n");
-                atomic_store (&net_engine->rx_run, 0);
-                atomic_store (&net_engine->nasm->completed, 1);
-                pthread_mutex_lock (&net_engine->nasm->nasm_mutex);
-                pthread_cond_signal (&net_engine->nasm->nasm_cond);
-                pthread_mutex_unlock (&net_engine->nasm->nasm_mutex);
-                return;
+                ERROR_PRTF ("ERROR: UDP is not supported yet.\n");
+                assert(0);
             }
             else
             {
-                PRTF("Unknown command\n");
-                assert(0);
-            }
-        }
-        int32_t bytes_received = 0;
-        while (bytes_received < payload_size)
-        {
-            ret = read(net_engine->comm_sock
-                , (char*)net_engine->rx_buffer + bytes_received, payload_size - bytes_received);
-            if (ret < 0)
-            {
-                ERROR_PRTF ("Error: recv() failed. ret: %d\n", ret);
-                assert(0);
-            }
-            bytes_received += ret;
-        }
-        #ifdef DEBUG
-        // PRTF("Networking: Received %d bytes -", bytes_received);
-        #endif
-        char* buffer_ptr = (char*)net_engine->rx_buffer;
-        while (buffer_ptr < (char*)net_engine->rx_buffer + bytes_received)
-        {
-            unsigned int ninst_idx = *(unsigned int*)buffer_ptr;
-            buffer_ptr += sizeof(unsigned int);
-            int inference_id = *(int*)buffer_ptr;
-            buffer_ptr += sizeof(int);
-            unsigned int data_size = *(unsigned int*)buffer_ptr;
-            buffer_ptr += sizeof(unsigned int);
-            #ifdef DEBUG
-            if (net_engine->nasm->inference_id != inference_id)
-            {
-                PRTF("Warning: Received inference_id %d is not matched with ninst_idx %d\n", inference_id, ninst_idx);
-                continue;
-            }
-            if (ninst_idx >= net_engine->nasm->num_ninst)
-            {
-                PRTF("Warning: Received ninst_idx %d is not found in nasm\n", ninst_idx);
-                continue;
-            }
-            #endif
-            ninst_t* target_ninst = &net_engine->nasm->ninst_arr[ninst_idx];
-            if (!is_inference_whitelist(net_engine, inference_id))
-            {
-                buffer_ptr += data_size;
-                continue;
-            }
-            if (atomic_exchange (&target_ninst->state, NINST_COMPLETED) == NINST_COMPLETED) 
-            {
-                buffer_ptr += data_size;
-                continue;
-            }
-            #ifdef DEBUG
-            if (data_size != target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float))
-            {
-                ERROR_PRTF ( "Error: Received data size %d is not matched with ninst_idx %d\n", data_size, ninst_idx);
-                assert(0);
-            }
-            #endif
-            copy_buffer_to_ninst_data (target_ninst, buffer_ptr);
-            buffer_ptr += data_size;
-            atomic_store(&target_ninst->state, NINST_COMPLETED);
-            target_ninst->received_time = get_time_secs_offset ();
-            #ifdef DEBUG
-            PRTF("\t[Device %d] (N%d L%d I%d %ldB) state: %d\n",
-                net_engine->device_idx,
-                target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->inference_id, 
-                target_ninst->tile_dims[OUT_W]*target_ninst->tile_dims[OUT_H]*sizeof(float), atomic_load(&target_ninst->state));
-            #endif
-            
-            unsigned int num_ninst_completed = atomic_fetch_add (&target_ninst->ldata->num_ninst_completed , 1);
-
-            if(atomic_load(&target_ninst->state) == NINST_COMPLETED)
-            {
-                // RED_PRTF ("2 Ninst %d(L%d) downloaded\n", target_ninst->ninst_idx, target_ninst->ldata->layer->layer_idx);
-                update_children (net_engine->rpool, target_ninst);
-            }
-            
-            if (num_ninst_completed == target_ninst->ldata->num_ninst - 1)
-            {
-                // printf ("\t\tNet engine completed layer %d of nasm %d\n", 
-                //     target_ninst->ldata->layer->layer_idx, target_ninst->ldata->nasm->nasm_hash);
-                for (int pidx = 0; pidx < NUM_PARENT_ELEMENTS; pidx++)
+                ninst_t **send_arr = net_engine->buffer;
+                pthread_mutex_lock (&peer->tx_queue->occupied_mutex);
+                int send_num = pop_ninsts_from_queue (peer->tx_queue, send_arr, 1);
+                pthread_mutex_unlock (&peer->tx_queue->occupied_mutex);
+                if (send_num == 0)
+                    continue;
+                char *send_buffer = net_engine->buffer + sizeof(ninst_t*) * send_num;
+                memcpy (send_buffer, &send_num, sizeof(int));
+                size_t send_size = sizeof(int);
+                for (int k = 0; k < send_num; k++)
                 {
-                    if (target_ninst->ldata->parent_ldata_idx_arr[pidx] == -1)
-                        continue;
-                    nasm_ldata_t *parent_ldata = &target_ninst->ldata->nasm->ldata_arr[target_ninst->ldata->parent_ldata_idx_arr[pidx]];
-                    unsigned int num_child_ldata_completed = atomic_fetch_add (&parent_ldata->num_child_ldata_completed, 1);
-                    if (num_child_ldata_completed == parent_ldata->num_child_ldata && (parent_ldata != parent_ldata->nasm->ldata_arr))
+                    ninst_t *send_ninst = send_arr[k];
+                    size_t payload_size = sizeof(int) + send_ninst->tile_dims[OUT_H] 
+                        * send_ninst->tile_dims[OUT_W] * sizeof(float);
+                    if (payload_size + send_size > NETWORK_BUFFER)
                     {
-                        free_ldata_out_mat (parent_ldata);
-                        // YELLOW_PRTF ("ldata %d output freed by net engine\n", parent_ldata->layer->layer_idx);
+                        ERROR_PRTF ("ERROR: net_engine_send: payload_size + send_size > NETWORK_BUFFER\n");
+                        assert(0);
+                    }
+                    memcpy (send_buffer + send_size, &send_ninst->ninst_idx, sizeof(int));
+                    copy_ninst_data_to_buffer (send_ninst, send_buffer + send_size + sizeof(int));
+                    send_size += payload_size;
+                }
+                #ifdef DEBUG
+                YELLOW_PRTF ("Networking: Sending %d ninsts to peer %d \\
+                    (HASH %08lx, IP %s, Port %d)\n", send_num, j, peer->peer_hash, peer->ip, peer->listen_port);
+                #endif
+                if (write_bytes (peer->sock, send_buffer, send_size) != send_size)
+                {
+                    ERROR_PRTF ("ERROR: net_engine_send: write_bytes failed\n");
+                    assert(0);
+                }
+            }
+        }
+    }
+}
+
+void net_engine_receive(networking_engine_t *net_engine) 
+{
+    #ifdef DEBUG
+    if (net_engine == NULL)
+    {
+        ERROR_PRTF ("ERROR: net_engine_send: net_engine is NULL\n");
+        return;
+    }
+    #endif
+    for (int i = 0; i < net_engine->num_nasms; i++)
+    {
+        nasm_t *nasm = net_engine->nasm_list[i];
+        if (atomic_load(&nasm->num_ldata_completed) == nasm->num_ldata)
+            continue;
+        for (int j = 0; j < nasm->num_peers; j++)
+        {
+            aspen_peer_t *peer = nasm->peer_map[j];
+            if (peer->sock == -1)
+                continue;
+            if (peer->isUDP)
+            {
+                ERROR_PRTF ("ERROR: UDP is not supported yet.\n");
+                assert(0);
+            }
+            else
+            {
+                char *recv_buffer = net_engine->buffer;
+                int recv_num = 0;
+                if (read_bytes (peer->sock, &recv_num, sizeof(int)) != sizeof(int))
+                {
+                    ERROR_PRTF ("ERROR: net_engine_receive: read_bytes failed\n");
+                    assert(0);
+                }
+                if (recv_num < 0)
+                {
+                    close_tcp_connection (peer, recv_num);
+                    continue;
+                }
+                #ifdef DEBUG
+                YELLOW_PRTF("Networking: Receiving %d ninsts from peer %d \\
+                    (HASH %08lx, IP %s, Port %d)\n", recv_num, j, peer->peer_hash, peer->ip, peer->listen_port);
+                #endif
+                if (recv_num == 0)
+                    continue;
+                for (int k = 0; k < recv_num; k++)
+                {
+                    int ninst_idx = 0;
+                    if (read_bytes (peer->sock, &ninst_idx, sizeof(int)) != sizeof(int))
+                    {
+                        ERROR_PRTF ("ERROR: net_engine_receive: read_bytes failed\n");
+                        assert(0);
+                    }
+                    ninst_t *recv_ninst = &nasm->ninst_arr[ninst_idx];
+                    size_t payload_size = recv_ninst->tile_dims[OUT_H] 
+                        * recv_ninst->tile_dims[OUT_W] * sizeof(float);
+                    if (read_bytes (peer->sock, recv_buffer, payload_size) != payload_size)
+                    {
+                        ERROR_PRTF ("ERROR: net_engine_receive: read_bytes failed\n");
+                        assert(0);
+                    }
+                    copy_buffer_to_ninst_data (recv_ninst, recv_buffer);
+                    recv_ninst->state = NINST_COMPLETED;
+                    int num_dse = net_engine->rpool->ref_dses > 0 ? net_engine->rpool->ref_dses : 1;
+                    update_children (net_engine->rpool, recv_ninst, 
+                        recv_ninst->ldata->num_ninst > num_dse? i/(recv_ninst->ldata->num_ninst/num_dse) : i);
+                    unsigned int num_ninst_completed = atomic_fetch_add 
+                        (&recv_ninst->ldata->num_ninst_completed , 1);
+                    #ifdef DEBUG
+                    RED_PRTF("Networking: %d/%d completed for ldata %d\n"
+                        , num_ninst_completed + 1, recv_ninst->ldata->num_ninst, recv_ninst->ldata->layer->layer_idx);
+                    #endif
+                    if (num_ninst_completed == recv_ninst->ldata->num_ninst - 1)
+                    {
+                        #ifdef DEBUG
+                        GREEN_PRTF ("Networking: Layer %d completed.\n", 
+                            recv_ninst->ldata->layer->layer_idx);
+                        #endif
+                        for (int pidx = 0; pidx < NUM_PARENT_ELEMENTS; pidx++)
+                        {
+                            if (recv_ninst->ldata->parent_ldata_idx_arr[pidx] == -1)
+                                continue;
+                            nasm_ldata_t *parent_ldata = &recv_ninst->ldata->nasm->ldata_arr[recv_ninst->ldata->parent_ldata_idx_arr[pidx]];
+                            unsigned int num_child_ldata_completed = atomic_fetch_add (&parent_ldata->num_child_ldata_completed, 1);
+                            if (num_child_ldata_completed + 1 == parent_ldata->num_child_ldata && (parent_ldata != parent_ldata->nasm->ldata_arr))
+                                free_ldata_out_mat (parent_ldata);
+                        }
+                        
+                        if (recv_ninst->ldata == &nasm->ldata_arr[nasm->num_ldata - 1])
+                        {
+                            // All layers of the nasm is completed.
+                            atomic_store (&nasm->completed, 1);
+                            pthread_mutex_lock (&nasm->nasm_mutex);
+                            pthread_cond_signal (&nasm->nasm_cond);
+                            pthread_mutex_unlock (&nasm->nasm_mutex);
+                        }
                     }
                 }
-
-                atomic_fetch_add (&net_engine->nasm->num_ldata_completed, 1);
-                // If the last layer of the nasm is completed, signal the nasm thread.
-                if(target_ninst->ldata->layer->layer_idx == net_engine->nasm->num_ldata - 1) 
-                {
-                    atomic_store(&net_engine->nasm->num_ldata_completed, net_engine->nasm->num_ldata);
-                    pthread_mutex_lock (&net_engine->nasm->nasm_mutex);
-                    pthread_cond_signal (&net_engine->nasm->nasm_cond);
-                    pthread_mutex_unlock (&net_engine->nasm->nasm_mutex);
-                }
-                if(!net_engine->pipelined)
-                {
-                    // Run SERVER DSEs when all ninst of a layer are downloaded. (Conventional mode)
-                    dse_group_set_enable_device(net_engine->dse_group, net_engine->device_idx, 1);
-                    dse_group_add_prioritize_rpool(net_engine->dse_group, net_engine->device_idx);
-                    dse_group_run(net_engine->dse_group);
-                } 
-            }
+            }       
         }
-        // #ifdef DEBUG
-        //     PRTF("\n");
-        // #endif
     }
 }
 
@@ -316,15 +275,31 @@ void net_engine_run (networking_engine_t *net_engine)
         ERROR_PRTF ("ERROR: net_engine_run: net_engine is NULL\n");
         return;
     }
-    unsigned int state = atomic_exchange (&net_engine->rx_run, 1);
-    if (state != 1)
+    int state = atomic_load (&net_engine->rx_run);
+    while (state == -1)
+        state = atomic_load (&net_engine->rx_run);
+    if (state == 1)
     {
+        return;
+    }
+    else 
+    {
+        pthread_mutex_lock (&net_engine->rx_thread_mutex);
+        atomic_store (&net_engine->rx_run, 1);
         pthread_cond_signal (&net_engine->rx_thread_cond);
         pthread_mutex_unlock (&net_engine->rx_thread_mutex);
     }
-    state = atomic_exchange (&net_engine->tx_run, 1);
-    if (state != 1)
+    state = atomic_load (&net_engine->tx_run);
+    while (state == -1)
+        state = atomic_load (&net_engine->tx_run);
+    if (state == 1)
     {
+        return;
+    }
+    else 
+    {
+        pthread_mutex_lock (&net_engine->tx_thread_mutex);
+        atomic_store (&net_engine->tx_run, 1);
         pthread_cond_signal (&net_engine->tx_thread_cond);
         pthread_mutex_unlock (&net_engine->tx_thread_mutex);
     }
@@ -332,35 +307,31 @@ void net_engine_run (networking_engine_t *net_engine)
 
 void net_engine_stop (networking_engine_t* net_engine)
 {
-    if (net_engine == NULL)
+   if (net_engine == NULL)
     {
-        ERROR_PRTF ("ERROR: net_engine_stop: net_engine is NULL\n");
+        ERROR_PRTF ("ERROR: net_engine_stop: net_engine is NULL");
         return;
     }
-    #ifdef DEBUG
-    PRTF ("Networking: Stopping network engine tx thread...\n");
-    #endif
-    int is_running = atomic_exchange (&net_engine->tx_run, 0);
-    if (is_running == 0)
-        return;
-    pthread_mutex_lock (&net_engine->tx_thread_mutex);
-    #ifdef DEBUG
-    PRTF("Networking: Sending network engine rx thread stop signal...\n");
-    #endif
-    int32_t command = RX_STOP_SIGNAL;
-    int ret = write(net_engine->comm_sock, (char*)&command, sizeof(command));
-    if (ret < 0)
+    int state = atomic_exchange (&net_engine->tx_run, 0);
+    if (state == 0)
     {
-        ERROR_PRTF ( "ERROR: net_engine_sto: send() failed.\n");
-        assert(0);
+        return;
     }
-    #ifdef DEBUG
-    PRTF("Networking: Waiting for network engine rx thread to stop...\n");
-    #endif
-    pthread_mutex_lock (&net_engine->rx_thread_mutex);
-    #ifdef DEBUG
-    PRTF("Networking: Network engine stopped.\n");
-    #endif
+    else 
+    {
+        pthread_mutex_lock (&net_engine->tx_thread_mutex);
+        pthread_mutex_unlock (&net_engine->tx_thread_mutex);
+    }
+    state = atomic_exchange (&net_engine->rx_run, 0);
+    if (state == 0)
+    {
+        return;
+    }
+    else 
+    {
+        pthread_mutex_lock (&net_engine->rx_thread_mutex);
+        pthread_mutex_unlock (&net_engine->rx_thread_mutex);
+    }
 }
 
 void net_engine_destroy (networking_engine_t* net_engine)
@@ -386,14 +357,4 @@ void net_engine_destroy (networking_engine_t* net_engine)
     pthread_join (net_engine->rx_thread, NULL);
 
     free(net_engine);
-}
-
-void net_wait_for_nasm_completion (networking_engine_t *net_engine)
-{
-    pthread_mutex_lock (&net_engine->tx_queue->queue_mutex);
-    if (net_engine->tx_queue->num_stored > 0)
-    {
-        pthread_cond_wait (&net_engine->tx_queue->queue_cond, &net_engine->tx_queue->queue_mutex);
-    }
-    pthread_mutex_unlock (&net_engine->tx_queue->queue_mutex);
 }

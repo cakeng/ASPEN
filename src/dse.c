@@ -34,6 +34,7 @@ int dse_check_compute (dse_t *dse, ninst_t *ninst)
     #endif
     if (ninst->ldata->nasm->num_peers < 2)
         return 1;
+
     HASH_t group_hash = dse->dse_group->my_peer_data->peer_hash;
     if (check_ninst_compute_using_peer_idx (ninst, get_peer_idx(ninst->ldata->nasm, group_hash)))
         return 1;
@@ -64,20 +65,39 @@ void dse_push_to_tx (dse_t *dse, ninst_t *ninst)
     HASH_t dse_hash = dse->my_peer_data->peer_hash;
     for (int i = 0; i < ninst->ldata->nasm->num_peers; i++)
     {
-        if (i == group_hash || i == dse_hash)
+        aspen_peer_t *peer = ninst->ldata->nasm->peer_map[i];
+        if (peer->peer_hash == group_hash || peer->peer_hash == dse_hash)
             continue;
         if (check_ninst_send_using_peer_idx (ninst, i))
         {
-            aspen_peer_t *peer = ninst->ldata->nasm->peer_map[i];
             pthread_mutex_lock (&peer->tx_queue->occupied_mutex);
             push_ninsts_to_queue (peer->tx_queue, &ninst, 1);
             pthread_mutex_unlock (&peer->tx_queue->occupied_mutex);
+            #ifdef DEBUG
+            printf ("DSE %d pushed ninst %08lx to peer %08lx TX queue (IP %s, Port %d, Queued %d)\n", dse->thread_id, ninst->type_hash, peer->peer_hash,
+                    peer->ip, peer->listen_port, peer->tx_queue->num_stored);
+            #endif
         }
     }
 }
 
 void dse_execute (dse_t *dse, ninst_t *ninst)
 {
+    #ifdef DEBUG
+    if (dse == NULL || ninst == NULL)
+    {
+        ERROR_PRTF ("Error: Invalid arguments to dse_execute()");
+        assert (0);
+    }
+    if (ninst->state != NINST_READY)
+    {
+        ERROR_PRTF ("Error: ninst->state != NINST_READY in dse_execute() - State: %s", 
+            ninst_state_str[ninst->state]);
+        assert (0);
+    }
+    printf ("DSE %d executing ninst %d (L%d)\n"
+        , dse->thread_id, ninst->ninst_idx, ninst->ldata->layer->layer_idx);
+    #endif
     switch (ninst->ldata->layer->type)
     {
         case CONV_LAYER:
@@ -117,6 +137,9 @@ void dse_execute (dse_t *dse, ninst_t *ninst)
             tiled_v_attention (ninst, dse);
             break;
         default:
+            #ifdef DEBUG
+            printf ("WARNING: Skipping layer type %s...\n", layer_type_str[ninst->ldata->layer->type]);
+            #endif
             break;
     }
 }
@@ -159,12 +182,10 @@ void dse_schedule (dse_t *dse)
         
         nasm_t *nasm = ninst->ldata->nasm;
         unsigned int num_ldata_completed = atomic_fetch_add (&nasm->num_ldata_completed, 1);
-        if (num_ldata_completed == nasm->num_ldata - 1)
+        if (ninst->ldata == &nasm->ldata_arr[nasm->num_ldata - 1])
         {
             // All layers of the nasm is completed.
             atomic_store (&nasm->completed, 1);
-            rpool_queue_group_t *rpool_queue_group 
-                = get_queue_group_from_nasm (dse->rpool, ninst->ldata->nasm);
             pthread_mutex_lock (&nasm->nasm_mutex);
             pthread_cond_signal (&nasm->nasm_cond);
             pthread_mutex_unlock (&nasm->nasm_mutex);
@@ -535,7 +556,7 @@ void dse_stop (dse_t *dse)
         ERROR_PRTF ("ERROR: dse_stop: dse is NULL");
         return;
     }
-    unsigned int state = atomic_exchange (&dse->run, 0);
+    int state = atomic_exchange (&dse->run, 0);
     if (state == 0)
     {
         return;
@@ -777,10 +798,8 @@ void push_first_layer_to_rpool (rpool_t *rpool, nasm_t *nasm, void* input_data)
             ERROR_PRTF ("Error: ninst->state != NINST_NOT_READY in dse_push_first_layer_to_rpool()");
             assert (0);
         }
-        ninst->state = NINST_COMPLETED;
-        atomic_fetch_add (&ninst->ldata->num_ninst_completed , 1);
-        int num_dse = rpool->ref_dses > 0 ? rpool->ref_dses : 1;
-        update_children (rpool, ninst, ldata->num_ninst > num_dse? i/(ldata->num_ninst/num_dse) : i);
+        ninst->state = NINST_READY;
+        rpool_push_ninsts (rpool, &ninst, 1, 0);
     }
     atomic_fetch_add (&nasm->num_ldata_completed, 1);
 }

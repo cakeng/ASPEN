@@ -110,13 +110,13 @@ int check_ninst_compute_using_peer_idx (ninst_t *ninst, int peer_idx)
         ERROR_PRTF ("ERROR: ninst is NULL.");
         assert(0);
     }
-    if (peer_idx < 0 || peer_idx >= ninst->ldata->nasm->num_peers)
+    if (peer_idx >= ninst->ldata->nasm->num_peers)
     {
         ERROR_PRTF ("ERROR: peer_idx %d is out of range [0, %d].", peer_idx, ninst->ldata->nasm->num_peers);
         assert(0);
     }
     #endif
-    if (ninst->peer_flag == NULL)
+    if (ninst->peer_flag == NULL || peer_idx < 0)
         return 0;
     return ninst->peer_flag[peer_idx] & PEER_FLAG_COMPUTE;
 
@@ -130,13 +130,13 @@ int check_ninst_send_using_peer_idx (ninst_t *ninst, int peer_idx)
         ERROR_PRTF ("ERROR: ninst is NULL.");
         assert(0);
     }
-    if (peer_idx < 0 || peer_idx >= ninst->ldata->nasm->num_peers)
+    if (peer_idx >= ninst->ldata->nasm->num_peers)
     {
         ERROR_PRTF ("ERROR: peer_idx %d is out of range [0, %d].", peer_idx, ninst->ldata->nasm->num_peers);
         assert(0);
     }
     #endif
-    if (ninst->peer_flag == NULL)
+    if (ninst->peer_flag == NULL || peer_idx < 0)
         return 0;
     return ninst->peer_flag[peer_idx] & PEER_FLAG_SEND;
 }
@@ -292,6 +292,11 @@ void sched_set_input_offload (nasm_t *nasm, aspen_peer_t **peer_list, int num_pe
         set_ninst_compute_peer_idx (ninst, 1);
     }
     sched_nasm_send_using_child_compute (nasm);
+    for (int i = 0; i < nasm->ldata_arr[0].num_ninst; i++)
+    {
+        ninst_t *ninst = nasm->ldata_arr[0].ninst_arr_start + i;
+        set_ninst_compute_peer_idx (ninst, 0);
+    }
     for (int i = 0; i < nasm->ldata_arr[nasm->num_ldata - 1].num_ninst; i++)
     {
         ninst_t *ninst = nasm->ldata_arr[nasm->num_ldata - 1].ninst_arr_start + i;
