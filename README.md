@@ -2,7 +2,7 @@
 
 This is the proof-of-concept CPU implementation of ASPEN used for the NeurIPS'23 paper **"ASPEN: Breaking Operator Barriers for Efficient Parallelization of Deep Neural Networks"**.  [[OpenReview Link](https://openreview.net/forum?id=eTp4RetK74)] 
 
-Below is a poster description of our work. You can find a more detailed presentation slide deck and the full paper in the following link. [[NeurIPS 2023 Link](https://neurips.cc/virtual/2023/poster/70957)]
+Below is a poster description of our work. You can find a more detailed presentation slide deck and the full paper in the following link. (Requires NeurIPS 2023 Login) [[NeurIPS 2023 Link](https://neurips.cc/virtual/2023/poster/70957)]
 
 ![NeurIPS23_ASPEN_Poster_Small.png](./NeurIPS23_ASPEN_Poster_Small.png)
 
